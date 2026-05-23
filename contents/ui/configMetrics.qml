@@ -1,5 +1,3 @@
-pragma ComponentBehavior: Bound
-
 import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
@@ -97,29 +95,15 @@ KCM.SimpleKCM {
             rowHeight: Kirigami.Units.gridUnit * 2
 
             rowContent: Component {
-                RowLayout {
-                    id: rowRoot
-                    // Filled by DraggableList — see its docstring contract.
-                    property var rowModel
-                    property int rowIndex
+                MetricRow {
+                    // The Loader (inside DraggableList) puts the row data
+                    // on us as `parent.rowModel` / `parent.rowIndex`.
+                    readonly property string _metricId: parent && parent.rowModel ? parent.rowModel.metricId : ""
 
-                    readonly property string metricId: rowRoot.rowModel ? rowRoot.rowModel.metricId : ""
-
-                    spacing: Kirigami.Units.smallSpacing
-
-                    QQC2.CheckBox {
-                        text: Catalog.labelFor(rowRoot.metricId)
-                        checked: page.isEnabled(rowRoot.metricId)
-                        onClicked: page.setEnabled(rowRoot.metricId, checked)
-                        Layout.minimumWidth: Kirigami.Units.gridUnit * 5
-                    }
-
-                    QQC2.Label {
-                        text: page.metricDescriptions[rowRoot.metricId] || ""
-                        opacity: 0.55
-                        Layout.fillWidth: true
-                        elide: Text.ElideRight
-                    }
+                    metricId: _metricId
+                    enabled: page.isEnabled(_metricId)
+                    description: page.metricDescriptions[_metricId] || ""
+                    onToggled: on => page.setEnabled(_metricId, on)
                 }
             }
 

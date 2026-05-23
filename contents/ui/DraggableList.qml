@@ -1,5 +1,3 @@
-pragma ComponentBehavior: Bound
-
 import QtQuick
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
@@ -13,26 +11,32 @@ import "ReorderLogic.js" as Logic
 //         model: myListModel
 //         rowHeight: 40
 //         rowContent: Component {
-//             RowLayout {
-//                 // The rowContent root MUST declare these two properties —
-//                 // they are filled by DraggableList for each row:
-//                 property var rowModel       // ListModel role object
-//                 property int rowIndex       // 0-based row position
+//             Item {
+//                 // Row data is forwarded by DraggableList onto the Loader
+//                 // that hosts this Component — read it via `parent`:
+//                 readonly property string fooId: parent && parent.rowModel
+//                                                 ? parent.rowModel.fooId
+//                                                 : ""
 //                 // ... your row content here ...
 //             }
 //         }
 //         onReordered: (from, to) => { ... commit your new order ... }
 //     }
 //
-// Implementation notes:
-//   - We do NOT use QML's Drag/DropArea. They're hard to reason about (state
-//     persists across drags, hit-testing depends on Drag.hotSpot in opaque
-//     ways). Instead we track mouseY manually via a single MouseArea over
-//     the handle and compute the hit row arithmetically.
-//   - The dragged row floats by reparenting `rowBg` to the ListView root
-//     and binding its y to a shared `draggedY` property.
-//   - Other rows shift via a Translate transform computed by
-//     Logic.computeYShift() — covered by tests in tests/reorder-logic.test.mjs.
+// Implementation — based on Qt 6's Dynamic View Ordering tutorial:
+// https://doc.qt.io/qt-6/qtquick-tutorials-dynamicview-dynamicview2-example.html
+//
+//   - The drag handle is a MouseArea on the left strip; it uses Qt's native
+//     `drag.target` to move the row's content Rectangle along the Y axis.
+//     Qt's mouse-grab and coordinate handling does the heavy lifting — no
+//     manual mapToItem / mouseY tracking.
+//   - The content Rectangle's `Drag.active` mirrors the MouseArea's drag,
+//     which lights up the per-row `DropArea`s. When a DropArea fires
+//     `onEntered`, we record the target index — that's how reorder works
+//     without poking the model directly during the drag.
+//   - Other rows shift visually via a Translate transform driven by
+//     `Logic.computeYShift()` (pure JS, tested in tests/reorder-logic.test.mjs).
+//   - On release the parent commits the move via the `reordered` signal.
 
 ListView {
     id: root
@@ -49,7 +53,6 @@ ListView {
     // ── Internal state ──────────────────────────────────────────────────
     property int _dragSource: -1
     property int _dropTarget: -1
-    property real _draggedY: 0   // y of the floating row's CENTER in content coords
     readonly property real _step: rowHeight + rowSpacing
 
     // ── ListView config ─────────────────────────────────────────────────
@@ -58,8 +61,6 @@ ListView {
     implicitHeight: Math.max(1, count) * _step
     boundsBehavior: Flickable.StopAtBounds
 
-    // Animate rows that get pushed aside by the model `move()` on drop.
-    // (Pre-drop animation is handled by the per-row Translate's Behavior.)
     moveDisplaced: Transition {
         NumberAnimation {
             properties: "y"
@@ -70,28 +71,16 @@ ListView {
 
     delegate: Item {
         id: row
-
-        // Bound mode (pragma above) requires every delegate-scope name to be
-        // explicit. `model` carries ListModel roles; `index` is the row's
-        // position. Both must be declared `required` so the QML compiler
-        // knows where they come from.
-        required property var model
-        required property int index
-
         width: ListView.view.width
         height: root.rowHeight
 
-        readonly property bool held: root._dragSource === row.index
-        readonly property int rowIndex: row.index
+        readonly property bool held: handleArea.drag.active
+        readonly property real yShift: Logic.computeYShift(index, root._dragSource, root._dropTarget, root._step)
 
-        // Visual shift to "make room" for the dragged item. Applied to
-        // rowBg only — NOT to `row` itself, so the handle MouseArea (a
-        // sibling of rowBg) stays at the row's model position, which keeps
-        // the mouseY hit-testing intuitive.
-        readonly property real yShift: Logic.computeYShift(row.index, root._dragSource, root._dropTarget, root._step)
-
+        // The row's visible content. While dragging it reparents to the
+        // ListView contentItem so it can float above the other rows.
         Rectangle {
-            id: rowBg
+            id: content
             width: row.width
             height: row.height
             anchors.horizontalCenter: parent.horizontalCenter
@@ -102,10 +91,15 @@ ListView {
             border.color: Qt.rgba(1, 1, 1, 0.08)
             z: row.held ? 100 : 0
 
-            // Translate is the *only* visual displacement during a drag.
-            // When held → no Translate (the ParentChange + y in the State
-            // takes over). When not held → Translate applies yShift, with
-            // a smooth Behavior so it eases into / out of position.
+            // Light up the drag-and-drop signaling system whenever the
+            // handle's MouseArea drag is active. Without this the DropAreas
+            // never get onEntered events.
+            Drag.active: handleArea.drag.active
+            Drag.hotSpot.x: width / 2
+            Drag.hotSpot.y: height / 2
+            Drag.source: row
+
+            // Visual "make room" shift for non-dragged rows.
             transform: Translate {
                 y: row.held ? 0 : row.yShift
                 Behavior on y {
@@ -116,16 +110,17 @@ ListView {
                 }
             }
 
+            // While the handle is dragging, free `content` from its anchors
+            // and reparent it to the contentItem so it floats above siblings.
+            // Qt's drag.target binding moves it from there.
             states: State {
                 when: row.held
                 ParentChange {
-                    target: rowBg
-                    parent: root
-                    x: 0
-                    y: root._draggedY - row.height / 2
+                    target: content
+                    parent: root.contentItem
                 }
                 AnchorChanges {
-                    target: rowBg
+                    target: content
                     anchors.horizontalCenter: undefined
                     anchors.verticalCenter: undefined
                 }
@@ -154,32 +149,20 @@ ListView {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     sourceComponent: root.rowContent
-                    // The rowContent Component lives in another file; with
-                    // `pragma ComponentBehavior: Bound` it cannot reach into
-                    // this delegate's scope. Forward `model` and `index`
-                    // explicitly — the rowContent root must declare matching
-                    // `property var rowModel` / `property int rowIndex`.
-                    Binding {
-                        target: contentLoader.item
-                        property: "rowModel"
-                        value: row.model
-                        when: contentLoader.item !== null
-                        restoreMode: Binding.RestoreNone
-                    }
-                    Binding {
-                        target: contentLoader.item
-                        property: "rowIndex"
-                        value: row.index
-                        when: contentLoader.item !== null
-                        restoreMode: Binding.RestoreNone
-                    }
+
+                    // Forward row data to the rowContent Component. The
+                    // loaded Item reads these via `parent.rowModel` etc. —
+                    // QML's implicit context-property propagation through
+                    // Loader is unreliable across Qt versions.
+                    property var rowModel: model
+                    property int rowIndex: index
                 }
             }
         }
 
-        // The drag handle MouseArea is a SIBLING of rowBg — anchored to
-        // `row` (the delegate Item), so it does NOT move when rowBg gets
-        // reparented to the ListView during a drag.
+        // The drag handle. Drives `content` via Qt's native drag.target so
+        // the cursor and the floating row stay in sync automatically — no
+        // mapToItem, no manual y bookkeeping.
         MouseArea {
             id: handleArea
             anchors.left: parent.left
@@ -189,40 +172,35 @@ ListView {
             cursorShape: Qt.SizeVerCursor
             hoverEnabled: true
 
-            onPressed: function (mouse) {
-                const p = mapToItem(root.contentItem, mouse.x, mouse.y);
-                root._dragSource = row.index;
-                root._dropTarget = row.index;
-                root._draggedY = p.y;
-            }
-            onPositionChanged: function (mouse) {
-                if (!pressed)
-                    return;
-                const p = mapToItem(root.contentItem, mouse.x, mouse.y);
-                root._draggedY = p.y;
-                // Hit-test arithmetically — no DropArea involved. The result
-                // is the model index the cursor is over right now.
-                root._dropTarget = Logic.computeDropTarget(p.y, root._step, root.count);
+            drag.target: content
+            drag.axis: Drag.YAxis
+            drag.smoothed: false
+
+            onPressed: {
+                root._dragSource = index;
+                root._dropTarget = index;
             }
             onReleased: {
                 const src = root._dragSource;
                 const tgt = root._dropTarget;
-                // Reset state BEFORE emitting the signal so the parent's
-                // model edit happens with the drag already cleared. This
-                // avoids any race where bindings briefly see (src, tgt)
-                // pointing into a freshly-mutated model.
                 root._dragSource = -1;
                 root._dropTarget = -1;
                 if (src >= 0 && tgt >= 0 && src !== tgt) {
                     root.reordered(src, tgt);
                 }
             }
-            // If the press is cancelled (window loses focus etc.), don't
-            // leave the list in a stuck "dragging" state.
             onCanceled: {
                 root._dragSource = -1;
                 root._dropTarget = -1;
             }
+        }
+
+        // Hit-test area: stays at the row's model position regardless of
+        // visual shifts. When the dragged Rectangle's hotspot enters it,
+        // we record this row as the current drop target.
+        DropArea {
+            anchors.fill: parent
+            onEntered: root._dropTarget = index
         }
     }
 }

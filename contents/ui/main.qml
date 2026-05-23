@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import org.kde.plasma.plasmoid
 import org.kde.plasma.core as PlasmaCore
 import org.kde.ksysguard.sensors as Sensors
+import "MetricsCatalog.js" as Catalog
 
 PlasmoidItem {
     id: root
@@ -11,12 +12,15 @@ PlasmoidItem {
     Plasmoid.backgroundHints: PlasmaCore.Types.NoBackground
 
     // ── Sensors ──────────────────────────────────────────────────────────
-    Sensors.Sensor { id: cpuTotal;   sensorId: "cpu/all/usage" }
-    Sensors.Sensor { id: ramSensor;  sensorId: "memory/physical/usedPercent" }
-    Sensors.Sensor { id: swapSensor; sensorId: "memory/swap/usedPercent" }
-    Sensors.Sensor { id: gpuSensor;  sensorId: "gpu/all/usage" }
-    Sensors.Sensor { id: diskSensor; sensorId: "disk/all/usedPercent" }
+    // The sensor IDs come from Catalog. Sensors.Sensor is a QML-only type so
+    // the instances themselves must be declared here.
+    Sensors.Sensor { id: cpuTotal;   sensorId: Catalog.sensorIdFor("cpu")  }
+    Sensors.Sensor { id: ramSensor;  sensorId: Catalog.sensorIdFor("ram")  }
+    Sensors.Sensor { id: swapSensor; sensorId: Catalog.sensorIdFor("swap") }
+    Sensors.Sensor { id: gpuSensor;  sensorId: Catalog.sensorIdFor("gpu")  }
+    Sensors.Sensor { id: diskSensor; sensorId: Catalog.sensorIdFor("disk") }
 
+    // Per-core CPU sensors (6 cores on this rig — see CLAUDE.md).
     Sensors.Sensor { id: cpu0; sensorId: "cpu/cpu0/usage" }
     Sensors.Sensor { id: cpu1; sensorId: "cpu/cpu1/usage" }
     Sensors.Sensor { id: cpu2; sensorId: "cpu/cpu2/usage" }
@@ -29,19 +33,26 @@ PlasmoidItem {
         cpu3.value || 0, cpu4.value || 0, cpu5.value || 0
     ]
 
-    // ── Enabled metrics (read from config, filtered to known order) ─────
-    readonly property var metricOrder: ["cpu", "ram", "swap", "gpu", "disk"]
-    readonly property var enabledList: {
-        const csv = Plasmoid.configuration.enabledMetrics || ""
-        const set = new Set(csv.split(",").filter(function(x) { return x }))
-        return metricOrder.filter(function(id) { return set.has(id) })
+    // ── id → sensor instance lookup (replaces a chained ternary) ────────
+    readonly property var sensorMap: ({
+        cpu:  cpuTotal,
+        ram:  ramSensor,
+        swap: swapSensor,
+        gpu:  gpuSensor,
+        disk: diskSensor,
+    })
+
+    function metricValue(id) {
+        const s = sensorMap[id]
+        return s ? (s.value || 0) : 0
     }
 
-    function metricLabel(id) {
-        return ({
-            cpu: "CPU", ram: "RAM", swap: "SWAP", gpu: "GPU", disk: "DISK"
-        })[id] || id.toUpperCase()
-    }
+    // ── Enabled metrics (read config + filter through Catalog) ──────────
+    readonly property var enabledList:
+        Catalog.filterByOrder(
+            Catalog.parseCsv(Plasmoid.configuration.enabledMetrics),
+            Catalog.parseCsv(Plasmoid.configuration.metricOrder)
+        )
 
     // ── Layout ───────────────────────────────────────────────────────────
     fullRepresentation: GridLayout {
@@ -65,14 +76,9 @@ PlasmoidItem {
                 Layout.minimumWidth: 80
                 Layout.minimumHeight: 80
 
-                label: root.metricLabel(modelData)
-                value: modelData === "cpu"  ? (cpuTotal.value   || 0)
-                     : modelData === "ram"  ? (ramSensor.value  || 0)
-                     : modelData === "swap" ? (swapSensor.value || 0)
-                     : modelData === "gpu"  ? (gpuSensor.value  || 0)
-                     : modelData === "disk" ? (diskSensor.value || 0)
-                     : 0
-                nestedValues: (modelData === "cpu" && Plasmoid.configuration.showCpuCores)
+                label:        Catalog.labelFor(modelData)
+                value:        root.metricValue(modelData)
+                nestedValues: modelData === "cpu" && Plasmoid.configuration.showCpuCores
                               ? root.coreValues : []
                 textOpacity:  Plasmoid.configuration.textOpacity
                 trackOpacity: Plasmoid.configuration.trackOpacity

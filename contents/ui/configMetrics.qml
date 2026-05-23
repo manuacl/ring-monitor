@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import org.kde.kcmutils as KCM
 import "ReorderLogic.js" as Logic
+import "MetricsCatalog.js" as Catalog
 
 KCM.SimpleKCM {
     id: page
@@ -28,23 +29,22 @@ KCM.SimpleKCM {
     property var cfg_enabledMetricsDefault
     property var cfg_showCpuCoresDefault
 
-    readonly property var metricMeta: ({
-        cpu:  { label: i18n("CPU"),  description: i18n("Overall processor usage") },
-        ram:  { label: i18n("RAM"),  description: i18n("Physical memory used") },
-        swap: { label: i18n("Swap"), description: i18n("Swap usage") },
-        gpu:  { label: i18n("GPU"),  description: i18n("GPU usage") },
-        disk: { label: i18n("Disk"), description: i18n("Disk space used (all partitions)") },
+    // Descriptions live here (need i18n() literals for xgettext). Labels
+    // come from MetricsCatalog (uppercase abbreviations, no i18n needed).
+    readonly property var metricDescriptions: ({
+        cpu:  i18n("Overall processor usage"),
+        ram:  i18n("Physical memory used"),
+        swap: i18n("Swap usage"),
+        gpu:  i18n("GPU usage"),
+        disk: i18n("Disk space used (all partitions)"),
     })
 
-    readonly property var enabledList:
-        (cfg_enabledMetrics || "").split(",").filter(function(x) { return x })
+    readonly property var enabledList: Catalog.parseCsv(cfg_enabledMetrics)
 
     function isEnabled(id) { return enabledList.indexOf(id) !== -1 }
 
     function setEnabled(id, on) {
-        const arr = enabledList.filter(function(x) { return x !== id })
-        if (on) arr.push(id)
-        cfg_enabledMetrics = arr.join(",")
+        cfg_enabledMetrics = Catalog.toggleEnabled(enabledList, id, on).join(",")
     }
 
     // ── Order model — mirror of cfg_metricOrder, mutable for reorder ──
@@ -57,7 +57,7 @@ KCM.SimpleKCM {
     }
     function loadOrder() {
         orderModel.clear()
-        const ids = (cfg_metricOrder || "").split(",").filter(function(x) { return x })
+        const ids = Catalog.parseCsv(cfg_metricOrder)
         for (let i = 0; i < ids.length; i++) {
             orderModel.append({ metricId: ids[i] })
         }
@@ -92,18 +92,14 @@ KCM.SimpleKCM {
                     spacing: Kirigami.Units.smallSpacing
 
                     QQC2.CheckBox {
-                        text: page.metricMeta[model.metricId]
-                              ? page.metricMeta[model.metricId].label
-                              : model.metricId
+                        text: Catalog.labelFor(model.metricId)
                         checked: page.isEnabled(model.metricId)
                         onClicked: page.setEnabled(model.metricId, checked)
                         Layout.minimumWidth: Kirigami.Units.gridUnit * 5
                     }
 
                     QQC2.Label {
-                        text: page.metricMeta[model.metricId]
-                              ? page.metricMeta[model.metricId].description
-                              : ""
+                        text: page.metricDescriptions[model.metricId] || ""
                         opacity: 0.55
                         Layout.fillWidth: true
                         elide: Text.ElideRight

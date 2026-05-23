@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Pure logic for drag-and-drop reordering of a vertical list.
 //
 // This file is dual-loaded:

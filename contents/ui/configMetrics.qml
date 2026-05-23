@@ -84,23 +84,41 @@ KCM.SimpleKCM {
             interactive: false
             model: orderModel
 
-            displaced: Transition {
-                NumberAnimation { properties: "y"; duration: 180; easing.type: Easing.OutCubic }
-            }
+            // Deferred-drop reorder pattern:
+            //   - On press, dragSourceIndex captures the picked row.
+            //   - As the user drags over other rows, DropArea sets dropTargetIndex
+            //     but the model is NOT mutated. Other rows shift via `transform`
+            //     to create a gap at the projected drop location.
+            //   - On release, the actual orderModel.move() commits the new order.
+            property int dragSourceIndex: -1
+            property int dropTargetIndex: -1
 
             delegate: Item {
                 id: row
                 width: ListView.view.width
                 height: Kirigami.Units.gridUnit * 2
 
-                property bool held: false
-                property int rowIndex: index
-                property string metricId: model.metricId
+                readonly property bool held: listView.dragSourceIndex === index
+                readonly property int rowIndex: index
+                readonly property string metricId: model.metricId
 
-                // Rectangle uses center anchors + explicit size — this way when
-                // ParentChange/AnchorChanges fire on drag, the size survives
-                // (undoing anchors.fill leaves it 0x0; undoing centers leaves
-                // the width/height intact so it stays visible while dragged).
+                // Visual shift to "make room" for the dragged item. Held row
+                // doesn't shift — it floats free under the mouse via ParentChange.
+                readonly property real yShift: {
+                    const src = listView.dragSourceIndex
+                    const tgt = listView.dropTargetIndex
+                    if (src < 0 || tgt < 0 || src === tgt) return 0
+                    if (index === src) return 0   // the dragged row, ignore
+                    const step = row.height + listView.spacing
+                    if (src < tgt && index > src && index <= tgt) return -step
+                    if (src > tgt && index >= tgt && index < src) return step
+                    return 0
+                }
+                transform: Translate {
+                    y: row.yShift
+                    Behavior on y { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+                }
+
                 Rectangle {
                     id: rowBg
                     width: row.width
@@ -190,23 +208,31 @@ KCM.SimpleKCM {
                     cursorShape: Qt.SizeVerCursor
                     drag.target: rowBg
                     drag.axis: Drag.YAxis
-                    onPressed: row.held = true
+                    onPressed: {
+                        listView.dragSourceIndex = row.rowIndex
+                        listView.dropTargetIndex = row.rowIndex
+                    }
                     onReleased: {
-                        row.held = false
+                        const src = listView.dragSourceIndex
+                        const tgt = listView.dropTargetIndex
+                        listView.dragSourceIndex = -1
+                        listView.dropTargetIndex = -1
                         rowBg.Drag.drop()
+                        if (src >= 0 && tgt >= 0 && src !== tgt) {
+                            orderModel.move(src, tgt, 1)
+                            page.commitOrder()
+                        }
                     }
                 }
 
+                // DropArea tracks the proposed drop position. We don't mutate
+                // the model here — that happens on release. Items shift via
+                // the `transform` binding above based on dropTargetIndex.
                 DropArea {
                     anchors.fill: parent
                     onEntered: function(drag) {
-                        if (!drag.source) return
-                        const from = drag.source.rowIndex
-                        const to = row.rowIndex
-                        if (from !== to && from >= 0 && to >= 0) {
-                            orderModel.move(from, to, 1)
-                            page.commitOrder()
-                        }
+                        if (!drag.source || drag.source === row) return
+                        listView.dropTargetIndex = row.rowIndex
                     }
                 }
             }

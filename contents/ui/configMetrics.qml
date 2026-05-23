@@ -11,6 +11,13 @@ KCM.SimpleKCM {
     property string cfg_enabledMetrics
     property alias cfg_showCpuCores: coresCheck.checked
 
+    // HACK: declared to suppress "no property called cfg_xxx" warnings from
+    // Plasma trying to set every config key on every page. See KDE bug 484541.
+    property var cfg_orientation
+    property var cfg_textOpacity
+    property var cfg_trackOpacity
+    property var cfg_arcOpacity
+
     readonly property var metricMeta: ({
         cpu:  { label: i18n("CPU"),  description: i18n("Overall processor usage") },
         ram:  { label: i18n("RAM"),  description: i18n("Physical memory used") },
@@ -30,9 +37,7 @@ KCM.SimpleKCM {
     }
 
     // ── Order model (mirror of cfg_metricOrder, mutable for drag-and-drop) ──
-    ListModel {
-        id: orderModel
-    }
+    ListModel { id: orderModel }
 
     function loadOrder() {
         orderModel.clear()
@@ -47,10 +52,12 @@ KCM.SimpleKCM {
         cfg_metricOrder = arr.join(",")
     }
 
+    // Reload model whenever the config key changes (initial load + external edits)
+    onCfg_metricOrderChanged: loadOrder()
     Component.onCompleted: loadOrder()
 
     ColumnLayout {
-        anchors.fill: parent
+        Layout.fillWidth: true
         spacing: Kirigami.Units.smallSpacing
 
         QQC2.Label {
@@ -63,7 +70,7 @@ KCM.SimpleKCM {
         ListView {
             id: listView
             Layout.fillWidth: true
-            Layout.preferredHeight: orderModel.count * (Kirigami.Units.gridUnit * 2 + 4)
+            Layout.preferredHeight: Math.max(1, orderModel.count) * (Kirigami.Units.gridUnit * 2 + 4)
             spacing: 4
             interactive: false
             model: orderModel
@@ -183,7 +190,5 @@ KCM.SimpleKCM {
             id: coresCheck
             text: i18n("Show CPU cores as concentric rings")
         }
-
-        Item { Layout.fillHeight: true }
     }
 }

@@ -102,3 +102,113 @@ re-renders. No "setState" needed.
   to the **Shape's** `width/2`, not the Item's — give the Shape an `id` and reference it.
 - `org.kde.ksysguard.sensors` won't error if a sensor ID doesn't exist; `value` will
   just stay at 0 (or NaN). Be defensive: `cpuSensor.value || 0`.
+
+## Config dialog gotchas (Plasma 6)
+
+The widget exposes config keys via `package/contents/config/main.xml`. Plasma 6 then
+creates `cfg_<keyName>` properties on each config page so `property alias cfg_x: control.value`
+binds the control to the persisted setting. Pitfalls:
+
+- **KDE bug 484541** — Plasma tries to set EVERY `cfg_<key>` from main.xml on EVERY
+  config page, not just the keys that page handles. If a page doesn't declare a
+  property for a key, the journal logs "Setting initial properties failed: ... does
+  not have a property called cfg_X". Workaround: declare empty placeholders in
+  every page for the keys it doesn't handle:
+  ```qml
+  // HACK: suppress KDE bug 484541 warnings
+  property var cfg_otherKey1
+  property var cfg_otherKey2
+  ```
+- **`KCM.SimpleKCM` does NOT accept `anchors.fill: parent` on its content child.**
+  The child should size itself implicitly. Using `anchors.fill: parent` triggers
+  "Created graphical object was not placed in the graphics scene" and the page
+  renders blank. Use `Layout.fillWidth: true` on the layout child and let it size
+  vertically by its content.
+- After editing `main.xml`, you must **restart plasmashell** for the new keys to
+  be picked up:
+  `systemctl --user restart plasma-plasmashell.service`
+  Editing QML alone is hot-reloaded by the symlink, but config schema changes are not.
+
+## Drag-and-drop reorderable list (pattern)
+
+The Metrics page uses this pattern for reorderable rows. Boilerplate but reliable:
+
+```qml
+ListView {
+    model: ListModel { id: orderModel }
+    displaced: Transition { NumberAnimation { properties: "y"; duration: 180 } }
+
+    delegate: Item {
+        id: row
+        width: ListView.view.width
+        property bool held: false
+        property int rowIndex: index
+
+        Rectangle {
+            id: rowBg
+            anchors.fill: parent
+            Drag.active: row.held
+            Drag.source: row    // referenced from DropArea
+            states: State {
+                when: row.held
+                ParentChange { target: rowBg; parent: ListView.view }
+                AnchorChanges { target: rowBg; anchors.fill: undefined }
+            }
+            // … visual + drag-handle MouseArea that sets row.held
+        }
+
+        DropArea {
+            anchors.fill: parent
+            onEntered: function(drag) {
+                const from = drag.source.rowIndex
+                const to = row.rowIndex
+                if (from !== to) { orderModel.move(from, to, 1); commitOrder() }
+            }
+        }
+    }
+}
+```
+
+Persist the order to a CSV config string after each `orderModel.move`.
+
+## Orientation switch (Row vs Column)
+
+To support both horizontal and vertical layouts with a single config toggle:
+
+```qml
+GridLayout {
+    readonly property bool vertical: Plasmoid.configuration.orientation === "vertical"
+    columns: vertical ? 1 : enabledList.length
+    rowSpacing: 12
+    columnSpacing: 12
+    // delegates set Layout.fillWidth + Layout.fillHeight to expand into the cells
+}
+```
+
+`GridLayout` handles both directions cleanly: `columns: 1` → vertical stack;
+`columns: N` → single row of N items.
+
+## Confirmed sensor IDs on this machine
+
+User has i5-9600K (6 cores) + RTX 2070 + Ethernet `eno1` + disks sda/sdb/sdc/nvme0n1.
+`busctl --user call org.kde.ksystemstats1 /org/kde/ksystemstats1 org.kde.ksystemstats1 allSensors`
+confirmed these IDs (relevant subset):
+
+- `cpu/all/usage`, `cpu/all/averageTemperature`, `cpu/all/coreCount`, `cpu/all/averageFrequency`
+- `cpu/cpu0/usage` … `cpu/cpu5/usage` (per-core)
+- `memory/physical/usedPercent`, `memory/swap/usedPercent`
+- `gpu/all/usage`, `gpu/all/usedVram`, `gpu/all/totalVram`
+- `gpu/gpu1/usage` ← note: NVIDIA shows up as `gpu1` (not `gpu0`) on this rig.
+  Prefer `gpu/all/usage` for portability.
+- `disk/all/usedPercent`, `disk/all/read`, `disk/all/write`
+- `network/all/download`, `network/all/upload` (rates)
+- `pressure/cpu/someTotal`, `pressure/memory/someTotal`, `pressure/io/someTotal`
+
+To discover sensors on any machine:
+```bash
+busctl --user call org.kde.ksystemstats1 /org/kde/ksystemstats1 \
+    org.kde.ksystemstats1 allSensors | tr "}" "\n" | grep -oE '"[a-z]+/[^"]+"' | sort -u
+```
+
+Non-percent sensors (rates, bytes, temperatures) need a `max` value before the
+Ring component can render them as 0–100% — Ring currently assumes percent input.

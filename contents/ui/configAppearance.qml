@@ -14,8 +14,13 @@ KCM.SimpleKCM {
     property alias cfg_trackOpacity: trackSlider.value
     property alias cfg_arcOpacity: arcSlider.value
 
+    // HACK: declared to suppress "no property called cfg_xxx" warnings from
+    // Plasma trying to set every config key on every page. See KDE bug 484541.
+    property var cfg_metricOrder
+    property var cfg_enabledMetrics
+    property var cfg_showCpuCores
+
     Kirigami.FormLayout {
-        anchors.fill: parent
 
         RowLayout {
             Kirigami.FormData.label: i18n("Orientation:")

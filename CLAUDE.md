@@ -149,45 +149,85 @@ binds the control to the persisted setting. Pitfalls:
 
 ## Drag-and-drop reorderable list (pattern)
 
-The Metrics page uses this pattern for reorderable rows. Boilerplate but reliable:
+Two non-obvious constraints govern this pattern; getting either wrong yields
+"the whole row becomes blue and nothing reorders":
+
+1. **Size the dragged Rectangle with explicit width/height + center anchors, NOT
+   `anchors.fill`.** When the held State activates `ParentChange` + `AnchorChanges`,
+   only the center anchors get undone — the explicit width/height survive, so the
+   rectangle stays visible at its original size while reparented to the ListView.
+   With `anchors.fill: parent` + `AnchorChanges` undoing top/bottom/left/right, the
+   rectangle ends up sized 0x0 (invisible) or the held color flood-fills the parent.
+
+2. **Put the drag-handle MouseArea as a SIBLING of the dragged rectangle, not a
+   CHILD of it.** If the MouseArea is inside the rectangle that's being dragged,
+   reparenting moves the MouseArea too — its local mouse position changes while
+   the drag is in flight, causing feedback / jitter / dropped drag events.
+
+Working pattern:
 
 ```qml
-ListView {
-    model: ListModel { id: orderModel }
-    displaced: Transition { NumberAnimation { properties: "y"; duration: 180 } }
+delegate: Item {
+    id: row
+    width: ListView.view.width
+    height: 40
 
-    delegate: Item {
-        id: row
-        width: ListView.view.width
-        property bool held: false
-        property int rowIndex: index
+    property bool held: false
+    property int rowIndex: index
 
-        Rectangle {
-            id: rowBg
-            anchors.fill: parent
-            Drag.active: row.held
-            Drag.source: row    // referenced from DropArea
-            states: State {
-                when: row.held
-                ParentChange { target: rowBg; parent: ListView.view }
-                AnchorChanges { target: rowBg; anchors.fill: undefined }
+    Rectangle {
+        id: rowBg
+        width: row.width
+        height: row.height
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.verticalCenter: parent.verticalCenter
+        z: row.held ? 100 : 0   // dragged row on top
+
+        Drag.active: row.held
+        Drag.source: row
+        Drag.hotSpot.x: width / 2
+        Drag.hotSpot.y: height / 2
+
+        states: State {
+            when: row.held
+            ParentChange { target: rowBg; parent: listView }
+            AnchorChanges {
+                target: rowBg
+                anchors.horizontalCenter: undefined
+                anchors.verticalCenter: undefined
             }
-            // … visual + drag-handle MouseArea that sets row.held
         }
 
-        DropArea {
-            anchors.fill: parent
-            onEntered: function(drag) {
-                const from = drag.source.rowIndex
-                const to = row.rowIndex
-                if (from !== to) { orderModel.move(from, to, 1); commitOrder() }
-            }
+        // Visual content: handle icon, labels, etc. NO MouseArea here.
+    }
+
+    MouseArea {
+        // SIBLING of rowBg — anchored to `row`, positioned over the visual handle.
+        anchors.left: parent.left
+        anchors.verticalCenter: parent.verticalCenter
+        width: handleSize; height: handleSize
+        cursorShape: Qt.SizeVerCursor
+        drag.target: rowBg
+        drag.axis: Drag.YAxis
+        onPressed: row.held = true
+        onReleased: { row.held = false; rowBg.Drag.drop() }
+    }
+
+    DropArea {
+        anchors.fill: parent
+        onEntered: function(drag) {
+            if (!drag.source) return
+            const from = drag.source.rowIndex
+            const to = row.rowIndex
+            if (from !== to) { orderModel.move(from, to, 1); commitOrder() }
         }
     }
 }
 ```
 
-Persist the order to a CSV config string after each `orderModel.move`.
+Persist the order to a CSV config string after each `orderModel.move`. Also use
+a translucent held color (e.g. `Qt.rgba(highlight.r, highlight.g, highlight.b, 0.35)`)
+rather than a solid one, otherwise the dragged row hides its own labels.
 
 ## Orientation switch (Row vs Column)
 

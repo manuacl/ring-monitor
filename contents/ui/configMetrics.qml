@@ -97,13 +97,24 @@ KCM.SimpleKCM {
                 property int rowIndex: index
                 property string metricId: model.metricId
 
+                // Rectangle uses center anchors + explicit size — this way when
+                // ParentChange/AnchorChanges fire on drag, the size survives
+                // (undoing anchors.fill leaves it 0x0; undoing centers leaves
+                // the width/height intact so it stays visible while dragged).
                 Rectangle {
                     id: rowBg
-                    anchors.fill: parent
+                    width: row.width
+                    height: row.height
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    anchors.verticalCenter: parent.verticalCenter
                     radius: 4
-                    color: row.held ? Kirigami.Theme.highlightColor : (mouseHover.containsMouse ? Qt.rgba(1, 1, 1, 0.05) : "transparent")
+                    color: row.held ? Qt.rgba(Kirigami.Theme.highlightColor.r,
+                                              Kirigami.Theme.highlightColor.g,
+                                              Kirigami.Theme.highlightColor.b, 0.35)
+                                    : (mouseHover.containsMouse ? Qt.rgba(1, 1, 1, 0.05) : "transparent")
                     border.width: row.held ? 0 : 1
                     border.color: Qt.rgba(1, 1, 1, 0.08)
+                    z: row.held ? 100 : 0   // dragged row on top
 
                     Drag.active: row.held
                     Drag.source: row
@@ -113,14 +124,10 @@ KCM.SimpleKCM {
                     states: State {
                         when: row.held
                         ParentChange { target: rowBg; parent: listView }
-                        // AnchorChanges doesn't support `anchors.fill` directly:
-                        // undo each anchor that `anchors.fill: parent` sets implicitly.
                         AnchorChanges {
                             target: rowBg
-                            anchors.top: undefined
-                            anchors.bottom: undefined
-                            anchors.left: undefined
-                            anchors.right: undefined
+                            anchors.horizontalCenter: undefined
+                            anchors.verticalCenter: undefined
                         }
                     }
 
@@ -132,23 +139,15 @@ KCM.SimpleKCM {
                         anchors.rightMargin: 6
                         spacing: Kirigami.Units.smallSpacing
 
+                        // Drag handle (visual only — the actual MouseArea is a
+                        // SIBLING of rowBg below, so it doesn't move when the
+                        // rectangle gets reparented during drag).
                         Kirigami.Icon {
+                            id: handleIcon
                             source: "transform-move"
                             implicitWidth: Kirigami.Units.iconSizes.small
                             implicitHeight: Kirigami.Units.iconSizes.small
                             opacity: 0.5
-
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.SizeVerCursor
-                                drag.target: rowBg
-                                drag.axis: Drag.YAxis
-                                onPressed: row.held = true
-                                onReleased: {
-                                    row.held = false
-                                    rowBg.Drag.drop()
-                                }
-                            }
                         }
 
                         QQC2.CheckBox {
@@ -178,9 +177,30 @@ KCM.SimpleKCM {
                     }
                 }
 
+                // MouseArea SIBLING of rowBg — anchored to row (not rowBg), so
+                // it stays in place when rowBg gets reparented during drag.
+                // Positioned over the handle icon visually.
+                MouseArea {
+                    id: dragHandleArea
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.leftMargin: 6
+                    width: Kirigami.Units.iconSizes.small + 4
+                    height: Kirigami.Units.iconSizes.small + 4
+                    cursorShape: Qt.SizeVerCursor
+                    drag.target: rowBg
+                    drag.axis: Drag.YAxis
+                    onPressed: row.held = true
+                    onReleased: {
+                        row.held = false
+                        rowBg.Drag.drop()
+                    }
+                }
+
                 DropArea {
                     anchors.fill: parent
                     onEntered: function(drag) {
+                        if (!drag.source) return
                         const from = drag.source.rowIndex
                         const to = row.rowIndex
                         if (from !== to && from >= 0 && to >= 0) {

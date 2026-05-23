@@ -213,9 +213,18 @@ ListView {
         // Hit-test area: stays at the row's model position regardless of
         // visual shifts. When the dragged Rectangle's hotspot enters it,
         // we record this row as the current drop target.
+        //
+        // onExited rewinds the target to the source. This handles the
+        // "drag away then back to origin" case — when the cursor leaves
+        // a row, we don't want `_dropTarget` to stay stuck at that row's
+        // index until another DropArea fires. Without this the source
+        // row's DropArea wouldn't refire `onEntered` reliably on return,
+        // and the no-op drop on origin would emit a (src,wrong) reorder.
+        // See SCENARIO test in tests/qml/tst_DraggableList.qml.
         DropArea {
             anchors.fill: parent
             onEntered: root._dropTarget = index
+            onExited: root._dropTarget = root._dragSource
         }
     }
 }

@@ -158,6 +158,36 @@ Item {
             compare(reorderedSpy.count, 0, "no-op drag must not emit");
         }
 
+        // SCENARIO: user drags row 1 down to row 2, hesitates, then walks
+        // the cursor back to row 1's original slot and releases. Expected:
+        // _dropTarget rewinds to 1, no reorder emitted, the list stays put.
+        // The pure ReorderLogic test for this case is "drag row 3 up to row 0
+        // then back to origin" — this test covers the QML wiring (DropArea
+        // event flow) that the pure test can't reach.
+        function test_SCENARIO_drag_away_then_back_to_origin_no_emit() {
+            tryCompare(list, "count", 3);
+            const handleX = 10;
+            const srcY = 1 * step + root.rowH / 2;
+            const awayY = 2 * step + root.rowH / 2;
+
+            mousePress(list, handleX, srcY);
+            mouseMove(list, handleX, srcY + 12);
+            wait(20);
+            mouseMove(list, handleX, awayY);
+            wait(20);
+            tryCompare(list, "_dropTarget", 2, 200);
+
+            // Walk back to the source row.
+            mouseMove(list, handleX, awayY - 12);
+            wait(20);
+            mouseMove(list, handleX, srcY);
+            wait(20);
+            tryCompare(list, "_dropTarget", 1, 200);
+
+            mouseRelease(list, handleX, srcY);
+            compare(reorderedSpy.count, 0, "returning to origin then releasing must not emit reorder");
+        }
+
         function test_drag_to_adjacent_row1_emits_reordered_0_1() {
             tryCompare(list, "count", 3);
             const handleX = 10;

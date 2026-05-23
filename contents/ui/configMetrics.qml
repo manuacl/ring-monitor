@@ -7,58 +7,183 @@ import org.kde.kcmutils as KCM
 KCM.SimpleKCM {
     id: page
 
+    property string cfg_metricOrder
     property string cfg_enabledMetrics
     property alias cfg_showCpuCores: coresCheck.checked
 
-    // Master list of supported metrics. Order here is the display order in the
-    // widget. Extend this list as new metrics get backed by Ring rendering.
-    readonly property var supportedMetrics: [
-        { id: "cpu",  label: "CPU",     description: "Utilisation globale du processeur" },
-        { id: "ram",  label: "RAM",     description: "Mémoire vive utilisée" },
-        { id: "swap", label: "SWAP",    description: "Swap utilisé" },
-        { id: "gpu",  label: "GPU",     description: "Utilisation du GPU" },
-        { id: "disk", label: "Disque",  description: "Espace disque utilisé (toutes partitions)" },
-    ]
+    readonly property var metricMeta: ({
+        cpu:  { label: i18n("CPU"),  description: i18n("Overall processor usage") },
+        ram:  { label: i18n("RAM"),  description: i18n("Physical memory used") },
+        swap: { label: i18n("Swap"), description: i18n("Swap usage") },
+        gpu:  { label: i18n("GPU"),  description: i18n("GPU usage") },
+        disk: { label: i18n("Disk"), description: i18n("Disk space used (all partitions)") },
+    })
 
-    function isEnabled(id) {
-        return ("," + (cfg_enabledMetrics || "") + ",").indexOf("," + id + ",") !== -1
-    }
+    readonly property var enabledList: (cfg_enabledMetrics || "").split(",").filter(function(x) { return x })
 
-    function toggle(id) {
-        const arr = (cfg_enabledMetrics || "").split(",").filter(function(x) { return x && x !== id })
-        if (!isEnabled(id)) arr.push(id)
-        // Re-order according to supportedMetrics master order
-        const order = supportedMetrics.map(function(m) { return m.id })
-        arr.sort(function(a, b) { return order.indexOf(a) - order.indexOf(b) })
+    function isEnabled(id) { return enabledList.indexOf(id) !== -1 }
+
+    function setEnabled(id, on) {
+        const arr = enabledList.filter(function(x) { return x !== id })
+        if (on) arr.push(id)
         cfg_enabledMetrics = arr.join(",")
     }
 
-    Kirigami.FormLayout {
+    // ── Order model (mirror of cfg_metricOrder, mutable for drag-and-drop) ──
+    ListModel {
+        id: orderModel
+    }
+
+    function loadOrder() {
+        orderModel.clear()
+        const ids = (cfg_metricOrder || "").split(",").filter(function(x) { return x })
+        for (let i = 0; i < ids.length; i++) {
+            orderModel.append({ metricId: ids[i] })
+        }
+    }
+    function commitOrder() {
+        const arr = []
+        for (let i = 0; i < orderModel.count; i++) arr.push(orderModel.get(i).metricId)
+        cfg_metricOrder = arr.join(",")
+    }
+
+    Component.onCompleted: loadOrder()
+
+    ColumnLayout {
         anchors.fill: parent
+        spacing: Kirigami.Units.smallSpacing
 
-        Repeater {
-            model: page.supportedMetrics
+        QQC2.Label {
+            text: i18n("Toggle metrics to display. Drag a row by the handle on the left to reorder, or use the arrows.")
+            wrapMode: Text.WordWrap
+            opacity: 0.7
+            Layout.fillWidth: true
+        }
 
-            delegate: RowLayout {
-                Kirigami.FormData.label: modelData.label + " :"
-                Layout.fillWidth: true
+        ListView {
+            id: listView
+            Layout.fillWidth: true
+            Layout.preferredHeight: orderModel.count * (Kirigami.Units.gridUnit * 2 + 4)
+            spacing: 4
+            interactive: false
+            model: orderModel
 
-                QQC2.CheckBox {
-                    checked: page.isEnabled(modelData.id)
-                    onClicked: page.toggle(modelData.id)
-                    text: modelData.description
+            displaced: Transition {
+                NumberAnimation { properties: "y"; duration: 180; easing.type: Easing.OutCubic }
+            }
+
+            delegate: Item {
+                id: row
+                width: ListView.view.width
+                height: Kirigami.Units.gridUnit * 2
+
+                property bool held: false
+                property int rowIndex: index
+                property string metricId: model.metricId
+
+                Rectangle {
+                    id: rowBg
+                    anchors.fill: parent
+                    radius: 4
+                    color: row.held ? Kirigami.Theme.highlightColor : (mouseHover.containsMouse ? Qt.rgba(1, 1, 1, 0.05) : "transparent")
+                    border.width: row.held ? 0 : 1
+                    border.color: Qt.rgba(1, 1, 1, 0.08)
+
+                    Drag.active: row.held
+                    Drag.source: row
+                    Drag.hotSpot.x: width / 2
+                    Drag.hotSpot.y: height / 2
+
+                    states: State {
+                        when: row.held
+                        ParentChange { target: rowBg; parent: listView }
+                        AnchorChanges {
+                            target: rowBg
+                            anchors.horizontalCenter: undefined
+                            anchors.verticalCenter: undefined
+                            anchors.fill: undefined
+                        }
+                    }
+
+                    HoverHandler { id: mouseHover }
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 6
+                        anchors.rightMargin: 6
+                        spacing: Kirigami.Units.smallSpacing
+
+                        Kirigami.Icon {
+                            source: "transform-move"
+                            implicitWidth: Kirigami.Units.iconSizes.small
+                            implicitHeight: Kirigami.Units.iconSizes.small
+                            opacity: 0.5
+
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.SizeVerCursor
+                                drag.target: rowBg
+                                drag.axis: Drag.YAxis
+                                onPressed: row.held = true
+                                onReleased: {
+                                    row.held = false
+                                    rowBg.Drag.drop()
+                                }
+                            }
+                        }
+
+                        QQC2.CheckBox {
+                            text: page.metricMeta[row.metricId] ? page.metricMeta[row.metricId].label : row.metricId
+                            checked: page.isEnabled(row.metricId)
+                            onClicked: page.setEnabled(row.metricId, checked)
+                            Layout.minimumWidth: Kirigami.Units.gridUnit * 5
+                        }
+
+                        QQC2.Label {
+                            text: page.metricMeta[row.metricId] ? page.metricMeta[row.metricId].description : ""
+                            opacity: row.held ? 0.9 : 0.55
+                            Layout.fillWidth: true
+                            elide: Text.ElideRight
+                        }
+
+                        QQC2.ToolButton {
+                            icon.name: "go-up"
+                            enabled: row.rowIndex > 0
+                            onClicked: { orderModel.move(row.rowIndex, row.rowIndex - 1, 1); page.commitOrder() }
+                        }
+                        QQC2.ToolButton {
+                            icon.name: "go-down"
+                            enabled: row.rowIndex < orderModel.count - 1
+                            onClicked: { orderModel.move(row.rowIndex, row.rowIndex + 1, 1); page.commitOrder() }
+                        }
+                    }
+                }
+
+                DropArea {
+                    anchors.fill: parent
+                    onEntered: function(drag) {
+                        const from = drag.source.rowIndex
+                        const to = row.rowIndex
+                        if (from !== to && from >= 0 && to >= 0) {
+                            orderModel.move(from, to, 1)
+                            page.commitOrder()
+                        }
+                    }
                 }
             }
         }
 
-        Item {
-            Kirigami.FormData.isSection: true
+        Kirigami.Separator {
+            Layout.fillWidth: true
+            Layout.topMargin: Kirigami.Units.largeSpacing
+            Layout.bottomMargin: Kirigami.Units.smallSpacing
         }
 
         QQC2.CheckBox {
             id: coresCheck
-            Kirigami.FormData.label: i18n("CPU cœurs :")
-            text: i18n("Afficher les cœurs en anneaux concentriques")
+            text: i18n("Show CPU cores as concentric rings")
         }
+
+        Item { Layout.fillHeight: true }
     }
 }

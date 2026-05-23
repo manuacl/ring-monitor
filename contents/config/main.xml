@@ -6,8 +6,13 @@
     <kcfgfile name=""/>
 
     <group name="Metrics">
+        <entry name="metricOrder" type="String">
+            <label>All metric ids in display order (whether enabled or not)</label>
+            <default>cpu,ram,swap,gpu,disk</default>
+        </entry>
+
         <entry name="enabledMetrics" type="String">
-            <label>Comma-separated list of enabled metric ids</label>
+            <label>Comma-separated list of enabled metric ids (order ignored — see metricOrder)</label>
             <default>cpu,ram</default>
         </entry>
 
@@ -18,6 +23,11 @@
     </group>
 
     <group name="Appearance">
+        <entry name="orientation" type="String">
+            <label>Layout direction: "horizontal" or "vertical"</label>
+            <default>horizontal</default>
+        </entry>
+
         <entry name="textOpacity" type="Double">
             <label>Opacity of labels and values</label>
             <default>1.0</default>

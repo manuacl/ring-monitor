@@ -9,6 +9,7 @@ KCM.SimpleKCM {
 
     // Magic property names: cfg_<key> is bound automatically by Plasma
     // to plasmoid.configuration.<key>.
+    property string cfg_orientation
     property alias cfg_textOpacity: textSlider.value
     property alias cfg_trackOpacity: trackSlider.value
     property alias cfg_arcOpacity: arcSlider.value
@@ -17,7 +18,26 @@ KCM.SimpleKCM {
         anchors.fill: parent
 
         RowLayout {
-            Kirigami.FormData.label: i18n("Opacité du texte :")
+            Kirigami.FormData.label: i18n("Orientation:")
+
+            QQC2.RadioButton {
+                text: i18n("Horizontal")
+                checked: page.cfg_orientation === "horizontal"
+                onClicked: page.cfg_orientation = "horizontal"
+            }
+            QQC2.RadioButton {
+                text: i18n("Vertical")
+                checked: page.cfg_orientation === "vertical"
+                onClicked: page.cfg_orientation = "vertical"
+            }
+        }
+
+        Item {
+            Kirigami.FormData.isSection: true
+        }
+
+        RowLayout {
+            Kirigami.FormData.label: i18n("Text opacity:")
             Layout.fillWidth: true
 
             QQC2.Slider {
@@ -35,7 +55,7 @@ KCM.SimpleKCM {
         }
 
         RowLayout {
-            Kirigami.FormData.label: i18n("Opacité du fond des jauges :")
+            Kirigami.FormData.label: i18n("Track opacity:")
             Layout.fillWidth: true
 
             QQC2.Slider {
@@ -53,7 +73,7 @@ KCM.SimpleKCM {
         }
 
         RowLayout {
-            Kirigami.FormData.label: i18n("Opacité des jauges :")
+            Kirigami.FormData.label: i18n("Arc opacity:")
             Layout.fillWidth: true
 
             QQC2.Slider {

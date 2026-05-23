@@ -44,10 +44,15 @@ PlasmoidItem {
     }
 
     // ── Layout ───────────────────────────────────────────────────────────
-    fullRepresentation: RowLayout {
-        implicitWidth: 200 * Math.max(1, root.enabledList.length)
-        implicitHeight: 180
-        spacing: 12
+    fullRepresentation: GridLayout {
+        readonly property bool vertical: Plasmoid.configuration.orientation === "vertical"
+        readonly property int count: Math.max(1, root.enabledList.length)
+
+        columns: vertical ? 1 : count
+        rowSpacing: 12
+        columnSpacing: 12
+        implicitWidth:  vertical ? 180 : 180 * count
+        implicitHeight: vertical ? 180 * count : 180
 
         Repeater {
             model: root.enabledList
@@ -57,6 +62,8 @@ PlasmoidItem {
 
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                Layout.minimumWidth: 80
+                Layout.minimumHeight: 80
 
                 label: root.metricLabel(modelData)
                 value: modelData === "cpu"  ? (cpuTotal.value   || 0)

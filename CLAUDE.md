@@ -50,6 +50,27 @@ These are forced by the user's preferences, not by the tech stack:
   forwarding, signals. Pure Node tests didn't catch "empty labels"
   because the bug was in a QML binding.
 
+## Design principles (SOLID, QML-adapted)
+
+QML has no nominal inheritance, so the SOLID grid rewrites slightly. The
+shorthand: **stateless components, data via props, events via signals,
+parents wire them together.**
+
+| Letter | How it lands in QML | Concrete |
+|---|---|---|
+| **S** Single Responsibility | One `.qml` file = one role. | `MetricRow` renders a row, `DraggableList` owns drag mechanics, `Ring` is the gauge. Logic in `*.js`, not in views. |
+| **O** Open/Closed | Extend via composition, not inheritance. | `property Component extraContent` on `MetricRow` lets configMetrics add the CPU-cores sub-row without touching `MetricRow.qml`. |
+| **L** Liskov | N/A — QML has no nominal subtyping. | Skip this letter; don't force it. |
+| **I** Interface Segregation | Keep public props + signals minimal. | `MetricRow` exposes 4 props + 1 signal, not a kitchen sink. Test hooks are `_`-prefixed to flag them as internal. |
+| **D** Dependency Inversion | Leaf components don't reach into globals. | No `Plasmoid.configuration.X` or `page.isEnabled(...)` inside leaves. They take inputs as properties and emit signals; the parent (e.g. `configMetrics`) wires them. |
+
+Smells to flag during review:
+- Leaf component reading `Plasmoid.configuration` directly → DIP violation.
+- A QML file doing layout + logic + config writes → SRP violation; extract
+  pure logic to a `.js` module and tests.
+- A component growing a long list of `Plasmoid.X` props → ISP violation;
+  the parent should hold them, the leaf takes just what it renders.
+
 ## Stack reminder
 
 | QML thing | React equivalent |

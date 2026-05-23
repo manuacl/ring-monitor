@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Pre-commit hook: run qmlformat (in-place) + qmllint on staged .qml files.
-# Aborts the commit on qmllint warnings/errors (Info-level findings are OK).
+# Pre-commit hook:
+#   1. Reject any source/test file > 500 lines.
+#   2. qmlformat --inplace on staged .qml files.
+#   3. qmllint on staged .qml files.
 #
 # Enable once per clone:
 #     git config core.hooksPath .githooks
@@ -9,29 +11,60 @@ set -e
 
 QMLLINT="${QMLLINT:-qmllint-qt6}"
 QMLFORMAT="${QMLFORMAT:-qmlformat-qt6}"
+MAX_LINES=500
 
-# Skip cleanly if the tools aren't installed (e.g. on a CI that doesn't have
-# them). Print a hint so the dev installs them locally.
+# ── 1. Line-count gate ──────────────────────────────────────────────
+# Applies to source + tests. Docs can grow as needed. If a file goes
+# over, split it (extract logic to a .js module, components to their
+# own .qml file) — see CLAUDE.md "Working rules".
+mapfile -d '' line_check_files < <(
+    git diff --cached --name-only --diff-filter=ACMR -z -- \
+        'contents/ui/*.qml' \
+        'contents/ui/*.js' \
+        'tests/*.test.mjs' \
+        'tests/qml/*.qml'
+)
+
+if [ ${#line_check_files[@]} -gt 0 ]; then
+    too_big=()
+    for f in "${line_check_files[@]}"; do
+        [ -f "$f" ] || continue
+        lines=$(wc -l < "$f")
+        if [ "$lines" -gt "$MAX_LINES" ]; then
+            too_big+=("$f ($lines lines)")
+        fi
+    done
+    if [ ${#too_big[@]} -gt 0 ]; then
+        echo "pre-commit: file(s) over the $MAX_LINES-line limit:" >&2
+        for entry in "${too_big[@]}"; do
+            echo "  - $entry" >&2
+        done
+        echo "" >&2
+        echo "Split it: extract pure logic to a .js module, or pull a" >&2
+        echo "sub-component into its own .qml file. See CLAUDE.md." >&2
+        echo "Bypass with --no-verify only if you really must." >&2
+        exit 1
+    fi
+fi
+
+# ── 2 & 3. qmlformat + qmllint on staged .qml files ─────────────────
 if ! command -v "$QMLLINT" >/dev/null 2>&1; then
     echo "pre-commit: '$QMLLINT' not found, skipping QML checks." >&2
     echo "            install qt6-qtdeclarative-devel (rpm-ostree / dnf) to enable." >&2
     exit 0
 fi
 
-# Staged .qml files only. -z + read -d '' handles paths with spaces.
 mapfile -d '' staged < <(git diff --cached --name-only --diff-filter=ACMR -z -- '*.qml')
 
 if [ ${#staged[@]} -eq 0 ]; then
     exit 0
 fi
 
-# 1. Format in place, then re-stage the (possibly) reformatted files.
 if command -v "$QMLFORMAT" >/dev/null 2>&1; then
     "$QMLFORMAT" --inplace "${staged[@]}"
     git add -- "${staged[@]}"
 fi
 
-# 2. Lint. Non-zero exit (warning/error) blocks the commit.
 if ! "$QMLLINT" "${staged[@]}"; then
     echo "" >&2
     echo "pre-commit: qmllint reported warnings/errors above — commit aborted." >&2

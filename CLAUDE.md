@@ -49,6 +49,13 @@ These are forced by the user's preferences, not by the tech stack:
   depends on the QML runtime — assertions on `CheckBox.text`, `model`
   forwarding, signals. Pure Node tests didn't catch "empty labels"
   because the bug was in a QML binding.
+- **500 lines max per source / test file.** Enforced by both the
+  pre-commit hook and CI (`.github/workflows/ci.yml`'s `file-size`
+  job) over `contents/ui/*.{qml,js}` and `tests/{*.test.mjs,qml/*.qml}`.
+  When a file outgrows it: split — extract pure logic to a `.js`
+  module, or pull a sub-component into its own `.qml` file (e.g. the
+  `MetricRow` extraction from `configMetrics.qml`). Don't raise the
+  cap. Docs (`docs/*.md`, `CLAUDE.md`) are intentionally not capped.
 
 ## Design principles (SOLID, QML-adapted)
 

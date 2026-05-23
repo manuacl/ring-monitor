@@ -12,6 +12,32 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # ── File-size gate ──────────────────────────────────────────────────
+  #
+  # Source + test files capped at 500 lines. If a file outgrows this, the
+  # fix is to split (extract logic to a .js module, pull a sub-component
+  # into its own .qml file) — not to raise the cap. See CLAUDE.md
+  # "Working rules".
+  file-size:
+    name: File-size gate (≤500 lines)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check file sizes
+        run: |
+          MAX_LINES=500
+          status=0
+          shopt -s nullglob
+          for f in contents/ui/*.qml contents/ui/*.js \
+                   tests/*.test.mjs tests/qml/*.qml; do
+            lines=$(wc -l < "$f")
+            if [ "$lines" -gt "$MAX_LINES" ]; then
+              echo "::error file=$f::file is $lines lines (> $MAX_LINES). Split it — extract logic to a .js module or pull a sub-component into its own .qml file."
+              status=1
+            fi
+          done
+          exit $status
+
   # ── Pure Node logic tests ────────────────────────────────────────────
   node-tests:
     name: Node tests (logic)

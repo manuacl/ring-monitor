@@ -15,6 +15,16 @@ import "MetricsCatalog.js" as Catalog
 // main row (used to attach a metric-specific sub-option, e.g. the
 // "show CPU cores" toggle that hangs off the CPU row).
 //
+// Disabled-state convention (applies to all rows, including any future
+// metric with extraContent children):
+//   - The row's main checkbox keeps full opacity so the user can clearly
+//     see / re-enable it.
+//   - The description label dims.
+//   - The extraContent inherits `enabled: row.enabled` so its child
+//     controls (CheckBoxes etc.) become non-interactive AND visually
+//     disabled by Qt's theme. Don't render an "enabled" sub-option for
+//     a row whose master toggle is off.
+//
 // No coupling to the page or the DraggableList scaffolding; this lets
 // us instantiate it directly in `tests/qml/tst_MetricRow.qml`.
 
@@ -55,7 +65,10 @@ Item {
             QQC2.Label {
                 id: descriptionLabel
                 text: row.description
-                opacity: 0.55
+                // Dimmed further when the metric is disabled — the row reads
+                // as inactive, but the checkbox keeps full contrast so the
+                // user can clearly see / re-enable it.
+                opacity: row.enabled ? 0.55 : 0.3
                 Layout.fillWidth: true
                 elide: Text.ElideRight
             }
@@ -69,6 +82,10 @@ Item {
             sourceComponent: row.extraContent
             active: row.extraContent !== null
             visible: active
+            // QML cascades `enabled` to descendants — child controls
+            // (e.g. a sub-CheckBox) get the theme's disabled rendering
+            // and become non-interactive when the master is off.
+            enabled: row.enabled
         }
     }
 
@@ -79,5 +96,6 @@ Item {
     readonly property alias _descriptionText: descriptionLabel.text
     readonly property alias _checked: checkBox.checked
     readonly property alias _checkBox: checkBox
+    readonly property alias _descriptionLabel: descriptionLabel
     readonly property alias _extraLoader: extraLoader
 }

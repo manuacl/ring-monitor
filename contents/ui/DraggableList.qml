@@ -97,9 +97,11 @@ ListView {
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.verticalCenter: parent.verticalCenter
             radius: 4
-            color: row.held ? Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g, Kirigami.Theme.highlightColor.b, 0.35) : (hoverHandler.hovered ? Qt.rgba(1, 1, 1, 0.05) : "transparent")
-            border.width: row.held ? 0 : 1
-            border.color: Qt.rgba(1, 1, 1, 0.08)
+            // Opaque background while dragged so the floating row doesn't
+            // show the static rows underneath through transparency.
+            color: row.held ? Qt.tint(Kirigami.Theme.backgroundColor, Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g, Kirigami.Theme.highlightColor.b, 0.18)) : (hoverHandler.hovered ? Qt.rgba(1, 1, 1, 0.05) : "transparent")
+            border.width: row.held ? 2 : 1
+            border.color: row.held ? Kirigami.Theme.highlightColor : Qt.rgba(1, 1, 1, 0.08)
             z: row.held ? 100 : 0
 
             // Light up the drag-and-drop signaling system whenever the

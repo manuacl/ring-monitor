@@ -28,25 +28,76 @@ A circular gauge: 270° arc starting at 135° (90° gap at the bottom).
 are eased rather than snapped. Nested rings have their own `dv` with the
 same easing.
 
-### Why not `import Shapes 1.0`?
+### Tests
 
-QtQuick 6 makes `Shape` available via the standard `import QtQuick.Shapes`
-(no version). `PathAngleArc` is the right primitive for this shape — it
-takes a start + sweep instead of cartesian endpoints, which maps directly
-to the geometry helpers.
+`tests/qml/tst_Ring.qml` covers the QML bindings (label text, value text
+with rounding + custom unit, sweep angle at 0/50/100 %, dimensions,
+nestedValues array). The pure math is covered by
+`tests/ring-geometry.test.mjs`.
 
-## `DraggableList.qml`
+## `MetricRow.qml`
 
-Generic vertical list with drag-to-reorder.
+One row of the metrics list:
+
+```
+[≡] [☑ CPU]  Overall processor usage
+        └─ <optional extraContent — indented sub-row>
+[≡] [☐ RAM]  Physical memory used   (description dimmed because disabled)
+```
 
 ### Public API
 
 | Property / signal | Description |
 |---|---|
-| `model` | any ListModel or JS array |
-| `rowHeight` | row height in px |
+| `metricId` | the id (`"cpu"`, `"ram"`, …) — looked up in `MetricsCatalog.labelFor()` for the checkbox text |
+| `enabled` | whether this metric is selected; drives the checkbox state + the row's dimmed/disabled look |
+| `description` | secondary label to the right of the checkbox |
+| `extraContent` | optional `Component` rendered indented below the main row (e.g. CPU's "show cores" toggle) |
+| `toggled(bool on)` | emitted when the user clicks the checkbox |
+
+### Disabled-state convention
+
+When `enabled === false`:
+
+1. **The master checkbox keeps full opacity** so the user can clearly
+   see and re-enable it.
+2. **The description label dims** (`opacity: 0.3` vs `0.55`).
+3. **The `extraContent` Loader gets `enabled: row.enabled`.** QML
+   cascades `enabled` to descendants — child controls (a sub-CheckBox)
+   become non-interactive AND get the theme's disabled rendering. Don't
+   render an "active" sub-option for a metric whose master toggle is
+   off.
+
+This convention applies to **all** rows that may carry `extraContent`,
+not just CPU. New child-bearing metrics get it for free by setting
+`extraContent`.
+
+### Tests
+
+`tests/qml/tst_MetricRow.qml` pins each rule:
+
+- Label rendering per id (`CPU`, `RAM`, `SWAP`, `GPU`, `DISK`, unknown
+  → uppercase fallback).
+- Description passthrough, default empty.
+- `_checked` mirrors `enabled`, click emits `toggled(true/false)`.
+- Disabled dims description, **does not** dim the checkbox.
+- `extraContent` null → Loader inactive/invisible; set → active +
+  visible + implicitHeight grows.
+- Disabled master → `extraLoader.enabled === false` → child CheckBox
+  inherits `enabled === false`. Enabled master → child interactive.
+
+## `DraggableList.qml`
+
+Generic vertical list with drag-to-reorder, deferred commit.
+
+### Public API
+
+| Property / signal | Description |
+|---|---|
+| `model` | any `ListModel` or JS array |
+| `rowHeight` | minimum row height (rows may grow if `rowContent` is taller) |
 | `rowSpacing` | gap between rows |
-| `rowContent` | `Component` for the row's main content (loaded inside each delegate) |
+| `rowContent` | `Component` for the row content; the loaded root reads `parent.rowModel` / `parent.rowIndex` (see below) |
 | `showHandle` | toggle the move icon on the left |
 | `reordered(int from, int to)` | emitted on drop when the order actually changed |
 
@@ -58,9 +109,15 @@ DraggableList {
     rowHeight: Kirigami.Units.gridUnit * 2
 
     rowContent: Component {
-        RowLayout {
-            QQC2.CheckBox { text: model.metricId }
-            QQC2.Label   { text: "..." }
+        MetricRow {
+            // DraggableList puts the row data on the Loader; read it
+            // back via `parent`. See "Row data forwarding" below.
+            readonly property string _metricId:
+                parent && parent.rowModel ? parent.rowModel.metricId : ""
+
+            metricId: _metricId
+            enabled:  page.isEnabled(_metricId)
+            // ...
         }
     }
 
@@ -71,53 +128,75 @@ DraggableList {
 }
 ```
 
-### Why we don't use `Drag` / `DropArea`
+### How the drag works
 
-Original implementation used Qt's `Drag` + `DropArea`. Two bugs we could
-not fix without replacing them wholesale:
+Based on Qt 6's [Dynamic View Ordering tutorial](https://doc.qt.io/qt-6/qtquick-tutorials-dynamicview-dynamicview2-example.html).
 
-1. **Stuck drop target.** After dropping at index N, subsequent drags
-   would only "snap" to index N. Indices were reset to -1 in
-   `onReleased` but the `DropArea.onEntered` signal didn't fire for the
-   second drag's hover events.
-2. **Return to origin invisible.** Dragging away then back over the
-   source row didn't re-trigger `onEntered` for the source row's
-   `DropArea`, so the "make-room" gap didn't visually return to the
-   source position.
+- The handle is a `MouseArea` on the left strip. It uses Qt's native
+  `drag.target: content` to make the row's `content` Rectangle follow
+  the cursor along the Y axis — no manual `mapToItem`, no manual
+  `_draggedY` bookkeeping. Qt's mouse grab + coordinate handling does
+  the heavy lifting.
+- `content.Drag.active: handleArea.drag.active` lights up Qt's
+  drag-and-drop signalling. Each row carries a `DropArea` that records
+  the hovered index in `_dropTarget` via `onEntered`. On release the
+  `reordered` signal fires.
+- `DropArea.onExited` resets `_dropTarget` to `_dragSource` whenever
+  the cursor leaves a row. Without this the "drag away then back to
+  origin" case would emit a (src, wrong) reorder — see the
+  `SCENARIO_drag_away_then_back_to_origin_no_emit` test.
+- Other rows shift visually via a `Translate` transform driven by
+  `Logic.computeYShift()`. The shift magnitude is the **source row's**
+  vertical extent (height + spacing), so variable-height rows work too
+  (see MetricRow's `extraContent`).
+- While dragging, `content` is reparented to `root.contentItem` via a
+  `State` with `ParentChange` + `AnchorChanges` (the latter undoes
+  the four anchors individually — `anchors.fill: undefined` is invalid
+  in `AnchorChanges`).
 
-Both symptoms point to `DropArea`'s internal entry-state machine — which
-is opaque from QML.
+### Row data forwarding (Loader → rowContent)
 
-### Current approach: manual mouseY
+The `rowContent` Component lives in a different file from
+`DraggableList.qml`. QML's implicit context-property propagation
+through `Loader` is unreliable across Qt versions / KCM containers —
+plain `model.X` inside the loaded item gives empty results. Workaround:
+the `Loader` exposes `rowModel` and `rowIndex` as plain properties; the
+loaded root reads them via `parent.rowModel` / `parent.rowIndex`.
 
-A single `MouseArea` per row, anchored to the delegate `Item` (never
-reparented). On `positionChanged`:
+This is the regression guard behind the
+`DraggableListForwarding.test_rowContent_receives_metricId_via_parent_rowModel`
+test.
 
-```qml
-const p = mapToItem(root.contentItem, mouse.x, mouse.y);
-root._draggedY = p.y;
-root._dropTarget = Logic.computeDropTarget(p.y, _step, count);
-```
+### Drag tests
 
-Hit-testing is now `floor(mouseY / rowStep)`, fully covered by tests.
-Visual reparenting of `rowBg` to the ListView still happens (via a
-`ParentChange` in the `held` state), but it's decoupled from hit-testing.
+`tests/qml/tst_DraggableList.qml` exercises:
 
-### Three constraints inherited from the previous attempt
+- Forwarding: `parent.rowModel.metricId` and `parent.rowIndex` arrive
+  in the loaded rowContent.
+- Drag down (row 0 → row 2), drag up (row 2 → row 0), drag to adjacent
+  row — all emit `reordered(src, tgt)` with the right indices.
+- No-op drag (no threshold cross) doesn't emit.
+- **SCENARIO**: drag row 1 down to row 2 then walk back to row 1 and
+  release → `_dropTarget` rewinds to 1 (via `DropArea.onExited`) and no
+  reorder fires.
 
-1. **Size the dragged Rectangle with explicit width/height + center
-   anchors, NOT `anchors.fill: parent`.** `AnchorChanges` can only undo
-   the four individual anchors, not the `fill` shorthand. With
-   `anchors.fill: parent` + `AnchorChanges` undoing top/bottom/left/right,
-   the Rectangle ends up 0×0.
+`tests/qml/tst_ReorderCycle.qml` chains a simulated drag with the
+same `onReordered` handler `configMetrics` uses (`Logic.applyMove` →
+`ListModel.clear + append`) and asserts the final list order.
 
-2. **Handle MouseArea is a SIBLING of `rowBg`, not a child.** When
-   `ParentChange` reparents `rowBg` during a drag, a child MouseArea
-   would be carried along — its local coordinate frame shifts mid-drag,
-   producing chaotic events.
+### Gotchas (preserved across rewrites)
 
-3. **Translate applies to `rowBg`, not to the delegate `Item`.** The
-   per-row "make-room" shift is a `Translate` transform on the visual
-   only. The delegate `Item` stays at its model position so the handle
-   MouseArea anchored to it never moves, and the cursor's y-coordinate
-   maps unambiguously to model index.
+1. **`content`'s State must use individual anchors, not
+   `anchors.fill`.** `AnchorChanges` can only undo each of the four
+   anchors separately; `anchors.fill: undefined` triggers
+   *"Cannot assign to non-existent property 'fill'"* and the whole
+   delegate fails to load.
+2. **Handle `MouseArea` is a SIBLING of `content`, not a child.**
+   When `ParentChange` reparents `content` during a drag, a child
+   `MouseArea` would be carried along — its local coordinate frame
+   would shift mid-drag, producing chaotic events.
+3. **Variable row heights need the per-frame source extent.** The
+   `yShift` binding reads `root.itemAtIndex(_dragSource).height +
+   rowSpacing` each frame, not a precomputed constant — without this,
+   rows with `extraContent` (e.g. CPU's sub-toggle) would shift by the
+   wrong amount.

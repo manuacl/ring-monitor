@@ -103,6 +103,26 @@ Item {
             compare(toggleSpy.signalArguments[0][0], false, "click on a checked box should emit toggled(false)");
         }
 
+        // ── Disabled-state dimming ─────────────────────────────────
+        // The row reads as inactive when not selected — but the checkbox
+        // must stay at full opacity so the user can still clearly see
+        // (and re-enable) it.
+        function test_disabled_dims_description_label() {
+            row.metricId = "cpu";
+            row.description = "Some description";
+            row.enabled = true;
+            const enabledOpacity = row._descriptionLabel.opacity;
+            row.enabled = false;
+            verify(row._descriptionLabel.opacity < enabledOpacity, "description should be more dimmed when disabled, " + "enabled=" + enabledOpacity + " disabled=" + row._descriptionLabel.opacity);
+        }
+        function test_disabled_does_not_dim_checkbox() {
+            row.metricId = "cpu";
+            row.enabled = true;
+            const enabledOpacity = row._checkBox.opacity;
+            row.enabled = false;
+            compare(row._checkBox.opacity, enabledOpacity, "checkbox opacity must not change with enabled state");
+        }
+
         // ── Extra content (optional sub-row under the main row) ────
         function test_extraContent_null_loader_inactive() {
             row.extraContent = null;
@@ -122,15 +142,46 @@ Item {
             wait(20);
             verify(row.implicitHeight > baseHeight, "implicitHeight should grow when extraContent is set, " + "got base=" + baseHeight + " with-extra=" + row.implicitHeight);
         }
+
+        // ── Disabled cascades into extraContent ───────────────────
+        // When the master row is disabled, child controls (e.g. the
+        // CPU-cores sub-toggle) must become non-interactive. QML
+        // cascades `enabled` to descendants — these tests pin that.
+        function test_disabled_master_disables_extraLoader() {
+            row.extraContent = checkboxExtra;
+            row.enabled = false;
+            wait(20);
+            compare(row._extraLoader.enabled, false);
+        }
+        function test_disabled_master_disables_child_checkbox() {
+            row.extraContent = checkboxExtra;
+            row.enabled = false;
+            wait(20);
+            verify(row._extraLoader.item, "extra item should be loaded");
+            compare(row._extraLoader.item.enabled, false, "child CheckBox should inherit enabled=false");
+        }
+        function test_enabled_master_keeps_child_checkbox_interactive() {
+            row.extraContent = checkboxExtra;
+            row.enabled = true;
+            wait(20);
+            verify(row._extraLoader.item);
+            compare(row._extraLoader.item.enabled, true);
+        }
     }
 
-    // Stub child for the extraContent tests above.
+    // Stub children for the extraContent tests above.
     Component {
         id: trivialExtra
         Rectangle {
             implicitWidth: 100
             implicitHeight: 24
             color: "transparent"
+        }
+    }
+    Component {
+        id: checkboxExtra
+        CheckBox {
+            text: "child option"
         }
     }
 }

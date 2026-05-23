@@ -157,6 +157,7 @@ Item {
         anchors.centerIn: parent
         spacing: 2
         Text {
+            id: labelText
             anchors.horizontalCenter: parent.horizontalCenter
             text: root.label
             color: Kirigami.Theme.textColor
@@ -165,6 +166,7 @@ Item {
             font.letterSpacing: 2
         }
         Text {
+            id: valueText
             anchors.horizontalCenter: parent.horizontalCenter
             text: Math.round(root.displayValue) + root.unit
             color: Kirigami.Theme.textColor
@@ -173,4 +175,9 @@ Item {
             font.weight: Font.Light
         }
     }
+
+    // ── Test hooks (read what's actually rendered) ───────────────────────
+    readonly property alias _labelText: labelText.text
+    readonly property alias _valueText: valueText.text
+    readonly property real _sweepAngle: Geom.sweepForPercent(root.displayValue)
 }

@@ -86,5 +86,21 @@ Item {
             row.enabled = false;
             compare(row._checked, false);
         }
+
+        // ── Click → toggled signal ─────────────────────────────────
+        function test_click_unchecked_emits_toggled_true() {
+            row.metricId = "cpu";
+            row.enabled = false;
+            mouseClick(row._checkBox);
+            compare(toggleSpy.count, 1);
+            compare(toggleSpy.signalArguments[0][0], true, "click on an unchecked box should emit toggled(true)");
+        }
+        function test_click_checked_emits_toggled_false() {
+            row.metricId = "cpu";
+            row.enabled = true;
+            mouseClick(row._checkBox);
+            compare(toggleSpy.count, 1);
+            compare(toggleSpy.signalArguments[0][0], false, "click on a checked box should emit toggled(false)");
+        }
     }
 }

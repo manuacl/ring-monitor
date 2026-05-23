@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel in-progress runs of the same branch/PR — only the latest commit needs
+# to be green.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Pure Node logic tests ────────────────────────────────────────────
+  node-tests:
+    name: Node tests (logic)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Run tests
+        run: node --test tests/*.test.mjs
+
+  # ── QML lint, format check, runtime tests ────────────────────────────
+  #
+  # Runs in a Fedora container so the Qt 6 / Kirigami 6 tooling matches the
+  # dev environment (Bazzite = Fedora atomic). qmltestrunner needs a display
+  # — QT_QPA_PLATFORM=offscreen lets it run headlessly.
+  qml-checks:
+    name: QML lint + format + tests
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:41
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt 6 + Kirigami + headless deps
+        run: |
+          dnf install -y --setopt=install_weak_deps=False \
+            qt6-qtdeclarative-devel \
+            qt6-qtbase-gui \
+            kf6-kirigami \
+            mesa-dri-drivers \
+            diffutils \
+            git
+
+      - name: qmllint (source + tests)
+        run: qmllint-qt6 contents/ui/*.qml tests/qml/*.qml
+
+      - name: qmlformat is a no-op (committed files match qmlformat output)
+        run: |
+          for f in contents/ui/*.qml; do
+            if ! diff -q "$f" <(qmlformat-qt6 "$f") > /dev/null; then
+              echo "::error file=$f::qmlformat would reformat this file — run qmlformat-qt6 --inplace locally and recommit"
+              echo "--- diff ---"
+              diff -u "$f" <(qmlformat-qt6 "$f") || true
+              exit 1
+            fi
+          done
+
+      - name: QML tests (qmltestrunner, headless)
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: qmltestrunner-qt6 -input tests/qml

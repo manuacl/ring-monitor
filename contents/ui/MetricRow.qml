@@ -48,4 +48,5 @@ RowLayout {
     readonly property alias _labelText: checkBox.text
     readonly property alias _descriptionText: descriptionLabel.text
     readonly property alias _checked: checkBox.checked
+    readonly property alias _checkBox: checkBox
 }

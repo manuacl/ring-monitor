@@ -101,3 +101,40 @@ test('toggleEnabled: does not mutate the input', () => {
     Catalog.toggleEnabled(input, 'gpu', true);
     assert.deepEqual(input, ['cpu', 'ram']);
 });
+
+// ── valueFromSensorMap — read sensor value defensively ──────────────────
+//
+// `Sensors.Sensor.value` is undefined until the first sample lands, can be
+// NaN on bad sensor IDs, and the whole sensorMap could be null in tests.
+// The function is the single chokepoint for that defence.
+
+test('valueFromSensorMap: returns sensor value for a known id', () => {
+    const map = { cpu: { value: 42 }, ram: { value: 17 } };
+    assert.equal(Catalog.valueFromSensorMap(map, 'cpu'), 42);
+    assert.equal(Catalog.valueFromSensorMap(map, 'ram'), 17);
+});
+
+test('valueFromSensorMap: returns 0 for an unknown id', () => {
+    const map = { cpu: { value: 42 } };
+    assert.equal(Catalog.valueFromSensorMap(map, 'gpu'), 0);
+});
+
+test('valueFromSensorMap: returns 0 when the sensor has no value yet', () => {
+    assert.equal(Catalog.valueFromSensorMap({ cpu: {} }, 'cpu'), 0);
+    assert.equal(Catalog.valueFromSensorMap({ cpu: { value: undefined } }, 'cpu'), 0);
+    assert.equal(Catalog.valueFromSensorMap({ cpu: { value: null } }, 'cpu'), 0);
+});
+
+test('valueFromSensorMap: returns 0 for NaN value (bad sensor id)', () => {
+    assert.equal(Catalog.valueFromSensorMap({ cpu: { value: NaN } }, 'cpu'), 0);
+});
+
+test('valueFromSensorMap: returns 0 when the sensorMap itself is null/undefined', () => {
+    assert.equal(Catalog.valueFromSensorMap(null, 'cpu'), 0);
+    assert.equal(Catalog.valueFromSensorMap(undefined, 'cpu'), 0);
+});
+
+test('valueFromSensorMap: preserves 0 as a valid sensor reading', () => {
+    // 0 is a legitimate value (idle CPU). Don't coerce it via `||` etc.
+    assert.equal(Catalog.valueFromSensorMap({ cpu: { value: 0 } }, 'cpu'), 0);
+});

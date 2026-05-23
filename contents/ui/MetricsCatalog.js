@@ -68,6 +68,20 @@ function toggleEnabled(currentIds, id, on) {
     return out;
 }
 
+// Read a sensor's value out of the id→Sensor map main.qml maintains.
+// Returns 0 for unknown ids or for sensors that haven't reported yet
+// (Sensors.Sensor leaves .value at undefined/NaN before the first tick).
+// Pure logic — tested standalone, then used by `main.qml.metricValue()`.
+function valueFromSensorMap(sensorMap, id) {
+    if (!sensorMap) return 0;
+    var s = sensorMap[id];
+    if (!s) return 0;
+    var v = s.value;
+    if (v === undefined || v === null) return 0;
+    if (typeof v === "number" && isNaN(v)) return 0;
+    return v;
+}
+
 if (typeof module !== "undefined" && module.exports) {
     module.exports = {
         METRIC_IDS: METRIC_IDS,
@@ -78,5 +92,6 @@ if (typeof module !== "undefined" && module.exports) {
         labelFor: labelFor,
         sensorIdFor: sensorIdFor,
         toggleEnabled: toggleEnabled,
+        valueFromSensorMap: valueFromSensorMap,
     };
 }

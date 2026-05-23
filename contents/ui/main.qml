@@ -73,8 +73,8 @@ PlasmoidItem {
         })
 
     function metricValue(id) {
-        const s = sensorMap[id];
-        return s ? (s.value || 0) : 0;
+        // Pure helper (tested in metrics-catalog.test.mjs).
+        return Catalog.valueFromSensorMap(sensorMap, id);
     }
 
     // ── Enabled metrics (read config + filter through Catalog) ──────────

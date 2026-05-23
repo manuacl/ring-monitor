@@ -21,15 +21,24 @@ function computeDropTarget(mouseY, rowStep, count) {
     return idx;
 }
 
-function computeYShift(rowIndex, dragSource, dropTarget, step) {
+// Visual shift to apply to row `rowIndex` while the user is dragging
+// `dragSource` towards `dropTarget`. The fourth argument is the SOURCE
+// row's vertical extent (height + spacing) — the space it vacates as it
+// leaves to land on the target. Rows between source and target shift by
+// that extent in the appropriate direction; everyone else stays put.
+//
+// For uniform-height lists `srcExtent` is just the constant step. For
+// variable-height lists (e.g. when a row has an extraContent sub-row)
+// the caller passes the source row's actual height.
+function computeYShift(rowIndex, dragSource, dropTarget, srcExtent) {
     if (dragSource < 0 || dropTarget < 0) return 0;
     if (rowIndex === dragSource) return 0;
     if (dragSource === dropTarget) return 0;
     if (dragSource < dropTarget) {
-        if (rowIndex > dragSource && rowIndex <= dropTarget) return -step;
+        if (rowIndex > dragSource && rowIndex <= dropTarget) return -srcExtent;
         return 0;
     }
-    if (rowIndex >= dropTarget && rowIndex < dragSource) return step;
+    if (rowIndex >= dropTarget && rowIndex < dragSource) return srcExtent;
     return 0;
 }
 

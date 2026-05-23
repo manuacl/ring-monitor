@@ -102,5 +102,35 @@ Item {
             compare(toggleSpy.count, 1);
             compare(toggleSpy.signalArguments[0][0], false, "click on a checked box should emit toggled(false)");
         }
+
+        // ── Extra content (optional sub-row under the main row) ────
+        function test_extraContent_null_loader_inactive() {
+            row.extraContent = null;
+            compare(row._extraLoader.active, false);
+            compare(row._extraLoader.visible, false);
+        }
+        function test_extraContent_set_loader_active_and_visible() {
+            row.extraContent = trivialExtra;
+            compare(row._extraLoader.active, true);
+            compare(row._extraLoader.visible, true);
+        }
+        function test_extraContent_grows_implicit_height() {
+            row.extraContent = null;
+            wait(20);
+            const baseHeight = row.implicitHeight;
+            row.extraContent = trivialExtra;
+            wait(20);
+            verify(row.implicitHeight > baseHeight, "implicitHeight should grow when extraContent is set, " + "got base=" + baseHeight + " with-extra=" + row.implicitHeight);
+        }
+    }
+
+    // Stub child for the extraContent tests above.
+    Component {
+        id: trivialExtra
+        Rectangle {
+            implicitWidth: 100
+            implicitHeight: 24
+            color: "transparent"
+        }
     }
 }

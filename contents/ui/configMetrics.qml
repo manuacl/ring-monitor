@@ -11,7 +11,7 @@ KCM.SimpleKCM {
 
     property string cfg_metricOrder
     property string cfg_enabledMetrics
-    property alias cfg_showCpuCores: coresCheck.checked
+    property bool cfg_showCpuCores: false
 
     // HACK: see KDE bug 484541 — Plasma sets every cfg_<key> on every page,
     // and also a cfg_<key>Default for each. Declare placeholders here for
@@ -104,6 +104,10 @@ KCM.SimpleKCM {
                     enabled: page.isEnabled(_metricId)
                     description: page.metricDescriptions[_metricId] || ""
                     onToggled: on => page.setEnabled(_metricId, on)
+
+                    // CPU-specific sub-option: render the "show cores" toggle
+                    // indented below the CPU row only.
+                    extraContent: _metricId === "cpu" ? cpuCoresToggle : null
                 }
             }
 
@@ -121,16 +125,17 @@ KCM.SimpleKCM {
                 page.commitOrder();
             }
         }
+    }
 
-        Kirigami.Separator {
-            Layout.fillWidth: true
-            Layout.topMargin: Kirigami.Units.largeSpacing
-            Layout.bottomMargin: Kirigami.Units.smallSpacing
-        }
-
+    // The sub-option rendered as a child of the CPU row in the list above.
+    // Lives at page scope so the binding to `page.cfg_showCpuCores` is
+    // clean and survives row destruction/recreation on reorder.
+    Component {
+        id: cpuCoresToggle
         QQC2.CheckBox {
-            id: coresCheck
             text: i18n("Show CPU cores as concentric rings")
+            checked: page.cfg_showCpuCores
+            onClicked: page.cfg_showCpuCores = checked
         }
     }
 }

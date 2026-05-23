@@ -58,7 +58,9 @@ ListView {
     // ── ListView config ─────────────────────────────────────────────────
     spacing: rowSpacing
     interactive: false
-    implicitHeight: Math.max(1, count) * _step
+    // contentHeight = sum of delegate heights + spacing — handles
+    // variable-height rows (e.g. MetricRow with extraContent visible).
+    implicitHeight: Math.max(_step, contentHeight)
     boundsBehavior: Flickable.StopAtBounds
 
     moveDisplaced: Transition {
@@ -72,10 +74,19 @@ ListView {
     delegate: Item {
         id: row
         width: ListView.view.width
-        height: root.rowHeight
+        // Row height = max(rowHeight floor, rowContent's intrinsic height).
+        // Allows variable-height rows when rowContent has an extraContent
+        // sub-section (e.g. MetricRow with the CPU-cores toggle).
+        height: contentLoader.item ? Math.max(root.rowHeight, contentLoader.item.implicitHeight + 4) : root.rowHeight
 
         readonly property bool held: handleArea.drag.active
-        readonly property real yShift: Logic.computeYShift(index, root._dragSource, root._dropTarget, root._step)
+        // The visual "make room" shift is the SOURCE row's height + spacing
+        // (the space it vacates as it leaves to land on the target).
+        readonly property real _srcExtent: {
+            const src = root.itemAtIndex(root._dragSource);
+            return src ? src.height + root.rowSpacing : root._step;
+        }
+        readonly property real yShift: Logic.computeYShift(index, root._dragSource, root._dropTarget, row._srcExtent)
 
         // The row's visible content. While dragging it reparents to the
         // ListView contentItem so it can float above the other rows.
@@ -142,6 +153,10 @@ ListView {
                     implicitHeight: Kirigami.Units.iconSizes.small
                     opacity: 0.5
                     visible: root.showHandle
+                    // Stay next to the main checkbox row, not floating
+                    // when the row grows for extraContent.
+                    Layout.alignment: Qt.AlignTop
+                    Layout.topMargin: (root.rowHeight - implicitHeight) / 2
                 }
 
                 Loader {

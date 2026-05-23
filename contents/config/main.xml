@@ -5,6 +5,18 @@
 
     <kcfgfile name=""/>
 
+    <group name="Metrics">
+        <entry name="enabledMetrics" type="String">
+            <label>Comma-separated list of enabled metric ids</label>
+            <default>cpu,ram</default>
+        </entry>
+
+        <entry name="showCpuCores" type="Bool">
+            <label>Show per-core CPU usage as concentric rings inside the CPU ring</label>
+            <default>true</default>
+        </entry>
+    </group>
+
     <group name="Appearance">
         <entry name="textOpacity" type="Double">
             <label>Opacity of labels and values</label>

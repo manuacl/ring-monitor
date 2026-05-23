@@ -11,8 +11,11 @@ PlasmoidItem {
     Plasmoid.backgroundHints: PlasmaCore.Types.NoBackground
 
     // ── Sensors ──────────────────────────────────────────────────────────
-    Sensors.Sensor { id: cpuTotal;  sensorId: "cpu/all/usage" }
-    Sensors.Sensor { id: ramSensor; sensorId: "memory/physical/usedPercent" }
+    Sensors.Sensor { id: cpuTotal;   sensorId: "cpu/all/usage" }
+    Sensors.Sensor { id: ramSensor;  sensorId: "memory/physical/usedPercent" }
+    Sensors.Sensor { id: swapSensor; sensorId: "memory/swap/usedPercent" }
+    Sensors.Sensor { id: gpuSensor;  sensorId: "gpu/all/usage" }
+    Sensors.Sensor { id: diskSensor; sensorId: "disk/all/usedPercent" }
 
     Sensors.Sensor { id: cpu0; sensorId: "cpu/cpu0/usage" }
     Sensors.Sensor { id: cpu1; sensorId: "cpu/cpu1/usage" }
@@ -26,31 +29,48 @@ PlasmoidItem {
         cpu3.value || 0, cpu4.value || 0, cpu5.value || 0
     ]
 
+    // ── Enabled metrics (read from config, filtered to known order) ─────
+    readonly property var metricOrder: ["cpu", "ram", "swap", "gpu", "disk"]
+    readonly property var enabledList: {
+        const csv = Plasmoid.configuration.enabledMetrics || ""
+        const set = new Set(csv.split(",").filter(function(x) { return x }))
+        return metricOrder.filter(function(id) { return set.has(id) })
+    }
+
+    function metricLabel(id) {
+        return ({
+            cpu: "CPU", ram: "RAM", swap: "SWAP", gpu: "GPU", disk: "DISK"
+        })[id] || id.toUpperCase()
+    }
+
     // ── Layout ───────────────────────────────────────────────────────────
     fullRepresentation: RowLayout {
-        implicitWidth: 380
+        implicitWidth: 200 * Math.max(1, root.enabledList.length)
         implicitHeight: 180
         spacing: 12
 
-        Ring {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            label: "CPU"
-            value: cpuTotal.value || 0
-            nestedValues: root.coreValues
-            textOpacity: Plasmoid.configuration.textOpacity
-            trackOpacity: Plasmoid.configuration.trackOpacity
-            arcOpacity: Plasmoid.configuration.arcOpacity
-        }
+        Repeater {
+            model: root.enabledList
 
-        Ring {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            label: "RAM"
-            value: ramSensor.value || 0
-            textOpacity: Plasmoid.configuration.textOpacity
-            trackOpacity: Plasmoid.configuration.trackOpacity
-            arcOpacity: Plasmoid.configuration.arcOpacity
+            delegate: Ring {
+                required property string modelData
+
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+
+                label: root.metricLabel(modelData)
+                value: modelData === "cpu"  ? (cpuTotal.value   || 0)
+                     : modelData === "ram"  ? (ramSensor.value  || 0)
+                     : modelData === "swap" ? (swapSensor.value || 0)
+                     : modelData === "gpu"  ? (gpuSensor.value  || 0)
+                     : modelData === "disk" ? (diskSensor.value || 0)
+                     : 0
+                nestedValues: (modelData === "cpu" && Plasmoid.configuration.showCpuCores)
+                              ? root.coreValues : []
+                textOpacity:  Plasmoid.configuration.textOpacity
+                trackOpacity: Plasmoid.configuration.trackOpacity
+                arcOpacity:   Plasmoid.configuration.arcOpacity
+            }
         }
     }
 }

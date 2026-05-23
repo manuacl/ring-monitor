@@ -104,6 +104,13 @@ KCM.SimpleKCM {
 
                 // Visual shift to "make room" for the dragged item. Held row
                 // doesn't shift — it floats free under the mouse via ParentChange.
+                // IMPORTANT: this transform is applied to rowBg (the visual
+                // rectangle), NOT to the delegate `row` Item. If we shifted
+                // `row`, the DropArea (anchored to row) would shift too — and
+                // hit-testing would follow the transform, so the user could
+                // no longer target intermediate model positions by mouse-Y.
+                // Keeping DropArea at the row's model position is what makes
+                // the "make-room" UX feel natural.
                 readonly property real yShift: {
                     const src = listView.dragSourceIndex
                     const tgt = listView.dropTargetIndex
@@ -114,10 +121,6 @@ KCM.SimpleKCM {
                     if (src > tgt && index >= tgt && index < src) return step
                     return 0
                 }
-                transform: Translate {
-                    y: row.yShift
-                    Behavior on y { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
-                }
 
                 Rectangle {
                     id: rowBg
@@ -125,6 +128,12 @@ KCM.SimpleKCM {
                     height: row.height
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.verticalCenter: parent.verticalCenter
+                    transform: Translate {
+                        // Only the non-held rows get the make-room shift; the
+                        // held row floats via ParentChange + drag.target.
+                        y: row.held ? 0 : row.yShift
+                        Behavior on y { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+                    }
                     radius: 4
                     color: row.held ? Qt.rgba(Kirigami.Theme.highlightColor.r,
                                               Kirigami.Theme.highlightColor.g,
@@ -215,23 +224,28 @@ KCM.SimpleKCM {
                     onReleased: {
                         const src = listView.dragSourceIndex
                         const tgt = listView.dropTargetIndex
-                        listView.dragSourceIndex = -1
-                        listView.dropTargetIndex = -1
-                        rowBg.Drag.drop()
+                        // Commit the model change FIRST so the displaced
+                        // transition animates rows into their final positions.
+                        // Then reset indices — this collapses the yShift
+                        // bindings and ends the held state cleanly.
                         if (src >= 0 && tgt >= 0 && src !== tgt) {
                             orderModel.move(src, tgt, 1)
                             page.commitOrder()
                         }
+                        listView.dragSourceIndex = -1
+                        listView.dropTargetIndex = -1
                     }
                 }
 
                 // DropArea tracks the proposed drop position. We don't mutate
                 // the model here — that happens on release. Items shift via
                 // the `transform` binding above based on dropTargetIndex.
+                // We DO accept the source row's own DropArea so the user can
+                // drag the item away and back to its original slot.
                 DropArea {
                     anchors.fill: parent
                     onEntered: function(drag) {
-                        if (!drag.source || drag.source === row) return
+                        if (!drag.source) return
                         listView.dropTargetIndex = row.rowIndex
                     }
                 }

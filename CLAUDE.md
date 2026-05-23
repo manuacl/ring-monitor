@@ -147,87 +147,79 @@ binds the control to the persisted setting. Pitfalls:
   `systemctl --user restart plasma-plasmashell.service`
   Editing QML alone is hot-reloaded by the symlink, but config schema changes are not.
 
-## Drag-and-drop reorderable list (pattern)
+## Drag-and-drop reorderable list
 
-Two non-obvious constraints govern this pattern; getting either wrong yields
-"the whole row becomes blue and nothing reorders":
+Encapsulated in `contents/ui/DraggableList.qml` — a generic `ListView` that
+takes a `rowContent` Component and emits `reordered(from, to)` on drop.
 
-1. **Size the dragged Rectangle with explicit width/height + center anchors, NOT
-   `anchors.fill`.** When the held State activates `ParentChange` + `AnchorChanges`,
-   only the center anchors get undone — the explicit width/height survive, so the
-   rectangle stays visible at its original size while reparented to the ListView.
-   With `anchors.fill: parent` + `AnchorChanges` undoing top/bottom/left/right, the
-   rectangle ends up sized 0x0 (invisible) or the held color flood-fills the parent.
+Three design choices were forced by hard-won debugging:
 
-2. **Put the drag-handle MouseArea as a SIBLING of the dragged rectangle, not a
-   CHILD of it.** If the MouseArea is inside the rectangle that's being dragged,
-   reparenting moves the MouseArea too — its local mouse position changes while
-   the drag is in flight, causing feedback / jitter / dropped drag events.
+1. **No `Drag` / `DropArea`.** The Qt drag system was too opaque. State
+   leaked across drags (`dropTargetIndex` would stick to the previous drop's
+   position) and hit-testing depended on `Drag.hotSpot` in ways that became
+   impossible to reason about. We replaced it with a single MouseArea per
+   row that tracks `mouseY` via `positionChanged` and arithmetically
+   computes which row the cursor is over (`computeDropTarget`).
 
-Working pattern:
+2. **Pure logic in `ReorderLogic.js`, unit-tested.** Three pure functions —
+   `computeDropTarget(mouseY, rowStep, count)`, `computeYShift(rowIndex,
+   src, tgt, step)`, and `applyMove(arr, from, to)` — capture every
+   interesting case. Tests in `tests/reorder-logic.test.mjs` run via
+   `node --test tests/`. When a regression shows up ("can't return to
+   origin", "stuck on last drop position"), write the failing test first,
+   then fix the function. The QML side just calls these helpers.
+
+3. **`Translate` on the Rectangle only, not on the delegate Item.** The
+   per-row "make-room" shift is a `Translate` transform applied to `rowBg`
+   (the visual). The delegate `Item` (`row`) stays at its model position so
+   the handle MouseArea — anchored to `row` — never moves. The cursor's
+   y-coordinate maps unambiguously to model index via floor division.
+
+Two additional constraints inherited from the earlier (broken) attempt:
+
+- **Size the dragged Rectangle with explicit width/height + center anchors,
+  NOT `anchors.fill: parent`.** `AnchorChanges` can only undo the four
+  individual anchors, not the `fill` shorthand. With `anchors.fill: parent`,
+  undoing the four individual anchors leaves the Rectangle at 0×0.
+- **The drag-handle MouseArea is a SIBLING of `rowBg`, not a child.** When
+  `ParentChange` reparents `rowBg` to the ListView during a drag, a child
+  MouseArea would be carried along — its local coordinate frame shifts
+  mid-drag, producing chaotic events.
+
+### Using `DraggableList` from a config page
 
 ```qml
-delegate: Item {
-    id: row
-    width: ListView.view.width
-    height: 40
+DraggableList {
+    id: list
+    model: orderModel              // ListModel
+    rowHeight: Kirigami.Units.gridUnit * 2
 
-    property bool held: false
-    property int rowIndex: index
-
-    Rectangle {
-        id: rowBg
-        width: row.width
-        height: row.height
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.verticalCenter: parent.verticalCenter
-        z: row.held ? 100 : 0   // dragged row on top
-
-        Drag.active: row.held
-        Drag.source: row
-        Drag.hotSpot.x: width / 2
-        Drag.hotSpot.y: height / 2
-
-        states: State {
-            when: row.held
-            ParentChange { target: rowBg; parent: listView }
-            AnchorChanges {
-                target: rowBg
-                anchors.horizontalCenter: undefined
-                anchors.verticalCenter: undefined
-            }
+    rowContent: Component {        // `index`, `model` available inside
+        RowLayout {
+            QQC2.CheckBox { text: model.metricId }
+            QQC2.Label   { text: "..." }
         }
-
-        // Visual content: handle icon, labels, etc. NO MouseArea here.
     }
 
-    MouseArea {
-        // SIBLING of rowBg — anchored to `row`, positioned over the visual handle.
-        anchors.left: parent.left
-        anchors.verticalCenter: parent.verticalCenter
-        width: handleSize; height: handleSize
-        cursorShape: Qt.SizeVerCursor
-        drag.target: rowBg
-        drag.axis: Drag.YAxis
-        onPressed: row.held = true
-        onReleased: { row.held = false; rowBg.Drag.drop() }
-    }
-
-    DropArea {
-        anchors.fill: parent
-        onEntered: function(drag) {
-            if (!drag.source) return
-            const from = drag.source.rowIndex
-            const to = row.rowIndex
-            if (from !== to) { orderModel.move(from, to, 1); commitOrder() }
+    onReordered: function(from, to) {
+        const next = Logic.applyMove(currentOrder(), from, to)
+        orderModel.clear()
+        for (let i = 0; i < next.length; i++) {
+            orderModel.append({ metricId: next[i] })
         }
+        commitOrder()   // persist as CSV in cfg_metricOrder
     }
 }
 ```
 
-Persist the order to a CSV config string after each `orderModel.move`. Also use
-a translucent held color (e.g. `Qt.rgba(highlight.r, highlight.g, highlight.b, 0.35)`)
-rather than a solid one, otherwise the dragged row hides its own labels.
+### Running the tests
+
+```bash
+node --test tests/
+```
+
+All logic that the QML drag-and-drop relies on is covered. The QML/visual
+side is intentionally thin glue.
 
 ## Orientation switch (Row vs Column)
 

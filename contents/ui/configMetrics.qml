@@ -13,10 +13,19 @@ KCM.SimpleKCM {
 
     // HACK: declared to suppress "no property called cfg_xxx" warnings from
     // Plasma trying to set every config key on every page. See KDE bug 484541.
+    // Plasma 6 also auto-generates cfg_<key>Default properties for the
+    // "Reset to defaults" feature — those must also be declared as placeholders.
     property var cfg_orientation
+    property var cfg_orientationDefault
     property var cfg_textOpacity
+    property var cfg_textOpacityDefault
     property var cfg_trackOpacity
+    property var cfg_trackOpacityDefault
     property var cfg_arcOpacity
+    property var cfg_arcOpacityDefault
+    property var cfg_metricOrderDefault
+    property var cfg_enabledMetricsDefault
+    property var cfg_showCpuCoresDefault
 
     readonly property var metricMeta: ({
         cpu:  { label: i18n("CPU"),  description: i18n("Overall processor usage") },
@@ -104,11 +113,14 @@ KCM.SimpleKCM {
                     states: State {
                         when: row.held
                         ParentChange { target: rowBg; parent: listView }
+                        // AnchorChanges doesn't support `anchors.fill` directly:
+                        // undo each anchor that `anchors.fill: parent` sets implicitly.
                         AnchorChanges {
                             target: rowBg
-                            anchors.horizontalCenter: undefined
-                            anchors.verticalCenter: undefined
-                            anchors.fill: undefined
+                            anchors.top: undefined
+                            anchors.bottom: undefined
+                            anchors.left: undefined
+                            anchors.right: undefined
                         }
                     }
 

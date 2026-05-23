@@ -112,13 +112,31 @@ binds the control to the persisted setting. Pitfalls:
 - **KDE bug 484541** — Plasma tries to set EVERY `cfg_<key>` from main.xml on EVERY
   config page, not just the keys that page handles. If a page doesn't declare a
   property for a key, the journal logs "Setting initial properties failed: ... does
-  not have a property called cfg_X". Workaround: declare empty placeholders in
-  every page for the keys it doesn't handle:
+  not have a property called cfg_X". Plasma 6 ALSO auto-generates
+  `cfg_<key>Default` for the "Reset to defaults" feature — placeholders are needed
+  for those too. Workaround: in EVERY page, declare empty placeholders for every
+  config key it doesn't handle, AND for the `Default` variant of every key
+  (including its own):
   ```qml
   // HACK: suppress KDE bug 484541 warnings
-  property var cfg_otherKey1
-  property var cfg_otherKey2
+  property var cfg_otherKey
+  property var cfg_otherKeyDefault
+  property var cfg_ownKeyDefault   // even own keys need a *Default placeholder
   ```
+- **`AnchorChanges` does NOT support `anchors.fill`.** To "undo" an
+  `anchors.fill: parent` in a State, you must undo each of the four anchors it
+  implicitly sets:
+  ```qml
+  AnchorChanges {
+      target: someItem
+      anchors.top: undefined
+      anchors.bottom: undefined
+      anchors.left: undefined
+      anchors.right: undefined
+  }
+  ```
+  Writing `anchors.fill: undefined` triggers "Cannot assign to non-existent
+  property 'fill'" and the whole QML file fails to load.
 - **`KCM.SimpleKCM` does NOT accept `anchors.fill: parent` on its content child.**
   The child should size itself implicitly. Using `anchors.fill: parent` triggers
   "Created graphical object was not placed in the graphics scene" and the page

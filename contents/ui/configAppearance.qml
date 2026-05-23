@@ -16,9 +16,18 @@ KCM.SimpleKCM {
 
     // HACK: declared to suppress "no property called cfg_xxx" warnings from
     // Plasma trying to set every config key on every page. See KDE bug 484541.
+    // Plasma 6 also auto-generates cfg_<key>Default for the "Reset to defaults"
+    // feature — placeholders for those too.
     property var cfg_metricOrder
+    property var cfg_metricOrderDefault
     property var cfg_enabledMetrics
+    property var cfg_enabledMetricsDefault
     property var cfg_showCpuCores
+    property var cfg_showCpuCoresDefault
+    property var cfg_orientationDefault
+    property var cfg_textOpacityDefault
+    property var cfg_trackOpacityDefault
+    property var cfg_arcOpacityDefault
 
     Kirigami.FormLayout {
 

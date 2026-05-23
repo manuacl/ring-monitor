@@ -63,14 +63,33 @@ journalctl --user -n 60 --since "30 sec ago" | grep -iE "ringmon|qml" | grep -v 
 ## Tooling
 
 These ship in `qt6-qtdeclarative-devel` (install via `rpm-ostree` on
-Bazzite, then reboot):
+Bazzite, then reboot). On Fedora the binaries are named with a `-qt6`
+suffix (`qmllint-qt6`, `qmlformat-qt6`); the bare names also exist in
+`/usr/lib64/qt6/bin/`.
 
 | Tool | Equivalent | Notes |
 |---|---|---|
-| `qmllint` | ESLint | configurable via `.qmllint.ini` |
-| `qmlformat` | Prettier | opinionated, in-place formatter |
+| `qmllint-qt6` | ESLint | configured via `.qmllint.ini` (`UnqualifiedAccess=info` to silence Plasma `i18n` / Kirigami false positives) |
+| `qmlformat-qt6` | Prettier | opinionated, in-place formatter, default settings |
 | `qmlls` | LSP server | autocomplete/diagnostics for editors |
 | `qmltestrunner` | Jest-ish | QML-side unit tests (we don't use it — we test pure JS via Node) |
+
+## Pre-commit hook
+
+`.githooks/pre-commit` runs `qmlformat --inplace` then `qmllint` on staged
+`.qml` files. It's checked into the repo but git won't pick it up
+automatically — enable it once per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+After that, every `git commit` reformats QML changes in place (re-staging
+them) and aborts the commit if `qmllint` reports any warning or error.
+`Info`-level findings (the i18n / Kirigami false positives) are
+non-blocking.
+
+To bypass the hook in an emergency: `git commit --no-verify`.
 
 ## Installing the widget elsewhere
 

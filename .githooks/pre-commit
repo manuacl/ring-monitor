@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Pre-commit hook: run qmlformat (in-place) + qmllint on staged .qml files.
+# Aborts the commit on qmllint warnings/errors (Info-level findings are OK).
+#
+# Enable once per clone:
+#     git config core.hooksPath .githooks
+
+set -e
+
+QMLLINT="${QMLLINT:-qmllint-qt6}"
+QMLFORMAT="${QMLFORMAT:-qmlformat-qt6}"
+
+# Skip cleanly if the tools aren't installed (e.g. on a CI that doesn't have
+# them). Print a hint so the dev installs them locally.
+if ! command -v "$QMLLINT" >/dev/null 2>&1; then
+    echo "pre-commit: '$QMLLINT' not found, skipping QML checks." >&2
+    echo "            install qt6-qtdeclarative-devel (rpm-ostree / dnf) to enable." >&2
+    exit 0
+fi
+
+# Staged .qml files only. -z + read -d '' handles paths with spaces.
+mapfile -d '' staged < <(git diff --cached --name-only --diff-filter=ACMR -z -- '*.qml')
+
+if [ ${#staged[@]} -eq 0 ]; then
+    exit 0
+fi
+
+# 1. Format in place, then re-stage the (possibly) reformatted files.
+if command -v "$QMLFORMAT" >/dev/null 2>&1; then
+    "$QMLFORMAT" --inplace "${staged[@]}"
+    git add -- "${staged[@]}"
+fi
+
+# 2. Lint. Non-zero exit (warning/error) blocks the commit.
+if ! "$QMLLINT" "${staged[@]}"; then
+    echo "" >&2
+    echo "pre-commit: qmllint reported warnings/errors above — commit aborted." >&2
+    echo "            fix them, or commit with --no-verify if you really must." >&2
+    exit 1
+fi

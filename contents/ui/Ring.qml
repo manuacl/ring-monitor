@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Shapes
 import org.kde.kirigami as Kirigami
@@ -26,17 +28,20 @@ Item {
     // Everything scales with the smaller dimension via Geom.dimensionsFor.
     readonly property real size: Math.min(width, height)
     readonly property var dims: Geom.dimensionsFor(size)
-    readonly property real ringStroke:   dims.ringStroke
-    readonly property real ringRadius:   dims.ringRadius
+    readonly property real ringStroke: dims.ringStroke
+    readonly property real ringRadius: dims.ringRadius
     readonly property real nestedStroke: dims.nestedStroke
-    readonly property real nestedGap:    dims.nestedGap
-    readonly property real labelPx:      dims.labelPx
-    readonly property real valuePx:      dims.valuePx
+    readonly property real nestedGap: dims.nestedGap
+    readonly property real labelPx: dims.labelPx
+    readonly property real valuePx: dims.valuePx
 
     // Smooth main value transitions
     property real displayValue: value
     Behavior on displayValue {
-        NumberAnimation { duration: 400; easing.type: Easing.OutCubic }
+        NumberAnimation {
+            duration: 400
+            easing.type: Easing.OutCubic
+        }
     }
     onValueChanged: displayValue = value
 
@@ -93,16 +98,16 @@ Item {
 
             required property int index
 
-            readonly property real r: Geom.nestedRadius(
-                root.ringRadius, root.ringStroke,
-                root.nestedStroke, root.nestedGap, index
-            )
+            readonly property real r: Geom.nestedRadius(root.ringRadius, root.ringStroke, root.nestedStroke, root.nestedGap, index)
             readonly property real v: root.nestedValues[index] || 0
 
             // Smooth this core's value
             property real dv: v
             Behavior on dv {
-                NumberAnimation { duration: 400; easing.type: Easing.OutCubic }
+                NumberAnimation {
+                    duration: 400
+                    easing.type: Easing.OutCubic
+                }
             }
             onVChanged: dv = v
 

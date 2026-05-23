@@ -37,6 +37,13 @@ These are forced by the user's preferences, not by the tech stack:
   map, a `switch`, or extract a named function. Single ternaries are OK.
 - **i18n keys in English.** Source strings stay English; translation is a
   downstream concern.
+- **`pragma ComponentBehavior: Bound` on every QML file.** All scope
+  accesses must be explicit (`row.index` not `index`,
+  `root.someProperty` works from nested Components thanks to Bound).
+  Delegate scopes declare `required property var model` /
+  `required property int index`.
+- **`qmlformat`/`qmllint` run on commit** via `.githooks/pre-commit`.
+  Enable per clone: `git config core.hooksPath .githooks`.
 
 ## Stack reminder
 

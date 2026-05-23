@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
@@ -8,12 +10,16 @@ import "ReorderLogic.js" as Logic
 // Usage:
 //
 //     DraggableList {
-//         model: myListModel          // ListModel or JS array
+//         model: myListModel
 //         rowHeight: 40
-//         delegate: Item {            // your row content here
-//             // `index`, `model`, etc. are available as usual.
-//             // Show the drag handle wherever you want — the actual mouse
-//             // handling is owned by DraggableList (handle area on the left).
+//         rowContent: Component {
+//             RowLayout {
+//                 // The rowContent root MUST declare these two properties —
+//                 // they are filled by DraggableList for each row:
+//                 property var rowModel       // ListModel role object
+//                 property int rowIndex       // 0-based row position
+//                 // ... your row content here ...
+//             }
 //         }
 //         onReordered: (from, to) => { ... commit your new order ... }
 //     }
@@ -55,23 +61,34 @@ ListView {
     // Animate rows that get pushed aside by the model `move()` on drop.
     // (Pre-drop animation is handled by the per-row Translate's Behavior.)
     moveDisplaced: Transition {
-        NumberAnimation { properties: "y"; duration: 180; easing.type: Easing.OutCubic }
+        NumberAnimation {
+            properties: "y"
+            duration: 180
+            easing.type: Easing.OutCubic
+        }
     }
 
     delegate: Item {
         id: row
+
+        // Bound mode (pragma above) requires every delegate-scope name to be
+        // explicit. `model` carries ListModel roles; `index` is the row's
+        // position. Both must be declared `required` so the QML compiler
+        // knows where they come from.
+        required property var model
+        required property int index
+
         width: ListView.view.width
         height: root.rowHeight
 
-        readonly property bool held: root._dragSource === index
-        readonly property int rowIndex: index
+        readonly property bool held: root._dragSource === row.index
+        readonly property int rowIndex: row.index
 
         // Visual shift to "make room" for the dragged item. Applied to
         // rowBg only — NOT to `row` itself, so the handle MouseArea (a
         // sibling of rowBg) stays at the row's model position, which keeps
         // the mouseY hit-testing intuitive.
-        readonly property real yShift:
-            Logic.computeYShift(index, root._dragSource, root._dropTarget, root._step)
+        readonly property real yShift: Logic.computeYShift(row.index, root._dragSource, root._dropTarget, root._step)
 
         Rectangle {
             id: rowBg
@@ -80,11 +97,7 @@ ListView {
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.verticalCenter: parent.verticalCenter
             radius: 4
-            color: row.held
-                ? Qt.rgba(Kirigami.Theme.highlightColor.r,
-                          Kirigami.Theme.highlightColor.g,
-                          Kirigami.Theme.highlightColor.b, 0.35)
-                : (hoverHandler.hovered ? Qt.rgba(1, 1, 1, 0.05) : "transparent")
+            color: row.held ? Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g, Kirigami.Theme.highlightColor.b, 0.35) : (hoverHandler.hovered ? Qt.rgba(1, 1, 1, 0.05) : "transparent")
             border.width: row.held ? 0 : 1
             border.color: Qt.rgba(1, 1, 1, 0.08)
             z: row.held ? 100 : 0
@@ -96,7 +109,10 @@ ListView {
             transform: Translate {
                 y: row.held ? 0 : row.yShift
                 Behavior on y {
-                    NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+                    NumberAnimation {
+                        duration: 180
+                        easing.type: Easing.OutCubic
+                    }
                 }
             }
 
@@ -115,7 +131,9 @@ ListView {
                 }
             }
 
-            HoverHandler { id: hoverHandler }
+            HoverHandler {
+                id: hoverHandler
+            }
 
             RowLayout {
                 anchors.fill: parent
@@ -132,11 +150,29 @@ ListView {
                 }
 
                 Loader {
+                    id: contentLoader
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     sourceComponent: root.rowContent
-                    // The loaded item inherits `index` / `model` via the
-                    // delegate scope above.
+                    // The rowContent Component lives in another file; with
+                    // `pragma ComponentBehavior: Bound` it cannot reach into
+                    // this delegate's scope. Forward `model` and `index`
+                    // explicitly — the rowContent root must declare matching
+                    // `property var rowModel` / `property int rowIndex`.
+                    Binding {
+                        target: contentLoader.item
+                        property: "rowModel"
+                        value: row.model
+                        when: contentLoader.item !== null
+                        restoreMode: Binding.RestoreNone
+                    }
+                    Binding {
+                        target: contentLoader.item
+                        property: "rowIndex"
+                        value: row.index
+                        when: contentLoader.item !== null
+                        restoreMode: Binding.RestoreNone
+                    }
                 }
             }
         }
@@ -153,14 +189,15 @@ ListView {
             cursorShape: Qt.SizeVerCursor
             hoverEnabled: true
 
-            onPressed: function(mouse) {
+            onPressed: function (mouse) {
                 const p = mapToItem(root.contentItem, mouse.x, mouse.y);
-                root._dragSource = index;
-                root._dropTarget = index;
+                root._dragSource = row.index;
+                root._dropTarget = row.index;
                 root._draggedY = p.y;
             }
-            onPositionChanged: function(mouse) {
-                if (!pressed) return;
+            onPositionChanged: function (mouse) {
+                if (!pressed)
+                    return;
                 const p = mapToItem(root.contentItem, mouse.x, mouse.y);
                 root._draggedY = p.y;
                 // Hit-test arithmetically — no DropArea involved. The result

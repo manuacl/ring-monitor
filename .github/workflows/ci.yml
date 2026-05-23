@@ -17,8 +17,8 @@ jobs:
     name: Node tests (logic)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
       - name: Run tests
@@ -35,7 +35,7 @@ jobs:
     container:
       image: fedora:41
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Qt 6 + Kirigami + headless deps
         run: |

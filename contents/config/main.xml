@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kcfg xmlns="http://www.kde.org/standards/kcfg/1.0"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0 http://www.kde.org/standards/kcfg/1.0/kcfg.xsd">
+
+    <kcfgfile name=""/>
+
+    <group name="Appearance">
+        <entry name="textOpacity" type="Double">
+            <label>Opacity of labels and values</label>
+            <default>1.0</default>
+            <min>0.0</min>
+            <max>1.0</max>
+        </entry>
+
+        <entry name="trackOpacity" type="Double">
+            <label>Opacity of the background track of each ring</label>
+            <default>0.15</default>
+            <min>0.0</min>
+            <max>1.0</max>
+        </entry>
+
+        <entry name="arcOpacity" type="Double">
+            <label>Opacity of the active arc of each ring</label>
+            <default>1.0</default>
+            <min>0.0</min>
+            <max>1.0</max>
+        </entry>
+    </group>
+</kcfg>

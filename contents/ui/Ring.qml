@@ -10,6 +10,11 @@ Item {
     property color ringColor: Kirigami.Theme.highlightColor
     property string unit: "%"
 
+    // Opacities (configurable from the plasmoid config UI)
+    property real textOpacity: 1.0
+    property real trackOpacity: 0.15
+    property real arcOpacity: 1.0
+
     // Optional: array of 0-100 values rendered as concentric inner rings
     // (e.g. per-core CPU usage inside the total CPU ring)
     property var nestedValues: []
@@ -40,7 +45,7 @@ Item {
         anchors.fill: parent
         antialiasing: true
         ShapePath {
-            strokeColor: Qt.rgba(1, 1, 1, 0.08)
+            strokeColor: Qt.rgba(1, 1, 1, root.trackOpacity)
             strokeWidth: root.ringStroke
             fillColor: "transparent"
             capStyle: ShapePath.RoundCap
@@ -59,6 +64,7 @@ Item {
         id: arcShape
         anchors.fill: parent
         antialiasing: true
+        opacity: root.arcOpacity
         ShapePath {
             strokeColor: root.ringColor
             strokeWidth: root.ringStroke
@@ -110,7 +116,7 @@ Item {
                 anchors.fill: parent
                 antialiasing: true
                 ShapePath {
-                    strokeColor: Qt.rgba(1, 1, 1, 0.05)
+                    strokeColor: Qt.rgba(1, 1, 1, root.trackOpacity * 0.6)
                     strokeWidth: root.nestedStroke
                     fillColor: "transparent"
                     capStyle: ShapePath.RoundCap
@@ -130,7 +136,7 @@ Item {
                 id: nArc
                 anchors.fill: parent
                 antialiasing: true
-                opacity: 0.55
+                opacity: 0.55 * root.arcOpacity
                 ShapePath {
                     strokeColor: root.ringColor
                     strokeWidth: root.nestedStroke
@@ -157,7 +163,7 @@ Item {
             anchors.horizontalCenter: parent.horizontalCenter
             text: root.label
             color: Kirigami.Theme.textColor
-            opacity: 0.55
+            opacity: 0.55 * root.textOpacity
             font.pixelSize: root.labelPx
             font.letterSpacing: 2
         }
@@ -165,6 +171,7 @@ Item {
             anchors.horizontalCenter: parent.horizontalCenter
             text: Math.round(root.displayValue) + root.unit
             color: Kirigami.Theme.textColor
+            opacity: root.textOpacity
             font.pixelSize: root.valuePx
             font.weight: Font.Light
         }

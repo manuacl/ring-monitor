@@ -38,6 +38,9 @@ PlasmoidItem {
             label: "CPU"
             value: cpuTotal.value || 0
             nestedValues: root.coreValues
+            textOpacity: Plasmoid.configuration.textOpacity
+            trackOpacity: Plasmoid.configuration.trackOpacity
+            arcOpacity: Plasmoid.configuration.arcOpacity
         }
 
         Ring {
@@ -45,6 +48,9 @@ PlasmoidItem {
             Layout.fillHeight: true
             label: "RAM"
             value: ramSensor.value || 0
+            textOpacity: Plasmoid.configuration.textOpacity
+            trackOpacity: Plasmoid.configuration.trackOpacity
+            arcOpacity: Plasmoid.configuration.arcOpacity
         }
     }
 }

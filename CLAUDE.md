@@ -37,6 +37,18 @@ These are forced by the user's preferences, not by the tech stack:
   map, a `switch`, or extract a named function. Single ternaries are OK.
 - **i18n keys in English.** Source strings stay English; translation is a
   downstream concern.
+- **Qt docs before inventing.** For any QtQuick pattern (drag/drop,
+  model/view, animations), start from
+  [doc.qt.io](https://doc.qt.io/qt-6/) — especially the "Dynamic View
+  Ordering" / "QML Cookbook" tutorials. No hand-rolled reimplementation
+  while an official pattern exists. The drag-and-drop saga was a
+  manual `mapToItem` + `_draggedY` reimplementation of what
+  `MouseArea.drag.target` does natively.
+- **Tests cover rendering too, not just logic.** `node --test` for the
+  pure `.js` modules; `qmltestrunner-qt6` (via `tests/qml/`) for what
+  depends on the QML runtime — assertions on `CheckBox.text`, `model`
+  forwarding, signals. Pure Node tests didn't catch "empty labels"
+  because the bug was in a QML binding.
 
 ## Stack reminder
 
@@ -80,6 +92,22 @@ User-chosen: **"anneaux modernes épurés"** (clean modern rings).
 - KSysGuard sensors don't error on bad IDs — value just stays at 0/NaN.
   Be defensive (`s.value || 0`).
 - After `main.xml` changes, restart plasmashell.
+- **Don't put `pragma ComponentBehavior: Bound` on a QML file that
+  contains a ListView delegate.** It silently breaks the drag — the
+  implicit `model`/`index` and `MouseArea.drag.target` don't coexist
+  with `required property var model`. Apply the pragma only to
+  delegate-free files (`main.qml`, `Ring.qml` are OK).
+- **Forward row data to rowContent via a property on the Loader, not
+  via QML scope chain.** Inside a Loader that hosts a user-provided
+  Component, declare `property var rowModel: model` on the Loader; the
+  Component reads `parent.rowModel`. QML's context-property
+  propagation through Loader is flaky across Qt versions / KCM
+  containers — relying on bare `model.X` was the cause of the "empty
+  labels" regression.
+- **Plasma's config dialog has its own qmlcache.** If a QML change to
+  a config page doesn't seem to take effect after restarting
+  plasmashell, clear `~/.cache/{plasmashell,kcmshell6}/qmlcache/` and
+  restart again.
 
 For the deeper "why" on each pitfall and the drag-and-drop saga, see
 `docs/`.

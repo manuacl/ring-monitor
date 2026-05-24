@@ -249,3 +249,38 @@ the drag handle icon. Standalone equivalent (future) will back this
 with `Image { source: "image://theme/..." }`.
 
 Smoke-tested by `tests/qml/tst_ThemedIcon.qml`.
+
+### `ConfigStore.qml`
+
+Read-only view onto `Plasmoid.configuration`. Re-exposes every
+persisted config key as a typed property so `main.qml` (and any
+future reader) consumes `configStore.X` instead of reaching into
+`Plasmoid.configuration` directly.
+
+| Property | Type | Source key |
+|---|---|---|
+| `metricOrder` | `string` | `Plasmoid.configuration.metricOrder` |
+| `enabledMetrics` | `string` | `Plasmoid.configuration.enabledMetrics` |
+| `showCpuCores` | `bool` | `Plasmoid.configuration.showCpuCores` |
+| `orientation` | `string` | `Plasmoid.configuration.orientation` |
+| `textOpacity` | `real` | `Plasmoid.configuration.textOpacity` |
+| `trackOpacity` | `real` | `Plasmoid.configuration.trackOpacity` |
+| `arcOpacity` | `real` | `Plasmoid.configuration.arcOpacity` |
+
+**Implemented as an Item, not a singleton.** `Plasmoid` is a context
+property injected by the Plasma shell on the QML root scope, so it
+only resolves when accessed from inside the loaded `PlasmoidItem`
+tree. A singleton living outside that scope would see `Plasmoid` as
+undefined.
+
+**Reads-only by design.** Writes still go through the config pages'
+`cfg_*` magic (SimpleKCM-managed flow) — that mechanism stays
+unchanged in this PR. A future refactor may bridge writes through
+this same adapter.
+
+A standalone build will ship a parallel `ConfigStore.qml` backed by
+`Qt.labs.settings`, exposing the same property surface.
+
+Smoke-tested by `tests/qml/tst_ConfigStore.qml` (property-name typo
+guard; values can't be asserted outside a real Plasma shell — see
+the test file's preamble for the rationale).

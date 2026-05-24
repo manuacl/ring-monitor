@@ -56,8 +56,8 @@ test('dimensionsFor: at size=180 (default), values match Ring.qml expectations',
     assert.equal(d.nestedStroke, 3);
     // size * 0.022 = 3.96, rounded to 4, max(2, 4) = 4
     assert.equal(d.nestedGap, 4);
-    // size * 0.06 = 10.8, rounded to 11, max(8, 11) = 11
-    assert.equal(d.labelPx, 11);
+    // size * 0.08 = 14.4, rounded to 14, max(10, 14) = 14
+    assert.equal(d.labelPx, 14);
     // size * 0.16 = 28.8, rounded to 29, max(14, 29) = 29
     assert.equal(d.valuePx, 29);
 });
@@ -67,7 +67,7 @@ test('dimensionsFor: at very small size, floors kick in', () => {
     assert.equal(d.ringStroke, 4);   // floor
     assert.equal(d.nestedStroke, 2); // floor
     assert.equal(d.nestedGap, 2);    // floor
-    assert.equal(d.labelPx, 8);      // floor
+    assert.equal(d.labelPx, 10);     // floor
     assert.equal(d.valuePx, 14);     // floor
 });
 
@@ -75,7 +75,7 @@ test('dimensionsFor: at huge size, factors scale linearly', () => {
     const d = Geom.dimensionsFor(1000);
     assert.equal(d.ringStroke, 55);
     assert.equal(d.nestedStroke, 17);
-    assert.equal(d.labelPx, 60);
+    assert.equal(d.labelPx, 80);
     assert.equal(d.valuePx, 160);
 });
 

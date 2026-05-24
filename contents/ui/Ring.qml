@@ -152,28 +152,28 @@ Item {
         }
     }
 
-    // ── Center label ─────────────────────────────────────────────────────
-    Column {
+    // ── Value (centered) ─────────────────────────────────────────────────
+    Text {
+        id: valueText
         anchors.centerIn: parent
-        spacing: 2
-        Text {
-            id: labelText
-            anchors.horizontalCenter: parent.horizontalCenter
-            text: root.label
-            color: Kirigami.Theme.textColor
-            opacity: 0.55 * root.textOpacity
-            font.pixelSize: root.labelPx
-            font.letterSpacing: 2
-        }
-        Text {
-            id: valueText
-            anchors.horizontalCenter: parent.horizontalCenter
-            text: Math.round(root.displayValue) + root.unit
-            color: Kirigami.Theme.textColor
-            opacity: root.textOpacity
-            font.pixelSize: root.valuePx
-            font.weight: Font.Light
-        }
+        text: Math.round(root.displayValue) + root.unit
+        color: Kirigami.Theme.textColor
+        opacity: root.textOpacity
+        font.pixelSize: root.valuePx
+        font.weight: Font.Light
+    }
+
+    // ── Label (inside the 90° gap at the bottom of the ring) ─────────────
+    Text {
+        id: labelText
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: Math.max(2, Math.round(root.size * 0.14))
+        text: root.label
+        color: Kirigami.Theme.textColor
+        opacity: 0.55 * root.textOpacity
+        font.pixelSize: root.labelPx
+        font.letterSpacing: 2
     }
 
     // ── Test hooks (read what's actually rendered) ───────────────────────

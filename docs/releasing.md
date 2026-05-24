@@ -81,9 +81,10 @@ If `version.yml` ran but the tag wasn't pushed (e.g. before
 recovery paths:
 
 1. **Trigger a fresh release via a tiny PR** — open a one-line
-   no-op PR (e.g. fix a typo) with the desired `bump:*` label.
-   `version.yml` will bump from the current `metadata.json` baseline,
-   not from where it would have been.
+   no-op PR (e.g. fix a typo) with the desired `bump:*` label. The
+   bump is computed from `metadata.json`'s current value, so a
+   missed `vN+1` jump can be recovered by labeling the recovery PR
+   with the same `bump:*` level the missed PR carried.
 2. **Manual bump locally** — `jq` the metadata.json, commit on a
    branch, open a PR, merge it with the `bump:*` label.
 

@@ -22,6 +22,8 @@ This file is the short briefing. Deeper docs live in `docs/`:
 - [`docs/testing.md`](docs/testing.md) — `node --test tests/`, when to add tests
 - [`docs/development.md`](docs/development.md) — symlink, plasmashell restart,
   `plasmawindowed`, journal greps, QML tooling
+- [`docs/releasing.md`](docs/releasing.md) — release flow
+  (`version.yml` + `release.yml`), `BUMP_TOKEN` PAT rotation, KDE Store
 
 ## Working rules
 

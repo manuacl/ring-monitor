@@ -1,0 +1,113 @@
+name: Bump version
+
+# Triggers on push to main (= a PR has just been merged). Reads the
+# merged PR's bump:<level> label, bumps metadata.json's KPlugin.Version
+# accordingly, commits the change and creates the matching git tag.
+#
+# No label = no bump: the workflow exits cleanly without touching
+# anything.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: version
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Skip if HEAD already tagged
+        id: check
+        run: |
+          if git describe --exact-match HEAD 2>/dev/null; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Find merged PR
+        if: steps.check.outputs.skip == 'false'
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          PR=$(gh pr list --state merged --base main --limit 5 --json number,mergeCommit \
+            --jq ".[] | select(.mergeCommit.oid == \"$COMMIT_SHA\") | .number")
+          echo "number=$PR" >> $GITHUB_OUTPUT
+
+      - name: Resolve bump type from PR label
+        if: steps.check.outputs.skip == 'false'
+        id: bump
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+        run: |
+          TYPE=none
+          if [ -n "$PR_NUMBER" ]; then
+            LABELS=$(gh pr view "$PR_NUMBER" --json labels --jq '[.labels[].name] | join(",")')
+            if   echo "$LABELS" | grep -q "bump:major"; then TYPE=major
+            elif echo "$LABELS" | grep -q "bump:minor"; then TYPE=minor
+            elif echo "$LABELS" | grep -q "bump:patch"; then TYPE=patch
+            fi
+          fi
+          echo "type=$TYPE" >> $GITHUB_OUTPUT
+          echo "Bump type: $TYPE (PR #${PR_NUMBER:-none})"
+
+      - name: Compute new version
+        if: steps.check.outputs.skip == 'false' && steps.bump.outputs.type != 'none'
+        id: version
+        env:
+          BUMP_TYPE: ${{ steps.bump.outputs.type }}
+        run: |
+          CURRENT=$(jq -r .KPlugin.Version metadata.json)
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+          case "$BUMP_TYPE" in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH + 1)) ;;
+          esac
+          NEW="$MAJOR.$MINOR.$PATCH"
+          echo "current=$CURRENT" >> $GITHUB_OUTPUT
+          echo "new=$NEW" >> $GITHUB_OUTPUT
+          echo "Bumping $CURRENT → $NEW"
+
+      - name: Update metadata.json
+        if: steps.check.outputs.skip == 'false' && steps.bump.outputs.type != 'none'
+        env:
+          NEW_VERSION: ${{ steps.version.outputs.new }}
+        run: |
+          jq --indent 4 ".KPlugin.Version = \"$NEW_VERSION\"" metadata.json > metadata.json.tmp
+          mv metadata.json.tmp metadata.json
+          # Strip jq's trailing newline → match the file's original style
+          # (already 4-space indented, ends without a trailing blank line).
+
+      - name: Configure git
+        if: steps.check.outputs.skip == 'false' && steps.bump.outputs.type != 'none'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Commit, tag, push
+        if: steps.check.outputs.skip == 'false' && steps.bump.outputs.type != 'none'
+        env:
+          NEW_VERSION: ${{ steps.version.outputs.new }}
+          BUMP_TYPE: ${{ steps.bump.outputs.type }}
+        run: |
+          git add metadata.json
+          git commit -m "chore: bump version to $NEW_VERSION ($BUMP_TYPE)"
+          git tag -a "v$NEW_VERSION" -m "Release v$NEW_VERSION"
+          git push origin HEAD:main --no-verify
+          git push origin "v$NEW_VERSION" --no-verify

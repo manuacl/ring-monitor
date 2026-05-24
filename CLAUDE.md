@@ -35,8 +35,12 @@ These are forced by the user's preferences, not by the tech stack:
   regression guards.
 - **No nested ternaries.** `a ? x : b ? y : c ? z : d` → use a lookup
   map, a `switch`, or extract a named function. Single ternaries are OK.
-- **i18n keys in English.** Source strings stay English; translation is a
-  downstream concern.
+- **English-only repo.** All committed files — code, comments,
+  `docs/*.md`, `CLAUDE.md`, `README.md`, commit messages, PR
+  titles/bodies, and `.claude/skills/*/SKILL.md` — are written
+  exclusively in English. i18n source strings stay English (translation
+  is a downstream concern). The conversation with the user can be in
+  any language; only what lands in the repo is constrained.
 - **Qt docs before inventing.** For any QtQuick pattern (drag/drop,
   model/view, animations), start from
   [doc.qt.io](https://doc.qt.io/qt-6/) — especially the "Dynamic View

@@ -54,6 +54,8 @@ One row of the metrics list:
 | `enabled` | whether this metric is selected; drives the checkbox state + the row's dimmed/disabled look |
 | `description` | secondary label to the right of the checkbox |
 | `extraContent` | optional `Component` rendered indented below the main row (e.g. CPU's "show cores" toggle) |
+| `unit` | layout unit (default `18`) — injected by the parent via `platform/Theme.unit` |
+| `smallSpacing` | row spacing (default `4`) — injected by the parent via `platform/Theme.smallSpacing` |
 | `toggled(bool on)` | emitted when the user clicks the checkbox |
 
 ### Disabled-state convention
@@ -100,6 +102,10 @@ Generic vertical list with drag-to-reorder, deferred commit.
 | `rowSpacing` | gap between rows |
 | `rowContent` | `Component` for the row content; the loaded root reads `parent.rowModel` / `parent.rowIndex` (see below) |
 | `showHandle` | toggle the move icon on the left |
+| `highlightColor` | active-row border + tint (default `"#3daee9"`) — inject via `platform/Theme.highlightColor` |
+| `backgroundColor` | dragged-row fill (default `"#1e1e1e"`) — inject via `platform/Theme.backgroundColor` |
+| `smallSpacing` | inner row padding (default `4`) — inject via `platform/Theme.smallSpacing` |
+| `iconSize` | drag handle icon size (default `16`) — inject via `platform/Theme.iconSize` |
 | `reordered(int from, int to)` | emitted on drop when the order actually changed |
 
 ### Usage
@@ -107,7 +113,13 @@ Generic vertical list with drag-to-reorder, deferred commit.
 ```qml
 DraggableList {
     model: orderModel
-    rowHeight: Kirigami.Units.gridUnit * 2
+    rowHeight: theme.unit * 2
+
+    // Theme tokens injected from the parent's platform/Theme instance.
+    highlightColor: theme.highlightColor
+    backgroundColor: theme.backgroundColor
+    smallSpacing: theme.smallSpacing
+    iconSize: theme.iconSize
 
     rowContent: Component {
         MetricRow {

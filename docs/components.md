@@ -1,5 +1,47 @@
 # Visual components
 
+## Body components — wrapper/body split
+
+Three QML files in `contents/ui/` pair up with their Plasma wrapper:
+
+| Body | Wrapper | Role |
+|---|---|---|
+| `MainContent.qml` | `main.qml` | full widget (rings strip) |
+| `AppearanceBody.qml` | `configAppearance.qml` | Appearance config page |
+| `MetricsBody.qml` | `configMetrics.qml` | Metrics config page |
+
+The body owns the rendering, the internal state, and the user
+interaction. It imports zero `org.kde.plasma.*` and uses `qsTr()` for
+i18n. It exposes plain QML properties for state, and receives
+platform adapters (`theme`, `configStore`, `metrics`) as `var` props
+where it needs runtime data.
+
+The wrapper is **thin** (~40 lines). Its only job is the Plasma seam:
+declare a `PlasmoidItem` / `KCM.SimpleKCM` root, instantiate the
+platform adapters, and bridge Plasma's `cfg_<key>` magic properties
+to the body's plain properties via `property alias` declarations.
+The alias is bidirectional — Plasma writes `cfg_X = value` and the
+body sees `body.X = value`; the body writes `body.X = value` and
+the wrapper exposes `cfg_X = value` back to Plasma's config store.
+
+For the Metrics page, `MetricsBody` additionally owns:
+- a `ListModel` for the displayed metric order
+- `loadOrder()` / `commitOrder()` to sync that model with
+  `metricOrderCsv` (the bridged property)
+- `isEnabled(id)` / `setEnabled(id, on)` for the CSV-encoded
+  enabled-list manipulation (delegates to `MetricsCatalog`)
+- the i18n `metricDescriptions` dictionary
+
+**No Plasma writes happen inside the body** — the body only ever
+writes to its own properties; the alias propagates the change to
+the wrapper's `cfg_*`, which Plasma's `SimpleKCM` flushes to KConfig
+on Apply.
+
+Smoke-tested by `tests/qml/tst_AppearanceBody.qml` and
+`tests/qml/tst_MetricsBody.qml` — both load cleanly under
+qmltestrunner since they only import Kirigami + QtQuick.Controls
+(not the Plasma-only modules).
+
 ## `Ring.qml`
 
 A circular gauge: 270° arc starting at 135° (90° gap at the bottom).

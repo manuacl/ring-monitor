@@ -14,12 +14,15 @@ ring-monitor/
 │   │   ├── main.xml                    — config schema (KConfigXT)
 │   │   └── config.qml                  — config dialog category list
 │   └── ui/
-│       ├── main.qml                    — widget entry point
+│       ├── main.qml                    — Plasmoid host (wraps MainContent + 3 adapters)
+│       ├── MainContent.qml             — portable body of the widget (no org.kde.*)
 │       ├── Ring.qml                    — visual: one circular gauge (leaf, no Kirigami)
 │       ├── MetricRow.qml               — visual: one row of the metrics list (leaf, no Kirigami)
 │       ├── DraggableList.qml           — reusable drag-to-reorder ListView (leaf, no Kirigami)
-│       ├── configMetrics.qml           — config page: enable/order
-│       ├── configAppearance.qml        — config page: orientation + opacity
+│       ├── configMetrics.qml           — Plasma wrapper (cfg_* aliases → MetricsBody)
+│       ├── MetricsBody.qml             — portable body of the Metrics page (no org.kde.plasma.*)
+│       ├── configAppearance.qml        — Plasma wrapper (cfg_* aliases → AppearanceBody)
+│       ├── AppearanceBody.qml          — portable body of the Appearance page (no org.kde.plasma.*)
 │       ├── ReorderLogic.js             — pure: drag math (testable)
 │       ├── MetricsCatalog.js           — pure: metric data + CSV helpers
 │       ├── RingGeometry.js             — pure: ring stroke/radius/sweep math
@@ -40,15 +43,24 @@ ring-monitor/
 
 ## Layering rule
 
-Two directional rules:
+Three directional rules:
 
 1. **Views import from `.js` modules, never the reverse.**
 2. **Leaf components (`Ring.qml`, `MetricRow.qml`, `DraggableList.qml`)
    never import `org.kde.*`.** They consume theme tokens through
-   explicit properties; the parent (`main.qml`, `configMetrics.qml`)
-   instantiates `platform/Theme.qml` and passes the values down.
-   This is the plasma-isolation seam — see
-   [`docs/plasma-isolation/plan.md`](plasma-isolation/plan.md).
+   explicit properties; the parent (`MainContent.qml`,
+   `MetricsBody.qml`) instantiates `platform/Theme.qml` and passes
+   the values down.
+3. **Body components (`MainContent.qml`, `AppearanceBody.qml`,
+   `MetricsBody.qml`) never import `org.kde.plasma.*`.** They use
+   `qsTr()` for i18n (works in both Plasma and standalone), receive
+   the three platform adapters as `var` props from their Plasma
+   wrapper (`main.qml`, `configAppearance.qml`, `configMetrics.qml`),
+   and expose plain QML properties that the wrapper bridges to
+   Plasma's `cfg_*` magic via `property alias` declarations.
+
+Together: the plasma-isolation seam — see
+[`docs/plasma-isolation/plan.md`](plasma-isolation/plan.md).
 
 ```
 config/*.xml        — schema (no logic)
@@ -73,17 +85,18 @@ that would couple logic to Qt-only types and break Node testing.
 ## Data flow
 
 ```
-ksysguard ──▶ platform/MetricsBackend.qml ──▶ main.qml ──▶ Ring.qml (value binding)
-                                                ▲
-                                                │
-              KConfig ──▶ platform/ConfigStore  │ (textOpacity, etc.)
+ksysguard ──▶ platform/MetricsBackend.qml ──▶ MainContent.qml ──▶ Ring.qml (value binding)
+                                                  ▲
+                                                  │
+              KConfig ──▶ platform/ConfigStore  ──┘ (textOpacity, etc.)
                   │
-                  │            cfg_metricOrder
-                  ▼            cfg_enabledMetrics
-            configMetrics.qml ──▶ orderModel ──▶ DraggableList.qml
-                                                     │
-                                                     ▼
-                                            ReorderLogic.js
+                  │ cfg_metricOrder
+                  │ cfg_enabledMetrics
+                  ▼   (via property alias)
+            configMetrics.qml ──▶ MetricsBody ──▶ orderModel ──▶ DraggableList.qml
+                                                                     │
+                                                                     ▼
+                                                            ReorderLogic.js
 ```
 
 Sensors are read-only push streams. The user-mutable state is in

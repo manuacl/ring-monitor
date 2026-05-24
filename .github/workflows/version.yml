@@ -23,9 +23,14 @@ jobs:
   bump:
     runs-on: ubuntu-latest
     steps:
+      # BUMP_TOKEN is a PAT (classic, scope=repo) owned by an admin.
+      # Required because the bump commit + tag push to main bypass the
+      # repository ruleset via the admin actor — the default
+      # GITHUB_TOKEN runs as github-actions[bot], which has no bypass
+      # and would be rejected by branch protection.
       - uses: actions/checkout@v6
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.BUMP_TOKEN }}
           fetch-depth: 0
 
       - name: Skip if HEAD already tagged

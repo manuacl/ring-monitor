@@ -45,141 +45,158 @@ Item {
     }
     onValueChanged: displayValue = value
 
-    // ── Main outer ring (track + active arc) ─────────────────────────────
-    Shape {
-        id: trackShape
-        anchors.fill: parent
-        antialiasing: true
-        ShapePath {
-            strokeColor: Qt.rgba(1, 1, 1, root.trackOpacity)
-            strokeWidth: root.ringStroke
-            fillColor: "transparent"
-            capStyle: ShapePath.RoundCap
-            PathAngleArc {
-                centerX: trackShape.width / 2
-                centerY: trackShape.height / 2
-                radiusX: root.ringRadius
-                radiusY: root.ringRadius
-                startAngle: Geom.BASE_START_ANGLE
-                sweepAngle: Geom.BASE_SWEEP_ANGLE
-            }
-        }
-    }
-
-    Shape {
-        id: arcShape
-        anchors.fill: parent
-        antialiasing: true
-        opacity: root.arcOpacity
-        ShapePath {
-            strokeColor: root.ringColor
-            strokeWidth: root.ringStroke
-            fillColor: "transparent"
-            capStyle: ShapePath.RoundCap
-            PathAngleArc {
-                centerX: arcShape.width / 2
-                centerY: arcShape.height / 2
-                radiusX: root.ringRadius
-                radiusY: root.ringRadius
-                startAngle: Geom.BASE_START_ANGLE
-                sweepAngle: Geom.sweepForPercent(root.displayValue)
-            }
-        }
-    }
-
-    // ── Concentric inner rings (nested values) ───────────────────────────
-    Repeater {
-        id: nestedRepeater
-        model: root.nestedValues.length
-
-        delegate: Item {
-            id: nestedItem
-            anchors.fill: parent
-
-            required property int index
-
-            readonly property real r: Geom.nestedRadius(root.ringRadius, root.ringStroke, root.nestedStroke, root.nestedGap, index)
-            readonly property real v: root.nestedValues[index] || 0
-
-            // Smooth this core's value
-            property real dv: v
-            Behavior on dv {
-                NumberAnimation {
-                    duration: 400
-                    easing.type: Easing.OutCubic
-                }
-            }
-            onVChanged: dv = v
-
-            Shape {
-                id: nTrack
-                anchors.fill: parent
-                antialiasing: true
-                ShapePath {
-                    strokeColor: Qt.rgba(1, 1, 1, root.trackOpacity * 0.6)
-                    strokeWidth: root.nestedStroke
-                    fillColor: "transparent"
-                    capStyle: ShapePath.RoundCap
-                    PathAngleArc {
-                        centerX: nTrack.width / 2
-                        centerY: nTrack.height / 2
-                        radiusX: nestedItem.r
-                        radiusY: nestedItem.r
-                        startAngle: Geom.BASE_START_ANGLE
-                        sweepAngle: Geom.BASE_SWEEP_ANGLE
-                    }
-                }
-            }
-
-            Shape {
-                id: nArc
-                anchors.fill: parent
-                antialiasing: true
-                opacity: 0.55 * root.arcOpacity
-                ShapePath {
-                    strokeColor: root.ringColor
-                    strokeWidth: root.nestedStroke
-                    fillColor: "transparent"
-                    capStyle: ShapePath.RoundCap
-                    PathAngleArc {
-                        centerX: nArc.width / 2
-                        centerY: nArc.height / 2
-                        radiusX: nestedItem.r
-                        radiusY: nestedItem.r
-                        startAngle: Geom.BASE_START_ANGLE
-                        sweepAngle: Geom.sweepForPercent(nestedItem.dv)
-                    }
-                }
-            }
-        }
-    }
-
-    // ── Value (centered) ─────────────────────────────────────────────────
-    Text {
-        id: valueText
+    // Square inner box centered in the root. All ring geometry + label
+    // anchor against this, not against `root`. Without this wrap, the
+    // label was anchored to `root.bottom` — fine when the delegate is
+    // a tight square, but in horizontal layout `Layout.fillHeight: true`
+    // stretches the root taller than `size`, so the label drifted off
+    // the bottom of the visible ring. See issue #13.
+    Item {
+        id: ringBox
+        width: root.size
+        height: root.size
         anchors.centerIn: parent
-        text: Math.round(root.displayValue) + root.unit
-        color: root.textColor
-        opacity: root.textOpacity
-        font.pixelSize: root.valuePx
-        font.weight: Font.Light
-    }
 
-    // ── Label (inside the 90° gap at the bottom of the ring) ─────────────
-    Text {
-        id: labelText
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: Math.max(2, Math.round(root.size * 0.14))
-        text: root.label
-        color: root.textColor
-        opacity: 0.55 * root.textOpacity
-        font.pixelSize: root.labelPx
-        font.letterSpacing: 2
+        // ── Main outer ring (track + active arc) ─────────────────────────
+        Shape {
+            id: trackShape
+            anchors.fill: parent
+            antialiasing: true
+            ShapePath {
+                strokeColor: Qt.rgba(1, 1, 1, root.trackOpacity)
+                strokeWidth: root.ringStroke
+                fillColor: "transparent"
+                capStyle: ShapePath.RoundCap
+                PathAngleArc {
+                    centerX: trackShape.width / 2
+                    centerY: trackShape.height / 2
+                    radiusX: root.ringRadius
+                    radiusY: root.ringRadius
+                    startAngle: Geom.BASE_START_ANGLE
+                    sweepAngle: Geom.BASE_SWEEP_ANGLE
+                }
+            }
+        }
+
+        Shape {
+            id: arcShape
+            anchors.fill: parent
+            antialiasing: true
+            opacity: root.arcOpacity
+            ShapePath {
+                strokeColor: root.ringColor
+                strokeWidth: root.ringStroke
+                fillColor: "transparent"
+                capStyle: ShapePath.RoundCap
+                PathAngleArc {
+                    centerX: arcShape.width / 2
+                    centerY: arcShape.height / 2
+                    radiusX: root.ringRadius
+                    radiusY: root.ringRadius
+                    startAngle: Geom.BASE_START_ANGLE
+                    sweepAngle: Geom.sweepForPercent(root.displayValue)
+                }
+            }
+        }
+
+        // ── Concentric inner rings (nested values) ───────────────────────
+        Repeater {
+            id: nestedRepeater
+            model: root.nestedValues.length
+
+            delegate: Item {
+                id: nestedItem
+                anchors.fill: parent
+
+                required property int index
+
+                readonly property real r: Geom.nestedRadius(root.ringRadius, root.ringStroke, root.nestedStroke, root.nestedGap, index)
+                readonly property real v: root.nestedValues[index] || 0
+
+                // Smooth this core's value
+                property real dv: v
+                Behavior on dv {
+                    NumberAnimation {
+                        duration: 400
+                        easing.type: Easing.OutCubic
+                    }
+                }
+                onVChanged: dv = v
+
+                Shape {
+                    id: nTrack
+                    anchors.fill: parent
+                    antialiasing: true
+                    ShapePath {
+                        strokeColor: Qt.rgba(1, 1, 1, root.trackOpacity * 0.6)
+                        strokeWidth: root.nestedStroke
+                        fillColor: "transparent"
+                        capStyle: ShapePath.RoundCap
+                        PathAngleArc {
+                            centerX: nTrack.width / 2
+                            centerY: nTrack.height / 2
+                            radiusX: nestedItem.r
+                            radiusY: nestedItem.r
+                            startAngle: Geom.BASE_START_ANGLE
+                            sweepAngle: Geom.BASE_SWEEP_ANGLE
+                        }
+                    }
+                }
+
+                Shape {
+                    id: nArc
+                    anchors.fill: parent
+                    antialiasing: true
+                    opacity: 0.55 * root.arcOpacity
+                    ShapePath {
+                        strokeColor: root.ringColor
+                        strokeWidth: root.nestedStroke
+                        fillColor: "transparent"
+                        capStyle: ShapePath.RoundCap
+                        PathAngleArc {
+                            centerX: nArc.width / 2
+                            centerY: nArc.height / 2
+                            radiusX: nestedItem.r
+                            radiusY: nestedItem.r
+                            startAngle: Geom.BASE_START_ANGLE
+                            sweepAngle: Geom.sweepForPercent(nestedItem.dv)
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── Value (centered) ─────────────────────────────────────────────
+        Text {
+            id: valueText
+            anchors.centerIn: parent
+            text: Math.round(root.displayValue) + root.unit
+            color: root.textColor
+            opacity: root.textOpacity
+            font.pixelSize: root.valuePx
+            font.weight: Font.Light
+        }
+
+        // ── Label (inside the 90° gap at the bottom of the ring) ─────────
+        Text {
+            id: labelText
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: Math.max(2, Math.round(root.size * 0.14))
+            text: root.label
+            color: root.textColor
+            opacity: 0.55 * root.textOpacity
+            font.pixelSize: root.labelPx
+            font.letterSpacing: 2
+        }
     }
 
     // ── Test hooks (read what's actually rendered) ───────────────────────
     readonly property alias _labelText: labelText.text
     readonly property alias _valueText: valueText.text
     readonly property real _sweepAngle: Geom.sweepForPercent(root.displayValue)
+    // Label's bottom-y in root coords — used by the regression test for
+    // issue #13 to assert the label tracks the visible ring's bottom,
+    // not the root Item's bottom when the delegate is stretched.
+    readonly property real _labelBottomY: labelText.mapToItem(root, 0, labelText.height).y
 }

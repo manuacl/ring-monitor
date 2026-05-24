@@ -62,6 +62,7 @@ Item {
             id: trackShape
             anchors.fill: parent
             antialiasing: true
+            preferredRendererType: Shape.CurveRenderer
             ShapePath {
                 strokeColor: Qt.rgba(1, 1, 1, root.trackOpacity)
                 strokeWidth: root.ringStroke
@@ -83,6 +84,7 @@ Item {
             anchors.fill: parent
             antialiasing: true
             opacity: root.arcOpacity
+            preferredRendererType: Shape.CurveRenderer
             ShapePath {
                 strokeColor: root.ringColor
                 strokeWidth: root.ringStroke
@@ -127,6 +129,7 @@ Item {
                     id: nTrack
                     anchors.fill: parent
                     antialiasing: true
+                    preferredRendererType: Shape.CurveRenderer
                     ShapePath {
                         strokeColor: Qt.rgba(1, 1, 1, root.trackOpacity * 0.6)
                         strokeWidth: root.nestedStroke
@@ -148,6 +151,7 @@ Item {
                     anchors.fill: parent
                     antialiasing: true
                     opacity: 0.55 * root.arcOpacity
+                    preferredRendererType: Shape.CurveRenderer
                     ShapePath {
                         strokeColor: root.ringColor
                         strokeWidth: root.nestedStroke

@@ -2,7 +2,6 @@ import QtQuick
 import QtQuick.Layouts
 import org.kde.plasma.plasmoid
 import org.kde.plasma.core as PlasmaCore
-import org.kde.ksysguard.sensors as Sensors
 import "platform" as Platform
 import "MetricsCatalog.js" as Catalog
 
@@ -14,9 +13,9 @@ PlasmoidItem {
 
     // ── Platform adapters ────────────────────────────────────────────────
     // Theme re-exports Kirigami tokens. ConfigStore re-exports
-    // Plasmoid.configuration as typed properties — main.qml no longer
-    // reaches into Plasmoid.configuration directly. See
-    // docs/plasma-isolation/plan.md for the broader rationale.
+    // Plasmoid.configuration. MetricsBackend wraps the KSysGuard sensor
+    // instances. main.qml never touches org.kde.* APIs directly anymore.
+    // See docs/plasma-isolation/plan.md for the broader rationale.
     Platform.Theme {
         id: theme
     }
@@ -25,70 +24,8 @@ PlasmoidItem {
         id: configStore
     }
 
-    // ── Sensors ──────────────────────────────────────────────────────────
-    // The sensor IDs come from Catalog. Sensors.Sensor is a QML-only type so
-    // the instances themselves must be declared here.
-    Sensors.Sensor {
-        id: cpuTotal
-        sensorId: Catalog.sensorIdFor("cpu")
-    }
-    Sensors.Sensor {
-        id: ramSensor
-        sensorId: Catalog.sensorIdFor("ram")
-    }
-    Sensors.Sensor {
-        id: swapSensor
-        sensorId: Catalog.sensorIdFor("swap")
-    }
-    Sensors.Sensor {
-        id: gpuSensor
-        sensorId: Catalog.sensorIdFor("gpu")
-    }
-    Sensors.Sensor {
-        id: diskSensor
-        sensorId: Catalog.sensorIdFor("disk")
-    }
-
-    // Per-core CPU sensors (6 cores on this rig — see CLAUDE.md).
-    Sensors.Sensor {
-        id: cpu0
-        sensorId: "cpu/cpu0/usage"
-    }
-    Sensors.Sensor {
-        id: cpu1
-        sensorId: "cpu/cpu1/usage"
-    }
-    Sensors.Sensor {
-        id: cpu2
-        sensorId: "cpu/cpu2/usage"
-    }
-    Sensors.Sensor {
-        id: cpu3
-        sensorId: "cpu/cpu3/usage"
-    }
-    Sensors.Sensor {
-        id: cpu4
-        sensorId: "cpu/cpu4/usage"
-    }
-    Sensors.Sensor {
-        id: cpu5
-        sensorId: "cpu/cpu5/usage"
-    }
-
-    readonly property var coreValues: [cpu0.value || 0, cpu1.value || 0, cpu2.value || 0, cpu3.value || 0, cpu4.value || 0, cpu5.value || 0]
-
-    // ── id → sensor instance lookup (replaces a chained ternary) ────────
-    readonly property var sensorMap: ({
-            cpu: cpuTotal,
-            ram: ramSensor,
-            swap: swapSensor,
-            gpu: gpuSensor,
-            disk: diskSensor
-        })
-
-    function metricValue(id) {
-        // Pure helper (tested in metrics-catalog.test.mjs).
-        return Catalog.valueFromSensorMap(sensorMap, id);
+    Platform.MetricsBackend {
+        id: metrics
     }
 
     // ── Enabled metrics (read config + filter through Catalog) ──────────
@@ -117,8 +54,8 @@ PlasmoidItem {
                 Layout.minimumHeight: 80
 
                 label: Catalog.labelFor(modelData)
-                value: root.metricValue(modelData)
-                nestedValues: modelData === "cpu" && configStore.showCpuCores ? root.coreValues : []
+                value: metrics.metricValue(modelData)
+                nestedValues: modelData === "cpu" && configStore.showCpuCores ? metrics.coreValues : []
                 ringColor: theme.highlightColor
                 textColor: theme.textColor
                 textOpacity: configStore.textOpacity

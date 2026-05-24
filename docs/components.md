@@ -288,3 +288,34 @@ QML-runtime test isn't viable: `ConfigStore.qml` transitively
 requires the Plasma desktop runtime (`org.kde.plasma.plasmoid`
 QML module), which CI doesn't install — see the test file's
 preamble for the rationale.
+
+### `MetricsBackend.qml`
+
+Wraps the KSysGuard sensor instances used by the Plasma build.
+`main.qml` no longer declares 11 `Sensors.Sensor` objects + the
+`sensorMap` + `coreValues` + `metricValue()` helper — they all live
+here.
+
+**Public surface** (the only thing `main.qml` consumes):
+
+| Member | Description |
+|---|---|
+| `coreValues` (readonly property var) | array of the 6 per-core CPU usage values, with `\|\| 0` fallback for not-yet-ready sensors |
+| `metricValue(id)` (function) | latest value for one of the catalog metric ids (`cpu`/`ram`/`swap`/`gpu`/`disk`) — delegates to `MetricsCatalog.valueFromSensorMap` |
+
+**Internal** (implementation detail, not part of the public API):
+the 11 `Sensors.Sensor` instances + the `sensorMap` lookup. Each
+named sensor's `sensorId` is resolved via
+`MetricsCatalog.sensorIdFor(id)`, so metric-id → sensor-id mapping
+stays centralised in the shared core module.
+
+A standalone build will ship a parallel `MetricsBackend.qml` backed
+by `/proc` reads (e.g. `/proc/stat` for CPU, `/proc/meminfo` for
+RAM) or by `psutil` via a PyQt6 process, exposing the same public
+surface.
+
+Smoke-tested by `tests/metrics-backend.test.mjs` — same pattern as
+`tests/config-store.test.mjs`. CI can't run a qmltestrunner test
+that loads `org.kde.ksysguard.sensors`; the Node test inspects the
+QML source and asserts the public surface + every catalog sensor +
+the 6 per-core sensors are declared.

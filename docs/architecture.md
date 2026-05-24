@@ -26,11 +26,14 @@ ring-monitor/
 │       └── platform/                   — Plasma adapters (single home of org.kde.* imports)
 │           ├── Theme.qml               — re-exposes Kirigami theme tokens
 │           ├── ThemedIcon.qml          — wraps Kirigami.Icon
-│           └── ConfigStore.qml         — re-exposes Plasmoid.configuration as typed properties
+│           ├── ConfigStore.qml         — re-exposes Plasmoid.configuration as typed properties
+│           └── MetricsBackend.qml      — wraps KSysGuard sensor instances
 ├── tests/
 │   ├── reorder-logic.test.mjs
 │   ├── metrics-catalog.test.mjs
-│   └── ring-geometry.test.mjs
+│   ├── ring-geometry.test.mjs
+│   ├── config-store.test.mjs          — text-level guard (no Plasma runtime in CI)
+│   └── metrics-backend.test.mjs       — text-level guard (no Plasma runtime in CI)
 ├── docs/                               — you are here
 └── CLAUDE.md                           — short briefing for AI assistants
 ```
@@ -70,10 +73,10 @@ that would couple logic to Qt-only types and break Node testing.
 ## Data flow
 
 ```
-ksysguard ──▶ Sensors.Sensor (main.qml) ──▶ Ring.qml (value binding)
-                                              ▲
-                                              │
-              KConfig (cfg_*) ──────────────  │ (textOpacity, etc.)
+ksysguard ──▶ platform/MetricsBackend.qml ──▶ main.qml ──▶ Ring.qml (value binding)
+                                                ▲
+                                                │
+              KConfig ──▶ platform/ConfigStore  │ (textOpacity, etc.)
                   │
                   │            cfg_metricOrder
                   ▼            cfg_enabledMetrics

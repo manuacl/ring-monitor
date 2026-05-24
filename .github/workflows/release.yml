@@ -14,6 +14,14 @@ name: Release
 on:
   push:
     tags: ['v*']
+  # Manual re-run for a specific tag — useful when version.yml ran but
+  # release.yml wasn't on main yet, or to retry a failed release.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v0.2.0)'
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -22,12 +30,24 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
+      # On workflow_dispatch, check out the requested tag explicitly
+      # so the rest of the workflow reads its metadata.json.
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+
+      - name: Resolve tag name
+        id: tag
+        run: |
+          TAG="${{ inputs.tag || github.ref_name }}"
+          echo "name=$TAG" >> $GITHUB_OUTPUT
 
       - name: Read version from tag
         id: meta
+        env:
+          TAG_NAME: ${{ steps.tag.outputs.name }}
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${TAG_NAME#v}"
           PLUGIN_ID=$(jq -r .KPlugin.Id metadata.json)
           NAME=$(jq -r .KPlugin.Name metadata.json)
           ARTIFACT="${PLUGIN_ID}-${VERSION}.plasmoid"
@@ -94,8 +114,9 @@ jobs:
           ARTIFACT: ${{ steps.meta.outputs.artifact }}
           NAME: ${{ steps.meta.outputs.name }}
           VERSION: ${{ steps.meta.outputs.version }}
+          TAG_NAME: ${{ steps.tag.outputs.name }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
+          gh release create "$TAG_NAME" \
             "$ARTIFACT" \
             --title "$NAME v$VERSION" \
             --generate-notes

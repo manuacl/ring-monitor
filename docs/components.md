@@ -10,7 +10,8 @@ A circular gauge: 270° arc starting at 135° (90° gap at the bottom).
 |---|---|---|
 | `label` | `""` | text above the value (e.g. `"CPU"`) |
 | `value` | `0` | current percentage (0–100) |
-| `ringColor` | `Kirigami.Theme.highlightColor` | arc color |
+| `ringColor` | `"#3daee9"` | arc color — injected by the parent via the platform/Theme adapter |
+| `textColor` | `"#eeeeee"` | value/label color — same injection |
 | `unit` | `"%"` | string appended to the rendered value |
 | `textOpacity` / `trackOpacity` / `arcOpacity` | `1.0` / `0.15` / `1.0` | per-layer opacity |
 | `nestedValues` | `[]` | optional 0–100 array → concentric inner rings |
@@ -53,6 +54,8 @@ One row of the metrics list:
 | `enabled` | whether this metric is selected; drives the checkbox state + the row's dimmed/disabled look |
 | `description` | secondary label to the right of the checkbox |
 | `extraContent` | optional `Component` rendered indented below the main row (e.g. CPU's "show cores" toggle) |
+| `unit` | layout unit (default `18`) — injected by the parent via `platform/Theme.unit` |
+| `smallSpacing` | row spacing (default `4`) — injected by the parent via `platform/Theme.smallSpacing` |
 | `toggled(bool on)` | emitted when the user clicks the checkbox |
 
 ### Disabled-state convention
@@ -99,6 +102,10 @@ Generic vertical list with drag-to-reorder, deferred commit.
 | `rowSpacing` | gap between rows |
 | `rowContent` | `Component` for the row content; the loaded root reads `parent.rowModel` / `parent.rowIndex` (see below) |
 | `showHandle` | toggle the move icon on the left |
+| `highlightColor` | active-row border + tint (default `"#3daee9"`) — inject via `platform/Theme.highlightColor` |
+| `backgroundColor` | dragged-row fill (default `"#1e1e1e"`) — inject via `platform/Theme.backgroundColor` |
+| `smallSpacing` | inner row padding (default `4`) — inject via `platform/Theme.smallSpacing` |
+| `iconSize` | drag handle icon size (default `16`) — inject via `platform/Theme.iconSize` |
 | `reordered(int from, int to)` | emitted on drop when the order actually changed |
 
 ### Usage
@@ -106,7 +113,13 @@ Generic vertical list with drag-to-reorder, deferred commit.
 ```qml
 DraggableList {
     model: orderModel
-    rowHeight: Kirigami.Units.gridUnit * 2
+    rowHeight: theme.unit * 2
+
+    // Theme tokens injected from the parent's platform/Theme instance.
+    highlightColor: theme.highlightColor
+    backgroundColor: theme.backgroundColor
+    smallSpacing: theme.smallSpacing
+    iconSize: theme.iconSize
 
     rowContent: Component {
         MetricRow {
@@ -200,3 +213,39 @@ same `onReordered` handler `configMetrics` uses (`Logic.applyMove` →
    rowSpacing` each frame, not a precomputed constant — without this,
    rows with `extraContent` (e.g. CPU's sub-toggle) would shift by the
    wrong amount.
+
+## Platform adapters (`contents/ui/platform/`)
+
+Thin Plasma-only adapters that the leaf components consume via
+properties — keeps `Ring.qml`, `MetricRow.qml`, `DraggableList.qml`
+free of `org.kde.*` imports. See
+[`docs/plasma-isolation/plan.md`](plasma-isolation/plan.md) for the
+broader context.
+
+### `Theme.qml`
+
+Item re-exposing Kirigami theme tokens under a stable surface:
+
+| Property | Source |
+|---|---|
+| `textColor` | `Kirigami.Theme.textColor` |
+| `highlightColor` | `Kirigami.Theme.highlightColor` |
+| `backgroundColor` | `Kirigami.Theme.backgroundColor` |
+| `unit` | `Kirigami.Units.gridUnit` |
+| `smallSpacing` | `Kirigami.Units.smallSpacing` |
+| `iconSize` | `Kirigami.Units.iconSizes.small` |
+
+Instantiated once per top-level file (e.g. `main.qml`,
+`configMetrics.qml`) with `id: theme`. Children read `theme.X` and
+pass it to leaves as explicit properties — DIP, no scope-chain
+trickery through Loaders.
+
+Smoke-tested by `tests/qml/tst_Theme.qml`.
+
+### `ThemedIcon.qml`
+
+One-line wrap of `Kirigami.Icon`. Consumed by `DraggableList.qml` for
+the drag handle icon. Standalone equivalent (future) will back this
+with `Image { source: "image://theme/..." }`.
+
+Smoke-tested by `tests/qml/tst_ThemedIcon.qml`.

@@ -24,6 +24,8 @@ This file is the short briefing. Deeper docs live in `docs/`:
   `plasmawindowed`, journal greps, QML tooling
 - [`docs/releasing.md`](docs/releasing.md) — release flow
   (`version.yml` + `release.yml`), `BUMP_TOKEN` PAT rotation, KDE Store
+- [`docs/plasma-isolation/plan.md`](docs/plasma-isolation/plan.md) —
+  active 6-PR refactor isolating Plasma deps behind adapter layer
 
 ## Working rules
 

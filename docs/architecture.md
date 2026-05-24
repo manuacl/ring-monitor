@@ -15,13 +15,17 @@ ring-monitor/
 │   │   └── config.qml                  — config dialog category list
 │   └── ui/
 │       ├── main.qml                    — widget entry point
-│       ├── Ring.qml                    — visual: one circular gauge
-│       ├── DraggableList.qml           — reusable drag-to-reorder ListView
+│       ├── Ring.qml                    — visual: one circular gauge (leaf, no Kirigami)
+│       ├── MetricRow.qml               — visual: one row of the metrics list (leaf, no Kirigami)
+│       ├── DraggableList.qml           — reusable drag-to-reorder ListView (leaf, no Kirigami)
 │       ├── configMetrics.qml           — config page: enable/order
 │       ├── configAppearance.qml        — config page: orientation + opacity
 │       ├── ReorderLogic.js             — pure: drag math (testable)
 │       ├── MetricsCatalog.js           — pure: metric data + CSV helpers
-│       └── RingGeometry.js             — pure: ring stroke/radius/sweep math
+│       ├── RingGeometry.js             — pure: ring stroke/radius/sweep math
+│       └── platform/                   — Plasma adapters (single home of org.kde.* imports)
+│           ├── Theme.qml               — re-exposes Kirigami theme tokens
+│           └── ThemedIcon.qml          — wraps Kirigami.Icon
 ├── tests/
 │   ├── reorder-logic.test.mjs
 │   ├── metrics-catalog.test.mjs
@@ -32,8 +36,15 @@ ring-monitor/
 
 ## Layering rule
 
-Logic flows in one direction: **views import from `.js` modules, never the
-reverse**.
+Two directional rules:
+
+1. **Views import from `.js` modules, never the reverse.**
+2. **Leaf components (`Ring.qml`, `MetricRow.qml`, `DraggableList.qml`)
+   never import `org.kde.*`.** They consume theme tokens through
+   explicit properties; the parent (`main.qml`, `configMetrics.qml`)
+   instantiates `platform/Theme.qml` and passes the values down.
+   This is the plasma-isolation seam — see
+   [`docs/plasma-isolation/plan.md`](plasma-isolation/plan.md).
 
 ```
 config/*.xml        — schema (no logic)

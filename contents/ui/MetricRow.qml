@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
-import org.kde.kirigami as Kirigami
 import "MetricsCatalog.js" as Catalog
 
 // One row of the draggable metrics list:
@@ -37,6 +36,11 @@ Item {
     property string description: ""
     property Component extraContent: null
 
+    // Theme tokens — injected by the parent via the platform/Theme adapter.
+    // Sensible defaults match Kirigami's typical values.
+    property real unit: 18
+    property real smallSpacing: 4
+
     // ── Output ──────────────────────────────────────────────────────
     signal toggled(bool on)
 
@@ -52,14 +56,14 @@ Item {
 
         RowLayout {
             Layout.fillWidth: true
-            spacing: Kirigami.Units.smallSpacing
+            spacing: row.smallSpacing
 
             QQC2.CheckBox {
                 id: checkBox
                 text: Catalog.labelFor(row.metricId)
                 checked: row.enabled
                 onClicked: row.toggled(checked)
-                Layout.minimumWidth: Kirigami.Units.gridUnit * 5
+                Layout.minimumWidth: row.unit * 5
             }
 
             QQC2.Label {
@@ -77,8 +81,8 @@ Item {
         Loader {
             id: extraLoader
             Layout.fillWidth: true
-            Layout.leftMargin: Kirigami.Units.gridUnit * 2   // indent under the checkbox
-            Layout.bottomMargin: row.extraContent ? Kirigami.Units.smallSpacing : 0
+            Layout.leftMargin: row.unit * 2   // indent under the checkbox
+            Layout.bottomMargin: row.extraContent ? row.smallSpacing : 0
             sourceComponent: row.extraContent
             active: row.extraContent !== null
             visible: active

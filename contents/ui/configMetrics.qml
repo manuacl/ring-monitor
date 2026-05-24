@@ -3,6 +3,7 @@ import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import org.kde.kcmutils as KCM
+import "platform" as Platform
 import "ReorderLogic.js" as Logic
 import "MetricsCatalog.js" as Catalog
 
@@ -76,6 +77,13 @@ KCM.SimpleKCM {
     onCfg_metricOrderChanged: loadOrder()
     Component.onCompleted: loadOrder()
 
+    // Platform adapter — same tokens used to size the row controls and
+    // re-injected into the leaves (DraggableList + MetricRow) so they
+    // don't import Kirigami directly.
+    Platform.Theme {
+        id: theme
+    }
+
     ColumnLayout {
         Layout.fillWidth: true
         spacing: Kirigami.Units.smallSpacing
@@ -92,7 +100,13 @@ KCM.SimpleKCM {
             Layout.fillWidth: true
             Layout.preferredHeight: implicitHeight
             model: orderModel
-            rowHeight: Kirigami.Units.gridUnit * 2
+            rowHeight: theme.unit * 2
+
+            // Theme tokens forwarded into the leaf component.
+            smallSpacing: theme.smallSpacing
+            iconSize: theme.iconSize
+            highlightColor: theme.highlightColor
+            backgroundColor: theme.backgroundColor
 
             rowContent: Component {
                 MetricRow {
@@ -104,6 +118,11 @@ KCM.SimpleKCM {
                     enabled: page.isEnabled(_metricId)
                     description: page.metricDescriptions[_metricId] || ""
                     onToggled: on => page.setEnabled(_metricId, on)
+
+                    // Theme tokens — `theme` is resolved through the
+                    // Component's definition scope (configMetrics.qml).
+                    unit: theme.unit
+                    smallSpacing: theme.smallSpacing
 
                     // CPU-specific sub-option: render the "show cores" toggle
                     // indented below the CPU row only.

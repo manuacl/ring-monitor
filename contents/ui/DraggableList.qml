@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
-import org.kde.kirigami as Kirigami
+import "platform" as Platform
 import "ReorderLogic.js" as Logic
 
 // Reusable vertical list with drag-to-reorder behaviour.
@@ -42,10 +42,17 @@ ListView {
     id: root
 
     // ── Public API ──────────────────────────────────────────────────────
-    property real rowHeight: Kirigami.Units.gridUnit * 2
+    property real rowHeight: 36
     property real rowSpacing: 4
     property Component rowContent     // user-provided content for each row
     property bool showHandle: true    // visual move icon on the left
+
+    // Theme tokens — injected by the parent via the platform/Theme adapter.
+    // Sensible defaults match Kirigami's typical values for standalone use.
+    property color highlightColor: "#3daee9"
+    property color backgroundColor: "#1e1e1e"
+    property real smallSpacing: 4
+    property real iconSize: 16
 
     // Emitted on drop when the order actually changed.
     signal reordered(int from, int to)
@@ -99,9 +106,9 @@ ListView {
             radius: 4
             // Opaque background while dragged so the floating row doesn't
             // show the static rows underneath through transparency.
-            color: row.held ? Qt.tint(Kirigami.Theme.backgroundColor, Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g, Kirigami.Theme.highlightColor.b, 0.18)) : (hoverHandler.hovered ? Qt.rgba(1, 1, 1, 0.05) : "transparent")
+            color: row.held ? Qt.tint(root.backgroundColor, Qt.rgba(root.highlightColor.r, root.highlightColor.g, root.highlightColor.b, 0.18)) : (hoverHandler.hovered ? Qt.rgba(1, 1, 1, 0.05) : "transparent")
             border.width: row.held ? 2 : 1
-            border.color: row.held ? Kirigami.Theme.highlightColor : Qt.rgba(1, 1, 1, 0.08)
+            border.color: row.held ? root.highlightColor : Qt.rgba(1, 1, 1, 0.08)
             z: row.held ? 100 : 0
 
             // Light up the drag-and-drop signaling system whenever the
@@ -147,12 +154,12 @@ ListView {
                 anchors.fill: parent
                 anchors.leftMargin: 6
                 anchors.rightMargin: 6
-                spacing: Kirigami.Units.smallSpacing
+                spacing: root.smallSpacing
 
-                Kirigami.Icon {
+                Platform.ThemedIcon {
                     source: "transform-move"
-                    implicitWidth: Kirigami.Units.iconSizes.small
-                    implicitHeight: Kirigami.Units.iconSizes.small
+                    implicitWidth: root.iconSize
+                    implicitHeight: root.iconSize
                     opacity: 0.5
                     visible: root.showHandle
                     // Stay next to the main checkbox row, not floating
@@ -185,7 +192,7 @@ ListView {
             anchors.left: parent.left
             anchors.top: parent.top
             anchors.bottom: parent.bottom
-            width: Kirigami.Units.iconSizes.small + 12
+            width: root.iconSize + 12
             cursorShape: Qt.SizeVerCursor
             hoverEnabled: true
 

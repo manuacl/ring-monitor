@@ -1,8 +1,9 @@
 # Adding a metric
 
 The catalog is intentionally small: each metric is registered once in
-`MetricsCatalog.js`, plus a `Sensors.Sensor` instance in `main.qml` and a
-description string in `configMetrics.qml`. No other file needs editing.
+`core/MetricsCatalog.js`, plus a `Sensors.Sensor` instance in
+`platform/MetricsBackend.qml` and a description string in
+`core/MetricsBody.qml`. No other file needs editing.
 
 ## Step 1: pick a sensor id
 
@@ -25,7 +26,7 @@ Common ones:
 
 ## Step 2: register in the catalog
 
-`contents/ui/MetricsCatalog.js`:
+`contents/ui/core/MetricsCatalog.js`:
 
 ```js
 var METRIC_IDS = ["cpu", "ram", "swap", "gpu", "disk", "net"];
@@ -42,9 +43,9 @@ var METRIC_SENSOR_IDS = {
 ```
 
 If the label needs i18n, fall back to the QML side: add a `descriptions`
-entry in `configMetrics.qml` and look it up by id.
+entry in `core/MetricsBody.qml` and look it up by id.
 
-## Step 3: declare the sensor in `main.qml`
+## Step 3: declare the sensor in `platform/MetricsBackend.qml`
 
 ```qml
 Sensors.Sensor { id: netSensor; sensorId: Catalog.sensorIdFor("net") }
@@ -59,7 +60,7 @@ readonly property var sensorMap: ({
 })
 ```
 
-## Step 4: description in `configMetrics.qml`
+## Step 4: description in `core/MetricsBody.qml`
 
 ```qml
 readonly property var metricDescriptions: ({

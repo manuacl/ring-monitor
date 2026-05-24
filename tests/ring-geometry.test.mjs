@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 const require = createRequire(import.meta.url);
-const Geom = require('../contents/ui/RingGeometry.js');
+const Geom = require('../contents/ui/core/RingGeometry.js');
 
 test('BASE_*_ANGLE constants match the established aesthetic', () => {
     // 270° sweep starting at 135°: 90° gap at the bottom.

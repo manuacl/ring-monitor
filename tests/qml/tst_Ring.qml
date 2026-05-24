@@ -1,6 +1,6 @@
 import QtQuick
 import QtTest
-import "../../contents/ui" as Ui
+import "../../contents/ui/core" as Ui
 
 // Tests for Ring.qml — covers the QML bindings (text, dimensions, sweep
 // angle, nested values count). The pure geometry math is covered by

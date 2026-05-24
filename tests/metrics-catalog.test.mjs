@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 const require = createRequire(import.meta.url);
-const Catalog = require('../contents/ui/MetricsCatalog.js');
+const Catalog = require('../contents/ui/core/MetricsCatalog.js');
 
 test('METRIC_IDS contains the 5 known metrics in canonical order', () => {
     assert.deepEqual(Catalog.METRIC_IDS, ['cpu', 'ram', 'swap', 'gpu', 'disk']);

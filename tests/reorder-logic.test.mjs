@@ -2,7 +2,7 @@
 //
 // Run:  node --test tests/
 //
-// The implementation lives in contents/ui/ReorderLogic.js. That file is
+// The implementation lives in contents/ui/core/ReorderLogic.js. That file is
 // designed to be importable BOTH from QML (as a namespace) AND from Node
 // (via a CommonJS-style `module.exports` shim at the bottom).
 //
@@ -14,7 +14,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 const require = createRequire(import.meta.url);
-const Logic = require('../contents/ui/ReorderLogic.js');
+const Logic = require('../contents/ui/core/ReorderLogic.js');
 
 // ─────────────────────────────────────────────────────────────────────────
 // computeDropTarget(mouseY, rowStep, count)

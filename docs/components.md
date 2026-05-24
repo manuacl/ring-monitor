@@ -2,13 +2,13 @@
 
 ## Body components — wrapper/body split
 
-Three QML files in `contents/ui/` pair up with their Plasma wrapper:
+Three QML files in `contents/ui/core/` pair up with their Plasma wrapper at the top level of `contents/ui/`:
 
-| Body | Wrapper | Role |
+| Body (`core/`) | Wrapper (top level) | Role |
 |---|---|---|
-| `MainContent.qml` | `main.qml` | full widget (rings strip) |
-| `AppearanceBody.qml` | `configAppearance.qml` | Appearance config page |
-| `MetricsBody.qml` | `configMetrics.qml` | Metrics config page |
+| `core/MainContent.qml` | `main.qml` | full widget (rings strip) |
+| `core/AppearanceBody.qml` | `configAppearance.qml` | Appearance config page |
+| `core/MetricsBody.qml` | `configMetrics.qml` | Metrics config page |
 
 The body owns the rendering, the internal state, and the user
 interaction. It imports zero `org.kde.plasma.*` and uses `qsTr()` for
@@ -258,9 +258,10 @@ same `onReordered` handler `configMetrics` uses (`Logic.applyMove` →
 
 ## Platform adapters (`contents/ui/platform/`)
 
-Thin Plasma-only adapters that the leaf components consume via
-properties — keeps `Ring.qml`, `MetricRow.qml`, `DraggableList.qml`
-free of `org.kde.*` imports. See
+Thin Plasma-only adapters that `core/` components consume via
+properties — keeps everything under `contents/ui/core/` free of
+`org.kde.*` imports (the load-bearing invariant of the
+plasma-isolation seam, enforced by the `finish-branch` skill). See
 [`docs/plasma-isolation/plan.md`](plasma-isolation/plan.md) for the
 broader context.
 

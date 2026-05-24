@@ -1,7 +1,7 @@
 import QtQuick
 import QtTest
-import "../../contents/ui" as Ui
-import "../../contents/ui/ReorderLogic.js" as Logic
+import "../../contents/ui/core" as Ui
+import "../../contents/ui/core/ReorderLogic.js" as Logic
 
 // Full integration test: simulate a user-driven drag inside DraggableList,
 // run it through the same `onReordered` handler that configMetrics uses

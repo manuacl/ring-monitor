@@ -32,7 +32,7 @@ This file is the short briefing. Deeper docs live in `docs/`:
 These are forced by the user's preferences, not by the tech stack:
 
 - **Logic in dedicated files, views thin.** Pure logic goes in
-  `contents/ui/*.js` (dual-loadable by QML and Node). QML files
+  `contents/ui/core/*.js` (dual-loadable by QML and Node). QML files
   consume them.
 - **All logic must be tested.** New `.js` module ⇒ matching
   `tests/*.test.mjs`. Use `SCENARIO:` tests to encode reported bugs as
@@ -59,7 +59,7 @@ These are forced by the user's preferences, not by the tech stack:
   because the bug was in a QML binding.
 - **500 lines max per source / test file.** Enforced by both the
   pre-commit hook and CI (`.github/workflows/ci.yml`'s `file-size`
-  job) over `contents/ui/*.{qml,js}` and `tests/{*.test.mjs,qml/*.qml}`.
+  job) over `contents/ui/**/*.{qml,js}` and `tests/{*.test.mjs,qml/*.qml}`.
   When a file outgrows it: split — extract pure logic to a `.js`
   module, or pull a sub-component into its own `.qml` file (e.g. the
   `MetricRow` extraction from `configMetrics.qml`). Don't raise the

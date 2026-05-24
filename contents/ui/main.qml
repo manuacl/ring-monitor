@@ -2,6 +2,7 @@ import QtQuick
 import org.kde.plasma.plasmoid
 import org.kde.plasma.core as PlasmaCore
 import "platform" as Platform
+import "core" as Core
 
 // Plasmoid host. Holds the platform adapters (the only place where
 // org.kde.* APIs are touched at the top level) and instantiates the
@@ -36,7 +37,7 @@ PlasmoidItem {
     }
 
     // ── Portable body ───────────────────────────────────────────────
-    fullRepresentation: MainContent {
+    fullRepresentation: Core.MainContent {
         theme: themeAdapter
         configStore: configStoreAdapter
         metrics: metricsAdapter

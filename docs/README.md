@@ -5,7 +5,7 @@ as a directory.
 
 - [Architecture](architecture.md) — high-level structure, file roles,
   data flow
-- [Logic modules](logic-modules.md) — pure JS helpers in `contents/ui/*.js`
+- [Logic modules](logic-modules.md) — pure JS helpers in `contents/ui/core/*.js`
   and what they each do
 - [Visual components](components.md) — `Ring.qml`, `DraggableList.qml`
 - [Config dialog](config-dialog.md) — Plasma 6 config schema, KCM

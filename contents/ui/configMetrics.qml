@@ -1,6 +1,7 @@
 import QtQuick
 import org.kde.kcmutils as KCM
 import "platform" as Platform
+import "core" as Core
 
 // Plasma-side wrapper for the Metrics config page. All of the
 // rendering, the orderModel, and the toggle/reorder logic live in
@@ -41,7 +42,7 @@ KCM.SimpleKCM {
         id: themeAdapter
     }
 
-    MetricsBody {
+    Core.MetricsBody {
         id: body
         theme: themeAdapter
     }

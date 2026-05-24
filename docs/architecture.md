@@ -14,18 +14,19 @@ ring-monitor/
 │   │   ├── main.xml                    — config schema (KConfigXT)
 │   │   └── config.qml                  — config dialog category list
 │   └── ui/
-│       ├── main.qml                    — Plasmoid host (wraps MainContent + 3 adapters)
-│       ├── MainContent.qml             — portable body of the widget (no org.kde.*)
-│       ├── Ring.qml                    — visual: one circular gauge (leaf, no Kirigami)
-│       ├── MetricRow.qml               — visual: one row of the metrics list (leaf, no Kirigami)
-│       ├── DraggableList.qml           — reusable drag-to-reorder ListView (leaf, no Kirigami)
-│       ├── configMetrics.qml           — Plasma wrapper (cfg_* aliases → MetricsBody)
-│       ├── MetricsBody.qml             — portable body of the Metrics page (no org.kde.plasma.*)
-│       ├── configAppearance.qml        — Plasma wrapper (cfg_* aliases → AppearanceBody)
-│       ├── AppearanceBody.qml          — portable body of the Appearance page (no org.kde.plasma.*)
-│       ├── ReorderLogic.js             — pure: drag math (testable)
-│       ├── MetricsCatalog.js           — pure: metric data + CSV helpers
-│       ├── RingGeometry.js             — pure: ring stroke/radius/sweep math
+│       ├── main.qml                    — Plasmoid host (wraps Core.MainContent + 3 adapters)
+│       ├── configMetrics.qml           — Plasma wrapper (cfg_* aliases → Core.MetricsBody)
+│       ├── configAppearance.qml        — Plasma wrapper (cfg_* aliases → Core.AppearanceBody)
+│       ├── core/                       — portable subset (no org.kde.* imports — enforced)
+│       │   ├── MainContent.qml         — body of the widget
+│       │   ├── Ring.qml                — visual: one circular gauge (leaf)
+│       │   ├── MetricRow.qml           — visual: one row of the metrics list (leaf)
+│       │   ├── DraggableList.qml       — reusable drag-to-reorder ListView (uses Platform.ThemedIcon)
+│       │   ├── MetricsBody.qml         — body of the Metrics page
+│       │   ├── AppearanceBody.qml      — body of the Appearance page
+│       │   ├── ReorderLogic.js         — pure: drag math (testable)
+│       │   ├── MetricsCatalog.js       — pure: metric data + CSV helpers
+│       │   └── RingGeometry.js         — pure: ring stroke/radius/sweep math
 │       └── platform/                   — Plasma adapters (single home of org.kde.* imports)
 │           ├── Theme.qml               — re-exposes Kirigami theme tokens
 │           ├── ThemedIcon.qml          — wraps Kirigami.Icon
@@ -46,18 +47,22 @@ ring-monitor/
 Three directional rules:
 
 1. **Views import from `.js` modules, never the reverse.**
-2. **Leaf components (`Ring.qml`, `MetricRow.qml`, `DraggableList.qml`)
-   never import `org.kde.*`.** They consume theme tokens through
-   explicit properties; the parent (`MainContent.qml`,
-   `MetricsBody.qml`) instantiates `platform/Theme.qml` and passes
-   the values down.
-3. **Body components (`MainContent.qml`, `AppearanceBody.qml`,
-   `MetricsBody.qml`) never import `org.kde.plasma.*`.** They use
-   `qsTr()` for i18n (works in both Plasma and standalone), receive
-   the three platform adapters as `var` props from their Plasma
-   wrapper (`main.qml`, `configAppearance.qml`, `configMetrics.qml`),
-   and expose plain QML properties that the wrapper bridges to
-   Plasma's `cfg_*` magic via `property alias` declarations.
+2. **Nothing under `contents/ui/core/` imports `org.kde.*`.** This is
+   the load-bearing invariant of the plasma-isolation seam, checked
+   by the `finish-branch` skill on every branch. `core/` consumes
+   theme tokens through explicit properties on a `theme: var` prop;
+   the parent (`main.qml`, `configMetrics.qml`, `configAppearance.qml`)
+   instantiates `platform/Theme.qml` and passes the values down.
+   `core/DraggableList.qml` uses `Platform.ThemedIcon` via the
+   relative import `import "../platform" as Platform` — Plasma is
+   still hidden from `core/`, since the adapter file itself wraps the
+   `Kirigami.Icon`.
+3. **Top-level wrappers (`main.qml`, `configAppearance.qml`,
+   `configMetrics.qml`) are the Plasma-specific shell.** They use
+   `cfg_*` magic property bridges + `KCM.SimpleKCM` / `PlasmoidItem`,
+   instantiate the three platform adapters, and pass them as `var`
+   props down to `core/`. The bodies use `qsTr()` for i18n (works in
+   both Plasma and standalone) and expose plain QML properties.
 
 Together: the plasma-isolation seam — see
 [`docs/plasma-isolation/plan.md`](plasma-isolation/plan.md).
@@ -67,15 +72,20 @@ config/*.xml        — schema (no logic)
        │
        ▼
 configAppearance.qml ─┐
-configMetrics.qml   ──┤
-main.qml          ────┤── view layer (QML)
-Ring.qml           ───┤
-DraggableList.qml  ───┘
+configMetrics.qml   ──┤── Plasma wrappers (cfg_* bridges)
+main.qml          ────┘
        │
        ▼
-ReorderLogic.js
-MetricsCatalog.js   — pure logic (JS, testable in Node)
-RingGeometry.js
+core/MainContent.qml ─┐
+core/MetricsBody.qml  ┤── portable view layer (no org.kde.*)
+core/AppearanceBody.qml │
+core/Ring.qml        ─┤
+core/DraggableList.qml ┘
+       │
+       ▼
+core/ReorderLogic.js
+core/MetricsCatalog.js  — pure logic (JS, testable in Node)
+core/RingGeometry.js
 ```
 
 A QML view may compose other QML views (e.g. `configMetrics.qml` uses
@@ -85,18 +95,18 @@ that would couple logic to Qt-only types and break Node testing.
 ## Data flow
 
 ```
-ksysguard ──▶ platform/MetricsBackend.qml ──▶ MainContent.qml ──▶ Ring.qml (value binding)
-                                                  ▲
-                                                  │
-              KConfig ──▶ platform/ConfigStore  ──┘ (textOpacity, etc.)
+ksysguard ──▶ platform/MetricsBackend.qml ──▶ core/MainContent.qml ──▶ core/Ring.qml
+                                                      ▲
+                                                      │
+              KConfig ──▶ platform/ConfigStore.qml ──┘ (textOpacity, etc.)
                   │
                   │ cfg_metricOrder
                   │ cfg_enabledMetrics
                   ▼   (via property alias)
-            configMetrics.qml ──▶ MetricsBody ──▶ orderModel ──▶ DraggableList.qml
-                                                                     │
-                                                                     ▼
-                                                            ReorderLogic.js
+            configMetrics.qml ──▶ core/MetricsBody.qml ──▶ orderModel ──▶ core/DraggableList.qml
+                                                                                 │
+                                                                                 ▼
+                                                                        core/ReorderLogic.js
 ```
 
 Sensors are read-only push streams. The user-mutable state is in
@@ -113,7 +123,7 @@ things go badly when logic lives only in QML:
    component (visual + logic). Hard regressions to lock down.
 2. **No reasoning across files.** The same metric metadata (label,
    sensor id) was duplicated in `main.qml` and `configMetrics.qml` until
-   the refactor — easy to drift.
+   it was centralized in `core/MetricsCatalog.js` — easy to drift.
 
 Pure JS modules with `module.exports` shims are dual-loadable: QML consumes
 them as namespaces, Node consumes them as CommonJS. The shim doesn't fire

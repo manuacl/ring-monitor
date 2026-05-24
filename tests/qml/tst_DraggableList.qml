@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtTest
-import "../../contents/ui" as Ui
+import "../../contents/ui/core" as Ui
 
 // QML tests for DraggableList — covers two failure classes:
 //

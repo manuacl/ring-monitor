@@ -29,6 +29,8 @@ jobs:
           status=0
           shopt -s nullglob
           for f in contents/ui/*.qml contents/ui/*.js \
+                   contents/ui/core/*.qml contents/ui/core/*.js \
+                   contents/ui/platform/*.qml \
                    tests/*.test.mjs tests/qml/*.qml; do
             lines=$(wc -l < "$f")
             if [ "$lines" -gt "$MAX_LINES" ]; then
@@ -74,11 +76,11 @@ jobs:
             git
 
       - name: qmllint (source + tests)
-        run: qmllint-qt6 contents/ui/*.qml tests/qml/*.qml
+        run: qmllint-qt6 contents/ui/*.qml contents/ui/core/*.qml contents/ui/platform/*.qml tests/qml/*.qml
 
       - name: qmlformat is a no-op (committed files match qmlformat output)
         run: |
-          for f in contents/ui/*.qml; do
+          for f in contents/ui/*.qml contents/ui/core/*.qml contents/ui/platform/*.qml; do
             if ! diff -q "$f" <(qmlformat-qt6 "$f") > /dev/null; then
               echo "::error file=$f::qmlformat would reformat this file — run qmlformat-qt6 --inplace locally and recommit"
               echo "--- diff ---"

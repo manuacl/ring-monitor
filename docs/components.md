@@ -281,6 +281,10 @@ this same adapter.
 A standalone build will ship a parallel `ConfigStore.qml` backed by
 `Qt.labs.settings`, exposing the same property surface.
 
-Smoke-tested by `tests/qml/tst_ConfigStore.qml` (property-name typo
-guard; values can't be asserted outside a real Plasma shell — see
-the test file's preamble for the rationale).
+Smoke-tested by `tests/config-store.test.mjs` — Node text-level
+guard (asserts every persisted config key is declared, readonly,
+and bound to the matching `Plasmoid.configuration.X` key). A
+QML-runtime test isn't viable: `ConfigStore.qml` transitively
+requires the Plasma desktop runtime (`org.kde.plasma.plasmoid`
+QML module), which CI doesn't install — see the test file's
+preamble for the rationale.

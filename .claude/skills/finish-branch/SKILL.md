@@ -213,6 +213,54 @@ if git diff --name-only origin/main...HEAD | grep -q '^contents/config/main.xml$
         # this branch — see contents/config/main.xml."
     fi
 fi
+
+# 4f. Modified (not just added) .qml that gained new public properties
+# → docs/components.md must be touched AND the component's section
+# should appear in the docs diff. Catches the failure mode where an
+# existing leaf gets new theme tokens / API and the docs go stale.
+# Excludes platform/ (adapters), main.qml, config* (parent shells).
+for qml in $(echo "$changed" | grep '^contents/ui/.*\.qml$' | grep -v '^contents/ui/platform/'); do
+    base=$(basename "$qml" .qml)
+    case "$base" in main|configMetrics|configAppearance|configGeneral) continue ;; esac
+    # Was it modified (not added)? Added files are handled by 4d.
+    if ! git diff --name-only --diff-filter=M origin/main...HEAD | grep -qx "$qml"; then
+        continue
+    fi
+    # Count NEW property declarations in the diff.
+    added_props=$(git diff origin/main...HEAD -- "$qml" | grep -cE '^\+[[:space:]]+property[[:space:]]+')
+    if [ "$added_props" -gt 0 ]; then
+        if ! echo "$changed" | grep -qx "docs/components.md"; then
+            echo "FAIL: $qml added $added_props new property declaration(s) but docs/components.md was not touched"
+            status=1
+        elif ! git diff origin/main...HEAD -- docs/components.md | grep -q "$base"; then
+            echo "WARN: $qml added $added_props new property declaration(s); docs/components.md was touched but its $base section diff does not mention the component name"
+            echo "  → did you update the right section?"
+        fi
+    fi
+done
+
+# 4g. New directory under contents/ui/ → must be mentioned in
+# docs/architecture.md (file-layout tree). Catches structural moves
+# (e.g. the platform/ adapter directory) that the architecture doc
+# would otherwise miss.
+new_dirs=$(git diff --name-only --diff-filter=A origin/main...HEAD | \
+    grep -oE '^contents/ui/[^/]+/' | sort -u | sed 's|/$||')
+for d in $new_dirs; do
+    dname=$(basename "$d")
+    if ! git diff origin/main...HEAD -- docs/architecture.md | grep -q "$dname"; then
+        echo "FAIL: new directory $d not mentioned in docs/architecture.md (file layout tree)"
+        status=1
+    fi
+done
+
+# 4h. Manual audit prompt — these can't be greped reliably. Always
+# print, so the user sees the checklist before phase B.
+echo ""
+echo "AUDIT (manual, did you also update if relevant?):"
+echo "  - CLAUDE.md 'Where to look' if a new doc file lives outside the listed ones"
+echo "  - Existing usage examples in docs/ that may reference an obsolete API"
+echo "  - docs/adding-a-metric.md if a new metric or sensor pattern was introduced"
+echo "  - docs/testing.md if a new test layout / runner / pattern was introduced"
 ```
 
 **Stub shapes** (what the Write/Edit tool should produce):
@@ -375,6 +423,9 @@ Summary table at the end of phase A:
 ✓ DIP (leaves don't read Plasmoid.configuration)
 ± tests & docs: auto-created tests/qml/tst_Foo.qml stub
 ± tests & docs: auto-added docs/components.md entry for Foo
+✗ tests & docs: Ring.qml added 2 properties but docs/components.md not touched
+✗ tests & docs: new directory contents/ui/platform/ not mentioned in architecture.md
+↻ AUDIT printed — verify manually before phase B
 ✓ git: clean working tree, up to date with origin/main
 ```
 

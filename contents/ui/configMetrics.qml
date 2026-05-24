@@ -35,12 +35,14 @@ KCM.SimpleKCM {
     property var cfg_enabledMetricsDefault
     property var cfg_showCpuCoresDefault
 
+    // ID is *Adapter-suffixed to avoid shadowing MetricsBody's
+    // `theme` property — same QML name-resolution trap as in main.qml.
     Platform.Theme {
-        id: theme
+        id: themeAdapter
     }
 
     MetricsBody {
         id: body
-        theme: theme
+        theme: themeAdapter
     }
 }

@@ -18,22 +18,27 @@ PlasmoidItem {
     Plasmoid.backgroundHints: PlasmaCore.Types.NoBackground
 
     // ── Platform adapters ───────────────────────────────────────────
+    // IDs are *Adapter-suffixed to avoid shadowing the same-named
+    // properties on MainContent. Without the suffix, QML's name
+    // resolution inside the `fullRepresentation` Component template
+    // would bind `theme: theme` to MainContent.theme (= undefined)
+    // rather than the outer id.
     Platform.Theme {
-        id: theme
+        id: themeAdapter
     }
 
     Platform.ConfigStore {
-        id: configStore
+        id: configStoreAdapter
     }
 
     Platform.MetricsBackend {
-        id: metrics
+        id: metricsAdapter
     }
 
     // ── Portable body ───────────────────────────────────────────────
     fullRepresentation: MainContent {
-        theme: theme
-        configStore: configStore
-        metrics: metrics
+        theme: themeAdapter
+        configStore: configStoreAdapter
+        metrics: metricsAdapter
     }
 }

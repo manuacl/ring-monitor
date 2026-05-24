@@ -83,6 +83,26 @@ Item {
             verify(ring.valuePx > 0);
         }
 
+        // ── SCENARIO (issue #13): label tracks the visible ring's
+        //     bottom even when the delegate is stretched taller than
+        //     the ring (horizontal-layout panels with
+        //     Layout.fillHeight: true). The label must sit inside the
+        //     ring's bounding square (ringBox), not at the root Item's
+        //     bottom edge.
+        function test_label_stays_inside_ring_box_when_root_is_stretched() {
+            // Make the root rectangular: ring is 180×180, root is 180×300.
+            // ring.size = min(width, height) = 180 — unchanged. The visible
+            // ring is centered, so its geometric bottom is at
+            // root.height/2 + size/2 = 150 + 90 = 240. Without the ringBox
+            // wrap the label sat at root.height - bottomMargin ≈ 275 (off
+            // by ~60px).
+            ring.height = 300;
+            wait(20);
+            const ringGeometricBottom = ring.height / 2 + ring.size / 2;
+            verify(ring._labelBottomY <= ringGeometricBottom, "label bottom (" + ring._labelBottomY + ") must be at or above the visible ring's bottom (" + ringGeometricBottom + "), not at the stretched root's bottom");
+            ring.height = 180;
+        }
+
         // ── nestedValues array drives the per-core ring count ─────
         function test_nestedValues_drives_repeater() {
             ring.nestedValues = [10, 20, 30, 40, 50, 60];

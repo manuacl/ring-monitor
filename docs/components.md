@@ -10,7 +10,8 @@ A circular gauge: 270° arc starting at 135° (90° gap at the bottom).
 |---|---|---|
 | `label` | `""` | text above the value (e.g. `"CPU"`) |
 | `value` | `0` | current percentage (0–100) |
-| `ringColor` | `Kirigami.Theme.highlightColor` | arc color |
+| `ringColor` | `"#3daee9"` | arc color — injected by the parent via the platform/Theme adapter |
+| `textColor` | `"#eeeeee"` | value/label color — same injection |
 | `unit` | `"%"` | string appended to the rendered value |
 | `textOpacity` / `trackOpacity` / `arcOpacity` | `1.0` / `0.15` / `1.0` | per-layer opacity |
 | `nestedValues` | `[]` | optional 0–100 array → concentric inner rings |
@@ -200,3 +201,39 @@ same `onReordered` handler `configMetrics` uses (`Logic.applyMove` →
    rowSpacing` each frame, not a precomputed constant — without this,
    rows with `extraContent` (e.g. CPU's sub-toggle) would shift by the
    wrong amount.
+
+## Platform adapters (`contents/ui/platform/`)
+
+Thin Plasma-only adapters that the leaf components consume via
+properties — keeps `Ring.qml`, `MetricRow.qml`, `DraggableList.qml`
+free of `org.kde.*` imports. See
+[`docs/plasma-isolation/plan.md`](plasma-isolation/plan.md) for the
+broader context.
+
+### `Theme.qml`
+
+Item re-exposing Kirigami theme tokens under a stable surface:
+
+| Property | Source |
+|---|---|
+| `textColor` | `Kirigami.Theme.textColor` |
+| `highlightColor` | `Kirigami.Theme.highlightColor` |
+| `backgroundColor` | `Kirigami.Theme.backgroundColor` |
+| `unit` | `Kirigami.Units.gridUnit` |
+| `smallSpacing` | `Kirigami.Units.smallSpacing` |
+| `iconSize` | `Kirigami.Units.iconSizes.small` |
+
+Instantiated once per top-level file (e.g. `main.qml`,
+`configMetrics.qml`) with `id: theme`. Children read `theme.X` and
+pass it to leaves as explicit properties — DIP, no scope-chain
+trickery through Loaders.
+
+Smoke-tested by `tests/qml/tst_Theme.qml`.
+
+### `ThemedIcon.qml`
+
+One-line wrap of `Kirigami.Icon`. Consumed by `DraggableList.qml` for
+the drag handle icon. Standalone equivalent (future) will back this
+with `Image { source: "image://theme/..." }`.
+
+Smoke-tested by `tests/qml/tst_ThemedIcon.qml`.

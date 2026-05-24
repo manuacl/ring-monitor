@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import org.kde.plasma.plasmoid
 import org.kde.plasma.core as PlasmaCore
 import org.kde.ksysguard.sensors as Sensors
+import "platform" as Platform
 import "MetricsCatalog.js" as Catalog
 
 PlasmoidItem {
@@ -10,6 +11,11 @@ PlasmoidItem {
 
     preferredRepresentation: fullRepresentation
     Plasmoid.backgroundHints: PlasmaCore.Types.NoBackground
+
+    // ── Platform adapter (Kirigami theme tokens) ─────────────────────────
+    Platform.Theme {
+        id: theme
+    }
 
     // ── Sensors ──────────────────────────────────────────────────────────
     // The sensor IDs come from Catalog. Sensors.Sensor is a QML-only type so
@@ -105,6 +111,8 @@ PlasmoidItem {
                 label: Catalog.labelFor(modelData)
                 value: root.metricValue(modelData)
                 nestedValues: modelData === "cpu" && Plasmoid.configuration.showCpuCores ? root.coreValues : []
+                ringColor: theme.highlightColor
+                textColor: theme.textColor
                 textOpacity: Plasmoid.configuration.textOpacity
                 trackOpacity: Plasmoid.configuration.trackOpacity
                 arcOpacity: Plasmoid.configuration.arcOpacity

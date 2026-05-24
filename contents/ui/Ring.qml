@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Shapes
-import org.kde.kirigami as Kirigami
 import "RingGeometry.js" as Geom
 
 Item {
@@ -8,7 +7,10 @@ Item {
 
     property string label: ""
     property real value: 0
-    property color ringColor: Kirigami.Theme.highlightColor
+    // Theme tokens — injected by the parent via the platform/Theme adapter.
+    // Sensible defaults so the component renders standalone (tests, previews).
+    property color ringColor: "#3daee9"
+    property color textColor: "#eeeeee"
     property string unit: "%"
 
     // Opacities (configurable from the plasmoid config UI)
@@ -157,7 +159,7 @@ Item {
         id: valueText
         anchors.centerIn: parent
         text: Math.round(root.displayValue) + root.unit
-        color: Kirigami.Theme.textColor
+        color: root.textColor
         opacity: root.textOpacity
         font.pixelSize: root.valuePx
         font.weight: Font.Light
@@ -170,7 +172,7 @@ Item {
         anchors.bottom: parent.bottom
         anchors.bottomMargin: Math.max(2, Math.round(root.size * 0.14))
         text: root.label
-        color: Kirigami.Theme.textColor
+        color: root.textColor
         opacity: 0.55 * root.textOpacity
         font.pixelSize: root.labelPx
         font.letterSpacing: 2

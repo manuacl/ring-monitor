@@ -12,9 +12,17 @@ PlasmoidItem {
     preferredRepresentation: fullRepresentation
     Plasmoid.backgroundHints: PlasmaCore.Types.NoBackground
 
-    // ── Platform adapter (Kirigami theme tokens) ─────────────────────────
+    // ── Platform adapters ────────────────────────────────────────────────
+    // Theme re-exports Kirigami tokens. ConfigStore re-exports
+    // Plasmoid.configuration as typed properties — main.qml no longer
+    // reaches into Plasmoid.configuration directly. See
+    // docs/plasma-isolation/plan.md for the broader rationale.
     Platform.Theme {
         id: theme
+    }
+
+    Platform.ConfigStore {
+        id: configStore
     }
 
     // ── Sensors ──────────────────────────────────────────────────────────
@@ -84,11 +92,11 @@ PlasmoidItem {
     }
 
     // ── Enabled metrics (read config + filter through Catalog) ──────────
-    readonly property var enabledList: Catalog.filterByOrder(Catalog.parseCsv(Plasmoid.configuration.enabledMetrics), Catalog.parseCsv(Plasmoid.configuration.metricOrder))
+    readonly property var enabledList: Catalog.filterByOrder(Catalog.parseCsv(configStore.enabledMetrics), Catalog.parseCsv(configStore.metricOrder))
 
     // ── Layout ───────────────────────────────────────────────────────────
     fullRepresentation: GridLayout {
-        readonly property bool vertical: Plasmoid.configuration.orientation === "vertical"
+        readonly property bool vertical: configStore.orientation === "vertical"
         readonly property int count: Math.max(1, root.enabledList.length)
 
         columns: vertical ? 1 : count
@@ -110,12 +118,12 @@ PlasmoidItem {
 
                 label: Catalog.labelFor(modelData)
                 value: root.metricValue(modelData)
-                nestedValues: modelData === "cpu" && Plasmoid.configuration.showCpuCores ? root.coreValues : []
+                nestedValues: modelData === "cpu" && configStore.showCpuCores ? root.coreValues : []
                 ringColor: theme.highlightColor
                 textColor: theme.textColor
-                textOpacity: Plasmoid.configuration.textOpacity
-                trackOpacity: Plasmoid.configuration.trackOpacity
-                arcOpacity: Plasmoid.configuration.arcOpacity
+                textOpacity: configStore.textOpacity
+                trackOpacity: configStore.trackOpacity
+                arcOpacity: configStore.arcOpacity
             }
         }
     }

@@ -25,7 +25,8 @@ ring-monitor/
 │       ├── RingGeometry.js             — pure: ring stroke/radius/sweep math
 │       └── platform/                   — Plasma adapters (single home of org.kde.* imports)
 │           ├── Theme.qml               — re-exposes Kirigami theme tokens
-│           └── ThemedIcon.qml          — wraps Kirigami.Icon
+│           ├── ThemedIcon.qml          — wraps Kirigami.Icon
+│           └── ConfigStore.qml         — re-exposes Plasmoid.configuration as typed properties
 ├── tests/
 │   ├── reorder-logic.test.mjs
 │   ├── metrics-catalog.test.mjs

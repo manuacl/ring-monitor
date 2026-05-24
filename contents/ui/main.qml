@@ -1,9 +1,15 @@
 import QtQuick
-import QtQuick.Layouts
 import org.kde.plasma.plasmoid
 import org.kde.plasma.core as PlasmaCore
 import "platform" as Platform
-import "MetricsCatalog.js" as Catalog
+
+// Plasmoid host. Holds the platform adapters (the only place where
+// org.kde.* APIs are touched at the top level) and instantiates the
+// portable MainContent body inside fullRepresentation.
+//
+// All visible behaviour lives in MainContent.qml — this file is the
+// Plasma-specific shell that a standalone build would replace with a
+// frameless Window root. See docs/plasma-isolation/plan.md.
 
 PlasmoidItem {
     id: root
@@ -11,57 +17,28 @@ PlasmoidItem {
     preferredRepresentation: fullRepresentation
     Plasmoid.backgroundHints: PlasmaCore.Types.NoBackground
 
-    // ── Platform adapters ────────────────────────────────────────────────
-    // Theme re-exports Kirigami tokens. ConfigStore re-exports
-    // Plasmoid.configuration. MetricsBackend wraps the KSysGuard sensor
-    // instances. main.qml never touches org.kde.* APIs directly anymore.
-    // See docs/plasma-isolation/plan.md for the broader rationale.
+    // ── Platform adapters ───────────────────────────────────────────
+    // IDs are *Adapter-suffixed to avoid shadowing the same-named
+    // properties on MainContent. Without the suffix, QML's name
+    // resolution inside the `fullRepresentation` Component template
+    // would bind `theme: theme` to MainContent.theme (= undefined)
+    // rather than the outer id.
     Platform.Theme {
-        id: theme
+        id: themeAdapter
     }
 
     Platform.ConfigStore {
-        id: configStore
+        id: configStoreAdapter
     }
 
     Platform.MetricsBackend {
-        id: metrics
+        id: metricsAdapter
     }
 
-    // ── Enabled metrics (read config + filter through Catalog) ──────────
-    readonly property var enabledList: Catalog.filterByOrder(Catalog.parseCsv(configStore.enabledMetrics), Catalog.parseCsv(configStore.metricOrder))
-
-    // ── Layout ───────────────────────────────────────────────────────────
-    fullRepresentation: GridLayout {
-        readonly property bool vertical: configStore.orientation === "vertical"
-        readonly property int count: Math.max(1, root.enabledList.length)
-
-        columns: vertical ? 1 : count
-        rowSpacing: 12
-        columnSpacing: 12
-        implicitWidth: vertical ? 180 : 180 * count
-        implicitHeight: vertical ? 180 * count : 180
-
-        Repeater {
-            model: root.enabledList
-
-            delegate: Ring {
-                required property string modelData
-
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                Layout.minimumWidth: 80
-                Layout.minimumHeight: 80
-
-                label: Catalog.labelFor(modelData)
-                value: metrics.metricValue(modelData)
-                nestedValues: modelData === "cpu" && configStore.showCpuCores ? metrics.coreValues : []
-                ringColor: theme.highlightColor
-                textColor: theme.textColor
-                textOpacity: configStore.textOpacity
-                trackOpacity: configStore.trackOpacity
-                arcOpacity: configStore.arcOpacity
-            }
-        }
+    // ── Portable body ───────────────────────────────────────────────
+    fullRepresentation: MainContent {
+        theme: themeAdapter
+        configStore: configStoreAdapter
+        metrics: metricsAdapter
     }
 }

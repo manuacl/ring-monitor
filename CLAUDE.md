@@ -144,6 +144,16 @@ User-chosen: **"anneaux modernes épurés"** (clean modern rings).
   a config page doesn't seem to take effect after restarting
   plasmashell, clear `~/.cache/{plasmashell,kcmshell6}/qmlcache/` and
   restart again.
+- **Don't reuse a property name as an `id` in the same QML file when
+  passing it down to a child Component.** Pattern that bites:
+  `Platform.Theme { id: theme }` followed by `MainContent { theme: theme }`.
+  The RHS `theme` resolves to the new component's own `theme`
+  property (which is undefined at binding time) instead of the outer
+  id — the child ends up with undefined props and the binding errors
+  go to the journal, not the QML compiler. Fix: suffix the outer id
+  (`themeAdapter`, `configStoreAdapter`, …) so the names don't
+  collide. Especially dangerous inside `fullRepresentation: X { ... }`
+  Component templates where the error is silent until runtime.
 
 For the deeper "why" on each pitfall and the drag-and-drop saga, see
 `docs/`.

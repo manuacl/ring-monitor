@@ -1,0 +1,101 @@
+name: Release
+
+# Triggers on push of a v* tag (created by .github/workflows/version.yml
+# when a PR with a bump:* label is merged). Builds the .plasmoid
+# package, smoke-tests its structure, and publishes a GitHub Release
+# with auto-generated notes from the merged PR titles since the
+# previous tag.
+#
+# The .plasmoid file is just a zip of the runtime tree:
+#   metadata.json + contents/ + LICENSE
+# Everything else (.claude/, .github/, tests/, docs/, README.md,
+# CLAUDE.md, .githooks/) is excluded — those are dev artifacts.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Read version from tag
+        id: meta
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          PLUGIN_ID=$(jq -r .KPlugin.Id metadata.json)
+          NAME=$(jq -r .KPlugin.Name metadata.json)
+          ARTIFACT="${PLUGIN_ID}-${VERSION}.plasmoid"
+          echo "version=$VERSION"       >> $GITHUB_OUTPUT
+          echo "plugin_id=$PLUGIN_ID"   >> $GITHUB_OUTPUT
+          echo "name=$NAME"             >> $GITHUB_OUTPUT
+          echo "artifact=$ARTIFACT"     >> $GITHUB_OUTPUT
+
+      - name: Verify metadata.json version matches tag
+        env:
+          TAG_VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          META_VERSION=$(jq -r .KPlugin.Version metadata.json)
+          if [ "$META_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::metadata.json version ($META_VERSION) does not match tag ($TAG_VERSION)"
+            exit 1
+          fi
+
+      - name: Build .plasmoid
+        env:
+          ARTIFACT: ${{ steps.meta.outputs.artifact }}
+        run: |
+          zip -r "$ARTIFACT" \
+              metadata.json \
+              contents \
+              LICENSE
+          ls -lh "$ARTIFACT"
+
+      - name: Smoke-test the package structure
+        env:
+          ARTIFACT: ${{ steps.meta.outputs.artifact }}
+          PLUGIN_ID: ${{ steps.meta.outputs.plugin_id }}
+        run: |
+          # The .plasmoid must be loadable by kpackagetool6, which means:
+          # - metadata.json at the root
+          # - contents/ui/main.qml present
+          # - KPlugin.Id matches what we expect
+          tmpdir=$(mktemp -d)
+          unzip -q "$ARTIFACT" -d "$tmpdir"
+
+          test -f "$tmpdir/metadata.json"        || { echo "::error::metadata.json missing"; exit 1; }
+          test -f "$tmpdir/contents/ui/main.qml" || { echo "::error::contents/ui/main.qml missing"; exit 1; }
+          test -f "$tmpdir/LICENSE"              || { echo "::error::LICENSE missing"; exit 1; }
+
+          actual_id=$(jq -r .KPlugin.Id "$tmpdir/metadata.json")
+          if [ "$actual_id" != "$PLUGIN_ID" ]; then
+            echo "::error::KPlugin.Id mismatch: $actual_id != $PLUGIN_ID"
+            exit 1
+          fi
+
+          # Catch accidental inclusions of dev artifacts.
+          for forbidden in .git .github .claude tests docs .githooks; do
+            if [ -e "$tmpdir/$forbidden" ]; then
+              echo "::error::dev artifact leaked into package: $forbidden"
+              exit 1
+            fi
+          done
+
+          echo "Package OK ($(du -h "$ARTIFACT" | cut -f1))"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ARTIFACT: ${{ steps.meta.outputs.artifact }}
+          NAME: ${{ steps.meta.outputs.name }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            "$ARTIFACT" \
+            --title "$NAME v$VERSION" \
+            --generate-notes

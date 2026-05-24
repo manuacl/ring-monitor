@@ -16,7 +16,7 @@ var DIMENSION_RULES = {
     ringStroke:   { factor: 0.055, min: 4  },
     nestedStroke: { factor: 0.017, min: 2  },
     nestedGap:    { factor: 0.022, min: 2  },
-    labelPx:      { factor: 0.06,  min: 8  },
+    labelPx:      { factor: 0.08,  min: 10 },
     valuePx:      { factor: 0.16,  min: 14 },
 };
 

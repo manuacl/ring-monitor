@@ -99,6 +99,29 @@ gh workflow run release.yml --field tag=v0.2.0
 ## KDE Store
 
 The widget is published at https://www.opendesktop.org/p/2360410.
-Upload is manual for now: download the `.plasmoid` artifact from the
-GitHub Release, then upload it via the store's web UI. Automating this
-via the OCS API is deferred.
+
+**The upload step is manual** — and unavoidably so for now. The OCS
+(Open Collaboration Services) API that opendesktop.org / Pling exposes
+is read-only: write endpoints for content uploads have never been
+shipped. Pling administrators confirmed this most recently in
+[September 2023](https://forum.opendesktop.org/t/there-is-a-way-to-setup-a-continuous-deployment-from-a-app-in-pling/18876),
+and the OCS API documentation page makes the same point. No GitHub
+Action exists for this reason — the root cause is server-side.
+
+What `.github/workflows/release.yml` does instead: enrich each GitHub
+Release body with a **"KDE Store upload" helper block** containing the
+direct download link, the version string, and a click-through to the
+store entry. The manual procedure shrinks to three clicks:
+
+1. Open the GitHub Release for the version (e.g.
+   `https://github.com/manuacl/ring-monitor/releases/tag/vX.Y.Z`).
+2. Download the `.plasmoid` from the assets, follow the link to
+   `https://www.opendesktop.org/p/2360410`, log in, click **Edit**.
+3. Upload the file, set version = `X.Y.Z`, paste the **What's
+   Changed** section from the GitHub Release into the changelog field.
+   Save.
+
+If Pling ships write endpoints in the future, replace the "Compose
+release body" step in `release.yml` with a real upload call. The
+artifact path, version, and changelog are already computed there —
+only the final POST changes.

@@ -108,6 +108,40 @@ jobs:
 
           echo "Package OK ($(du -h "$ARTIFACT" | cut -f1))"
 
+      - name: Compose release body
+        # Auto-generated notes (from PR titles since the previous tag)
+        # plus a "KDE Store upload" helper block. The OCS API on
+        # opendesktop.org is read-only, so the upload step itself stays
+        # manual — this block gives the user a click-ready download
+        # link, the version string to paste, and a click-through to the
+        # entry page. See docs/releasing.md § KDE Store.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ARTIFACT: ${{ steps.meta.outputs.artifact }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          TAG_NAME: ${{ steps.tag.outputs.name }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
+            -f "tag_name=$TAG_NAME" \
+            --jq .body > /tmp/auto-notes.md
+
+          ARTIFACT_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$TAG_NAME/$ARTIFACT"
+
+          {
+            cat /tmp/auto-notes.md
+            echo ""
+            echo "---"
+            echo ""
+            echo "## KDE Store upload (manual)"
+            echo ""
+            echo "The KDE Store / opendesktop.org OCS API is read-only, so this step stays manual."
+            echo "Three clicks:"
+            echo ""
+            echo "1. Download [\`$ARTIFACT\`]($ARTIFACT_URL)"
+            echo "2. Open the entry: <https://www.opendesktop.org/p/2360410> → log in → **Edit**"
+            echo "3. Upload the file, set version = \`$VERSION\`, paste the **What's Changed** section above into the changelog field."
+          } > /tmp/release-body.md
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -119,4 +153,4 @@ jobs:
           gh release create "$TAG_NAME" \
             "$ARTIFACT" \
             --title "$NAME v$VERSION" \
-            --generate-notes
+            --notes-file /tmp/release-body.md

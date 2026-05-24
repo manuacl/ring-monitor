@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtTest
-import "../../contents/ui" as Ui
+import "../../contents/ui/core" as Ui
 
 // Tests for MetricRow.qml — asserts that the label / description /
 // checked state actually render correctly for each known metric ID.

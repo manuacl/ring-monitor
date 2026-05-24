@@ -50,6 +50,8 @@ MAX=500
 status=0
 shopt -s nullglob
 for f in contents/ui/*.qml contents/ui/*.js \
+         contents/ui/core/*.qml contents/ui/core/*.js \
+         contents/ui/platform/*.qml \
          tests/*.test.mjs tests/qml/*.qml; do
     lines=$(wc -l < "$f")
     if [ "$lines" -gt "$MAX" ]; then
@@ -60,7 +62,7 @@ done
 [ $status -eq 0 ] && echo "PASS: file-size (≤500 lines)"
 
 # 1b. qmlformat no-op on source .qml files.
-for f in contents/ui/*.qml; do
+for f in contents/ui/*.qml contents/ui/core/*.qml contents/ui/platform/*.qml; do
     if ! diff -q "$f" <(qmlformat-qt6 "$f") > /dev/null; then
         echo "FAIL: $f is not qmlformat-clean"
         echo "  fix: qmlformat-qt6 --inplace $f"
@@ -69,7 +71,26 @@ for f in contents/ui/*.qml; do
 done
 
 # 1c. qmllint on source + QML tests.
-qmllint-qt6 contents/ui/*.qml tests/qml/*.qml || status=1
+qmllint-qt6 contents/ui/*.qml contents/ui/core/*.qml contents/ui/platform/*.qml tests/qml/*.qml || status=1
+
+# 1d. Plasma-isolation invariant: nothing under contents/ui/core/ may
+# import the Plasma-shell-specific modules. The standalone port (issue
+# #7) drops in a different platform/ and reuses core/ verbatim.
+# See docs/plasma-isolation/plan.md.
+#
+# Kirigami (org.kde.kirigami) is intentionally allowed here: it's a
+# KF6 framework that runs on any Qt 6 desktop, and a standalone build
+# can ship it as a runtime dep — that's why PR 5 (FormLayout helper)
+# was skipped. The forbidden namespaces are the actual Plasma shell:
+# org.kde.plasma.*, org.kde.kcmutils, org.kde.ksysguard.*.
+if grep -rnE 'import org\.kde\.(plasma\.|kcmutils|ksysguard)' contents/ui/core/; then
+    echo "FAIL: contents/ui/core/ imports a Plasma-shell module (plasma-isolation invariant)"
+    echo "  fix: move the Plasma-touching code into contents/ui/platform/"
+    echo "       or have core/ consume it through an adapter property."
+    status=1
+else
+    echo "PASS: plasma-isolation invariant (core/ has no Plasma-shell imports)"
+fi
 ```
 
 ### 2. CI — Node tests + QML tests
@@ -90,7 +111,7 @@ equivalent in the pipeline — check them here.
 **3a. Every `.js` module has its paired test file.**
 
 ```bash
-for js in contents/ui/*.js; do
+for js in contents/ui/core/*.js; do
     base=$(basename "$js" .js)
     # Convention: CamelCase.js → kebab-case.test.mjs
     # (see RingGeometry.js → ring-geometry.test.mjs)
@@ -110,7 +131,10 @@ possible (e.g. `foo ? 'a:b' : 'c'`) — re-read each match.
 
 ```bash
 grep -nE '\?[^?]*\?[^:]*:[^:]*:' \
-    contents/ui/*.qml contents/ui/*.js tests/*.test.mjs tests/qml/*.qml \
+    contents/ui/*.qml contents/ui/*.js \
+    contents/ui/core/*.qml contents/ui/core/*.js \
+    contents/ui/platform/*.qml \
+    tests/*.test.mjs tests/qml/*.qml \
     2>/dev/null && echo "FAIL: possibly nested ternaries (re-read matches)"
 ```
 
@@ -120,11 +144,13 @@ DIP rule from the SOLID grid (CLAUDE.md). Leaves take props + emit
 signals; wiring lives in the parent.
 
 ```bash
-# Known leaf files today: Ring.qml, MetricRow.qml.
-# main.qml and configMetrics.qml are legitimate parents.
-for f in contents/ui/Ring.qml contents/ui/MetricRow.qml; do
+# Known leaf files today: everything under contents/ui/core/. The
+# legitimate Plasmoid.configuration readers are platform/ConfigStore.qml
+# and the top-level wrappers (main.qml, configMetrics.qml,
+# configAppearance.qml).
+for f in contents/ui/core/*.qml; do
     if grep -n "Plasmoid\.configuration" "$f"; then
-        echo "FAIL: $f reads Plasmoid.configuration (DIP violation)"
+        echo "FAIL: $f reads Plasmoid.configuration (DIP violation — read it through configStore prop)"
         status=1
     fi
 done
@@ -152,7 +178,7 @@ changed=$(git diff --name-only origin/main...HEAD)
 echo "$changed"
 
 # 4a. Every modified or added .js must have its .test.mjs touched too.
-for js in $(echo "$changed" | grep '^contents/ui/.*\.js$'); do
+for js in $(echo "$changed" | grep '^contents/ui/\(core/\)\?.*\.js$'); do
     base=$(basename "$js" .js)
     kebab=$(echo "$base" | sed 's/\([a-z0-9]\)\([A-Z]\)/\1-\2/g' | tr '[:upper:]' '[:lower:]')
     test_file="tests/${kebab}.test.mjs"
@@ -165,7 +191,7 @@ done
 # 4b. New .qml component (= new file under contents/ui) → auto-create
 # tst_<Name>.qml stub if missing (cf. tests/qml/tst_Ring.qml,
 # tst_MetricRow.qml, tst_DraggableList.qml).
-for qml in $(git diff --name-only --diff-filter=A origin/main...HEAD | grep '^contents/ui/.*\.qml$'); do
+for qml in $(git diff --name-only --diff-filter=A origin/main...HEAD | grep '^contents/ui/\(core/\|platform/\)\?.*\.qml$'); do
     base=$(basename "$qml" .qml)
     # Exclude main.qml and config* (Plasmoid entrypoints, not reusable
     # components → no tst_*.qml expected).
@@ -177,12 +203,14 @@ for qml in $(git diff --name-only --diff-filter=A origin/main...HEAD | grep '^co
         # TestCase named after the component, one `test_smoke` that
         # instantiates the component and asserts it loads. Mark the
         # body with `// TODO: add real assertions` so the user sees it.
+        # The import path is "../../contents/ui/core" for core/ files
+        # and "../../contents/ui/platform" for platform/ files.
     fi
 done
 
 # 4c. New logic module (.js) → add a stub entry in docs/logic-modules.md
 # if missing.
-for js in $(git diff --name-only --diff-filter=A origin/main...HEAD | grep '^contents/ui/.*\.js$'); do
+for js in $(git diff --name-only --diff-filter=A origin/main...HEAD | grep '^contents/ui/\(core/\)\?.*\.js$'); do
     base=$(basename "$js" .js)
     if ! grep -q "$base" docs/logic-modules.md 2>/dev/null; then
         echo "CREATE: docs/logic-modules.md entry for $base (stub)"
@@ -193,7 +221,7 @@ done
 
 # 4d. New component (.qml) → add a stub entry in docs/components.md
 # if missing.
-for qml in $(git diff --name-only --diff-filter=A origin/main...HEAD | grep '^contents/ui/.*\.qml$'); do
+for qml in $(git diff --name-only --diff-filter=A origin/main...HEAD | grep '^contents/ui/\(core/\|platform/\)\?.*\.qml$'); do
     base=$(basename "$qml" .qml)
     case "$base" in main|configMetrics|configAppearance|configGeneral) continue ;; esac
     if ! grep -q "$base" docs/components.md 2>/dev/null; then
@@ -219,7 +247,7 @@ fi
 # should appear in the docs diff. Catches the failure mode where an
 # existing leaf gets new theme tokens / API and the docs go stale.
 # Excludes platform/ (adapters), main.qml, config* (parent shells).
-for qml in $(echo "$changed" | grep '^contents/ui/.*\.qml$' | grep -v '^contents/ui/platform/'); do
+for qml in $(echo "$changed" | grep '^contents/ui/\(core/\)\?.*\.qml$' | grep -v '^contents/ui/platform/'); do
     base=$(basename "$qml" .qml)
     case "$base" in main|configMetrics|configAppearance|configGeneral) continue ;; esac
     # Was it modified (not added)? Added files are handled by 4d.
@@ -241,11 +269,17 @@ done
 
 # 4g. New directory under contents/ui/ → must be mentioned in
 # docs/architecture.md (file-layout tree). Catches structural moves
-# (e.g. the platform/ adapter directory) that the architecture doc
-# would otherwise miss.
-new_dirs=$(git diff --name-only --diff-filter=A origin/main...HEAD | \
+# (e.g. the core/ + platform/ adapter split) that the architecture
+# doc would otherwise miss. Compares against `git ls-tree origin/main`
+# to skip directories that already existed (adding a new file inside
+# an existing dir is not a structural change).
+candidate_dirs=$(git diff --name-only --diff-filter=A origin/main...HEAD | \
     grep -oE '^contents/ui/[^/]+/' | sort -u | sed 's|/$||')
-for d in $new_dirs; do
+existing_dirs=$(git ls-tree -d --name-only -r origin/main contents/ui/ 2>/dev/null)
+for d in $candidate_dirs; do
+    if echo "$existing_dirs" | grep -qx "$d"; then
+        continue  # dir already existed on main, not a structural change
+    fi
     dname=$(basename "$d")
     if ! git diff origin/main...HEAD -- docs/architecture.md | grep -q "$dname"; then
         echo "FAIL: new directory $d not mentioned in docs/architecture.md (file layout tree)"
@@ -265,11 +299,11 @@ echo "  - docs/testing.md if a new test layout / runner / pattern was introduced
 
 **Stub shapes** (what the Write/Edit tool should produce):
 
-- `tests/qml/tst_<Name>.qml`:
+- `tests/qml/tst_<Name>.qml` (pick the right subdir for `App`):
   ```qml
   import QtQuick
   import QtTest
-  import "../../contents/ui" as App
+  import "../../contents/ui/core" as App     // or "../../contents/ui/platform"
 
   TestCase {
       name: "<Name>"
@@ -355,6 +389,7 @@ else
 - [x] file-size cap (≤500 lines)
 - [x] qmlformat no-op
 - [x] qmllint (exit 0)
+- [x] plasma-isolation invariant (`core/` has no `org.kde.*` imports)
 - [x] `node --test` (<N/N>)
 - [x] `qmltestrunner-qt6` headless (<N/N>)
 - [x] `.js` modules / tests paired
@@ -416,6 +451,7 @@ Summary table at the end of phase A:
 ✓ file-size (≤500 lines)
 ✓ qmlformat no-op
 ✓ qmllint
+✓ plasma-isolation invariant (core/ has no org.kde.* imports)
 ✓ node --test
 ✓ qmltestrunner
 ✓ .js modules / tests paired

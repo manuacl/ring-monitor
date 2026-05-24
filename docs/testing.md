@@ -43,7 +43,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 const require = createRequire(import.meta.url);
-const Foo = require('../contents/ui/Foo.js');
+const Foo = require('../contents/ui/core/Foo.js');
 
 test('foo: human-readable expectation', () => {
     assert.equal(Foo.foo(1, 2), 3);

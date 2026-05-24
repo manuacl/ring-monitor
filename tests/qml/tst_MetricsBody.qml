@@ -1,6 +1,6 @@
 import QtQuick
 import QtTest
-import "../../contents/ui" as Ui
+import "../../contents/ui/core" as Ui
 
 // Tests for MetricsBody.qml — covers:
 //   - cfg_* alias surface: metricOrderCsv, enabledMetricsCsv, showCpuCores

@@ -1,6 +1,6 @@
 # Logic modules
 
-All `.js` files under `contents/ui/` follow the same shape:
+All `.js` files under `contents/ui/core/` follow the same shape:
 
 ```js
 // Pure functions and constants here.

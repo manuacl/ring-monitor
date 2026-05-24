@@ -21,6 +21,9 @@ mapfile -d '' line_check_files < <(
     git diff --cached --name-only --diff-filter=ACMR -z -- \
         'contents/ui/*.qml' \
         'contents/ui/*.js' \
+        'contents/ui/core/*.qml' \
+        'contents/ui/core/*.js' \
+        'contents/ui/platform/*.qml' \
         'tests/*.test.mjs' \
         'tests/qml/*.qml'
 )

@@ -1,6 +1,6 @@
 import QtQuick
 import QtTest
-import "../../contents/ui" as Ui
+import "../../contents/ui/core" as Ui
 
 // Tests for AppearanceBody.qml — covers the bidirectional binding
 // between the body's plain properties (orientation, *Opacity) and the

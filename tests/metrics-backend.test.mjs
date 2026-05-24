@@ -25,7 +25,7 @@ const PUBLIC_PROPS = ["coreValues"];
 const PUBLIC_FUNCS = ["metricValue"];
 
 // Named sensor instances — one per catalog metric id (see
-// contents/ui/MetricsCatalog.js: KNOWN_METRICS).
+// contents/ui/core/MetricsCatalog.js: KNOWN_METRICS).
 const NAMED_SENSORS = [
     { id: "cpuTotal", catalogId: "cpu" },
     { id: "ramSensor", catalogId: "ram" },

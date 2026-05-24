@@ -1,5 +1,6 @@
 import QtQuick
 import org.kde.kcmutils as KCM
+import "core" as Core
 
 // Plasma-side wrapper for the Appearance config page. All of the
 // rendering lives in AppearanceBody.qml — this file's only job is to
@@ -33,7 +34,7 @@ KCM.SimpleKCM {
     property var cfg_trackOpacityDefault
     property var cfg_arcOpacityDefault
 
-    AppearanceBody {
+    Core.AppearanceBody {
         id: body
     }
 }

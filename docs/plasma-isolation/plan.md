@@ -1,5 +1,31 @@
 # Plasma isolation refactor
 
+## Status
+
+| PR | Goal | State |
+|---|---|---|
+| 1 | Theme adapter (`platform/Theme.qml` + `ThemedIcon.qml`) | merged (#8) |
+| 2 | ConfigStore adapter (`platform/ConfigStore.qml`) | merged (#10) |
+| 3 | MetricsBackend extraction (`platform/MetricsBackend.qml`) | merged (#11) |
+| 4 | Body extraction (`MainContent`/`AppearanceBody`/`MetricsBody` + `cfg_*` bridges) | merged (#12) |
+| 5 | FormLayout helper | **skipped** — `Kirigami.FormLayout` reads cleanly and Kirigami is usable outside Plasma on any Qt 6 desktop |
+| 6 | File reorganization into `core/` + `finish-branch` invariant | in flight (this PR) |
+
+Path notes from PR 6: the simpler variant was chosen — `core/`
+holds the portable subset, `platform/` holds the Plasma adapters,
+and the three Plasma-host wrappers (`main.qml`, `configMetrics.qml`,
+`configAppearance.qml`) stay flat under `contents/ui/`. This avoids
+the unverified subdirectory-`source:` discovery on `ConfigCategory`,
+without losing the seam invariant.
+
+The invariant enforced by `finish-branch` is **`core/` has no
+Plasma-shell imports** — specifically `org.kde.plasma.*`,
+`org.kde.kcmutils`, `org.kde.ksysguard.*`. Kirigami
+(`org.kde.kirigami`) is intentionally allowed in `core/`: it's a KF6
+framework that runs on any Qt 6 desktop, and the standalone build
+can ship it as a runtime dep. This is the same reasoning that led
+to skipping PR 5 (FormLayout helper).
+
 ## Context
 
 Follow-up to [issue #7](https://github.com/manuacl/ring-monitor/issues/7)
@@ -48,36 +74,42 @@ The real Plasma surface, once abstracted, comes down to four
 adapters: **theme tokens**, **config storage**, **metrics backend**,
 **shell roots**.
 
-## Target structure (post-PR 6)
+## Target structure (post-PR 6, actually landed)
 
 ```
 contents/ui/
-├── main.qml                       (5-line shim: import "platform" as P; P.Main {})
-├── core/                          (no org.kde.* imports — enforced by finish-branch)
+├── main.qml                       — PlasmoidItem host (3 adapters + Core.MainContent)
+├── configMetrics.qml              — KCM.SimpleKCM wrapper (cfg_* aliases → Core.MetricsBody)
+├── configAppearance.qml           — KCM.SimpleKCM wrapper (cfg_* aliases → Core.AppearanceBody)
+├── core/                          — portable subset (no org.kde.* imports — enforced)
 │   ├── MetricsCatalog.js
 │   ├── RingGeometry.js
 │   ├── ReorderLogic.js
-│   ├── Ring.qml                   (uses Theme adapter)
+│   ├── Ring.qml
 │   ├── MetricRow.qml
-│   ├── DraggableList.qml          (uses ThemedIcon)
-│   ├── MainContent.qml            (body of today's main.qml, no PlasmoidItem)
+│   ├── DraggableList.qml          (uses Platform.ThemedIcon via "../platform")
+│   ├── MainContent.qml            (body of the widget, no PlasmoidItem)
 │   ├── AppearanceBody.qml
 │   └── MetricsBody.qml
-└── platform/                      (single home of org.kde.* imports)
-    ├── qmldir
+└── platform/                      — Plasma adapters (single home of org.kde.* imports)
     ├── Theme.qml                  (Item exposing textColor, highlightColor, backgroundColor, unit, smallSpacing, iconSize re-exported from Kirigami)
     ├── ConfigStore.qml            (Item — NOT singleton; see hard case #2)
     ├── MetricsBackend.qml         (Item with the 11 Sensors.Sensor instances)
-    ├── ThemedIcon.qml             (wraps Kirigami.Icon)
-    ├── Main.qml                   (PlasmoidItem { MetricsBackend {}; ConfigStore {}; Theme {}; MainContent { ... } })
-    ├── ConfigAppearance.qml       (KCM.SimpleKCM { AppearanceBody { ... } })
-    └── ConfigMetrics.qml          (KCM.SimpleKCM { MetricsBody { ... } })
+    └── ThemedIcon.qml             (wraps Kirigami.Icon)
 ```
 
-A future standalone port would create
-`contents/ui/platform-standalone/` exposing the **same module
-surface** (same Item names, same property shapes), backed by `/proc`
-reads, `Qt.labs.settings`, `Window`, `Dialog`. `core/` stays shared.
+The 5-line `main.qml` shim variant from earlier drafts was dropped
+in favour of keeping the top-level Plasma wrappers as-is. Reasons:
+the `ConfigCategory.source:` subdirectory support wasn't worth
+verifying for a single negligible win (each wrapper is ~40 lines and
+makes the Plasma-specific intent visible at the top level), and
+Plasma's hardcoded `contents/ui/main.qml` path already pins one
+top-level file there.
+
+A future standalone port would create `contents/ui/platform-standalone/`
+exposing the **same module surface** (same Item names, same property
+shapes), backed by `/proc` reads, `Qt.labs.settings`, `Window`,
+`Dialog`. `core/` stays shared verbatim.
 
 ## Hard cases — design decisions made up front
 

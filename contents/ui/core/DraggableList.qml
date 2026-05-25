@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
-import "../platform" as Platform
+import "../platforms/plasma" as Platform
 import "ReorderLogic.js" as Logic
 
 // Reusable vertical list with drag-to-reorder behaviour.

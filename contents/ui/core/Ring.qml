@@ -7,7 +7,7 @@ Item {
 
     property string label: ""
     property real value: 0
-    // Theme tokens — injected by the parent via the platform/Theme adapter.
+    // Theme tokens — injected by the parent via the platforms/plasma/Theme adapter.
     // Sensible defaults so the component renders standalone (tests, previews).
     property color ringColor: "#3daee9"
     property color textColor: "#eeeeee"

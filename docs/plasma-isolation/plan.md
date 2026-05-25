@@ -4,27 +4,36 @@
 
 | PR | Goal | State |
 |---|---|---|
-| 1 | Theme adapter (`platform/Theme.qml` + `ThemedIcon.qml`) | merged (#8) |
-| 2 | ConfigStore adapter (`platform/ConfigStore.qml`) | merged (#10) |
-| 3 | MetricsBackend extraction (`platform/MetricsBackend.qml`) | merged (#11) |
+| 1 | Theme adapter (`platforms/plasma/Theme.qml` + `ThemedIcon.qml`) | merged (#8) |
+| 2 | ConfigStore adapter (`platforms/plasma/ConfigStore.qml`) | merged (#10) |
+| 3 | MetricsBackend extraction (`platforms/plasma/MetricsBackend.qml`) | merged (#11) |
 | 4 | Body extraction (`MainContent`/`AppearanceBody`/`MetricsBody` + `cfg_*` bridges) | merged (#12) |
 | 5 | FormLayout helper | **skipped** — `Kirigami.FormLayout` reads cleanly and Kirigami is usable outside Plasma on any Qt 6 desktop |
 | 6 | File reorganization into `core/` + `finish-branch` invariant | in flight (this PR) |
 
 Path notes from PR 6: the simpler variant was chosen — `core/`
-holds the portable subset, `platform/` holds the Plasma adapters,
-and the three Plasma-host wrappers (`main.qml`, `configMetrics.qml`,
-`configAppearance.qml`) stay flat under `contents/ui/`. This avoids
-the unverified subdirectory-`source:` discovery on `ConfigCategory`,
-without losing the seam invariant.
+holds the portable subset, `platforms/plasma/` holds the Plasma
+adapters, and the three Plasma-host wrappers (`main.qml`,
+`configMetrics.qml`, `configAppearance.qml`) stay flat under
+`contents/ui/`. This avoids the unverified subdirectory-`source:`
+discovery on `ConfigCategory`, without losing the seam invariant.
 
-The invariant enforced by `finish-branch` is **`core/` has no
-Plasma-shell imports** — specifically `org.kde.plasma.*`,
-`org.kde.kcmutils`, `org.kde.ksysguard.*`. Kirigami
-(`org.kde.kirigami`) is intentionally allowed in `core/`: it's a KF6
-framework that runs on any Qt 6 desktop, and the standalone build
-can ship it as a runtime dep. This is the same reasoning that led
-to skipping PR 5 (FormLayout helper).
+Naming follow-up: PR 6 originally landed the adapter directory as
+`contents/ui/platform/`. It was renamed to `contents/ui/platforms/plasma/`
+in a small follow-up refactor so a future standalone target lives as
+a sibling `platforms/standalone/` instead of the asymmetric
+`platform-standalone/` at the top level. The rest of this document
+uses the post-rename paths.
+
+The invariant enforced by `finish-branch` is **`core/` imports no
+`org.kde.*` module except `org.kde.kirigami`** (allowlist, not
+denylist — catches `org.kde.kquickcontrols`, `org.kde.plasma.*`,
+`org.kde.kcmutils`, `org.kde.ksysguard.*`, and any future Plasma
+module without needing the check to be updated). Kirigami is
+intentionally allowed in `core/`: it's a KF6 framework that runs on
+any Qt 6 desktop, and the standalone build can ship it as a runtime
+dep. This is the same reasoning that led to skipping PR 5 (FormLayout
+helper).
 
 ## Context
 
@@ -87,15 +96,16 @@ contents/ui/
 │   ├── ReorderLogic.js
 │   ├── Ring.qml
 │   ├── MetricRow.qml
-│   ├── DraggableList.qml          (uses Platform.ThemedIcon via "../platform")
+│   ├── DraggableList.qml          (uses Platform.ThemedIcon via "../platforms/plasma")
 │   ├── MainContent.qml            (body of the widget, no PlasmoidItem)
 │   ├── AppearanceBody.qml
 │   └── MetricsBody.qml
-└── platform/                      — Plasma adapters (single home of org.kde.* imports)
-    ├── Theme.qml                  (Item exposing textColor, highlightColor, backgroundColor, unit, smallSpacing, iconSize re-exported from Kirigami)
-    ├── ConfigStore.qml            (Item — NOT singleton; see hard case #2)
-    ├── MetricsBackend.qml         (Item with the 11 Sensors.Sensor instances)
-    └── ThemedIcon.qml             (wraps Kirigami.Icon)
+└── platforms/                     — host-specific adapter trees (one subdir per target)
+    └── plasma/                    — Plasma adapters (single home of org.kde.* imports)
+        ├── Theme.qml              (Item exposing textColor, highlightColor, backgroundColor, unit, smallSpacing, iconSize re-exported from Kirigami)
+        ├── ConfigStore.qml        (Item — NOT singleton; see hard case #2)
+        ├── MetricsBackend.qml     (Item with the 11 Sensors.Sensor instances)
+        └── ThemedIcon.qml         (wraps Kirigami.Icon)
 ```
 
 The 5-line `main.qml` shim variant from earlier drafts was dropped
@@ -106,7 +116,7 @@ makes the Plasma-specific intent visible at the top level), and
 Plasma's hardcoded `contents/ui/main.qml` path already pins one
 top-level file there.
 
-A future standalone port would create `contents/ui/platform-standalone/`
+A future standalone port would create `contents/ui/platforms/standalone/`
 exposing the **same module surface** (same Item names, same property
 shapes), backed by `/proc` reads, `Qt.labs.settings`, `Window`,
 `Dialog`. `core/` stays shared verbatim.
@@ -167,10 +177,10 @@ Plasma's `KPackageStructure: "Plasma/Applet"` discovers
 `contents/ui/main.qml` by hardcoded convention.
 
 **Decision:** keep `contents/ui/main.qml` as a 5-line shim:
-`import "platform" as P; P.Main {}`. Same trick for
+`import "platforms/plasma" as P; P.Main {}`. Same trick for
 `contents/config/config.qml`: the `source: "configMetrics.qml"`
 paths inside `ConfigCategory` become
-`source: "platform/ConfigMetrics.qml"` (Plasma 6 supports
+`source: "platforms/plasma/ConfigMetrics.qml"` (Plasma 6 supports
 subdirectory sources — to be verified on a throwaway branch before
 PR 6 lands).
 
@@ -196,7 +206,7 @@ cfg_textOpacity = value` (write). Two lines of bridge per setting.
 | 3 | MetricsBackend extraction (11 Sensors out of main.qml) | **Low** — sensor values are scalars, parent change is inert. | All rings show correct values; CPU cores light up; per-core ring works. |
 | 4 | Body extraction (3 files: MainContent, AppearanceBody, MetricsBody) + `cfg_*` bridge | **Medium-high.** `cfg_*` magic + bridge is the touchy spot. Plasma's config save timing (KDE bug 484541) has bitten before. | Change every setting, restart plasmashell, verify all settings persisted. Verify "Reset to defaults" still works. Test reorder, CPU cores toggle, all 3 opacity sliders, orientation switch. |
 | 5 | FormLayout helper (optional) | **Near zero** — pure layout. | Visual on config page. |
-| 6 | File moves into `core/` + `platform/`, update metadata.json path discovery, add finish-branch invariant | **Low** if shim verified on throwaway branch first. Touches imports across tests too. | Install widget fresh (`kpackagetool6 -i .`), test config dialog opens, test edit-mode shows widget in "Add Widgets". |
+| 6 | File moves into `core/` + `platforms/plasma/`, update metadata.json path discovery, add finish-branch invariant | **Low** if shim verified on throwaway branch first. Touches imports across tests too. | Install widget fresh (`kpackagetool6 -i .`), test config dialog opens, test edit-mode shows widget in "Add Widgets". |
 
 **The honest soft spot is PR 4.** Keep PR 4 as a draft for 2-3 days
 of real use before merging.
@@ -208,21 +218,21 @@ the next.
 
 ### PR 1 — Theme adapter
 
-Create `platform/Theme.qml` Item. Instantiate in `main.qml` once.
+Create `platforms/plasma/Theme.qml` Item. Instantiate in `main.qml` once.
 Migrate `Ring.qml`, `MetricRow.qml`, `DraggableList.qml` to use
 `theme.X`. Files stay in place (no `core/` move yet). ~150 lines
 touched.
 
 ### PR 2 — ConfigStore adapter
 
-Create `platform/ConfigStore.qml` Item. Instantiate in `main.qml`.
+Create `platforms/plasma/ConfigStore.qml` Item. Instantiate in `main.qml`.
 Migrate 5 config reads in `main.qml`. Config pages untouched (still
 use `cfg_*` magic). ~50 lines touched.
 
 ### PR 3 — MetricsBackend extraction
 
 Move 11 `Sensors.Sensor` instances + `sensorMap` + `coreValues`
-from `main.qml` to `platform/MetricsBackend.qml`. `main.qml` becomes
+from `main.qml` to `platforms/plasma/MetricsBackend.qml`. `main.qml` becomes
 ~30 lines. ~80 lines touched.
 
 ### PR 4 — Body extraction (riskiest)
@@ -238,7 +248,7 @@ Skip if PR 4 result already reads well.
 
 ### PR 6 — File reorganization + invariant
 
-Move files into `core/` and `platform/`. Update
+Move files into `core/` and `platforms/plasma/`. Update
 `contents/config/config.qml` paths. Add `metadata.json` shim
 verification on a throwaway branch first. Update `finish-branch`
 skill: rewrite hardcoded path greps + add
@@ -263,7 +273,7 @@ skill: rewrite hardcoded path greps + add
 ## What this refactor does NOT solve
 
 - **Shipping a standalone build.** Still requires writing
-  `platform-standalone/` from scratch — the work issue #7 proposes.
+  `platforms/standalone/` from scratch — the work issue #7 proposes.
 - **"Add Widgets" mode on non-KDE desktops.** Still impossible —
   KDE's applet enumeration is bound to
   `KPackageStructure: "Plasma/Applet"`.

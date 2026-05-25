@@ -36,7 +36,7 @@ Item {
     property string description: ""
     property Component extraContent: null
 
-    // Theme tokens — injected by the parent via the platform/Theme adapter.
+    // Theme tokens — injected by the parent via the platforms/plasma/Theme adapter.
     // Sensible defaults match Kirigami's typical values.
     property real unit: 18
     property real smallSpacing: 4

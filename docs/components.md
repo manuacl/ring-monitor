@@ -52,7 +52,7 @@ A circular gauge: 270° arc starting at 135° (90° gap at the bottom).
 |---|---|---|
 | `label` | `""` | text above the value (e.g. `"CPU"`) |
 | `value` | `0` | current percentage (0–100) |
-| `ringColor` | `"#3daee9"` | arc color — injected by the parent via the platform/Theme adapter |
+| `ringColor` | `"#3daee9"` | arc color — injected by the parent via the platforms/plasma/Theme adapter |
 | `textColor` | `"#eeeeee"` | value/label color — same injection |
 | `unit` | `"%"` | string appended to the rendered value |
 | `textOpacity` / `trackOpacity` / `arcOpacity` | `1.0` / `0.15` / `1.0` | per-layer opacity |
@@ -96,8 +96,8 @@ One row of the metrics list:
 | `enabled` | whether this metric is selected; drives the checkbox state + the row's dimmed/disabled look |
 | `description` | secondary label to the right of the checkbox |
 | `extraContent` | optional `Component` rendered indented below the main row (e.g. CPU's "show cores" toggle) |
-| `unit` | layout unit (default `18`) — injected by the parent via `platform/Theme.unit` |
-| `smallSpacing` | row spacing (default `4`) — injected by the parent via `platform/Theme.smallSpacing` |
+| `unit` | layout unit (default `18`) — injected by the parent via `platforms/plasma/Theme.unit` |
+| `smallSpacing` | row spacing (default `4`) — injected by the parent via `platforms/plasma/Theme.smallSpacing` |
 | `toggled(bool on)` | emitted when the user clicks the checkbox |
 
 ### Disabled-state convention
@@ -144,10 +144,10 @@ Generic vertical list with drag-to-reorder, deferred commit.
 | `rowSpacing` | gap between rows |
 | `rowContent` | `Component` for the row content; the loaded root reads `parent.rowModel` / `parent.rowIndex` (see below) |
 | `showHandle` | toggle the move icon on the left |
-| `highlightColor` | active-row border + tint (default `"#3daee9"`) — inject via `platform/Theme.highlightColor` |
-| `backgroundColor` | dragged-row fill (default `"#1e1e1e"`) — inject via `platform/Theme.backgroundColor` |
-| `smallSpacing` | inner row padding (default `4`) — inject via `platform/Theme.smallSpacing` |
-| `iconSize` | drag handle icon size (default `16`) — inject via `platform/Theme.iconSize` |
+| `highlightColor` | active-row border + tint (default `"#3daee9"`) — inject via `platforms/plasma/Theme.highlightColor` |
+| `backgroundColor` | dragged-row fill (default `"#1e1e1e"`) — inject via `platforms/plasma/Theme.backgroundColor` |
+| `smallSpacing` | inner row padding (default `4`) — inject via `platforms/plasma/Theme.smallSpacing` |
+| `iconSize` | drag handle icon size (default `16`) — inject via `platforms/plasma/Theme.iconSize` |
 | `reordered(int from, int to)` | emitted on drop when the order actually changed |
 
 ### Usage
@@ -157,7 +157,7 @@ DraggableList {
     model: orderModel
     rowHeight: theme.unit * 2
 
-    // Theme tokens injected from the parent's platform/Theme instance.
+    // Theme tokens injected from the parent's platforms/plasma/Theme instance.
     highlightColor: theme.highlightColor
     backgroundColor: theme.backgroundColor
     smallSpacing: theme.smallSpacing
@@ -256,7 +256,7 @@ same `onReordered` handler `configMetrics` uses (`Logic.applyMove` →
    rows with `extraContent` (e.g. CPU's sub-toggle) would shift by the
    wrong amount.
 
-## Platform adapters (`contents/ui/platform/`)
+## Platform adapters (`contents/ui/platforms/plasma/`)
 
 Thin Plasma-only adapters that `core/` components consume via
 properties — keeps everything under `contents/ui/core/` free of

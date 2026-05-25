@@ -7,7 +7,7 @@ import org.kde.kirigami as Kirigami
 // top-level file that instantiates this adapter.
 //
 // A standalone (non-Plasma) build would ship a parallel Theme.qml in
-// contents/ui/platform-standalone/ exposing the same property surface
+// contents/ui/platforms/standalone/ exposing the same property surface
 // backed by hardcoded values or Qt.labs.settings.
 //
 // Implemented as an Item, not a pragma Singleton: Kirigami.Theme is

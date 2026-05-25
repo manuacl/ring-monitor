@@ -23,7 +23,7 @@ mapfile -d '' line_check_files < <(
         'contents/ui/*.js' \
         'contents/ui/core/*.qml' \
         'contents/ui/core/*.js' \
-        'contents/ui/platform/*.qml' \
+        'contents/ui/platforms/plasma/*.qml' \
         'tests/*.test.mjs' \
         'tests/qml/*.qml'
 )

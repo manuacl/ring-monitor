@@ -2,7 +2,7 @@
 
 The catalog is intentionally small: each metric is registered once in
 `core/MetricsCatalog.js`, plus a `Sensors.Sensor` instance in
-`platform/MetricsBackend.qml` and a description string in
+`platforms/plasma/MetricsBackend.qml` and a description string in
 `core/MetricsBody.qml`. No other file needs editing.
 
 ## Step 1: pick a sensor id
@@ -45,7 +45,7 @@ var METRIC_SENSOR_IDS = {
 If the label needs i18n, fall back to the QML side: add a `descriptions`
 entry in `core/MetricsBody.qml` and look it up by id.
 
-## Step 3: declare the sensor in `platform/MetricsBackend.qml`
+## Step 3: declare the sensor in `platforms/plasma/MetricsBackend.qml`
 
 ```qml
 Sensors.Sensor { id: netSensor; sensorId: Catalog.sensorIdFor("net") }

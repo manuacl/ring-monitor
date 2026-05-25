@@ -27,6 +27,7 @@ Kirigami.FormLayout {
     property real trackOpacity: 0.15
     property real arcOpacity: 1.0
     property string colorTheme: "system"
+    property string colorMode: "auto"
     property color customColorLight: "#3daee9"
     property color customColorDark: "#3daee9"
 
@@ -134,6 +135,34 @@ Kirigami.FormLayout {
         onActivated: body.colorTheme = currentValue
     }
 
+    // Mode override — Vapor and other custom Plasma themes break the
+    // auto-detect (it reads the panel-context theme which is fixed
+    // regardless of the user's Colors choice). Letting the user force
+    // light or dark sidesteps that whole class of bug.
+    RowLayout {
+        Kirigami.FormData.label: qsTr("Mode:")
+        visible: body.colorTheme !== "system"
+
+        QQC2.RadioButton {
+            id: modeAuto
+            text: qsTr("Follow system")
+            checked: body.colorMode === "auto"
+            onClicked: body.colorMode = "auto"
+        }
+        QQC2.RadioButton {
+            id: modeLight
+            text: qsTr("Always light")
+            checked: body.colorMode === "light"
+            onClicked: body.colorMode = "light"
+        }
+        QQC2.RadioButton {
+            id: modeDark
+            text: qsTr("Always dark")
+            checked: body.colorMode === "dark"
+            onClicked: body.colorMode = "dark"
+        }
+    }
+
     RowLayout {
         Kirigami.FormData.label: qsTr("Light color:")
         visible: body.colorTheme === "custom"
@@ -161,6 +190,9 @@ Kirigami.FormLayout {
     readonly property alias _trackSlider: trackSlider
     readonly property alias _arcSlider: arcSlider
     readonly property alias _themeCombo: themeCombo
+    readonly property alias _modeAuto: modeAuto
+    readonly property alias _modeLight: modeLight
+    readonly property alias _modeDark: modeDark
     readonly property alias _lightColorButton: lightColorButton
     readonly property alias _darkColorButton: darkColorButton
 }

@@ -34,6 +34,21 @@ for (var i = 0; i < THEMES.length; i++) {
     THEMES_BY_ID[THEMES[i].id] = THEMES[i];
 }
 
+// Resolve the user's colorMode + the auto-detected system isDark into
+// the effective dark/light boolean the resolver consumes. "auto" trusts
+// the auto-detect; "light"/"dark" force the answer regardless. Unknown
+// modes (or a stale config value) fall back to "auto" so we never end
+// up with undefined.
+function effectiveIsDark(mode, systemIsDark) {
+    var resolvers = {
+        auto: function () { return systemIsDark; },
+        light: function () { return false; },
+        dark: function () { return true; },
+    };
+    var pick = resolvers[mode] || resolvers.auto;
+    return pick();
+}
+
 // Lookup-map dispatch for the two non-data themes; data themes fall
 // through to the lightColor/darkColor branch. Unknown ids fall back to
 // "system" so a stale config value can never produce undefined.
@@ -51,6 +66,7 @@ if (typeof module !== "undefined" && module.exports) {
     module.exports = {
         THEMES: THEMES,
         THEMES_BY_ID: THEMES_BY_ID,
+        effectiveIsDark: effectiveIsDark,
         resolveColor: resolveColor,
     };
 }

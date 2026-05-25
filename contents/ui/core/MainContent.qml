@@ -49,7 +49,7 @@ GridLayout {
             label: Catalog.labelFor(modelData)
             value: content.metrics.metricValue(modelData)
             nestedValues: modelData === "cpu" && content.configStore.showCpuCores ? content.metrics.coreValues : []
-            ringColor: ColorThemes.resolveColor(content.configStore.colorTheme, content.theme.isDarkMode, content.theme.highlightColor, content.configStore.customColorLight, content.configStore.customColorDark)
+            ringColor: ColorThemes.resolveColor(content.configStore.colorTheme, ColorThemes.effectiveIsDark(content.configStore.colorMode, content.theme.isDarkMode), content.theme.highlightColor, content.configStore.customColorLight, content.configStore.customColorDark)
             textColor: content.theme.textColor
             textOpacity: content.configStore.textOpacity
             trackOpacity: content.configStore.trackOpacity

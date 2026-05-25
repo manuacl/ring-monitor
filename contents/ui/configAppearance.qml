@@ -21,6 +21,7 @@ KCM.SimpleKCM {
     property alias cfg_trackOpacity: body.trackOpacity
     property alias cfg_arcOpacity: body.arcOpacity
     property alias cfg_colorTheme: body.colorTheme
+    property alias cfg_colorMode: body.colorMode
     property alias cfg_customColorLight: body.customColorLight
     property alias cfg_customColorDark: body.customColorDark
 
@@ -37,6 +38,7 @@ KCM.SimpleKCM {
     property var cfg_trackOpacityDefault
     property var cfg_arcOpacityDefault
     property var cfg_colorThemeDefault
+    property var cfg_colorModeDefault
     property var cfg_customColorLightDefault
     property var cfg_customColorDarkDefault
 

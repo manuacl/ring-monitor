@@ -54,6 +54,11 @@
             <default>system</default>
         </entry>
 
+        <entry name="colorMode" type="String">
+            <label>How the theme's light/dark variant is chosen: "auto" (follow system), "light", or "dark"</label>
+            <default>auto</default>
+        </entry>
+
         <entry name="customColorLight" type="Color">
             <label>Ring color used in light Plasma color schemes when colorTheme=custom</label>
             <default>#3daee9</default>

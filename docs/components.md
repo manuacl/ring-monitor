@@ -329,6 +329,7 @@ future reader) consumes `configStore.X` instead of reaching into
 | `trackOpacity` | `real` | `Plasmoid.configuration.trackOpacity` |
 | `arcOpacity` | `real` | `Plasmoid.configuration.arcOpacity` |
 | `colorTheme` | `string` | `Plasmoid.configuration.colorTheme` |
+| `colorMode` | `string` | `Plasmoid.configuration.colorMode` |
 | `customColorLight` | `color` | `Plasmoid.configuration.customColorLight` |
 | `customColorDark` | `color` | `Plasmoid.configuration.customColorDark` |
 

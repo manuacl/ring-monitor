@@ -69,6 +69,7 @@ id to the concrete color to apply, given the current platform state.
 |---|---|
 | `THEMES` | list of `{id, label, lightColor, darkColor}` — 7 entries (`system`, `blue`, `green`, `orange`, `violet`, `red`, `custom`) |
 | `THEMES_BY_ID` | id → theme lookup |
+| `effectiveIsDark(mode, systemIsDark)` | resolves the `colorMode` config (`auto` / `light` / `dark`) into the boolean `resolveColor` consumes — `auto` trusts the system detection, `light`/`dark` force the answer |
 | `resolveColor(themeId, isDark, systemHighlight, customLight, customDark)` | dispatch — `system` forwards `systemHighlight`, `custom` picks between `customLight`/`customDark` by `isDark`, predefined themes fall through to their `lightColor`/`darkColor` |
 
 Why a pure module? The dispatch logic is small but has 7 branches and
@@ -78,7 +79,15 @@ inlined in a QML binding. Extracting it lets `MainContent.qml`'s
 exhaustively unit-tested in Node without spinning up Plasma.
 
 The two non-data themes (`system`, `custom`) use a lookup-map dispatch
-inside `resolveColor` rather than nested ternaries (CLAUDE.md rule).
+inside `resolveColor` rather than nested ternaries (CLAUDE.md rule);
+the three `colorMode` values use the same pattern inside
+`effectiveIsDark`.
+
+`colorMode` is a separate concern from `colorTheme`: the theme picks
+*which colors* to use, the mode picks *which variant* (light / dark)
+to apply. Splitting them lets users on Plasma themes that break the
+auto-detect (Vapor, third-party look-and-feel themes that override
+the system color scheme) force the variant explicitly.
 
 ## `RingGeometry.js`
 

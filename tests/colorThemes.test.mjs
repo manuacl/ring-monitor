@@ -71,3 +71,23 @@ test('resolveColor unknown id: falls back to system (returns systemHighlight)', 
     assert.equal(ColorThemes.resolveColor('nonexistent', false, SYSTEM_HIGHLIGHT, CUSTOM_LIGHT, CUSTOM_DARK), SYSTEM_HIGHLIGHT);
     assert.equal(ColorThemes.resolveColor('',            true,  SYSTEM_HIGHLIGHT, CUSTOM_LIGHT, CUSTOM_DARK), SYSTEM_HIGHLIGHT);
 });
+
+test('effectiveIsDark auto: returns the detected systemIsDark verbatim', () => {
+    assert.equal(ColorThemes.effectiveIsDark('auto', true),  true);
+    assert.equal(ColorThemes.effectiveIsDark('auto', false), false);
+});
+
+test('effectiveIsDark light: forces false regardless of systemIsDark', () => {
+    assert.equal(ColorThemes.effectiveIsDark('light', true),  false);
+    assert.equal(ColorThemes.effectiveIsDark('light', false), false);
+});
+
+test('effectiveIsDark dark: forces true regardless of systemIsDark', () => {
+    assert.equal(ColorThemes.effectiveIsDark('dark', true),  true);
+    assert.equal(ColorThemes.effectiveIsDark('dark', false), true);
+});
+
+test('effectiveIsDark unknown mode: falls back to auto (returns systemIsDark)', () => {
+    assert.equal(ColorThemes.effectiveIsDark('nonexistent', true),  true);
+    assert.equal(ColorThemes.effectiveIsDark('',            false), false);
+});

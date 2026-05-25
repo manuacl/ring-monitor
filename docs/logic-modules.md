@@ -106,3 +106,23 @@ Why extract this? The earlier inline ternary chain in `Ring.qml`
 canonical signal that a pure-math helper wants to exist. Putting it in a
 testable file means changes to "how big should the label be at size 40"
 are testable without launching Plasma.
+
+## `UpdateCheck.js`
+
+Pure semver math + cache-TTL gating for the in-widget "update
+available" badge. The runtime side (XMLHttpRequest, Component.onCompleted
+gate, ConfigStore writes) lives in `core/UpdateChecker.qml`.
+
+| Function | Purpose |
+|---|---|
+| `parseSemver(tag)` | `"v0.4.0"` / `"0.4.0"` → `[0,4,0]`, malformed → `null`. Tolerates a `-rc1` / `+build42` suffix (KConfig stores the GitHub tag verbatim, `Plasmoid.metaData.version` strips the leading `v` — both must parse to the same triple). |
+| `compareSemver(a, b)` | 3-way numeric compare on `[maj,min,pat]`. Null inputs → `0` (safe default; the caller can short-circuit on `isNewerVersion`). |
+| `isNewerVersion(local, remote)` | both strings; `true` iff remote strictly > local. False for malformed input — the badge stays hidden rather than crying wolf. |
+| `shouldRecheck(lastCheckMs, nowMs, ttlMs)` | gate before the XHR fires. `lastCheckMs === 0` (never checked) always returns `true`. |
+| `shouldNotify(local, remote, acknowledged)` | the badge-visibility test: `isNewerVersion(local, remote) && !acknowledged`. A malformed acknowledged value is treated as no-ack (defensive). |
+
+The two-step gate (`shouldRecheck` for the network call, `shouldNotify`
+for the UI) keeps the two concerns independent: a successful fetch with
+a remote == local doesn't surface a badge, and an unacknowledged update
+keeps showing the badge across widget restarts without re-hitting the
+network. Encoded as tests in `tests/update-check.test.mjs`.

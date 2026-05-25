@@ -43,6 +43,13 @@ Item {
     property real splitRawValue: 0
     property string splitUnit: "°"
 
+    // Optional: render a small "update available" dot inside the 90°
+    // bottom gap, next to the label. Clicking it fires updateBadgeClicked
+    // which the parent uses to trigger Plasmoid.action("configure").
+    // Off by default so non-cpu / non-first rings stay clean.
+    property bool showUpdateBadge: false
+    signal updateBadgeClicked
+
     implicitWidth: 180
     implicitHeight: 180
 
@@ -381,6 +388,53 @@ Item {
             opacity: 0.55 * root.textOpacity
             font.pixelSize: root.labelPx
             font.letterSpacing: 2
+        }
+
+        // ── Update-available badge (90° gap, left of the label) ─────────
+        // Discreet dot sized to ~55% of labelPx, anchored to labelText's
+        // left edge. Pulse animation (opacity 0.45 ↔ 1.0, 1.8s breath
+        // cycle) draws the eye without crying for attention. Hover /
+        // click area is generous enough for fingers but the rendered
+        // dot stays small.
+        Rectangle {
+            id: updateBadge
+            visible: root.showUpdateBadge
+            width: Math.max(6, Math.round(root.labelPx * 0.55))
+            height: width
+            radius: width / 2
+            color: root.ringColor
+            // Black outline so the dot stays readable on any background
+            // (e.g. a red wallpaper that camouflages a red ringColor).
+            border.color: "black"
+            border.width: 1
+            opacity: root.textOpacity
+            anchors.right: labelText.left
+            anchors.rightMargin: Math.max(4, Math.round(root.labelPx * 0.5))
+            anchors.verticalCenter: labelText.verticalCenter
+
+            SequentialAnimation on opacity {
+                running: updateBadge.visible
+                loops: Animation.Infinite
+                NumberAnimation {
+                    from: root.textOpacity
+                    to: 0.45 * root.textOpacity
+                    duration: 900
+                    easing.type: Easing.InOutSine
+                }
+                NumberAnimation {
+                    from: 0.45 * root.textOpacity
+                    to: root.textOpacity
+                    duration: 900
+                    easing.type: Easing.InOutSine
+                }
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                anchors.margins: -6   // larger hit-target than the dot
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.updateBadgeClicked()
+            }
         }
     }
 

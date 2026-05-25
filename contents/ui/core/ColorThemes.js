@@ -35,10 +35,12 @@ for (var i = 0; i < THEMES.length; i++) {
 }
 
 // Resolve the user's colorMode + the auto-detected system isDark into
-// the effective dark/light boolean the resolver consumes. "auto" trusts
-// the auto-detect; "light"/"dark" force the answer regardless. Unknown
-// modes (or a stale config value) fall back to "auto" so we never end
-// up with undefined.
+// the effective dark/light boolean the color resolver consumes.
+// "auto" trusts the detected systemIsDark (the Theme adapter sources
+// it from Qt.styleHints.colorScheme, the canonical KDE signal since
+// KF 6.22); "light"/"dark" force the answer regardless. Unknown
+// modes (or a stale config value) fall back to "auto" so the value
+// is always defined.
 function effectiveIsDark(mode, systemIsDark) {
     var resolvers = {
         auto: function () { return systemIsDark; },

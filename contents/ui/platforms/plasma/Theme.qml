@@ -15,6 +15,8 @@ import org.kde.kirigami as Kirigami
 // QtObject can't resolve it.
 
 Item {
+    id: root
+
     readonly property color textColor: Kirigami.Theme.textColor
     readonly property color highlightColor: Kirigami.Theme.highlightColor
     readonly property color backgroundColor: Kirigami.Theme.backgroundColor
@@ -22,26 +24,31 @@ Item {
     readonly property real smallSpacing: Kirigami.Units.smallSpacing
     readonly property real iconSize: Kirigami.Units.iconSizes.small
 
-    // Private probe used only by isDarkMode. The widget itself runs in
-    // the panel context, where Kirigami.Theme.backgroundColor reflects
-    // the panel background (often dark independent of the user's
-    // System Settings → Colors choice). To detect the system-level
-    // scheme, we read the Window colorSet — what application windows
-    // use, which follows the system color scheme directly.
-    Item {
-        id: _systemSchemeProbe
-        Kirigami.Theme.inherit: false
-        Kirigami.Theme.colorSet: Kirigami.Theme.Window
-        readonly property color windowBackground: Kirigami.Theme.backgroundColor
-    }
+    // System light/dark detection.
+    //
+    // Source of truth: Qt.styleHints.colorScheme (Qt 6.5+). This is
+    // the canonical KDE signal since KF 6.22, where KColorScheme was
+    // reworked to use the Qt API directly. We read .colorScheme for
+    // the initial value, and subscribe to colorSchemeChanged for
+    // live updates — Qt's own documentation warns the property
+    // itself has no NOTIFY, so binding it would never re-evaluate.
+    //
+    // _qtScheme is an intermediate QML property so isDarkMode can
+    // stay readonly (the Connections handler writes to _qtScheme,
+    // isDarkMode binds reactively to it).
+    //
+    // Caveat: plasmashell on some Plasma 6 setups (notably with
+    // third-party look-and-feel themes like Vapor) does not actually
+    // emit the colorSchemeChanged signal live to running panel
+    // widgets — the user must then use the explicit "Always light"
+    // / "Always dark" override in the config page.
+    property int _qtScheme: Qt.styleHints.colorScheme
+    readonly property bool isDarkMode: root._qtScheme === Qt.Dark
 
-    // Derived from the system Window background luminance (WCAG
-    // relative-luminance formula, threshold 0.5). Reacts when the user
-    // switches Plasma color scheme because the probe's backgroundColor
-    // itself reacts.
-    readonly property bool isDarkMode: {
-        const c = _systemSchemeProbe.windowBackground;
-        const lum = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
-        return lum < 0.5;
+    Connections {
+        target: Qt.styleHints
+        function onColorSchemeChanged(scheme) {
+            root._qtScheme = scheme;
+        }
     }
 }

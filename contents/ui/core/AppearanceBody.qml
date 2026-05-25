@@ -135,10 +135,12 @@ Kirigami.FormLayout {
         onActivated: body.colorTheme = currentValue
     }
 
-    // Mode override — Vapor and other custom Plasma themes break the
-    // auto-detect (it reads the panel-context theme which is fixed
-    // regardless of the user's Colors choice). Letting the user force
-    // light or dark sidesteps that whole class of bug.
+    // Auto follows the system color scheme via Qt.styleHints
+    // (Theme.qml subscribes to colorSchemeChanged). The explicit
+    // Always light / Always dark overrides are the escape hatch for
+    // setups where plasmashell does not propagate the scheme change
+    // live to running panel widgets — Vapor and other custom Plasma
+    // look-and-feel themes notably exhibit that behaviour.
     RowLayout {
         Kirigami.FormData.label: qsTr("Mode:")
         visible: body.colorTheme !== "system"

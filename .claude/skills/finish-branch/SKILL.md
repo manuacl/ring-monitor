@@ -30,13 +30,16 @@ opened on red**.
 
 ## Procedure
 
-**Phase A — audit**: run checks 1 → 5 in order, stop at the first block
-that surfaces red — the user prefers fixing one layer at a time rather
-than receiving a tsunami of findings. For each block, report PASS / FAIL
-with useful details.
+**Phase A — audit + reflection**: run checks 1 → 6 in order. Checks
+1-5 are mechanical (pre-commit / CI / CLAUDE.md rules / docs / git
+state); check 6 is a forward-looking reflection on whether anything
+we learned warrants a new `CLAUDE.md` rule. Stop at the first block
+that surfaces red — the user prefers fixing one layer at a time
+rather than receiving a tsunami of findings. For each block, report
+PASS / FAIL with useful details.
 
 **Phase B — push + PR + version tag**: only fire if phase A is fully
-green. Steps 6 (push + open PR) and 7 (recommend & apply `bump:X`
+green. Steps 7 (push + open PR) and 8 (recommend & apply `bump:X`
 label) run back-to-back.
 
 ### 1. Pre-commit — file-size + qmllint + qmlformat
@@ -361,12 +364,54 @@ behind=$(git rev-list --count HEAD..origin/main)
 [ "$behind" -gt 0 ] && echo "FAIL: branch behind origin/main by $behind commit(s) — rebase first" && exit 1
 ```
 
-### 6. Push + open the PR (phase B)
+### 6. CLAUDE.md lessons reflection — last thing before push
 
-**Only run if 1 → 5 are all green.**
+Look back over the branch and surface 0–3 candidate additions to
+`CLAUDE.md`. Then ask the user verbatim:
+
+> Est-ce que tu vois des règles à rajouter dans CLAUDE.md en
+> fonction de ce qu'on a fait dans cette branche ?
+
+**What is worth a rule:**
+
+- An API choice that was non-obvious and cost an iteration to find
+  (e.g. `Qt.styleHints.colorScheme` as the canonical KDE light/dark
+  signal, after a failed luminance-probe attempt — added by PR #20)
+- A platform-specific quirk a future contributor will hit cold (KDE
+  bug numbers, plasmashell behaviour, qmllint quirks)
+- A code pattern that emerged and should be the canonical way
+  (e.g. the Plasma isolation seam invariant, added by PR #19)
+
+**What is NOT worth a rule:**
+
+- A one-off bug fix already obvious from the diff
+- Code-specific details already commented in-situ
+- Anything specific to this branch's feature alone — that goes in
+  `docs/`, not `CLAUDE.md`
+
+**Where in CLAUDE.md the addition lands:**
+
+- "Common pitfalls (quick reminders)" for gotchas
+- "Stack reminder" for QML/React mapping rows
+- "Working rules" for project-wide constraints
+
+Keep additions concise — `CLAUDE.md` is scanned, not read. Cite the
+file where the canonical pattern lives so the rule is a pointer,
+not a re-implementation of the pattern.
+
+If the user accepts additions: write the edits, create a separate
+`docs:` commit (so the rule is reviewable on its own), then loop
+back through phase A on the new commit before moving to phase B —
+pre-commit could legitimately fail on the new content.
+
+If the user declines or there is nothing to add: proceed to step 7.
+
+### 7. Push + open the PR (phase B)
+
+**Only run if 1 → 6 are all green.**
 
 ```bash
-# 6a. Gather context for drafting the PR.
+# 7a. Gather context for drafting the PR.
 git log --oneline origin/main..HEAD              # included commits
 git diff origin/main...HEAD --stat               # change scope
 gh pr view --json url 2>/dev/null && \
@@ -378,15 +423,15 @@ the latest commit). Follow the repo style (`git log` recent history for
 message format — `feat:`, `fix:`, `docs:`, `chore:`, etc.).
 
 ```bash
-# 6b. Push the branch (with -u if never pushed).
+# 7b. Push the branch (with -u if never pushed).
 git push -u origin HEAD
 
-# 6c. If a PR already exists, skip the create step — the push was
-# enough to update it. Capture the PR number either way for step 7.
+# 7c. If a PR already exists, skip the create step — the push was
+# enough to update it. Capture the PR number either way for step 8.
 if pr_url=$(gh pr view --json url --jq .url 2>/dev/null); then
     pr_number=$(gh pr view --json number --jq .number)
 else
-    # 6d. Otherwise, open the PR. Title < 70 chars, body via HEREDOC.
+    # 7d. Otherwise, open the PR. Title < 70 chars, body via HEREDOC.
     gh pr create --title "<concise title>" --body "$(cat <<'EOF'
 ## Summary
 <1-3 bullets: what the PR changes and why>
@@ -421,20 +466,20 @@ fi
 echo "PR: $pr_url (#$pr_number)"
 ```
 
-### 7. Version bump label — delegate to `bump-label` skill
+### 8. Version bump label — delegate to `bump-label` skill
 
 Hand off to the project-bundled `bump-label` skill
 (`.claude/skills/bump-label/`), which owns the convention
 (`bump:major|minor|patch`, no label = no bump) and the heuristic. The
 skill applies the recommended label directly, no confirmation prompt
 — the user can swap it after the fact with one `gh pr edit` if they
-disagree. Splitting it out keeps step 7 thin and lets contributors
+disagree. Splitting it out keeps step 8 thin and lets contributors
 invoke `bump-label` standalone (e.g. on a PR opened by hand, without
 going through the full `finish-branch` audit).
 
 Inputs to pass to `bump-label`:
 
-- `pr_number`: captured at step 6.
+- `pr_number`: captured at step 7.
 - `current_version`: `jq -r .KPlugin.Version metadata.json`
 - `changed_files`: `git diff --name-only origin/main...HEAD`
 - `commits`: `git log --format='%B' origin/main..HEAD`

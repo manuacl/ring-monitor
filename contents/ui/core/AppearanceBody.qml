@@ -2,6 +2,8 @@ import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
+import "ColorThemes.js" as ColorThemes
+import "../platforms/plasma" as Platform
 
 // Body of the Appearance config page. Owns the form layout, the
 // RadioButtons, and the three opacity sliders.
@@ -24,6 +26,18 @@ Kirigami.FormLayout {
     property real textOpacity: 1.0
     property real trackOpacity: 0.15
     property real arcOpacity: 1.0
+    property string colorTheme: "system"
+    property color customColorLight: "#3daee9"
+    property color customColorDark: "#3daee9"
+
+    // Built once at load time — the labels go through qsTr() so xgettext
+    // picks them up, while ColorThemes.js stays free of i18n machinery.
+    readonly property var _themeModel: ColorThemes.THEMES.map(function (t) {
+        return {
+            value: t.id,
+            text: qsTr(t.label)
+        };
+    })
 
     RowLayout {
         Kirigami.FormData.label: qsTr("Orientation:")
@@ -104,8 +118,49 @@ Kirigami.FormLayout {
         }
     }
 
+    Item {
+        Kirigami.FormData.isSection: true
+    }
+
+    QQC2.ComboBox {
+        id: themeCombo
+        Kirigami.FormData.label: qsTr("Color theme:")
+        model: body._themeModel
+        valueRole: "value"
+        textRole: "text"
+        currentIndex: Math.max(0, ColorThemes.THEMES.findIndex(function (t) {
+            return t.id === body.colorTheme;
+        }))
+        onActivated: body.colorTheme = currentValue
+    }
+
+    RowLayout {
+        Kirigami.FormData.label: qsTr("Light color:")
+        visible: body.colorTheme === "custom"
+
+        Platform.ColorPicker {
+            id: lightColorButton
+            color: body.customColorLight
+            onAccepted: body.customColorLight = color
+        }
+    }
+
+    RowLayout {
+        Kirigami.FormData.label: qsTr("Dark color:")
+        visible: body.colorTheme === "custom"
+
+        Platform.ColorPicker {
+            id: darkColorButton
+            color: body.customColorDark
+            onAccepted: body.customColorDark = color
+        }
+    }
+
     // ── Test hooks ──────────────────────────────────────────────────
     readonly property alias _textSlider: textSlider
     readonly property alias _trackSlider: trackSlider
     readonly property alias _arcSlider: arcSlider
+    readonly property alias _themeCombo: themeCombo
+    readonly property alias _lightColorButton: lightColorButton
+    readonly property alias _darkColorButton: darkColorButton
 }

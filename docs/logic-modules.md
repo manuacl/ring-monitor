@@ -60,6 +60,26 @@ xgettext extracts i18n strings from `i18n("literal")` calls in QML, and
 keeping them in a `.js` module would either skip extraction or force
 ugly workarounds.
 
+## `ColorThemes.js`
+
+Static catalog of ring color themes + the resolver that maps a theme
+id to the concrete color to apply, given the current platform state.
+
+| Export | Purpose |
+|---|---|
+| `THEMES` | list of `{id, label, lightColor, darkColor}` — 7 entries (`system`, `blue`, `green`, `orange`, `violet`, `red`, `custom`) |
+| `THEMES_BY_ID` | id → theme lookup |
+| `resolveColor(themeId, isDark, systemHighlight, customLight, customDark)` | dispatch — `system` forwards `systemHighlight`, `custom` picks between `customLight`/`customDark` by `isDark`, predefined themes fall through to their `lightColor`/`darkColor` |
+
+Why a pure module? The dispatch logic is small but has 7 branches and
+a fallback — exactly the kind of thing that grows nested ternaries if
+inlined in a QML binding. Extracting it lets `MainContent.qml`'s
+`ringColor:` binding stay a one-liner, and lets the dispatch be
+exhaustively unit-tested in Node without spinning up Plasma.
+
+The two non-data themes (`system`, `custom`) use a lookup-map dispatch
+inside `resolveColor` rather than nested ternaries (CLAUDE.md rule).
+
 ## `RingGeometry.js`
 
 All the size/stroke/sweep math from `Ring.qml`.

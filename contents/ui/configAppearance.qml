@@ -20,6 +20,9 @@ KCM.SimpleKCM {
     property alias cfg_textOpacity: body.textOpacity
     property alias cfg_trackOpacity: body.trackOpacity
     property alias cfg_arcOpacity: body.arcOpacity
+    property alias cfg_colorTheme: body.colorTheme
+    property alias cfg_customColorLight: body.customColorLight
+    property alias cfg_customColorDark: body.customColorDark
 
     // KDE bug 484541 placeholders — keys handled on other pages and the
     // *Default variants Plasma auto-generates for "Reset to defaults".
@@ -33,6 +36,9 @@ KCM.SimpleKCM {
     property var cfg_textOpacityDefault
     property var cfg_trackOpacityDefault
     property var cfg_arcOpacityDefault
+    property var cfg_colorThemeDefault
+    property var cfg_customColorLightDefault
+    property var cfg_customColorDarkDefault
 
     Core.AppearanceBody {
         id: body

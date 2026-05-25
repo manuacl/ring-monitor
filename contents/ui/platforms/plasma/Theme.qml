@@ -21,4 +21,13 @@ Item {
     readonly property real unit: Kirigami.Units.gridUnit
     readonly property real smallSpacing: Kirigami.Units.smallSpacing
     readonly property real iconSize: Kirigami.Units.iconSizes.small
+
+    // Derived from the background luminance (WCAG relative-luminance
+    // formula, threshold 0.5). Reacts to Plasma color-scheme changes
+    // because Kirigami.Theme.backgroundColor itself reacts.
+    readonly property bool isDarkMode: {
+        const c = Kirigami.Theme.backgroundColor;
+        const lum = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+        return lum < 0.5;
+    }
 }

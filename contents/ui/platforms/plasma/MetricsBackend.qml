@@ -1,6 +1,6 @@
 import QtQuick
 import org.kde.ksysguard.sensors as Sensors
-import "../core/MetricsCatalog.js" as Catalog
+import "../../core/MetricsCatalog.js" as Catalog
 
 // Platform adapter: wraps the KSysGuard sensor system used by the
 // Plasma build. Exposes the metric values main.qml needs as a stable

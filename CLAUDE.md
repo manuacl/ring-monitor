@@ -110,6 +110,7 @@ Smells to flag during review:
 | `width: parent.width / 2` | JSX expression in attribute |
 | `MouseArea { onClicked: ... }` | `onClick` handler |
 | `Component.onCompleted`, `onValueChanged` | `useEffect` |
+| `Connections { target: X; function onY() }` | `useEffect(() => { X.on('y', …); return () => X.off('y', …) })` — for signals from non-reactive singletons / context properties (e.g. `Qt.styleHints`) |
 | `RowLayout` / `ColumnLayout` | flexbox |
 | `visible: condition` or `Loader` | conditional render |
 
@@ -169,6 +170,21 @@ User-chosen: **"anneaux modernes épurés"** (clean modern rings).
   (`themeAdapter`, `configStoreAdapter`, …) so the names don't
   collide. Especially dangerous inside `fullRepresentation: X { ... }`
   Component templates where the error is silent until runtime.
+- **Live light/dark scheme detection in a panel widget: via
+  `Qt.styleHints`, not via Kirigami.** `Kirigami.Theme.backgroundColor`
+  reflects the panel's `Complementary` colorSet (fixed regardless of
+  the user's System Settings → Colors choice). Even a probe Item with
+  `inherit: false; colorSet: Window` does not actually re-evaluate
+  live in plasmashell. The canonical KDE signal since KF 6.22 is
+  `Qt.styleHints.colorScheme` (Qt 6.5+). Critical: the property has
+  **no NOTIFY** (warning explicit in Qt's own doc) — binding it would
+  never re-evaluate. Subscribe to the `colorSchemeChanged` signal via
+  `Connections`, write the new value into an intermediate regular
+  property, and let the public `readonly` API bind to that. Canonical
+  pattern in `contents/ui/platforms/plasma/Theme.qml` (`_qtScheme` →
+  `isDarkMode`). Caveat: some setups (third-party look-and-feel
+  themes like Vapor) do not emit the signal live inside plasmashell;
+  always expose an explicit Light/Dark override for the user.
 
 For the deeper "why" on each pitfall and the drag-and-drop saga, see
 `docs/`.

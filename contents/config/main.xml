@@ -83,5 +83,25 @@
             <label>Temperature display unit: "auto" (follow system), "celsius", or "fahrenheit"</label>
             <default>auto</default>
         </entry>
+
+        <entry name="checkForUpdatesEnabled" type="Bool">
+            <label>Periodically check the project's GitHub Releases page for a newer version</label>
+            <default>true</default>
+        </entry>
+
+        <entry name="lastUpdateCheck" type="Int64">
+            <label>Unix timestamp (ms) of the last successful update check; 0 = never</label>
+            <default>0</default>
+        </entry>
+
+        <entry name="latestKnownVersion" type="String">
+            <label>Latest version returned by the last successful update check (cached between widget restarts)</label>
+            <default></default>
+        </entry>
+
+        <entry name="acknowledgedVersion" type="String">
+            <label>Version the user has clicked "Got it" on; the badge stays hidden until a newer version appears</label>
+            <default></default>
+        </entry>
     </group>
 </kcfg>

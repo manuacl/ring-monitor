@@ -37,4 +37,32 @@ Item {
     readonly property color customColorLight: Plasmoid.configuration.customColorLight
     readonly property color customColorDark: Plasmoid.configuration.customColorDark
     readonly property string tempUnit: Plasmoid.configuration.tempUnit
+
+    // ── Update-check group ──────────────────────────────────────────
+    // Reads stay readonly like the rest of this adapter. Writes
+    // (recordUpdateCheck / acknowledgeVersion) happen here too because
+    // the update flow is the one path that needs to persist outside
+    // the SimpleKCM cfg_* magic — it writes opportunistically from
+    // the widget's runtime path, not from a config dialog.
+    // Defensive defaults: when KConfig hasn't materialised a brand-new
+    // schema key yet (first run after a release adding entries), the
+    // raw read can be undefined. Coerce here so downstream bindings
+    // (typed real / string) never get an `undefined` assignment, which
+    // QML rejects with a "Unable to assign [undefined] to X" warning.
+    readonly property bool checkForUpdatesEnabled: Plasmoid.configuration.checkForUpdatesEnabled !== false
+    readonly property double lastUpdateCheck: Plasmoid.configuration.lastUpdateCheck || 0
+    readonly property string latestKnownVersion: Plasmoid.configuration.latestKnownVersion || ""
+    readonly property string acknowledgedVersion: Plasmoid.configuration.acknowledgedVersion || ""
+    // Local widget version, exposed here so core/UpdateChecker.qml can
+    // compare against the cached remote without importing Plasma.
+    readonly property string localVersion: (Plasmoid.metaData && Plasmoid.metaData.version) || ""
+
+    function recordUpdateCheck(version, timestampMs) {
+        Plasmoid.configuration.latestKnownVersion = version;
+        Plasmoid.configuration.lastUpdateCheck = timestampMs;
+    }
+
+    function acknowledgeVersion(version) {
+        Plasmoid.configuration.acknowledgedVersion = version;
+    }
 }

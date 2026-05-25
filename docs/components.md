@@ -62,6 +62,7 @@ A circular gauge: 270° arc starting at 135° (90° gap at the bottom).
 | `splitValue` | `0` | percentage (0–100) for the right half — usually a `tempToPercent(°C)` mapping |
 | `splitRawValue` | `0` | raw value (e.g. °C) displayed in the right-side text |
 | `splitUnit` | `"°"` | suffix appended to the right-side text |
+| `showUpdateBadge` | `false` | when true, render a small coloured dot in the 90° bottom gap (just left of the label) that pulses slowly. Emits `updateBadgeClicked()` on click — the parent uses it to open the config dialog at the "New release" tab. Set by `MainContent` on the first ring only when `updateChecker.updateAvailable` is true. |
 
 ### Split mode
 
@@ -360,6 +361,11 @@ future reader) consumes `configStore.X` instead of reaching into
 | `mergeCpuTemp` | `bool` | `Plasmoid.configuration.mergeCpuTemp` (hide `cpuTemp` ring, render it as the right half of the `cpu` ring) |
 | `mergeGpuTemp` | `bool` | `Plasmoid.configuration.mergeGpuTemp` (same for the GPU pair) |
 | `tempUnit` | `string` | `Plasmoid.configuration.tempUnit` (`auto` / `celsius` / `fahrenheit`) |
+| `checkForUpdatesEnabled` | `bool` | `Plasmoid.configuration.checkForUpdatesEnabled` — opt-out flag for the periodic GitHub release check |
+| `lastUpdateCheck` | `double` | `Plasmoid.configuration.lastUpdateCheck` — Unix ms of the last successful check; `0 = never`, drives the 24h cache TTL |
+| `latestKnownVersion` | `string` | `Plasmoid.configuration.latestKnownVersion` — cached tag (e.g. `"v0.4.0"`) from the last fetch |
+| `acknowledgedVersion` | `string` | `Plasmoid.configuration.acknowledgedVersion` — the version the user clicked "Got it" on; the badge stays hidden until a newer one appears |
+| `localVersion` | `string` | `Plasmoid.metaData.version` — exposed here so `core/UpdateChecker.qml` can compare against the cached remote without importing Plasma |
 | `orientation` | `string` | `Plasmoid.configuration.orientation` |
 | `textOpacity` | `real` | `Plasmoid.configuration.textOpacity` |
 | `trackOpacity` | `real` | `Plasmoid.configuration.trackOpacity` |
@@ -375,10 +381,22 @@ only resolves when accessed from inside the loaded `PlasmoidItem`
 tree. A singleton living outside that scope would see `Plasmoid` as
 undefined.
 
-**Reads-only by design.** Writes still go through the config pages'
-`cfg_*` magic (SimpleKCM-managed flow) — that mechanism stays
-unchanged in this PR. A future refactor may bridge writes through
-this same adapter.
+**Mostly reads-only by design.** SimpleKCM's `cfg_*` magic is still
+the canonical write path for user-editable settings. The single
+exception is the update-check group: the widget's runtime path (not
+a config dialog) writes `latestKnownVersion` and `lastUpdateCheck`
+on a successful GitHub fetch, and `acknowledgedVersion` on "Got it"
+clicks. ConfigStore exposes two thin writer functions for that path:
+
+| Function | What it persists |
+|---|---|
+| `recordUpdateCheck(version, timestampMs)` | the latest GitHub tag + the check timestamp; called by `core/UpdateChecker.qml` after a successful XHR |
+| `acknowledgeVersion(version)` | the version the user dismissed via "Got it" in the About page |
+
+Both write through `Plasmoid.configuration.X = …` directly — KConfig
+flushes the file lazily, so the cached state survives widget
+restarts. A standalone build's adapter would back these writers with
+`Qt.labs.settings.setValue(...)` instead.
 
 A standalone build will ship a parallel `ConfigStore.qml` backed by
 `Qt.labs.settings`, exposing the same property surface.
@@ -443,3 +461,57 @@ Smoke-tested by `tests/metrics-backend.test.mjs` — same pattern as
 that loads `org.kde.ksysguard.sensors`; the Node test inspects the
 QML source and asserts the public surface + every catalog sensor +
 the 6 per-core sensors are declared.
+
+## Update-notification flow
+
+A widget-side check against GitHub Releases drives a subtle "new
+release" badge on the first ring and a dedicated config page that
+surfaces the new version + install methods. Three files share the
+flow: the pure semver / cache logic lives in
+[`core/UpdateCheck.js`](logic-modules.md#updatecheckjs), the runtime
+wiring in `core/UpdateChecker.qml`, the UI in `core/AboutBody.qml`
+(rendered by the top-level wrapper `configAbout.qml`).
+
+### `UpdateChecker.qml`
+
+Portable runtime (pure QtQuick — no Plasma imports) that fires
+`XMLHttpRequest` to `api.github.com/repos/manuacl/ring-monitor/releases/latest`
+on Component completion, gates the call with a 24h TTL via
+`UpdateCheck.shouldRecheck`, and persists the result through the
+injected `configStore` (so a standalone build can back the same
+public surface with a different write layer).
+
+| Public surface | What it exposes |
+|---|---|
+| `localVersion` / `remoteVersion` / `acknowledgedVersion` (readonly) | mirrored from `configStore` — single source of truth |
+| `updateAvailable` (readonly bool) | drives the badge and the AboutBody status block; computed via `UpdateCheck.shouldNotify` |
+| `check()` (function) | force a network probe, bypassing the TTL gate |
+| `acknowledge()` (function) | persists "Got it" — sets `acknowledgedVersion = remoteVersion` |
+| `openStorePage()` (function) | `Qt.openUrlExternally` to the KDE Store entry (where the user-facing changelog lives) |
+| `releasesApiUrl` / `storePageUrl` / `cacheTtlMs` (readonly) | overridable knobs (the standalone build could repoint the URLs) |
+
+The XHR handler is intentionally silent on failure — a network blip
+or a malformed JSON response leaves the cached state untouched and
+the user sees nothing wrong. The next TTL cycle retries.
+
+### `AboutBody.qml`
+
+Portable Kirigami `FormLayout` rendering the "Release" / "New
+release" config page. Four visible states drive the status block:
+
+1. `checkForUpdatesEnabled === false` → "Update checks are disabled."
+2. `remoteVersion === ""` (first run before the XHR lands) → "Checking for updates…"
+3. `updateAvailable` → "Update available: vX.Y.Z" + `[Open KDE Store] [Got it]` buttons
+4. otherwise → "You are running the latest version."
+
+The wrapper [`configAbout.qml`](#configabout-qml-wrapper) declares the
+ConfigCategory twice in `contents/config/config.qml` so the same body
+appears at the top of the sidebar (named "New release") when there's
+something to notify about, and at the bottom (named "Release") for
+ambient discovery the rest of the time. Plasma 6 has no public
+"open-at-category" API; the dynamic `visible` toggle on
+`ConfigCategory` is the workaround.
+
+Smoke-tested by `tests/qml/tst_AboutBody.qml` — exercises each of
+the four states + the action signal wiring (`acknowledgeClicked`,
+`openStorePageClicked`, `checkForUpdatesToggled`).

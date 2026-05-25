@@ -23,6 +23,11 @@ GridLayout {
     property var theme
     property var configStore
     property var metrics
+    // UpdateChecker (also injected) — exposes updateAvailable and the
+    // openReleasePage / acknowledge / configureRequested actions used
+    // by the in-widget badge.
+    property var updateChecker
+    signal configureRequested
 
     // ── Derived ──────────────────────────────────────────────────────
     //
@@ -49,11 +54,13 @@ GridLayout {
     implicitHeight: vertical ? 180 * count : 180
 
     Repeater {
+        id: ringRepeater
         model: content.enabledList
 
         delegate: Ring {
             id: ringDelegate
             required property string modelData
+            required property int index
 
             // Three flavours of ring share this delegate:
             //   1. usage rings (cpu/ram/swap/gpu/disk) — value is a %
@@ -107,6 +114,12 @@ GridLayout {
             textOpacity: content.configStore.textOpacity
             trackOpacity: content.configStore.trackOpacity
             arcOpacity: content.configStore.arcOpacity
+
+            // Update-available badge only on the first ring of the strip
+            // — one notification per widget, anchored where the user's
+            // eye lands first.
+            showUpdateBadge: index === 0 && content.updateChecker !== undefined && content.updateChecker.updateAvailable
+            onUpdateBadgeClicked: content.configureRequested()
         }
     }
 }

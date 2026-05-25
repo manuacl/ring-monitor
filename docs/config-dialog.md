@@ -120,3 +120,46 @@ systemctl --user restart plasma-plasmashell.service
 
 Editing QML alone is hot-reloaded by the symlink (see
 [development.md](development.md)), but config schema changes are not.
+
+## Update-check group (added in 0.5)
+
+Four keys back the in-widget "new release" badge + the "Release" /
+"New release" config page (see
+[components.md](components.md#update-notification-flow) for the flow):
+
+| Key | Type | Default | Written by |
+|---|---|---|---|
+| `checkForUpdatesEnabled` | `Bool` | `true` | the "Check for updates automatically" checkbox on the Release / New release config page (SimpleKCM `cfg_*` magic) |
+| `lastUpdateCheck` | `Int64` | `0` | `core/UpdateChecker.qml` after a successful GitHub fetch — runtime path, not a config dialog |
+| `latestKnownVersion` | `String` | `""` | same as above |
+| `acknowledgedVersion` | `String` | `""` | the "Got it" button on the New release config page → `ConfigStore.acknowledgeVersion()` |
+
+The last three are the **single exception** to the "writes go through
+SimpleKCM `cfg_*`" rule documented above: they're persisted from the
+widget's runtime path (the periodic update check) and from a button
+inside the AboutBody, not from a typed config dialog. `ConfigStore.qml`
+exposes two thin writers (`recordUpdateCheck`, `acknowledgeVersion`)
+that keep the Plasma seam clean — see
+[components.md → `ConfigStore.qml`](components.md#configstoreqml) for
+the surface.
+
+## Dynamic ConfigCategory ordering for the "New release" tab
+
+Plasma 6's config dialog has **no "open-at-category" API** (verified
+against `develop.kde.org/docs/plasma/widget/setup` and
+`plasmaconfigplugin.qmltypes` — `ConfigCategory` only exposes
+`name`, `icon`, `source`, `visible`). The first `ConfigCategory` is
+always the default landing tab.
+
+To land the in-widget update badge on the About page **without**
+forcing every other config-open to also start there, `config.qml`
+declares two `ConfigCategory` entries pointing at the same source
+(`configAbout.qml`):
+
+- top of sidebar, named **"New release"**, `visible: _hasUnseenUpdate`
+- bottom of sidebar, named **"Release"**, `visible: !_hasUnseenUpdate`
+
+`_hasUnseenUpdate` reads the persisted state through
+`UpdateCheck.shouldNotify` — semver-aware so the tag-vs-version mismatch
+(`"v0.4.0"` from KConfig, `"0.4.0"` from `Plasmoid.metaData.version`)
+doesn't permanently pin the tab at the top.

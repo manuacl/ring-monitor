@@ -36,10 +36,21 @@ PlasmoidItem {
         id: metricsAdapter
     }
 
+    Core.UpdateChecker {
+        id: updateCheckerAdapter
+        configStore: configStoreAdapter
+    }
+
     // ── Portable body ───────────────────────────────────────────────
     fullRepresentation: Core.MainContent {
         theme: themeAdapter
         configStore: configStoreAdapter
         metrics: metricsAdapter
+        updateChecker: updateCheckerAdapter
+        // The update-badge click lands users in the config dialog —
+        // since Plasma 6 has no "open at category X" API, the
+        // dynamic-visible trick in config.qml puts the About page
+        // first whenever an update is unacknowledged.
+        onConfigureRequested: Plasmoid.internalAction("configure").trigger()
     }
 }

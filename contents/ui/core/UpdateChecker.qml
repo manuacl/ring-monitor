@@ -68,14 +68,16 @@ Item {
             // not surface to the user. The cached version stays put.
             if (xhr.status !== 200)
                 return;
+            var data = null;
             try {
-                var data = JSON.parse(xhr.responseText);
-                var tag = data && data.tag_name;
-                if (typeof tag === "string" && tag.length > 0) {
-                    checker.configStore.recordUpdateCheck(tag, Date.now());
-                }
+                data = JSON.parse(xhr.responseText);
             } catch (e) {
                 // Malformed JSON — ignore, retry next TTL cycle.
+                return;
+            }
+            var tag = data && data.tag_name;
+            if (typeof tag === "string" && tag.length > 0) {
+                checker.configStore.recordUpdateCheck(tag, Date.now());
             }
         };
         xhr.send();

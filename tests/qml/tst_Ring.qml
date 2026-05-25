@@ -25,10 +25,18 @@ Item {
         function init() {
             ring.label = "";
             ring.value = 0;
+            ring.rawValue = NaN;
             ring.unit = "%";
             ring.nestedValues = [];
+            ring.splitMode = false;
+            ring.splitValue = 0;
+            ring.splitRawValue = 0;
+            ring.splitUnit = "°";
             // Wait for animations triggered by previous tests to settle.
             tryCompare(ring, "displayValue", 0);
+            tryCompare(ring, "displayRawValue", 0);
+            tryCompare(ring, "displaySplitValue", 0);
+            tryCompare(ring, "displaySplitRawValue", 0);
         }
 
         // ── Center label / value text rendering ───────────────────
@@ -110,6 +118,80 @@ Item {
             // We can't easily count its children from here without exposing
             // them, but verifying the length round-trips proves the binding.
             compare(ring.nestedValues.length, 6);
+        }
+
+        // ── Split mode: full arc hidden, both halves visible ──────
+        function test_split_mode_hides_full_arc_shows_both_halves() {
+            ring.splitMode = true;
+            verify(!ring._fullArcVisible, "full arc must hide when splitMode is on");
+            verify(ring._leftArcVisible, "left half arc must show when splitMode is on");
+            verify(ring._rightArcVisible, "right half arc must show when splitMode is on");
+            verify(ring._splitValueTextVisible, "split value text must show when splitMode is on");
+        }
+
+        function test_default_mode_hides_split_halves() {
+            // splitMode defaults to false (reset in init()).
+            verify(ring._fullArcVisible, "full arc must show when splitMode is off");
+            verify(!ring._leftArcVisible, "left half arc must hide when splitMode is off");
+            verify(!ring._rightArcVisible, "right half arc must hide when splitMode is off");
+            verify(!ring._splitValueTextVisible, "split value text must hide when splitMode is off");
+        }
+
+        // ── Split mode: sweep angles map through left/right half helpers ──
+        function test_split_left_sweep_at_value_50_is_65_5_degrees() {
+            ring.splitMode = true;
+            ring.value = 50;
+            tryCompare(ring, "displayValue", 50, 1000);
+            // effectiveHalfSweep() × 0.5 = (135 − 4) × 0.5 = 65.5
+            fuzzyCompare(ring._leftSweepAngle, 65.5, 0.01);
+        }
+
+        function test_split_right_sweep_at_value_100_is_negative_131() {
+            ring.splitMode = true;
+            ring.splitValue = 100;
+            tryCompare(ring, "displaySplitValue", 100, 1000);
+            // −effectiveHalfSweep() × 1 = −(135 − 4) = −131
+            fuzzyCompare(ring._rightSweepAngle, -131, 0.01);
+        }
+
+        // ── Split mode: secondary text renders raw value + splitUnit ──
+        function test_split_value_text_renders_raw_with_split_unit() {
+            ring.splitMode = true;
+            ring.splitRawValue = 45;
+            ring.splitUnit = "°";
+            tryCompare(ring, "displaySplitRawValue", 45, 1000);
+            compare(ring._splitValueText, "45°");
+        }
+
+        function test_split_value_text_rounds_fractional_raw() {
+            ring.splitMode = true;
+            ring.splitRawValue = 67.4;
+            tryCompare(ring, "displaySplitRawValue", 67.4, 1000);
+            compare(ring._splitValueText, "67°");
+        }
+
+        // ── rawValue override: text displays rawValue, sweep stays on value ──
+        function test_rawValue_overrides_value_text_without_changing_sweep() {
+            // Simulate a temperature ring: sweep = 50% (mid-arc),
+            // displayed = 60°C (raw reading).
+            ring.unit = "°C";
+            ring.value = 50;
+            ring.rawValue = 60;
+            tryCompare(ring, "displayValue", 50, 1000);
+            tryCompare(ring, "displayRawValue", 60, 1000);
+            compare(ring._valueText, "60°C");
+            // BASE_SWEEP_ANGLE × 0.5 = 135 — sweep unaffected by rawValue.
+            fuzzyCompare(ring._sweepAngle, 135, 0.01);
+        }
+
+        function test_rawValue_falls_back_to_value_when_NaN() {
+            // No override → text = Math.round(value) + unit, like before.
+            ring.unit = "%";
+            ring.value = 42;
+            ring.rawValue = NaN;
+            tryCompare(ring, "displayValue", 42, 1000);
+            tryCompare(ring, "displayRawValue", 42, 1000);
+            compare(ring._valueText, "42%");
         }
     }
 }

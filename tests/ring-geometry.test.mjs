@@ -85,17 +85,119 @@ test('dimensionsFor: invalid size (0, negative, NaN) returns floor values', () =
     assert.equal(Geom.dimensionsFor(NaN).ringStroke, 4);
 });
 
-test('nestedRadius: index 0 sits just inside the main ring', () => {
-    // Main ringRadius=83, ringStroke=10, nestedStroke=3, nestedGap=4
-    // r0 = 83 - 5 - 4 - 1.5 - 0 = 72.5
-    assert.equal(Geom.nestedRadius(83, 10, 3, 4, 0), 72.5);
+// ── nestedRingLayout: count-aware concentric ring layout ────────────────
+//
+// Up to COMFORT_RING_COUNT (7): preferred stroke/gap are used directly,
+// cores stack grows naturally inward. Past 7: the layout shrinks
+// stroke = gap = (7 × (preferredStroke + preferredGap)) / (2 × count)
+// so the whole stack always fits inside the 7-ring envelope.
+
+test('COMFORT_RING_COUNT is exposed and equals 7', () => {
+    // 6 cores (dev rig) → no shrinking; one more before scaling kicks in.
+    assert.equal(Geom.COMFORT_RING_COUNT, 7);
 });
 
-test('nestedRadius: each subsequent index steps inward by (nestedStroke + nestedGap)', () => {
-    const step = 3 + 4; // 7
-    const r0 = Geom.nestedRadius(83, 10, 3, 4, 0);
-    const r1 = Geom.nestedRadius(83, 10, 3, 4, 1);
-    const r5 = Geom.nestedRadius(83, 10, 3, 4, 5);
-    assert.equal(r1 - r0, -step);
-    assert.equal(r5, r0 - 5 * step);
+test('nestedRingLayout: count=0 returns empty layout', () => {
+    const out = Geom.nestedRingLayout(83, 10, 3, 4, 0);
+    assert.equal(out.stroke, 0);
+    assert.equal(out.gap, 0);
+    assert.deepEqual(out.radii, []);
+});
+
+test('nestedRingLayout: low count uses preferred stroke/gap untouched', () => {
+    // 6 cores at preferredStroke=3, preferredGap=4 → no scaling.
+    const out = Geom.nestedRingLayout(83, 10, 3, 4, 6);
+    assert.equal(out.stroke, 3);
+    assert.equal(out.gap, 4);
+    // Outermost: outerEdge=83-5=78, then -gap=4 -stroke/2=1.5 → 72.5
+    assert.equal(out.radii[0], 72.5);
+    // Step inward by (stroke + gap) = 7
+    assert.equal(out.radii[1], 72.5 - 7);
+    assert.equal(out.radii[5], 72.5 - 5 * 7);
+});
+
+test('nestedRingLayout: 7 cores still uses preferred values (last comfortable count)', () => {
+    const out = Geom.nestedRingLayout(83, 10, 3, 4, 7);
+    assert.equal(out.stroke, 3);
+    assert.equal(out.gap, 4);
+    assert.equal(out.radii.length, 7);
+});
+
+test('nestedRingLayout: 8+ cores shrinks to fit the 7-ring envelope', () => {
+    // envelope = 7 × (3 + 4) = 49 px → unit at count=8 = 49 / 16 = 3.0625
+    const out = Geom.nestedRingLayout(83, 10, 3, 4, 8);
+    assert.equal(out.stroke, 49 / 16);
+    assert.equal(out.gap, 49 / 16);
+    assert.equal(out.radii.length, 8);
+});
+
+test('nestedRingLayout: 12 cores stack ends at the same inner radius as 7 cores', () => {
+    // Both stacks should end (innermost radius) at the same fixed point:
+    // outerEdge - 7 × (3 + 4) = 78 - 49 = 29 (approx, modulo stroke / 2 offset).
+    const seven = Geom.nestedRingLayout(83, 10, 3, 4, 7);
+    const twelve = Geom.nestedRingLayout(83, 10, 3, 4, 12);
+    // Innermost ring's centre radius minus its own stroke/2 = stack's
+    // innermost edge. These must match (within 0.5 px) for both counts.
+    const sevenInnerEdge = seven.radii[6] - seven.stroke / 2;
+    const twelveInnerEdge = twelve.radii[11] - twelve.stroke / 2;
+    assert.ok(Math.abs(sevenInnerEdge - twelveInnerEdge) < 0.5,
+        `inner edges drifted: 7-ring at ${sevenInnerEdge}, 12-ring at ${twelveInnerEdge}`);
+});
+
+test('nestedRingLayout: high count floors at stroke=1 (32-core stays visible)', () => {
+    // envelope = 49, unit at count=32 = 49/64 ≈ 0.77 → floor to 1.
+    const out = Geom.nestedRingLayout(83, 10, 3, 4, 32);
+    assert.equal(out.stroke, 1);
+    assert.equal(out.gap, 1);
+    assert.equal(out.radii.length, 32);
+});
+
+// ── Split-mode geometry (left/right half-arcs meeting at the top) ──
+//
+// The two halves together span the same 270° as the full sweep: each
+// is HALF_SWEEP_ANGLE = 135°. They start at the bottom gap edges
+// (135° / 45°) and grow toward the top (270°) in opposite directions.
+
+test('split constants: halves geometrically meet at top before gap', () => {
+    assert.equal(Geom.LEFT_HALF_START, 135);
+    assert.equal(Geom.RIGHT_HALF_START, 45);
+    assert.equal(Geom.HALF_SWEEP_ANGLE, 135);
+    assert.equal(Geom.SPLIT_GAP_ANGLE, 8);
+    // Geometric halves still sum to 270° — SPLIT_GAP_ANGLE is the
+    // *rendered* tweak applied via effectiveHalfSweep(), not a change
+    // to the underlying geometry.
+    assert.equal(Geom.HALF_SWEEP_ANGLE * 2, Geom.BASE_SWEEP_ANGLE);
+    assert.equal(Geom.LEFT_HALF_START + Geom.HALF_SWEEP_ANGLE, 270);
+    assert.equal((Geom.RIGHT_HALF_START - Geom.HALF_SWEEP_ANGLE + 360) % 360, 270);
+});
+
+test('effectiveHalfSweep shortens each half by SPLIT_GAP_ANGLE/2', () => {
+    // 135° geometric − 4° (half of 8° gap) = 131° rendered max.
+    assert.equal(Geom.effectiveHalfSweep(), 131);
+});
+
+test('leftHalfSweepFor: 0% → 0°, 100% → +131°, 50% → +65.5°', () => {
+    assert.equal(Geom.leftHalfSweepFor(0), 0);
+    assert.equal(Geom.leftHalfSweepFor(100), 131);
+    assert.equal(Geom.leftHalfSweepFor(50), 65.5);
+});
+
+test('rightHalfSweepFor: 0% → 0°, 100% → −131°, 50% → −65.5°', () => {
+    assert.equal(Geom.rightHalfSweepFor(0), 0);
+    assert.equal(Geom.rightHalfSweepFor(100), -131);
+    assert.equal(Geom.rightHalfSweepFor(50), -65.5);
+});
+
+test('left/rightHalfSweepFor: clamp out-of-range input', () => {
+    assert.equal(Geom.leftHalfSweepFor(-5), 0);
+    assert.equal(Geom.leftHalfSweepFor(150), 131);
+    assert.equal(Geom.rightHalfSweepFor(-5), 0);
+    assert.equal(Geom.rightHalfSweepFor(150), -131);
+});
+
+test('left/rightHalfSweepFor: non-finite input → 0 (clamped via clampPercent)', () => {
+    assert.equal(Geom.leftHalfSweepFor(NaN), 0);
+    assert.equal(Geom.rightHalfSweepFor(NaN), 0);
+    assert.equal(Geom.leftHalfSweepFor(Infinity), 0);
+    assert.equal(Geom.rightHalfSweepFor(Infinity), 0);
 });

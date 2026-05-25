@@ -33,6 +33,11 @@ KCM.SimpleKCM {
     property var cfg_enabledMetricsDefault
     property var cfg_showCpuCores
     property var cfg_showCpuCoresDefault
+    property var cfg_mergeCpuTemp
+    property var cfg_mergeCpuTempDefault
+    property var cfg_mergeGpuTemp
+    property var cfg_mergeGpuTempDefault
+    property var cfg_tempUnit
     property var cfg_orientationDefault
     property var cfg_textOpacityDefault
     property var cfg_trackOpacityDefault
@@ -41,6 +46,7 @@ KCM.SimpleKCM {
     property var cfg_colorModeDefault
     property var cfg_customColorLightDefault
     property var cfg_customColorDarkDefault
+    property var cfg_tempUnitDefault
 
     Core.AppearanceBody {
         id: body

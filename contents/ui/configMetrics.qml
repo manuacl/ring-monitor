@@ -21,6 +21,9 @@ KCM.SimpleKCM {
     property alias cfg_metricOrder: body.metricOrderCsv
     property alias cfg_enabledMetrics: body.enabledMetricsCsv
     property alias cfg_showCpuCores: body.showCpuCores
+    property alias cfg_mergeCpuTemp: body.mergeCpuTemp
+    property alias cfg_mergeGpuTemp: body.mergeGpuTemp
+    property alias cfg_tempUnit: body.tempUnit
 
     // KDE bug 484541 placeholders — keys handled on the Appearance page
     // and the *Default variants Plasma auto-generates for "Reset".
@@ -32,9 +35,20 @@ KCM.SimpleKCM {
     property var cfg_trackOpacityDefault
     property var cfg_arcOpacity
     property var cfg_arcOpacityDefault
+    property var cfg_colorTheme
+    property var cfg_colorThemeDefault
+    property var cfg_colorMode
+    property var cfg_colorModeDefault
+    property var cfg_customColorLight
+    property var cfg_customColorLightDefault
+    property var cfg_customColorDark
+    property var cfg_customColorDarkDefault
+    property var cfg_tempUnitDefault
     property var cfg_metricOrderDefault
     property var cfg_enabledMetricsDefault
     property var cfg_showCpuCoresDefault
+    property var cfg_mergeCpuTempDefault
+    property var cfg_mergeGpuTempDefault
 
     // ID is *Adapter-suffixed to avoid shadowing MetricsBody's
     // `theme` property — same QML name-resolution trap as in main.qml.

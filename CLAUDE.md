@@ -185,6 +185,39 @@ User-chosen: **"anneaux modernes épurés"** (clean modern rings).
   `isDarkMode`). Caveat: some setups (third-party look-and-feel
   themes like Vapor) do not emit the signal live inside plasmashell;
   always expose an explicit Light/Dark override for the user.
+- **Binding a `readonly property var` to a dynamic collection of
+  properties: use a tick counter, not direct enumeration.** When
+  `Sensors.Sensor` (or any QObject) instances are created via
+  `Instantiator` (`model: array of ids`), the natural binding
+  `[obj0.value, obj1.value, …]` only tracks dependencies at the
+  initial evaluation — model adds / removes re-evaluate, but `.value`
+  changes inside an already-instantiated delegate do NOT. Workaround:
+  each delegate bumps `backend._tick++` in its `onValueChanged`, and
+  the readonly property reads `backend._tick;` as its first line
+  (tracked dependency). Then iterates `instantiator.objectAt(i)` to
+  build the array. Canonical pattern in
+  `contents/ui/platforms/plasma/MetricsBackend.qml` (`_coreTick`,
+  `_gpuTempTick`, `_gpuUsageTick`).
+- **Use `Sensors.Sensor.status` to know if a sensor id actually
+  resolved.** Enum values: `Unknown`, `Loading`, `Ready`, `Error`,
+  `Removed`. Before the first reading, `.value` is `undefined` / `NaN`
+  (the defensive `|| 0` covers that on the rendering side). For
+  probe-then-pick patterns (try several candidate ids, use the first
+  that exists) and for "loading" warm-up animations, query `.status
+  === Sensors.Sensor.Ready` rather than guessing from `.value`.
+  Canonical use in `MetricsBackend.qml` (`loading` property,
+  `_gpuTempValue` / `_gpuUsageValue` helpers).
+- **Non-percent metrics decouple sweep input from display value.**
+  `Ring.value` is always treated as 0-100 for the sweep angle math.
+  When the metric is actually a temperature (or any non-percent —
+  future: network rate, NVMe temp), the parent maps the raw reading
+  to a percent for `value` AND passes the raw value via `rawValue`
+  (with the matching `unit`, e.g. `"°C"`). The centre text reads
+  `Math.round(rawValue) + unit` when finite, falls back to
+  `value + unit` otherwise. The split arc applies the same dual-prop
+  trick via `splitValue` (0-100 percent for the sweep) and
+  `splitRawValue` (raw value for the text). Don't cram a non-percent
+  value into `value` directly — the sweep math would be wrong.
 
 For the deeper "why" on each pitfall and the drag-and-drop saga, see
 `docs/`.

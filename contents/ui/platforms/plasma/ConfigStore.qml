@@ -24,6 +24,8 @@ Item {
     readonly property string metricOrder: Plasmoid.configuration.metricOrder
     readonly property string enabledMetrics: Plasmoid.configuration.enabledMetrics
     readonly property bool showCpuCores: Plasmoid.configuration.showCpuCores
+    readonly property bool mergeCpuTemp: Plasmoid.configuration.mergeCpuTemp
+    readonly property bool mergeGpuTemp: Plasmoid.configuration.mergeGpuTemp
 
     // ── Appearance group ────────────────────────────────────────────
     readonly property string orientation: Plasmoid.configuration.orientation
@@ -34,4 +36,5 @@ Item {
     readonly property string colorMode: Plasmoid.configuration.colorMode
     readonly property color customColorLight: Plasmoid.configuration.customColorLight
     readonly property color customColorDark: Plasmoid.configuration.customColorDark
+    readonly property string tempUnit: Plasmoid.configuration.tempUnit
 }

@@ -1,6 +1,6 @@
 import QtQuick
 import QtTest
-import "../../contents/ui/platform" as Platform
+import "../../contents/ui/platforms/plasma" as Platform
 
 // Smoke test for the ThemedIcon adapter. Confirms the wrapper accepts
 // a source assignment — guards against the wrapper becoming

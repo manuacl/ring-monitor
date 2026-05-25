@@ -1,6 +1,6 @@
 import QtQuick
 import QtTest
-import "../../contents/ui/platform" as Platform
+import "../../contents/ui/platforms/plasma" as Platform
 
 // Smoke tests for the Theme adapter (PR 1 of plasma-isolation).
 // Asserts the adapter exposes the property surface the leaf components

@@ -17,7 +17,7 @@ import assert from "node:assert";
 // without needing the Plasmoid QML module installed.
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platform", "ConfigStore.qml"), "utf8");
+const SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms", "plasma", "ConfigStore.qml"), "utf8");
 
 // Keys must match contents/config/main.xml — update both when adding a
 // new config entry.

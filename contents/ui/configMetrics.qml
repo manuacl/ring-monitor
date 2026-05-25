@@ -1,6 +1,6 @@
 import QtQuick
 import org.kde.kcmutils as KCM
-import "platform" as Platform
+import "platforms/plasma" as Platform
 import "core" as Core
 
 // Plasma-side wrapper for the Metrics config page. All of the

@@ -31,6 +31,21 @@ This file is the short briefing. Deeper docs live in `docs/`:
 
 These are forced by the user's preferences, not by the tech stack:
 
+- **Plasma isolation is mandatory.** `contents/ui/core/` is portable
+  QML — **no `org.kde.*` imports** except `org.kde.kirigami` (which
+  runs on any Qt 6 desktop). Plasma-specific code lives only in
+  `contents/ui/platforms/plasma/` adapters (`Theme`, `ConfigStore`,
+  `MetricsBackend`, `ThemedIcon`, …) and the three top-level wrappers
+  (`main.qml`, `configMetrics.qml`, `configAppearance.qml`). Need a
+  Plasma-only QML control inside a `core/` view? Wrap it in a new
+  `platforms/plasma/X.qml` adapter first (pattern: `ThemedIcon.qml`
+  wraps `Kirigami.Icon`). The seam exists so a future standalone
+  build is just a sibling `platforms/standalone/` directory exposing
+  the same property surface; smuggling a Plasma
+  dependency into `core/` silently undoes that work. Enforced by
+  `finish-branch` via `grep -r "import org.kde" contents/ui/core/`.
+  Full rationale and inventory in
+  [`docs/plasma-isolation/plan.md`](docs/plasma-isolation/plan.md).
 - **Logic in dedicated files, views thin.** Pure logic goes in
   `contents/ui/core/*.js` (dual-loadable by QML and Node). QML files
   consume them.

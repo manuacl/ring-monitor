@@ -27,11 +27,12 @@ ring-monitor/
 │       │   ├── ReorderLogic.js         — pure: drag math (testable)
 │       │   ├── MetricsCatalog.js       — pure: metric data + CSV helpers
 │       │   └── RingGeometry.js         — pure: ring stroke/radius/sweep math
-│       └── platform/                   — Plasma adapters (single home of org.kde.* imports)
-│           ├── Theme.qml               — re-exposes Kirigami theme tokens
-│           ├── ThemedIcon.qml          — wraps Kirigami.Icon
-│           ├── ConfigStore.qml         — re-exposes Plasmoid.configuration as typed properties
-│           └── MetricsBackend.qml      — wraps KSysGuard sensor instances
+│       └── platforms/                  — host-specific adapters (one subdir per target)
+│           └── plasma/                  — Plasma adapters (single home of org.kde.* imports)
+│               ├── Theme.qml            — re-exposes Kirigami theme tokens
+│               ├── ThemedIcon.qml       — wraps Kirigami.Icon
+│               ├── ConfigStore.qml      — re-exposes Plasmoid.configuration as typed properties
+│               └── MetricsBackend.qml   — wraps KSysGuard sensor instances
 ├── tests/
 │   ├── reorder-logic.test.mjs
 │   ├── metrics-catalog.test.mjs
@@ -52,9 +53,9 @@ Three directional rules:
    by the `finish-branch` skill on every branch. `core/` consumes
    theme tokens through explicit properties on a `theme: var` prop;
    the parent (`main.qml`, `configMetrics.qml`, `configAppearance.qml`)
-   instantiates `platform/Theme.qml` and passes the values down.
-   `core/DraggableList.qml` uses `Platform.ThemedIcon` via the
-   relative import `import "../platform" as Platform` — Plasma is
+   instantiates `platforms/plasma/Theme.qml` and passes the values
+   down. `core/DraggableList.qml` uses `Platform.ThemedIcon` via the
+   relative import `import "../platforms/plasma" as Platform` — Plasma is
    still hidden from `core/`, since the adapter file itself wraps the
    `Kirigami.Icon`.
 3. **Top-level wrappers (`main.qml`, `configAppearance.qml`,
@@ -95,10 +96,10 @@ that would couple logic to Qt-only types and break Node testing.
 ## Data flow
 
 ```
-ksysguard ──▶ platform/MetricsBackend.qml ──▶ core/MainContent.qml ──▶ core/Ring.qml
-                                                      ▲
-                                                      │
-              KConfig ──▶ platform/ConfigStore.qml ──┘ (textOpacity, etc.)
+ksysguard ──▶ platforms/plasma/MetricsBackend.qml ──▶ core/MainContent.qml ──▶ core/Ring.qml
+                                                              ▲
+                                                              │
+              KConfig ──▶ platforms/plasma/ConfigStore.qml ──┘ (textOpacity, etc.)
                   │
                   │ cfg_metricOrder
                   │ cfg_enabledMetrics

@@ -18,7 +18,7 @@ import assert from "node:assert";
 // only surface as silently-zero rings in production.
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platform", "MetricsBackend.qml"), "utf8");
+const SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms", "plasma", "MetricsBackend.qml"), "utf8");
 
 // Public surface main.qml consumes.
 const PUBLIC_PROPS = ["coreValues"];

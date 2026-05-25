@@ -57,6 +57,39 @@ A circular gauge: 270° arc starting at 135° (90° gap at the bottom).
 | `unit` | `"%"` | string appended to the rendered value |
 | `textOpacity` / `trackOpacity` / `arcOpacity` | `1.0` / `0.15` / `1.0` | per-layer opacity |
 | `nestedValues` | `[]` | optional 0–100 array → concentric inner rings |
+| `rawValue` | `NaN` | optional override for the centre text — when finite, the ring shows `Math.round(rawValue) + unit` instead of `value + unit`. Used by temperature rings where `value=tempToPercent(°C)` drives the sweep but the user reads the raw °C / °F. |
+| `splitMode` | `false` | split the ring at the top into two half-arcs (see below) |
+| `splitValue` | `0` | percentage (0–100) for the right half — usually a `tempToPercent(°C)` mapping |
+| `splitRawValue` | `0` | raw value (e.g. °C) displayed in the right-side text |
+| `splitUnit` | `"°"` | suffix appended to the right-side text |
+
+### Split mode
+
+When `splitMode` is true the full 270° arc is hidden and two half-arcs
+(135° each) render in its place, growing **bottom-up** from the edges
+of the existing 90° gap and meeting at the top (12 h) when both inputs
+hit 100%:
+
+- **Left half** (`startAngle=135`, sweep `+131 × value/100`) — usage %.
+- **Right half** (`startAngle=45`, sweep `−131 × splitValue/100`) —
+  temperature, fed via `MetricsBackend.metricTempPercent(id)`.
+
+The 131° (instead of the geometric 135°) bakes in an 8° symmetric gap
+at the top (`SPLIT_GAP_ANGLE / 2` per side) so the two RoundCap
+endpoints don't overlap when both halves reach the midpoint. Both
+the active arcs and the static tracks use the same shortened sweep.
+
+The center value text shrinks to 75% of `valuePx` and shifts ±18% of
+the ring's size on either side of the geometric center; the new
+`splitValueText` shows the raw °C reading with `splitUnit` suffix.
+Cores rings (`nestedValues`) keep their full 270° sweep — they sit
+below the value text and overlap is by design (the cores arcs render
+at 0.55 opacity, the text on top stays readable).
+
+The geometry constants and helpers (`LEFT_HALF_START`,
+`RIGHT_HALF_START`, `HALF_SWEEP_ANGLE`, `leftHalfSweepFor`,
+`rightHalfSweepFor`) live in `core/RingGeometry.js` and are unit-tested
+in `tests/ring-geometry.test.mjs`.
 
 ### Sizing
 
@@ -324,6 +357,9 @@ future reader) consumes `configStore.X` instead of reaching into
 | `metricOrder` | `string` | `Plasmoid.configuration.metricOrder` |
 | `enabledMetrics` | `string` | `Plasmoid.configuration.enabledMetrics` |
 | `showCpuCores` | `bool` | `Plasmoid.configuration.showCpuCores` |
+| `mergeCpuTemp` | `bool` | `Plasmoid.configuration.mergeCpuTemp` (hide `cpuTemp` ring, render it as the right half of the `cpu` ring) |
+| `mergeGpuTemp` | `bool` | `Plasmoid.configuration.mergeGpuTemp` (same for the GPU pair) |
+| `tempUnit` | `string` | `Plasmoid.configuration.tempUnit` (`auto` / `celsius` / `fahrenheit`) |
 | `orientation` | `string` | `Plasmoid.configuration.orientation` |
 | `textOpacity` | `real` | `Plasmoid.configuration.textOpacity` |
 | `trackOpacity` | `real` | `Plasmoid.configuration.trackOpacity` |
@@ -358,22 +394,44 @@ preamble for the rationale.
 ### `MetricsBackend.qml`
 
 Wraps the KSysGuard sensor instances used by the Plasma build.
-`main.qml` no longer declares 11 `Sensors.Sensor` objects + the
-`sensorMap` + `coreValues` + `metricValue()` helper — they all live
-here.
+Mixes two patterns: **statically-bound `Sensors.Sensor` instances**
+for universal ksysguard ids (`cpu/all/usage`, `memory/*/usedPercent`,
+`disk/all/usedPercent`, `cpu/all/averageTemperature`, `gpu/all/usage`),
+and **runtime discovery via `Sensors.SensorTreeModel` + `Instantiator`**
+for the multi-arity ids that vary per machine (per-core CPU usage,
+per-GPU temperature, per-GPU usage).
 
 **Public surface** (the only thing `main.qml` consumes):
 
 | Member | Description |
 |---|---|
-| `coreValues` (readonly property var) | array of the 6 per-core CPU usage values, with `\|\| 0` fallback for not-yet-ready sensors |
-| `metricValue(id)` (function) | latest value for one of the catalog metric ids (`cpu`/`ram`/`swap`/`gpu`/`disk`) — delegates to `MetricsCatalog.valueFromSensorMap` |
+| `coreValues` (readonly property var) | array of per-core CPU usage values — length matches the discovered `cpu/cpu*/usage` count, with `\|\| 0` fallback for not-yet-ready sensors |
+| `loading` (readonly property bool) | `true` until the universal aggregates (`cpuTotal`, `ramSensor`) have reached `Sensor.Ready` — drives the 100%-fill "warming up" animation in `MainContent` |
+| `metricValue(id)` (function) | latest value for one of the catalog metric ids — universal ids go through `Catalog.valueFromSensorMap`, `gpu` and `gpuTemp` are dispatched to the dynamic-discovery helpers below |
+| `metricRawTemp(id)` (function) | latest raw °C reading for ids that expose a temperature sensor (`cpu` via static, `gpu` via discovery); `0` for others |
+| `metricTempPercent(id)` (function) | same value mapped to 0–100 via `MetricsCatalog.tempToPercent` — drives the Ring's right-half split arc |
 
-**Internal** (implementation detail, not part of the public API):
-the 11 `Sensors.Sensor` instances + the `sensorMap` lookup. Each
-named sensor's `sensorId` is resolved via
-`MetricsCatalog.sensorIdFor(id)`, so metric-id → sensor-id mapping
-stays centralised in the shared core module.
+**Dynamic discovery** (the substantive change vs. the earlier
+6-core-hardcoded model): on `Component.onCompleted` and on every
+`sensorTree.rowsInserted`/`Removed`/`modelReset`, the backend walks
+the tree, collects sensor ids, and feeds them to
+`Catalog.classifyDiscoveredIds()` (pure, tested in
+`tests/metrics-catalog.test.mjs`). The classified arrays
+(`_coreUsageIds`, `_gpuTempIds`, `_gpuUsageIds`) drive three
+`Instantiator`s that spawn the matching `Sensors.Sensor` instances.
+For GPU temp and GPU usage, helper accessors (`_gpuTempValue`,
+`_gpuUsageValue`) iterate the Instantiator children and return the
+value of the first `Sensor.Ready` instance — GPU usage prefers the
+aggregate `gpu/all/usage` when available and falls back to the first
+discovered per-GPU sensor.
+
+The "tick" pattern (`_coreTick`, `_gpuTempTick`, `_gpuUsageTick`) is
+the standard QML workaround for binding to a dynamic collection of
+properties: each instantiated `Sensor` bumps its tick `onValueChanged`,
+and the `coreValues` / `_gpuXValue` readonly bindings declare the
+tick as a dependency so they re-evaluate on every tick — yielding
+the same animation pipeline as the previous static-binding model
+without the hardcoded count assumption.
 
 A standalone build will ship a parallel `MetricsBackend.qml` backed
 by `/proc` reads (e.g. `/proc/stat` for CPU, `/proc/meminfo` for

@@ -13,29 +13,29 @@ import assert from "node:assert";
 //
 // This Node test inspects the QML source as plain text and asserts
 // that the adapter exposes the public surface main.qml depends on,
-// plus the internal sensor instances mapping to the catalog's metric
-// ids. Catches typos and accidental deletions that would otherwise
-// only surface as silently-zero rings in production.
+// plus the discovery + Instantiator pattern that replaced the
+// hardcoded per-core / per-GPU sensor declarations.
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms", "plasma", "MetricsBackend.qml"), "utf8");
 
 // Public surface main.qml consumes.
-const PUBLIC_PROPS = ["coreValues"];
-const PUBLIC_FUNCS = ["metricValue"];
+const PUBLIC_PROPS = ["coreValues", "loading"];
+const PUBLIC_FUNCS = ["metricValue", "metricRawTemp", "metricTempPercent"];
 
-// Named sensor instances — one per catalog metric id (see
-// contents/ui/core/MetricsCatalog.js: KNOWN_METRICS).
-const NAMED_SENSORS = [
-    { id: "cpuTotal", catalogId: "cpu" },
-    { id: "ramSensor", catalogId: "ram" },
-    { id: "swapSensor", catalogId: "swap" },
-    { id: "gpuSensor", catalogId: "gpu" },
-    { id: "diskSensor", catalogId: "disk" }
+// Universal-id sensor instances — sensors whose ksysguard id is the
+// same on every machine. Multi-arity sensors (per-core CPU, per-GPU)
+// are discovered at runtime via SensorTreeModel and instantiated via
+// Instantiator, not declared statically — see the dedicated tests
+// further down.
+const UNIVERSAL_SENSORS = [
+    { id: "cpuTotal", binding: 'Catalog.sensorIdFor("cpu")' },
+    { id: "ramSensor", binding: 'Catalog.sensorIdFor("ram")' },
+    { id: "swapSensor", binding: 'Catalog.sensorIdFor("swap")' },
+    { id: "diskSensor", binding: 'Catalog.sensorIdFor("disk")' },
+    { id: "cpuTempSensor", binding: 'Catalog.tempSensorIdFor("cpu")' },
+    { id: "gpuAllSensor", binding: '"gpu/all/usage"' }
 ];
-
-// Per-core CPU sensors — 6 cores on the dev rig (see CLAUDE.md).
-const CORE_IDS = ["cpu0", "cpu1", "cpu2", "cpu3", "cpu4", "cpu5"];
 
 test("MetricsBackend exposes the public properties main.qml depends on", () => {
     for (const name of PUBLIC_PROPS) {
@@ -51,39 +51,83 @@ test("MetricsBackend exposes the public functions main.qml depends on", () => {
     }
 });
 
-test("MetricsBackend declares a sensor instance for every catalog metric id", () => {
-    for (const { id, catalogId } of NAMED_SENSORS) {
+test("MetricsBackend declares the universal-id Sensor instances", () => {
+    for (const { id, binding } of UNIVERSAL_SENSORS) {
         const idPattern = new RegExp(`id:\\s*${id}\\b`);
         assert.match(SOURCE, idPattern, `MetricsBackend.qml must declare a Sensor with id: ${id}`);
 
-        // The sensor must be bound to the catalog lookup for its metric id.
-        const bindingPattern = new RegExp(`sensorId:\\s*Catalog\\.sensorIdFor\\("${catalogId}"\\)`);
-        assert.match(SOURCE, bindingPattern, `Sensor ${id} must bind sensorId: Catalog.sensorIdFor("${catalogId}")`);
+        // Escape regex metachars in `binding` since it can contain ( ) " .
+        const escapedBinding = binding.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const bindingPattern = new RegExp(`sensorId:\\s*${escapedBinding}`);
+        assert.match(SOURCE, bindingPattern, `Sensor ${id} must bind sensorId: ${binding}`);
     }
 });
 
-test("MetricsBackend declares one per-core CPU sensor for each core", () => {
-    for (const core of CORE_IDS) {
-        const idPattern = new RegExp(`id:\\s*${core}\\b`);
-        assert.match(SOURCE, idPattern, `MetricsBackend.qml must declare a Sensor with id: ${core}`);
+// ── Dynamic discovery via SensorTreeModel ───────────────────────────
 
-        // Hardcoded sensor id, not via Catalog (per-core ids aren't part of the catalog).
-        const sensorIdPattern = new RegExp(`sensorId:\\s*"cpu/${core}/usage"`);
-        assert.match(SOURCE, sensorIdPattern, `Sensor ${core} must bind sensorId: "cpu/${core}/usage"`);
-    }
+test("MetricsBackend declares a SensorTreeModel for runtime discovery", () => {
+    assert.match(SOURCE, /Sensors\.SensorTreeModel\s*{\s*[\s\S]*?id:\s*sensorTree/, "SensorTreeModel { id: sensorTree } must be declared so the walker can read it");
 });
 
-test("coreValues binding pulls from all six per-core sensors with the || 0 fallback", () => {
-    // The defensive `|| 0` matters — KSysGuard returns NaN for not-yet-ready
-    // sensors, and the Ring component expects numbers.
-    for (const core of CORE_IDS) {
-        const pattern = new RegExp(`${core}\\.value\\s*\\|\\|\\s*0`);
-        assert.match(SOURCE, pattern, `coreValues must include "${core}.value || 0"`);
-    }
+test("MetricsBackend walks the tree and delegates classification to MetricsCatalog", () => {
+    // The walker is _walkTreeAndCollectIds; classification (per-core,
+    // per-GPU temp/usage) happens in the pure Catalog helper.
+    assert.match(SOURCE, /function\s+_walkTreeAndCollectIds\s*\(/, "must declare _walkTreeAndCollectIds()");
+    assert.match(SOURCE, /Catalog\.classifyDiscoveredIds\s*\(/, "_refreshDiscovery() must call Catalog.classifyDiscoveredIds(...) so the regex bucketing stays pure-JS-testable");
 });
 
-test("metricValue delegates to Catalog.valueFromSensorMap", () => {
-    // The pure logic lives in MetricsCatalog.js (tested in
-    // tests/metrics-catalog.test.mjs). The backend is just the wiring.
-    assert.match(SOURCE, /Catalog\.valueFromSensorMap\s*\(\s*sensorMap\s*,\s*id\s*\)/, "metricValue(id) must call Catalog.valueFromSensorMap(sensorMap, id)");
+test("MetricsBackend re-runs discovery on tree structural changes", () => {
+    // Late-arriving sensors (e.g. hot-plug, slow ksysguard backends)
+    // must be picked up without a widget reload.
+    assert.match(SOURCE, /Connections\s*{[\s\S]*?target:\s*sensorTree[\s\S]*?onRowsInserted/, "must reconnect on sensorTree.onRowsInserted");
+    assert.match(SOURCE, /Connections\s*{[\s\S]*?target:\s*sensorTree[\s\S]*?onRowsRemoved/, "must reconnect on sensorTree.onRowsRemoved");
+});
+
+test("MetricsBackend uses an Instantiator to spawn per-core Sensor instances", () => {
+    // Replaces the previous 6 hardcoded cpu0..cpu5 declarations — the
+    // Instantiator scales to any core count discovered at runtime.
+    assert.match(SOURCE, /Instantiator\s*{[\s\S]*?id:\s*coreInstantiator[\s\S]*?model:\s*backend\._coreUsageIds/, "must declare Instantiator { id: coreInstantiator; model: backend._coreUsageIds }");
+});
+
+test("MetricsBackend uses Instantiators for per-GPU temp and usage candidates", () => {
+    assert.match(SOURCE, /Instantiator\s*{[\s\S]*?id:\s*gpuTempInstantiator[\s\S]*?model:\s*backend\._gpuTempIds/, "must declare Instantiator { id: gpuTempInstantiator; model: backend._gpuTempIds }");
+    assert.match(SOURCE, /Instantiator\s*{[\s\S]*?id:\s*gpuUsageInstantiator[\s\S]*?model:\s*backend\._gpuUsageIds/, "must declare Instantiator { id: gpuUsageInstantiator; model: backend._gpuUsageIds }");
+});
+
+test("coreValues binding walks the Instantiator and applies the || 0 fallback", () => {
+    // The defensive `|| 0` matters — KSysGuard returns NaN for
+    // not-yet-ready sensors, and the Ring expects numbers.
+    assert.match(SOURCE, /coreInstantiator\.objectAt\s*\(\s*i\s*\)/, "coreValues must read each Sensor via coreInstantiator.objectAt(i)");
+    assert.match(SOURCE, /s\.value\s*\|\|\s*0/, "coreValues must coerce undefined / NaN values to 0");
+});
+
+// ── Public-surface bindings unchanged from the static era ───────────
+
+test("metricValue delegates to Catalog.valueFromSensorMap for universal ids", () => {
+    assert.match(SOURCE, /Catalog\.valueFromSensorMap\s*\(\s*sensorMap\s*,\s*id\s*\)/, "metricValue(id) must call Catalog.valueFromSensorMap(sensorMap, id) for ids not handled by the dynamic helpers");
+});
+
+test("metricRawTemp delegates to Catalog.valueFromSensorMap with tempSensorMap", () => {
+    assert.match(SOURCE, /Catalog\.valueFromSensorMap\s*\(\s*tempSensorMap\s*,\s*id\s*\)/, "metricRawTemp(id) must call Catalog.valueFromSensorMap(tempSensorMap, id)");
+});
+
+test("metricTempPercent delegates to Catalog.tempToPercent", () => {
+    assert.match(SOURCE, /Catalog\.tempToPercent\s*\(/, "metricTempPercent(id) must call Catalog.tempToPercent(...)");
+});
+
+test("metricValue dispatches gpu and gpuTemp ids to the dynamic helpers", () => {
+    // _gpuUsageValue / _gpuTempValue scan the per-GPU Instantiators for
+    // the first Ready sensor — without this dispatch the dynamic path
+    // would never be exercised.
+    assert.match(SOURCE, /if\s*\(\s*id\s*===\s*"gpu"\s*\)\s*return\s+backend\._gpuUsageValue/, 'metricValue must short-circuit id === "gpu" to backend._gpuUsageValue');
+    assert.match(SOURCE, /if\s*\(\s*id\s*===\s*"gpuTemp"\s*\)\s*return\s+backend\._gpuTempValue/, 'metricValue must short-circuit id === "gpuTemp" to backend._gpuTempValue');
+});
+
+test("loading binding watches the universal aggregates' status", () => {
+    // loading drives the 100%-fill warming-up animation in MainContent.
+    // It must clear once cpuTotal AND ramSensor reach Sensor.Ready,
+    // not before — otherwise the rings would jump to actual values
+    // before the first valid tick.
+    assert.match(SOURCE, /loading:\s*cpuTotal\.status\s*!==\s*Sensors\.Sensor\.Ready/, "loading must depend on cpuTotal.status");
+    assert.match(SOURCE, /ramSensor\.status\s*!==\s*Sensors\.Sensor\.Ready/, "loading must also depend on ramSensor.status");
 });

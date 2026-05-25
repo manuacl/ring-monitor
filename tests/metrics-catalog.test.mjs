@@ -7,8 +7,170 @@ import assert from 'node:assert/strict';
 const require = createRequire(import.meta.url);
 const Catalog = require('../contents/ui/core/MetricsCatalog.js');
 
-test('METRIC_IDS contains the 5 known metrics in canonical order', () => {
-    assert.deepEqual(Catalog.METRIC_IDS, ['cpu', 'ram', 'swap', 'gpu', 'disk']);
+test('METRIC_IDS contains all known metrics in canonical order', () => {
+    // Temperature variants sit next to their usage counterpart so a
+    // fresh install lays out related rings adjacent in the strip.
+    assert.deepEqual(Catalog.METRIC_IDS, ['cpu', 'cpuTemp', 'ram', 'swap', 'gpu', 'gpuTemp', 'disk']);
+});
+
+test('labelFor: temperature variants get a "T" suffix to disambiguate from the usage row', () => {
+    assert.equal(Catalog.labelFor('cpuTemp'), 'CPU T');
+    assert.equal(Catalog.labelFor('gpuTemp'), 'GPU T');
+});
+
+test('sensorIdFor: temperature variants map to the same °C sensor as METRIC_TEMP_SENSOR_IDS', () => {
+    assert.equal(Catalog.sensorIdFor('cpuTemp'), 'cpu/all/averageTemperature');
+    assert.equal(Catalog.sensorIdFor('gpuTemp'), 'gpu/gpu1/temperature');
+});
+
+test('isTempMetric: exactly cpuTemp and gpuTemp are temperature metrics', () => {
+    assert.equal(Catalog.isTempMetric('cpuTemp'), true);
+    assert.equal(Catalog.isTempMetric('gpuTemp'), true);
+    assert.equal(Catalog.isTempMetric('cpu'), false);
+    assert.equal(Catalog.isTempMetric('gpu'), false);
+    assert.equal(Catalog.isTempMetric('ram'), false);
+    assert.equal(Catalog.isTempMetric('foo'), false);
+});
+
+// ── mergeWithCatalog ──────────────────────────────────────────────────
+
+test('mergeWithCatalog: appends missing catalog ids to a user CSV', () => {
+    // Pre-0.4 user with cpu+ram+gpu order, no temp metrics yet.
+    const result = Catalog.mergeWithCatalog(['cpu', 'ram', 'gpu']);
+    assert.deepEqual(result, ['cpu', 'ram', 'gpu', 'cpuTemp', 'swap', 'gpuTemp', 'disk']);
+});
+
+test('mergeWithCatalog: preserves existing order when nothing is missing', () => {
+    const input = ['gpu', 'cpu', 'ram', 'cpuTemp', 'swap', 'gpuTemp', 'disk'];
+    assert.deepEqual(Catalog.mergeWithCatalog(input), input);
+});
+
+test('mergeWithCatalog: empty input returns the full canonical order', () => {
+    assert.deepEqual(Catalog.mergeWithCatalog([]), Catalog.METRIC_IDS);
+});
+
+test('mergeWithCatalog: does not duplicate ids the user already has', () => {
+    const out = Catalog.mergeWithCatalog(['cpuTemp', 'cpu']);
+    // No "cpuTemp" repeated — order preserved with the rest appended.
+    const count = out.filter(x => x === 'cpuTemp').length;
+    assert.equal(count, 1);
+});
+
+// ── applyMergedTempMode ───────────────────────────────────────────────
+
+test('applyMergedTempMode: no merge flag → list returned untouched (copy)', () => {
+    const input = ['cpu', 'cpuTemp'];
+    const out = Catalog.applyMergedTempMode(input, false, false);
+    assert.deepEqual(out, input);
+    assert.notEqual(out, input, 'must return a fresh array, not the input reference');
+});
+
+test('applyMergedTempMode: cpuTemp dropped when mergeCpuTemp + both cpu & cpuTemp enabled', () => {
+    assert.deepEqual(
+        Catalog.applyMergedTempMode(['cpu', 'cpuTemp', 'ram'], true, false),
+        ['cpu', 'ram']
+    );
+});
+
+test('applyMergedTempMode: merge flag does nothing when the base ring is not in the list', () => {
+    // No cpu in the list → cpuTemp stays as its own full ring.
+    assert.deepEqual(
+        Catalog.applyMergedTempMode(['cpuTemp', 'ram'], true, false),
+        ['cpuTemp', 'ram']
+    );
+});
+
+test('applyMergedTempMode: both cpu and gpu can be merged simultaneously', () => {
+    assert.deepEqual(
+        Catalog.applyMergedTempMode(['cpu', 'cpuTemp', 'gpu', 'gpuTemp'], true, true),
+        ['cpu', 'gpu']
+    );
+});
+
+// ── isSplitForBase ────────────────────────────────────────────────────
+
+test('isSplitForBase: cpu ring goes split when mergeCpuTemp + both enabled', () => {
+    assert.equal(Catalog.isSplitForBase('cpu', ['cpu', 'cpuTemp'], true, false), true);
+});
+
+test('isSplitForBase: cpu ring stays single when cpuTemp is not enabled', () => {
+    assert.equal(Catalog.isSplitForBase('cpu', ['cpu', 'ram'], true, false), false);
+});
+
+test('isSplitForBase: cpu and gpu are independent', () => {
+    assert.equal(Catalog.isSplitForBase('gpu', ['cpu', 'cpuTemp'], true, true), false);
+    assert.equal(Catalog.isSplitForBase('cpu', ['gpu', 'gpuTemp'], true, true), false);
+});
+
+test('isSplitForBase: non-cpu/gpu base ids never split', () => {
+    assert.equal(Catalog.isSplitForBase('ram', ['ram', 'cpuTemp'], true, true), false);
+    assert.equal(Catalog.isSplitForBase('disk', ['disk'], true, true), false);
+});
+
+// ── classifyDiscoveredIds: filter + natural sort ──────────────────────
+//
+// SensorTreeModel walk dumps a flat list of every sensor id on the
+// machine. This pure helper buckets the per-core / per-gpu variants
+// the backend needs to know about. Single-id metrics (cpu/all/usage,
+// disk/all/usedPercent, …) stay in METRIC_SENSOR_IDS and are not
+// covered here.
+
+test('classifyDiscoveredIds: empty input → empty buckets', () => {
+    const out = Catalog.classifyDiscoveredIds([]);
+    assert.deepEqual(out, { coreUsageIds: [], gpuTempIds: [], gpuUsageIds: [] });
+});
+
+test('classifyDiscoveredIds: routes ids into the right buckets', () => {
+    const out = Catalog.classifyDiscoveredIds([
+        "cpu/cpu0/usage",
+        "cpu/cpu1/usage",
+        "cpu/cpu0/temperature",          // per-core temp — not a bucket
+        "cpu/all/usage",                  // aggregate — not a bucket
+        "cpu/all/averageTemperature",
+        "gpu/gpu0/temperature",
+        "gpu/gpu1/temperature",
+        "gpu/gpu0/usage",
+        "gpu/all/usage",
+        "memory/physical/usedPercent",
+        "disk/all/usedPercent",
+        "lmsensors/nvme-pci-0400/temp1"
+    ]);
+    assert.deepEqual(out.coreUsageIds, ["cpu/cpu0/usage", "cpu/cpu1/usage"]);
+    assert.deepEqual(out.gpuTempIds, ["gpu/gpu0/temperature", "gpu/gpu1/temperature"]);
+    assert.deepEqual(out.gpuUsageIds, ["gpu/gpu0/usage"]);
+});
+
+test('classifyDiscoveredIds: natural sort puts cpu10 after cpu9', () => {
+    // Default JS string sort would produce ["…cpu1…", "…cpu10…", "…cpu2…"].
+    const input = [
+        "cpu/cpu10/usage", "cpu/cpu2/usage", "cpu/cpu1/usage",
+        "cpu/cpu0/usage", "cpu/cpu9/usage", "cpu/cpu11/usage"
+    ];
+    const out = Catalog.classifyDiscoveredIds(input);
+    assert.deepEqual(out.coreUsageIds, [
+        "cpu/cpu0/usage", "cpu/cpu1/usage", "cpu/cpu2/usage",
+        "cpu/cpu9/usage", "cpu/cpu10/usage", "cpu/cpu11/usage"
+    ]);
+});
+
+test('classifyDiscoveredIds: gpu indices sort numerically too', () => {
+    const out = Catalog.classifyDiscoveredIds([
+        "gpu/gpu10/temperature", "gpu/gpu1/temperature", "gpu/gpu0/temperature"
+    ]);
+    assert.deepEqual(out.gpuTempIds, [
+        "gpu/gpu0/temperature", "gpu/gpu1/temperature", "gpu/gpu10/temperature"
+    ]);
+});
+
+test('classifyDiscoveredIds: ignores ids that do not match any bucket pattern', () => {
+    const out = Catalog.classifyDiscoveredIds([
+        "cpu/cpu0/frequency",            // not /usage
+        "cpu/cpufan/usage",              // not /cpuN/usage
+        "gpu/all/temperature",           // not /gpuN/
+        "garbage",
+        ""
+    ]);
+    assert.deepEqual(out, { coreUsageIds: [], gpuTempIds: [], gpuUsageIds: [] });
 });
 
 test('labelFor returns the abbreviation for known ids', () => {
@@ -137,4 +299,104 @@ test('valueFromSensorMap: returns 0 when the sensorMap itself is null/undefined'
 test('valueFromSensorMap: preserves 0 as a valid sensor reading', () => {
     // 0 is a legitimate value (idle CPU). Don't coerce it via `||` etc.
     assert.equal(Catalog.valueFromSensorMap({ cpu: { value: 0 } }, 'cpu'), 0);
+});
+
+// ── Temperature sensors + °C → % mapping ────────────────────────────────
+//
+// Two metrics get an optional temperature half-arc: cpu (averaged across
+// cores) and gpu (per-GPU, ksysguard doesn't expose a `gpu/all` aggregate).
+
+test('tempSensorIdFor: known ids return their ksysguard temperature sensor', () => {
+    assert.equal(Catalog.tempSensorIdFor('cpu'), 'cpu/all/averageTemperature');
+    assert.equal(Catalog.tempSensorIdFor('gpu'), 'gpu/gpu1/temperature');
+});
+
+test('tempSensorIdFor: unknown / non-temperature ids return ""', () => {
+    assert.equal(Catalog.tempSensorIdFor('ram'), '');
+    assert.equal(Catalog.tempSensorIdFor('foo'), '');
+});
+
+test('tempToPercent: default range 30-90°C maps endpoints to 0/100', () => {
+    assert.equal(Catalog.tempToPercent(30), 0);
+    assert.equal(Catalog.tempToPercent(90), 100);
+});
+
+test('tempToPercent: midpoint of default range → 50%', () => {
+    assert.equal(Catalog.tempToPercent(60), 50);
+});
+
+test('tempToPercent: clamps below min and above max', () => {
+    assert.equal(Catalog.tempToPercent(0), 0);
+    assert.equal(Catalog.tempToPercent(150), 100);
+});
+
+test('tempToPercent: respects custom min/max', () => {
+    // 20-100°C range, value 60 → (60-20)/(100-20)*100 = 50
+    assert.equal(Catalog.tempToPercent(60, 20, 100), 50);
+    assert.equal(Catalog.tempToPercent(20, 20, 100), 0);
+    assert.equal(Catalog.tempToPercent(100, 20, 100), 100);
+});
+
+test('tempToPercent: non-finite input → 0', () => {
+    assert.equal(Catalog.tempToPercent(NaN), 0);
+    assert.equal(Catalog.tempToPercent(undefined), 0);
+    assert.equal(Catalog.tempToPercent(Infinity), 0);
+    assert.equal(Catalog.tempToPercent(-Infinity), 0);
+});
+
+test('tempToPercent: degenerate range (max <= min) → 0', () => {
+    assert.equal(Catalog.tempToPercent(50, 60, 60), 0);
+    assert.equal(Catalog.tempToPercent(50, 90, 30), 0);
+});
+
+// ── Display unit resolution + °C → °F conversion ────────────────────────
+//
+// Internally the sensor stays in Celsius (so tempToPercent and the
+// 30-90°C range remain meaningful). Only the *displayed* number gets
+// converted, at the last hop in MainContent.
+
+test('MEASUREMENT_* constants match Qt QLocale.MeasurementSystem enum', () => {
+    assert.equal(Catalog.MEASUREMENT_METRIC, 0);
+    assert.equal(Catalog.MEASUREMENT_IMPERIAL_US, 1);
+    assert.equal(Catalog.MEASUREMENT_IMPERIAL_UK, 2);
+});
+
+test('resolveTempMode: explicit user choice wins over the system locale', () => {
+    assert.equal(Catalog.resolveTempMode('celsius', Catalog.MEASUREMENT_IMPERIAL_US), 'celsius');
+    assert.equal(Catalog.resolveTempMode('fahrenheit', Catalog.MEASUREMENT_METRIC), 'fahrenheit');
+});
+
+test('resolveTempMode: "auto" follows MEASUREMENT_IMPERIAL_US → fahrenheit', () => {
+    assert.equal(Catalog.resolveTempMode('auto', Catalog.MEASUREMENT_IMPERIAL_US), 'fahrenheit');
+});
+
+test('resolveTempMode: "auto" falls back to celsius for metric and Imperial-UK', () => {
+    // UK has been metric for temperature since ~1965 — only Imperial-US
+    // expects °F.
+    assert.equal(Catalog.resolveTempMode('auto', Catalog.MEASUREMENT_METRIC), 'celsius');
+    assert.equal(Catalog.resolveTempMode('auto', Catalog.MEASUREMENT_IMPERIAL_UK), 'celsius');
+});
+
+test('resolveTempMode: unknown userMode is treated like "auto"', () => {
+    // Defensive — if a future schema migration leaves a stale value
+    // in cfg_tempUnit, we still show *something* sensible.
+    assert.equal(Catalog.resolveTempMode('kelvin', Catalog.MEASUREMENT_IMPERIAL_US), 'fahrenheit');
+    assert.equal(Catalog.resolveTempMode('', Catalog.MEASUREMENT_METRIC), 'celsius');
+});
+
+test('convertTemp: celsius mode passes the value through with °C unit', () => {
+    assert.deepEqual(Catalog.convertTemp(0, 'celsius'), { value: 0, unit: '°C' });
+    assert.deepEqual(Catalog.convertTemp(45, 'celsius'), { value: 45, unit: '°C' });
+});
+
+test('convertTemp: fahrenheit mode applies the standard formula', () => {
+    // 0°C → 32°F, 100°C → 212°F, 60°C → 140°F
+    assert.deepEqual(Catalog.convertTemp(0, 'fahrenheit'), { value: 32, unit: '°F' });
+    assert.deepEqual(Catalog.convertTemp(100, 'fahrenheit'), { value: 212, unit: '°F' });
+    assert.deepEqual(Catalog.convertTemp(60, 'fahrenheit'), { value: 140, unit: '°F' });
+});
+
+test('convertTemp: non-finite input falls back to 0 in the requested unit', () => {
+    assert.deepEqual(Catalog.convertTemp(NaN, 'celsius'), { value: 0, unit: '°C' });
+    assert.deepEqual(Catalog.convertTemp(undefined, 'fahrenheit'), { value: 0, unit: '°F' });
 });

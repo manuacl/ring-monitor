@@ -27,6 +27,9 @@ ColumnLayout {
     property string metricOrderCsv: ""
     property string enabledMetricsCsv: ""
     property bool showCpuCores: false
+    property bool mergeCpuTemp: false
+    property bool mergeGpuTemp: false
+    property string tempUnit: "auto"
 
     // ── Internal — the displayed order is a ListModel built from metricOrderCsv ──
     ListModel {
@@ -37,9 +40,11 @@ ColumnLayout {
     // The wrapper does not need to know about per-metric copy.
     readonly property var metricDescriptions: ({
             cpu: qsTr("Overall processor usage"),
+            cpuTemp: qsTr("CPU temperature"),
             ram: qsTr("Physical memory used"),
             swap: qsTr("Swap usage"),
             gpu: qsTr("GPU usage"),
+            gpuTemp: qsTr("GPU temperature"),
             disk: qsTr("Disk space used (all partitions)")
         })
 
@@ -52,7 +57,11 @@ ColumnLayout {
 
     function loadOrder() {
         orderModel.clear();
-        const ids = Catalog.parseCsv(body.metricOrderCsv);
+        // mergeWithCatalog appends any catalog id missing from the
+        // persisted CSV — so a release adding new metrics (e.g. 0.4 →
+        // cpuTemp / gpuTemp) populates the config list without forcing
+        // existing users to reset their config or migrate manually.
+        const ids = Catalog.mergeWithCatalog(Catalog.parseCsv(body.metricOrderCsv));
         for (let i = 0; i < ids.length; i++) {
             orderModel.append({
                 metricId: ids[i]
@@ -70,6 +79,13 @@ ColumnLayout {
 
     function setEnabled(id, on) {
         body.enabledMetricsCsv = Catalog.toggleEnabled(Catalog.parseCsv(body.enabledMetricsCsv), id, on).join(",");
+        // Mirror of the auto-enable behaviour in the merge checkboxes:
+        // disabling the base ring removes its merge target, so drop the
+        // merge toggle too instead of leaving a misleading checkmark.
+        if (!on && id === "cpu" && body.mergeCpuTemp)
+            body.mergeCpuTemp = false;
+        if (!on && id === "gpu" && body.mergeGpuTemp)
+            body.mergeGpuTemp = false;
     }
 
     onMetricOrderCsvChanged: loadOrder()
@@ -113,9 +129,19 @@ ColumnLayout {
                 unit: body.theme.unit
                 smallSpacing: body.theme.smallSpacing
 
-                // CPU-specific sub-option: render the "show cores" toggle
-                // indented below the CPU row only.
-                extraContent: _metricId === "cpu" ? cpuCoresToggle : null
+                // Per-metric sub-options indented below the row.
+                //   cpu     → "show cores" toggle
+                //   cpuTemp → "merge into the cpu ring" toggle
+                //   gpuTemp → "merge into the gpu ring" toggle
+                extraContent: {
+                    if (_metricId === "cpu")
+                        return cpuCoresToggle;
+                    if (_metricId === "cpuTemp")
+                        return cpuTempMergeToggle;
+                    if (_metricId === "gpuTemp")
+                        return gpuTempMergeToggle;
+                    return null;
+                }
             }
         }
 
@@ -134,9 +160,46 @@ ColumnLayout {
         }
     }
 
-    // The sub-option rendered as a child of the CPU row in the list
-    // above. Lives at body scope so the binding to `body.showCpuCores`
-    // survives row destruction/recreation on reorder.
+    // Temperature display unit — global across all rings, sits below
+    // the per-metric toggles since it's only meaningful when at least
+    // one *Temp option is on. "Follow system" resolves via
+    // Qt.locale().measurementSystem in MainContent (Imperial-US → °F,
+    // everything else → °C — see Catalog.resolveTempMode).
+    RowLayout {
+        Layout.fillWidth: true
+        Layout.topMargin: body.theme ? body.theme.smallSpacing : 4
+        spacing: body.theme ? body.theme.smallSpacing : 4
+        visible: body.isEnabled("cpuTemp") || body.isEnabled("gpuTemp")
+
+        QQC2.Label {
+            text: qsTr("Temperature unit:")
+        }
+        QQC2.RadioButton {
+            id: tempUnitAuto
+            text: qsTr("Follow system")
+            checked: body.tempUnit === "auto"
+            onClicked: body.tempUnit = "auto"
+        }
+        QQC2.RadioButton {
+            id: tempUnitCelsius
+            text: qsTr("Celsius")
+            checked: body.tempUnit === "celsius"
+            onClicked: body.tempUnit = "celsius"
+        }
+        QQC2.RadioButton {
+            id: tempUnitFahrenheit
+            text: qsTr("Fahrenheit")
+            checked: body.tempUnit === "fahrenheit"
+            onClicked: body.tempUnit = "fahrenheit"
+        }
+        Item {
+            Layout.fillWidth: true
+        }
+    }
+
+    // Sub-options rendered as children of their parent metric row.
+    // Defined at body scope so bindings to body.* survive row
+    // destruction/recreation on reorder.
     Component {
         id: cpuCoresToggle
         QQC2.CheckBox {
@@ -146,7 +209,40 @@ ColumnLayout {
         }
     }
 
+    // Merge needs both rings to be enabled. "cpuTemp disabled" is
+    // handled upstream by MetricRow's Loader.enabled cascade. For the
+    // other half — ticking Merge while cpu is off — auto-enable cpu
+    // so the merge has somewhere to land instead of silently no-op'ing.
+    Component {
+        id: cpuTempMergeToggle
+        QQC2.CheckBox {
+            text: qsTr("Merge into the CPU ring (right half)")
+            checked: body.mergeCpuTemp
+            onClicked: {
+                body.mergeCpuTemp = checked;
+                if (checked && !body.isEnabled("cpu"))
+                    body.setEnabled("cpu", true);
+            }
+        }
+    }
+
+    Component {
+        id: gpuTempMergeToggle
+        QQC2.CheckBox {
+            text: qsTr("Merge into the GPU ring (right half)")
+            checked: body.mergeGpuTemp
+            onClicked: {
+                body.mergeGpuTemp = checked;
+                if (checked && !body.isEnabled("gpu"))
+                    body.setEnabled("gpu", true);
+            }
+        }
+    }
+
     // ── Test hooks ──────────────────────────────────────────────────
     readonly property alias _orderModel: orderModel
     readonly property alias _list: list
+    readonly property alias _tempUnitAuto: tempUnitAuto
+    readonly property alias _tempUnitCelsius: tempUnitCelsius
+    readonly property alias _tempUnitFahrenheit: tempUnitFahrenheit
 }

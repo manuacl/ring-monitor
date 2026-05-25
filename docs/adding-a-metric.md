@@ -120,8 +120,28 @@ some `max`:
 
 - For rates: a configurable max (e.g. "100 Mbit/s baseline") or a
   rolling max from a small history.
-- For temperatures: clamp into a sensible range (e.g. 30–90 °C maps to
-  0–100%).
+- For temperatures: clamp into a sensible range
+  (`MetricsCatalog.tempToPercent` defaults to 30–90 °C → 0–100%).
 
-This isn't wired up yet — see the open question in `CLAUDE.md` for the
-design sketch.
+## Pattern: split mode (CPU / GPU temperature)
+
+The temperature half-arc on CPU and GPU is the canonical example of a
+non-percent sensor wired through the split-mode pattern. Reuse it for
+any metric that has both a primary % and a secondary value the user
+wants on the same ring:
+
+1. Add a temperature (or other secondary) sensor id to
+   `METRIC_TEMP_SENSOR_IDS` in `MetricsCatalog.js`.
+2. Declare the sensor in `MetricsBackend.qml`, add it to
+   `tempSensorMap`. `metricRawTemp(id)` and `metricTempPercent(id)`
+   pick it up automatically via `Catalog.valueFromSensorMap`.
+3. Add a `<entry name="showXxxTemp" type="Bool">` to `main.xml` +
+   the readonly alias on `ConfigStore.qml`.
+4. In `MetricsBody.qml`, render a CheckBox under the metric's row via
+   `extraContent` (the CPU row's `cpuExtras` ColumnLayout shows how to
+   combine multiple sub-options for the same metric).
+5. In `MainContent.qml`, the Ring delegate flips into split mode when
+   the toggle is on and forwards `splitValue` / `splitRawValue`.
+
+See `docs/components.md` → "Ring.qml" → "Split mode" for the geometry
+contract.

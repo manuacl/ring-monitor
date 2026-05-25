@@ -48,5 +48,25 @@
             <min>0.0</min>
             <max>1.0</max>
         </entry>
+
+        <entry name="colorTheme" type="String">
+            <label>Predefined color theme id, or "custom" for user-picked colors</label>
+            <default>system</default>
+        </entry>
+
+        <entry name="colorMode" type="String">
+            <label>How the theme's light/dark variant is chosen: "auto" (follow system), "light", or "dark"</label>
+            <default>auto</default>
+        </entry>
+
+        <entry name="customColorLight" type="Color">
+            <label>Ring color used in light Plasma color schemes when colorTheme=custom</label>
+            <default>#3daee9</default>
+        </entry>
+
+        <entry name="customColorDark" type="Color">
+            <label>Ring color used in dark Plasma color schemes when colorTheme=custom</label>
+            <default>#3daee9</default>
+        </entry>
     </group>
 </kcfg>

@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import "MetricsCatalog.js" as Catalog
+import "ColorThemes.js" as ColorThemes
 
 // Body of the plasmoid's fullRepresentation. Renders the active rings
 // in a horizontal or vertical strip based on configStore.orientation.
@@ -48,7 +49,7 @@ GridLayout {
             label: Catalog.labelFor(modelData)
             value: content.metrics.metricValue(modelData)
             nestedValues: modelData === "cpu" && content.configStore.showCpuCores ? content.metrics.coreValues : []
-            ringColor: content.theme.highlightColor
+            ringColor: ColorThemes.resolveColor(content.configStore.colorTheme, ColorThemes.effectiveIsDark(content.configStore.colorMode, content.theme.isDarkMode), content.theme.highlightColor, content.configStore.customColorLight, content.configStore.customColorDark)
             textColor: content.theme.textColor
             textOpacity: content.configStore.textOpacity
             trackOpacity: content.configStore.trackOpacity

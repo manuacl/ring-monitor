@@ -30,4 +30,8 @@ Item {
     readonly property real textOpacity: Plasmoid.configuration.textOpacity
     readonly property real trackOpacity: Plasmoid.configuration.trackOpacity
     readonly property real arcOpacity: Plasmoid.configuration.arcOpacity
+    readonly property string colorTheme: Plasmoid.configuration.colorTheme
+    readonly property string colorMode: Plasmoid.configuration.colorMode
+    readonly property color customColorLight: Plasmoid.configuration.customColorLight
+    readonly property color customColorDark: Plasmoid.configuration.customColorDark
 }

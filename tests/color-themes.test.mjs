@@ -1,0 +1,93 @@
+// Tests for ColorThemes.js — themes catalog + resolveColor dispatch.
+
+import { createRequire } from 'node:module';
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+
+const require = createRequire(import.meta.url);
+const ColorThemes = require('../contents/ui/core/ColorThemes.js');
+
+const SYSTEM_HIGHLIGHT = '#abcdef';
+const CUSTOM_LIGHT = '#111111';
+const CUSTOM_DARK = '#222222';
+
+test('THEMES has the 7 expected ids in the right order', () => {
+    const ids = ColorThemes.THEMES.map(t => t.id);
+    assert.deepEqual(ids, ['system', 'blue', 'green', 'orange', 'violet', 'red', 'custom']);
+});
+
+test('every theme entry has id + label', () => {
+    for (const t of ColorThemes.THEMES) {
+        assert.equal(typeof t.id, 'string');
+        assert.ok(t.id.length > 0, `empty id on ${JSON.stringify(t)}`);
+        assert.equal(typeof t.label, 'string');
+        assert.ok(t.label.length > 0, `empty label on ${JSON.stringify(t)}`);
+    }
+});
+
+test('predefined themes (non-system, non-custom) have both color variants', () => {
+    for (const t of ColorThemes.THEMES) {
+        if (t.id === 'system' || t.id === 'custom') continue;
+        assert.equal(typeof t.lightColor, 'string', `${t.id}.lightColor`);
+        assert.equal(typeof t.darkColor, 'string', `${t.id}.darkColor`);
+        assert.match(t.lightColor, /^#[0-9a-f]{6}$/i, `${t.id}.lightColor format`);
+        assert.match(t.darkColor, /^#[0-9a-f]{6}$/i, `${t.id}.darkColor format`);
+    }
+});
+
+test('resolveColor system: forwards systemHighlight regardless of isDark', () => {
+    assert.equal(ColorThemes.resolveColor('system', false, SYSTEM_HIGHLIGHT, CUSTOM_LIGHT, CUSTOM_DARK), SYSTEM_HIGHLIGHT);
+    assert.equal(ColorThemes.resolveColor('system', true,  SYSTEM_HIGHLIGHT, CUSTOM_LIGHT, CUSTOM_DARK), SYSTEM_HIGHLIGHT);
+});
+
+test('resolveColor custom: picks customLight when isDark=false, customDark when true', () => {
+    assert.equal(ColorThemes.resolveColor('custom', false, SYSTEM_HIGHLIGHT, CUSTOM_LIGHT, CUSTOM_DARK), CUSTOM_LIGHT);
+    assert.equal(ColorThemes.resolveColor('custom', true,  SYSTEM_HIGHLIGHT, CUSTOM_LIGHT, CUSTOM_DARK), CUSTOM_DARK);
+});
+
+test('resolveColor predefined themes: returns light variant when isDark=false', () => {
+    for (const t of ColorThemes.THEMES) {
+        if (t.id === 'system' || t.id === 'custom') continue;
+        assert.equal(
+            ColorThemes.resolveColor(t.id, false, SYSTEM_HIGHLIGHT, CUSTOM_LIGHT, CUSTOM_DARK),
+            t.lightColor,
+            `${t.id} should return lightColor when isDark=false`,
+        );
+    }
+});
+
+test('resolveColor predefined themes: returns dark variant when isDark=true', () => {
+    for (const t of ColorThemes.THEMES) {
+        if (t.id === 'system' || t.id === 'custom') continue;
+        assert.equal(
+            ColorThemes.resolveColor(t.id, true, SYSTEM_HIGHLIGHT, CUSTOM_LIGHT, CUSTOM_DARK),
+            t.darkColor,
+            `${t.id} should return darkColor when isDark=true`,
+        );
+    }
+});
+
+test('resolveColor unknown id: falls back to system (returns systemHighlight)', () => {
+    assert.equal(ColorThemes.resolveColor('nonexistent', false, SYSTEM_HIGHLIGHT, CUSTOM_LIGHT, CUSTOM_DARK), SYSTEM_HIGHLIGHT);
+    assert.equal(ColorThemes.resolveColor('',            true,  SYSTEM_HIGHLIGHT, CUSTOM_LIGHT, CUSTOM_DARK), SYSTEM_HIGHLIGHT);
+});
+
+test('effectiveIsDark auto: returns the detected systemIsDark verbatim', () => {
+    assert.equal(ColorThemes.effectiveIsDark('auto', true),  true);
+    assert.equal(ColorThemes.effectiveIsDark('auto', false), false);
+});
+
+test('effectiveIsDark light: forces false regardless of systemIsDark', () => {
+    assert.equal(ColorThemes.effectiveIsDark('light', true),  false);
+    assert.equal(ColorThemes.effectiveIsDark('light', false), false);
+});
+
+test('effectiveIsDark dark: forces true regardless of systemIsDark', () => {
+    assert.equal(ColorThemes.effectiveIsDark('dark', true),  true);
+    assert.equal(ColorThemes.effectiveIsDark('dark', false), true);
+});
+
+test('effectiveIsDark unknown mode: falls back to auto (returns systemIsDark)', () => {
+    assert.equal(ColorThemes.effectiveIsDark('nonexistent', true),  true);
+    assert.equal(ColorThemes.effectiveIsDark('',            false), false);
+});

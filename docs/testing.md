@@ -29,9 +29,27 @@ node --watch --test tests/
 | `tests/reorder-logic.test.mjs` | drag-to-reorder math from `ReorderLogic.js` |
 | `tests/metrics-catalog.test.mjs` | catalog + CSV helpers from `MetricsCatalog.js` |
 | `tests/ring-geometry.test.mjs` | sweep/radius/sizing math from `RingGeometry.js` |
+| `tests/color-themes.test.mjs` | themes catalog + dispatch from `ColorThemes.js` |
 
 All current logic is covered. New pure modules should ship with a
 matching `*.test.mjs`.
+
+### Naming convention
+
+A `.js` module's paired test file is its **kebab-case** form, not
+camelCase:
+
+| Module                  | Test file                          |
+|---|---|
+| `ReorderLogic.js`       | `reorder-logic.test.mjs`           |
+| `MetricsCatalog.js`     | `metrics-catalog.test.mjs`         |
+| `RingGeometry.js`       | `ring-geometry.test.mjs`           |
+| `ColorThemes.js`        | `color-themes.test.mjs`            |
+
+The `finish-branch` skill enforces this convention by deriving the
+expected test path from the module name (`sed 's/\([a-z0-9]\)\([A-Z]\)/\1-\2/g' | tr '[:upper:]' '[:lower:]'`).
+A camelCase test filename will fail the audit and block phase B
+until renamed — an iteration cost that's been paid once already.
 
 ## Writing tests
 

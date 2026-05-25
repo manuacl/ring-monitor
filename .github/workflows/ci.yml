@@ -71,9 +71,16 @@ jobs:
             qt6-qtdeclarative-devel \
             qt6-qtbase-gui \
             kf6-kirigami \
+            kf6-kdeclarative \
             mesa-dri-drivers \
             diffutils \
             git
+          # kf6-kdeclarative ships org.kde.kquickcontrols (ColorButton),
+          # which platforms/plasma/ColorPicker.qml wraps. QML directory
+          # imports resolve transitively at compile time, so any test
+          # that instantiates AppearanceBody (or anything else under
+          # core/ that uses Platform.*) needs the module installed —
+          # otherwise compile fails with "module not installed".
 
       - name: qmllint (source + tests)
         run: qmllint-qt6 contents/ui/*.qml contents/ui/core/*.qml contents/ui/platforms/plasma/*.qml tests/qml/*.qml

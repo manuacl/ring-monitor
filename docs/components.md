@@ -277,6 +277,12 @@ Item re-exposing Kirigami theme tokens under a stable surface:
 | `unit` | `Kirigami.Units.gridUnit` |
 | `smallSpacing` | `Kirigami.Units.smallSpacing` |
 | `iconSize` | `Kirigami.Units.iconSizes.small` |
+| `isDarkMode` | derived: `bool`, WCAG relative luminance of `backgroundColor` < 0.5 |
+
+`isDarkMode` reacts to Plasma color-scheme switches because
+`Kirigami.Theme.backgroundColor` itself reacts; consumers
+(`MainContent.qml`'s `ringColor` binding via `ColorThemes.resolveColor`)
+re-evaluate without a widget restart.
 
 Instantiated once per top-level file (e.g. `main.qml`,
 `configMetrics.qml`) with `id: theme`. Children read `theme.X` and
@@ -292,6 +298,19 @@ the drag handle icon. Standalone equivalent (future) will back this
 with `Image { source: "image://theme/..." }`.
 
 Smoke-tested by `tests/qml/tst_ThemedIcon.qml`.
+
+### `ColorPicker.qml`
+
+Two-line wrap of `org.kde.kquickcontrols.ColorButton`. Consumed by
+`AppearanceBody.qml` for the "Custom" theme's light + dark color
+inputs. Forces `showAlphaChannel: false` (the rings handle alpha via
+`arcOpacity`); otherwise a transparent pass-through, so the standard
+`color` property and `accepted` signal of `ColorButton` are visible
+on the wrapper directly.
+
+This file is the **only** place `org.kde.kquickcontrols` is imported.
+The standalone equivalent (future) will back this with a plain
+`QQC2.Button` triggering a `QtQuick.Dialogs.ColorDialog`.
 
 ### `ConfigStore.qml`
 
@@ -309,6 +328,10 @@ future reader) consumes `configStore.X` instead of reaching into
 | `textOpacity` | `real` | `Plasmoid.configuration.textOpacity` |
 | `trackOpacity` | `real` | `Plasmoid.configuration.trackOpacity` |
 | `arcOpacity` | `real` | `Plasmoid.configuration.arcOpacity` |
+| `colorTheme` | `string` | `Plasmoid.configuration.colorTheme` |
+| `colorMode` | `string` | `Plasmoid.configuration.colorMode` |
+| `customColorLight` | `color` | `Plasmoid.configuration.customColorLight` |
+| `customColorDark` | `color` | `Plasmoid.configuration.customColorDark` |
 
 **Implemented as an Item, not a singleton.** `Plasmoid` is a context
 property injected by the Plasma shell on the QML root scope, so it

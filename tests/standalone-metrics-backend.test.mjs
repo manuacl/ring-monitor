@@ -1,0 +1,55 @@
+import { test } from "node:test";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+import assert from "node:assert";
+
+// Text-level guard for the standalone MetricsBackend adapter. Same
+// rationale as tests/metrics-backend.test.mjs (its Plasma counterpart):
+// the file imports `RingMonitor.Standalone` (the ProcReader C++ helper
+// registered via QML_ELEMENT), which is built by CMake locally but NOT
+// in the Fedora 41 CI container (CI ships Qt6 + Kirigami, no cmake
+// step for standalone/). A qmltestrunner-based smoke test would fail
+// to load. Asserting the public surface as text catches the same
+// class of bug (typo in a property name → silent undefined binding in
+// production) without needing the helper available.
+//
+// Per platforms/standalone/CLAUDE.md § Same-surface rule, the
+// standalone adapter must mirror the Plasma adapter byte-for-byte on
+// the public surface main.qml consumes.
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms", "standalone", "MetricsBackend.qml"), "utf8");
+
+// Same public surface as platforms/plasma/MetricsBackend.qml.
+const PUBLIC_PROPS = ["coreValues", "loading"];
+const PUBLIC_FUNCS = ["metricValue", "metricRawTemp", "metricTempPercent"];
+
+test("standalone MetricsBackend exposes the public properties main.qml depends on", () => {
+    for (const name of PUBLIC_PROPS) {
+        const pattern = new RegExp(`property\\s+\\w+\\s+${name}\\s*:`);
+        assert.match(SOURCE, pattern, `standalone MetricsBackend.qml must declare property "${name}"`);
+    }
+});
+
+test("standalone MetricsBackend exposes the public functions main.qml depends on", () => {
+    for (const name of PUBLIC_FUNCS) {
+        const pattern = new RegExp(`function\\s+${name}\\s*\\(`);
+        assert.match(SOURCE, pattern, `standalone MetricsBackend.qml must declare function ${name}(...)`);
+    }
+});
+
+test("standalone MetricsBackend wires ProcReader + ProcStatParser", () => {
+    assert.match(SOURCE, /ProcReader\s*{/, "must instantiate the ProcReader QML element");
+    assert.match(SOURCE, /import\s+RingMonitor\.Standalone/, "must import RingMonitor.Standalone (where ProcReader is registered)");
+    assert.match(SOURCE, /ProcStatParser\.parseProcStat\s*\(/, "must call ProcStatParser.parseProcStat on the raw text");
+    assert.match(SOURCE, /ProcStatParser\.percentFromSample\s*\(/, "must call ProcStatParser.percentFromSample to derive the % between two samples");
+});
+
+test("standalone MetricsBackend polls on a Timer", () => {
+    // Polling cadence: once per second is the contract documented in
+    // platforms/standalone/CLAUDE.md. Use the interval value as the
+    // marker — looser than full Timer block matching, tighter than no
+    // assertion at all.
+    assert.match(SOURCE, /Timer\s*{[\s\S]*?interval:\s*1000/, "must declare a Timer with interval: 1000ms");
+});

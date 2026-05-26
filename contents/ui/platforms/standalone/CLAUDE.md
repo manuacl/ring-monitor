@@ -14,11 +14,11 @@ under "Standalone target — backend choice".
 
 | Adapter | Purpose | Status |
 |---|---|---|
-| `Main.qml` | Frameless transparent `Window` root + Conky-style hints (X11 / XWayland) | PR B1 (placeholder) + PR C (X11 EWMH hints in `standalone/desktop_hints.cpp`) |
+| `Main.qml` | Frameless transparent `Window` root + Conky-style hints (X11 / XWayland) | PR B1 (placeholder) + PR C (X11 EWMH hints in `standalone/desktop_hints.cpp`) + **PR F1 ✓ — `Core.MainContent` renders the actual rings** |
 | `MetricsBackend.qml` | Direct reads from `/proc/stat`, `/proc/meminfo`, `statvfs(3)` | **PR D: CPU usage (`/proc/stat`) ✓** ; **PR E: RAM (`/proc/meminfo`) + disk (`statvfs(/)`) ✓** ; GPU + temps post-MVP |
-| `ConfigStore.qml` | `Qt.labs.settings` reader/writer | not yet (PR F) |
-| `Theme.qml` | Kirigami theme tokens + Qt.styleHints light/dark | not yet (PR F) |
-| `ThemedIcon.qml` | wraps `Kirigami.Icon` (same as Plasma adapter) | not yet (PR F) |
+| `ConfigStore.qml` | `Qt.labs.settings` reader/writer | **PR F1 ✓ — Settings root, defaults mirror `main.xml`** ; SettingsDialog (writes) lands in PR F2 |
+| `Theme.qml` | Kirigami theme tokens + Qt.styleHints light/dark | **PR F1 ✓ — mirrors the Plasma adapter byte-for-byte** |
+| `ThemedIcon.qml` | wraps `Kirigami.Icon` (same as Plasma adapter) | **PR F1 ✓ — one-liner mirror of the Plasma adapter** |
 
 ## File-reading helper
 
@@ -63,6 +63,24 @@ The "native Wayland layer-shell" path is deferred to a future PR
 (scoped as PR C2 in [plan.md](../../../../docs/plasma-isolation/plan.md))
 because installing `layer-shell-qt-devel` on the dev box requires an
 `rpm-ostree install + reboot` cycle.
+
+### Alt+Tab visibility under Plasma — known trade-off
+
+Under Plasma-X11 / Plasma-Wayland-XWayland, the window appears in
+the Alt+Tab task switcher even though `_NET_WM_STATE_SKIP_TASKBAR`
+and `_NET_WM_STATE_SKIP_PAGER` are both set. This is a consequence
+of the `_NET_WM_WINDOW_TYPE_NORMAL` choice in PR C: KWin's TabBox
+respects window *type* more than the SKIP_* state hints, and the
+alternative (`_KDE_NET_WM_WINDOW_TYPE_OVERRIDE`, which Qt sets by
+default for `FramelessWindowHint` windows) tells KWin not to manage
+the window at all — which strips input events and would break the
+right-click context menu landing in PR G.
+
+User-side workaround: KWin → Window Rules → add a rule matching the
+window class `ring-monitor-standalone` with **"Skip switcher: Force
+Yes"**. App-side, the fix is the native layer-shell path: a
+wlr-layer-shell "background" layer surface never participates in
+any switcher by design. That's covered by PR C2.
 
 ## Same-surface rule
 

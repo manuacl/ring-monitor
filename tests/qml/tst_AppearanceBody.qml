@@ -26,6 +26,7 @@ Item {
             body.textOpacity = 1.0;
             body.trackOpacity = 0.15;
             body.arcOpacity = 1.0;
+            body.textColorMode = "system";
         }
 
         // ── Orientation: property → UI ────────────────────────────────
@@ -54,10 +55,28 @@ Item {
         // ── Round trip: write → read each property name ───────────────
         // Catches a typo in any of the 4 property declarations.
         function test_all_bridged_properties_readwrite() {
-            const keys = ["orientation", "textOpacity", "trackOpacity", "arcOpacity"];
+            const keys = ["orientation", "textOpacity", "trackOpacity", "arcOpacity", "textColorMode", "customTextColorLight", "customTextColorDark"];
             for (const k of keys) {
                 verify(k in body, "AppearanceBody must expose property " + k);
             }
+        }
+
+        // ── Text color mode: property → radio + custom pickers visibility
+        function test_textColorMode_default_is_system() {
+            compare(body.textColorMode, "system");
+            verify(body._textColorSystem.checked);
+            verify(!body._textColorCustom.checked);
+        }
+        function test_textColorMode_custom_drives_radio() {
+            body.textColorMode = "custom";
+            verify(body._textColorCustom.checked);
+            verify(!body._textColorSystem.checked);
+        }
+        function test_custom_text_color_round_trips_through_pickers() {
+            body.customTextColorLight = "#aabbcc";
+            body.customTextColorDark = "#112233";
+            compare(body._lightTextColorButton.color.toString().toLowerCase(), "#aabbcc");
+            compare(body._darkTextColorButton.color.toString().toLowerCase(), "#112233");
         }
     }
 }

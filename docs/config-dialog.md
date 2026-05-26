@@ -11,10 +11,17 @@
     <entry name="showCpuCores"   type="Bool">   <default>true</default> </entry>
 </group>
 <group name="Appearance">
-    <entry name="orientation"  type="String"> <default>horizontal</default> </entry>
-    <entry name="textOpacity"  type="Double"> <default>1.0</default> ... </entry>
-    <entry name="trackOpacity" type="Double"> <default>0.15</default> ... </entry>
-    <entry name="arcOpacity"   type="Double"> <default>1.0</default> ... </entry>
+    <entry name="orientation"          type="String"> <default>horizontal</default> </entry>
+    <entry name="textOpacity"          type="Double"> <default>1.0</default> ... </entry>
+    <entry name="trackOpacity"         type="Double"> <default>0.15</default> ... </entry>
+    <entry name="arcOpacity"           type="Double"> <default>1.0</default> ... </entry>
+    <entry name="colorTheme"           type="String"> <default>system</default> </entry>
+    <entry name="colorMode"            type="String"> <default>auto</default> </entry>
+    <entry name="customColorLight"     type="Color">  <default>#3daee9</default> </entry>
+    <entry name="customColorDark"      type="Color">  <default>#3daee9</default> </entry>
+    <entry name="textColorMode"        type="String"> <default>system</default> </entry>
+    <entry name="customTextColorLight" type="Color">  <default>#232629</default> </entry>
+    <entry name="customTextColorDark"  type="Color">  <default>#fcfcfc</default> </entry>
 </group>
 ```
 

@@ -36,6 +36,9 @@ Item {
     readonly property string colorMode: Plasmoid.configuration.colorMode
     readonly property color customColorLight: Plasmoid.configuration.customColorLight
     readonly property color customColorDark: Plasmoid.configuration.customColorDark
+    readonly property string textColorMode: Plasmoid.configuration.textColorMode
+    readonly property color customTextColorLight: Plasmoid.configuration.customTextColorLight
+    readonly property color customTextColorDark: Plasmoid.configuration.customTextColorDark
     readonly property string tempUnit: Plasmoid.configuration.tempUnit
 
     // ── Update-check group ──────────────────────────────────────────

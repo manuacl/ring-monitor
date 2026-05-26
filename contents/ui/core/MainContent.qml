@@ -110,7 +110,7 @@ GridLayout {
             splitRawValue: !content.metrics.loading && _splitOn && _tempInfo ? _tempInfo.value : 0
             splitUnit: _splitOn && _tempInfo ? _tempInfo.unit : ""
             ringColor: ColorThemes.resolveColor(content.configStore.colorTheme, ColorThemes.effectiveIsDark(content.configStore.colorMode, content.theme.isDarkMode), content.theme.highlightColor, content.configStore.customColorLight, content.configStore.customColorDark)
-            textColor: content.theme.textColor
+            textColor: ColorThemes.resolveTextColor(content.configStore.textColorMode, ColorThemes.effectiveIsDark(content.configStore.colorMode, content.theme.isDarkMode), content.theme.textColor, content.configStore.customTextColorLight, content.configStore.customTextColorDark)
             textOpacity: content.configStore.textOpacity
             trackOpacity: content.configStore.trackOpacity
             arcOpacity: content.configStore.arcOpacity

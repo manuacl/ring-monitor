@@ -26,7 +26,7 @@ ln -s ~/projects/ring-monitor ~/.local/share/plasma/plasmoids/dev.manuacl.ringmo
 | `metadata.json` | no | restart plasmashell |
 | `.js` logic file | yes | nothing |
 
-## Standalone preview
+## Standalone preview (Plasma host, debugging the widget body)
 
 ```bash
 pkill -f "plasmawindowed.*ringmonitor"
@@ -41,6 +41,34 @@ setsid -f plasmawindowed dev.manuacl.ringmonitor < /dev/null > /tmp/plasmawindow
 # or:
 systemd-run --user --scope --collect plasmawindowed dev.manuacl.ringmonitor &
 ```
+
+## Standalone build (separate binary, no Plasma host)
+
+The standalone build produces a single executable that runs outside
+plasmashell — it's the future cross-distro target documented in
+[`plasma-isolation/plan.md`](plasma-isolation/plan.md).
+
+```bash
+cmake -B build
+cmake --build build
+./build/ring-monitor-standalone
+```
+
+Headless smoke test (no display required — useful from CI later):
+
+```bash
+QT_QPA_PLATFORM=offscreen ./build/ring-monitor-standalone &
+sleep 2 && kill %1
+```
+
+What you currently see (PR B1 placeholder): a 320×480 frameless
+transparent window with a translucent blue rectangle and the text
+`ring-monitor / standalone (B1 placeholder)`. The Conky-style
+compositor flags (always-on-bottom, click-through, layer-shell)
+arrive in PR C; the actual metric rendering in PR D / E.
+
+Build deps on Fedora/Bazzite: `qt6-qtbase-devel
+qt6-qtdeclarative-devel kf6-kirigami cmake gcc-c++`.
 
 ## Restarting plasmashell
 

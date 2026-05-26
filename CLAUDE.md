@@ -21,6 +21,11 @@ matters there:
   Plasma adapter layer (KSysGuard, Plasmoid.configuration, Theme,
   KCM). KSysGuard quirks, tick-counter pattern, `Sensor.status` enum,
   config-dialog qmlcache, Qt.styleHints light/dark, KDE bug 484541.
+- [`contents/ui/platforms/standalone/CLAUDE.md`](contents/ui/platforms/standalone/CLAUDE.md) —
+  standalone adapter layer (no Plasma deps; `/proc` + sysfs +
+  `Qt.labs.settings`). Same-surface contract with the Plasma
+  adapters, Conky-style window flags per compositor, status of the
+  PR B → H sequence.
 - [`tests/CLAUDE.md`](tests/CLAUDE.md) — `node --test` + qmltestrunner
   layout, kebab-case filename convention, text-level Node guards for
   Plasma-import QML files, SCENARIO regression tests.

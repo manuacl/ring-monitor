@@ -149,3 +149,22 @@ matrix in Node is cheaper than asserting it via QML test harnesses.
 verbatim, so it has to live in `core/`. See
 [`plasma-isolation/plan.md`](plasma-isolation/plan.md) "PR A" for
 the broader rationale.
+
+## `ProcStatParser.js`
+
+Pure parse + delta math for `/proc/stat`. Used by the standalone
+`MetricsBackend.qml` (PR D in the standalone roadmap): the QML
+adapter reads the file via the `ProcReader` C++ helper, hands the raw
+text to this module, and the module returns aggregate + per-core
+percentages from the difference between two samples.
+
+| Function | Purpose |
+|---|---|
+| `parseProcStat(content)` | Parses raw `/proc/stat` text into `{ all, cores }`. `all` is the aggregate `cpu` line; `cores` is an array of per-CPU rows. Each sample is `{ idle, total }` jiffies. Defensive against null / empty / malformed input (returns `{ all: null, cores: [] }`). |
+| `percentFromSample(prev, cur)` | Usage % between two samples: `100 * (1 - idleDelta / totalDelta)`. Clamped to `[0, 100]` and zero on a `totalDelta <= 0` (clock skew / same-jiffy sample). |
+
+Lives in `core/` (not in the standalone adapter directory) on the same
+"maximize shared code" principle as `SensorPicking.js` — pure logic
+is Node-testable and survives a future Plasma counterpart that may
+want the same math (e.g. for fallback when ksysguard is unavailable).
+Covered by `tests/proc-stat-parser.test.mjs`.

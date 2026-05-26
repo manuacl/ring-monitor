@@ -168,3 +168,19 @@ Lives in `core/` (not in the standalone adapter directory) on the same
 is Node-testable and survives a future Plasma counterpart that may
 want the same math (e.g. for fallback when ksysguard is unavailable).
 Covered by `tests/proc-stat-parser.test.mjs`.
+
+## `MemInfoParser.js`
+
+Pure parser for `/proc/meminfo` plus the small percent helper that
+the RAM **and** disk paths both feed. Used by the standalone
+`MetricsBackend.qml` (PR E in the standalone roadmap): the QML
+adapter reads `/proc/meminfo` via `ProcReader` and queries
+`ProcReader.statvfs("/")` for disk capacity, then hands both into
+this module.
+
+| Function | Purpose |
+|---|---|
+| `parseMemInfo(content)` | Parses `/proc/meminfo` into `{ total, available }` (kB). Defensive against null / empty / malformed input (fields stay `null`). Picks `MemAvailable` rather than `MemTotal - MemFree` — same convention as `free -h`; using `MemFree` would report 90 %+ on any machine with a healthy page cache. |
+| `usagePercent(total, available)` | Generic `(1 - available / total) * 100`, clamped to `[0, 100]`. Returns `0` on missing / non-numeric inputs. Unit-agnostic: kB for RAM, bytes for disk — the ratio cancels the unit, which is exactly why the disk path reuses this helper instead of carrying its own. |
+
+Covered by `tests/mem-info-parser.test.mjs`.

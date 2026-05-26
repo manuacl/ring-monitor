@@ -46,6 +46,28 @@ test("standalone MetricsBackend wires ProcReader + ProcStatParser", () => {
     assert.match(SOURCE, /ProcStatParser\.percentFromSample\s*\(/, "must call ProcStatParser.percentFromSample to derive the % between two samples");
 });
 
+test("standalone MetricsBackend wires RAM via /proc/meminfo + MemInfoParser", () => {
+    assert.match(SOURCE, /reader\.read\(["']\/proc\/meminfo["']\)/, "must read /proc/meminfo through the ProcReader helper");
+    assert.match(SOURCE, /MemInfoParser\.parseMemInfo\s*\(/, "must call MemInfoParser.parseMemInfo on the raw text");
+    assert.match(SOURCE, /MemInfoParser\.usagePercent\s*\(/, "must compute the RAM percent through the shared usagePercent helper");
+});
+
+test("standalone MetricsBackend wires disk via statvfs(/)", () => {
+    assert.match(SOURCE, /reader\.statvfs\s*\(/, "must call ProcReader.statvfs(...) for disk usage");
+    // The default mount is "/" — matches the plan's MVP scope. A
+    // future per-mount selector is allowed to override this, but the
+    // current default must stay on root.
+    assert.match(SOURCE, /["']\/["']/, "must reference the root mount '/' for the default disk path");
+});
+
+test("standalone MetricsBackend exposes ram + disk through metricValue", () => {
+    // metricValue must route the new ids to the freshly-sampled
+    // backing properties. Catches the failure mode where the wiring
+    // exists but the public function still returns 0 for ram/disk.
+    assert.match(SOURCE, /id\s*===\s*["']ram["']/, "metricValue must branch on id === 'ram'");
+    assert.match(SOURCE, /id\s*===\s*["']disk["']/, "metricValue must branch on id === 'disk'");
+});
+
 test("standalone MetricsBackend polls on a Timer", () => {
     // Polling cadence: once per second is the contract documented in
     // platforms/standalone/CLAUDE.md. Use the interval value as the

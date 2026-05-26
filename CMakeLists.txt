@@ -63,6 +63,7 @@ qt_add_qml_module(ring-monitor-standalone
         contents/ui/platforms/standalone/Main.qml
         contents/ui/platforms/standalone/MetricsBackend.qml
         contents/ui/core/ProcStatParser.js
+        contents/ui/core/MemInfoParser.js
 )
 
 target_link_libraries(ring-monitor-standalone PRIVATE

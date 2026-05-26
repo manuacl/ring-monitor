@@ -4,11 +4,11 @@ import QtQuick.Window
 // Standalone root window — counterpart to the PlasmoidItem in
 // contents/ui/main.qml. Frameless, transparent, fixed size for now.
 //
-// Scope at this stage: PR D wires the `MetricsBackend` so the
-// window shows live CPU usage numbers (aggregate + per-core). It's
-// a smoke-test layout, not the final visual — `Core.MainContent`
-// (the ring gauges) lands once we have `Theme` and `ConfigStore`
-// adapters in PR F.
+// Scope at this stage: PR E wires the `MetricsBackend` so the
+// window shows live CPU (aggregate + per-core), RAM, and disk
+// usage. It's a smoke-test layout, not the final visual —
+// `Core.MainContent` (the ring gauges) lands once we have `Theme`
+// and `ConfigStore` adapters in PR F.
 //
 // Compositor-specific behaviour (always-on-bottom, EWMH hints,
 // click-through input region) sits in `standalone/desktop_hints.cpp`
@@ -77,6 +77,18 @@ Window {
                 wrapMode: Text.WordWrap
                 width: root.width - 40
                 horizontalAlignment: Text.AlignHCenter
+            }
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: metrics.loading ? "" : "RAM: " + metrics.metricValue("ram").toFixed(1) + "%"
+                color: "white"
+                font.pixelSize: 18
+            }
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: metrics.loading ? "" : "Disk: " + metrics.metricValue("disk").toFixed(1) + "%"
+                color: "white"
+                font.pixelSize: 18
             }
         }
     }

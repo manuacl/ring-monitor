@@ -16,6 +16,7 @@
 
 #include <QObject>
 #include <QString>
+#include <QVariantMap>
 #include <QtQmlIntegration/QtQmlIntegration>
 
 // Lives at global scope rather than in `ringmonitor::` because
@@ -40,4 +41,12 @@ public:
     // are expected to tolerate empty / partial input — the
     // `ProcStatParser` helpers in `core/` do.
     Q_INVOKABLE QString read(const QString &path) const;
+
+    // statvfs(3) wrapper. Returns { "total": <bytes>, "available":
+    // <bytes> } on success; empty map on any failure (path missing,
+    // not mounted, EACCES). `total` uses f_blocks (filesystem-wide
+    // size); `available` uses f_bavail (free space minus root
+    // reservation — the value `df` displays in the "Avail" column).
+    // Both are bytes (`f_blocks * f_frsize`).
+    Q_INVOKABLE QVariantMap statvfs(const QString &path) const;
 };

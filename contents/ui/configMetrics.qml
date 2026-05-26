@@ -43,6 +43,12 @@ KCM.SimpleKCM {
     property var cfg_customColorLightDefault
     property var cfg_customColorDark
     property var cfg_customColorDarkDefault
+    property var cfg_textColorMode
+    property var cfg_textColorModeDefault
+    property var cfg_customTextColorLight
+    property var cfg_customTextColorLightDefault
+    property var cfg_customTextColorDark
+    property var cfg_customTextColorDarkDefault
     property var cfg_tempUnitDefault
     property var cfg_metricOrderDefault
     property var cfg_enabledMetricsDefault

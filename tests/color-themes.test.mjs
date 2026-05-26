@@ -91,3 +91,22 @@ test('effectiveIsDark unknown mode: falls back to auto (returns systemIsDark)', 
     assert.equal(ColorThemes.effectiveIsDark('nonexistent', true),  true);
     assert.equal(ColorThemes.effectiveIsDark('',            false), false);
 });
+
+const SYSTEM_TEXT = '#abcdef';
+const CUSTOM_TEXT_LIGHT = '#101010';
+const CUSTOM_TEXT_DARK = '#f0f0f0';
+
+test('resolveTextColor system: forwards systemText regardless of isDark', () => {
+    assert.equal(ColorThemes.resolveTextColor('system', false, SYSTEM_TEXT, CUSTOM_TEXT_LIGHT, CUSTOM_TEXT_DARK), SYSTEM_TEXT);
+    assert.equal(ColorThemes.resolveTextColor('system', true,  SYSTEM_TEXT, CUSTOM_TEXT_LIGHT, CUSTOM_TEXT_DARK), SYSTEM_TEXT);
+});
+
+test('resolveTextColor custom: picks customLight when isDark=false, customDark when true', () => {
+    assert.equal(ColorThemes.resolveTextColor('custom', false, SYSTEM_TEXT, CUSTOM_TEXT_LIGHT, CUSTOM_TEXT_DARK), CUSTOM_TEXT_LIGHT);
+    assert.equal(ColorThemes.resolveTextColor('custom', true,  SYSTEM_TEXT, CUSTOM_TEXT_LIGHT, CUSTOM_TEXT_DARK), CUSTOM_TEXT_DARK);
+});
+
+test('resolveTextColor unknown mode: falls back to system (returns systemText)', () => {
+    assert.equal(ColorThemes.resolveTextColor('nonexistent', false, SYSTEM_TEXT, CUSTOM_TEXT_LIGHT, CUSTOM_TEXT_DARK), SYSTEM_TEXT);
+    assert.equal(ColorThemes.resolveTextColor('',            true,  SYSTEM_TEXT, CUSTOM_TEXT_LIGHT, CUSTOM_TEXT_DARK), SYSTEM_TEXT);
+});

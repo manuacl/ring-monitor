@@ -374,6 +374,9 @@ future reader) consumes `configStore.X` instead of reaching into
 | `colorMode` | `string` | `Plasmoid.configuration.colorMode` |
 | `customColorLight` | `color` | `Plasmoid.configuration.customColorLight` |
 | `customColorDark` | `color` | `Plasmoid.configuration.customColorDark` |
+| `textColorMode` | `string` | `Plasmoid.configuration.textColorMode` (`system` follows `Kirigami.Theme.textColor`; `custom` picks between the two below) |
+| `customTextColorLight` | `color` | `Plasmoid.configuration.customTextColorLight` |
+| `customTextColorDark` | `color` | `Plasmoid.configuration.customTextColorDark` |
 
 **Implemented as an Item, not a singleton.** `Plasmoid` is a context
 property injected by the Plasma shell on the QML root scope, so it

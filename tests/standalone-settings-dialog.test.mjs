@@ -36,6 +36,9 @@ const BRIDGED_KEYS = [
     ["mergeGpuTemp", "mergeGpuTemp"],
     ["tempUnit", "tempUnit"],
     ["orientation", "orientation"],
+    ["ringSize", "ringSize"],
+    ["ringSpacingPercent", "ringSpacingPercent"],
+    ["windowMargin", "windowMargin"],
     ["textOpacity", "textOpacity"],
     ["trackOpacity", "trackOpacity"],
     ["arcOpacity", "arcOpacity"],
@@ -76,4 +79,15 @@ test("SettingsDialog wires the AboutBody update-flow surface", () => {
     assert.match(SOURCE, /onAcknowledgeClicked\s*:\s*dialog\.updateChecker/, "onAcknowledgeClicked must call updateChecker.acknowledge");
     assert.match(SOURCE, /onOpenStorePageClicked\s*:\s*dialog\.updateChecker/, "onOpenStorePageClicked must call updateChecker.openStorePage");
     assert.match(SOURCE, /onCheckForUpdatesToggled\s*:[\s\S]{0,200}configStore\.checkForUpdatesEnabled\s*=/, "onCheckForUpdatesToggled must write configStore.checkForUpdatesEnabled");
+});
+
+test("SettingsDialog instantiates Autostart and wires it through AboutBody", () => {
+    // Without these the "Start automatically on login" checkbox in
+    // AboutBody stays hidden (autostartAvailable defaults to false)
+    // OR shows but does not persist (no onAutostartToggled wire-up).
+    assert.match(SOURCE, /import\s+RingMonitor\.Standalone/, "must import RingMonitor.Standalone (where Autostart is registered)");
+    assert.match(SOURCE, /Autostart\s*{[\s\S]{0,100}id:\s*autostartHelper/, "must instantiate Autostart { id: autostartHelper }");
+    assert.match(SOURCE, /autostartAvailable\s*:\s*true/, "AboutBody.autostartAvailable must be true so the toggle renders");
+    assert.match(SOURCE, /autostartEnabled\s*:\s*autostartHelper\.enabled/, "AboutBody.autostartEnabled must read from autostartHelper.enabled so the checkbox stays in sync with the .desktop file's existence");
+    assert.match(SOURCE, /onAutostartToggled\s*:\s*on\s*=>\s*autostartHelper\.setEnabled\(on\)/, "onAutostartToggled must call autostartHelper.setEnabled(on)");
 });

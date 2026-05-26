@@ -3,6 +3,7 @@ import QtQuick.Window
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
+import RingMonitor.Standalone
 import "../../core" as Core
 
 // Standalone counterpart of the Plasma config dialog
@@ -63,6 +64,16 @@ Window {
         ColorPicker {}
     }
 
+    // Autostart helper — manages ~/.config/autostart/<id>.desktop.
+    // Wired into AboutBody so the "Start automatically on login"
+    // toggle reads its current state and writes back on user click.
+    // Plasma users don't see this toggle (plasmashell handles it
+    // via the panel layout); AboutBody gates the row on
+    // `autostartAvailable`, which only this side sets to true.
+    Autostart {
+        id: autostartHelper
+    }
+
     // ── Layout ──────────────────────────────────────────────────────
     Item {
         anchors.fill: parent
@@ -116,6 +127,8 @@ Window {
                     remoteVersion: dialog.updateChecker ? dialog.updateChecker.remoteVersion : ""
                     updateAvailable: dialog.updateChecker ? dialog.updateChecker.updateAvailable : false
                     checkForUpdatesEnabled: dialog.configStore ? dialog.configStore.checkForUpdatesEnabled : true
+                    autostartAvailable: true
+                    autostartEnabled: autostartHelper.enabled
 
                     onAcknowledgeClicked: dialog.updateChecker && dialog.updateChecker.acknowledge()
                     onOpenStorePageClicked: dialog.updateChecker && dialog.updateChecker.openStorePage()
@@ -123,6 +136,7 @@ Window {
                         if (dialog.configStore)
                             dialog.configStore.checkForUpdatesEnabled = on;
                     }
+                    onAutostartToggled: on => autostartHelper.setEnabled(on)
                 }
             }
         }
@@ -143,7 +157,7 @@ Window {
         // MetricsBody
         [metricsBody, "metricOrderCsv", "metricOrder"], [metricsBody, "enabledMetricsCsv", "enabledMetrics"], [metricsBody, "showCpuCores", "showCpuCores"], [metricsBody, "mergeCpuTemp", "mergeCpuTemp"], [metricsBody, "mergeGpuTemp", "mergeGpuTemp"], [metricsBody, "tempUnit", "tempUnit"],
         // AppearanceBody
-        [appearanceBody, "orientation", "orientation"], [appearanceBody, "textOpacity", "textOpacity"], [appearanceBody, "trackOpacity", "trackOpacity"], [appearanceBody, "arcOpacity", "arcOpacity"], [appearanceBody, "colorTheme", "colorTheme"], [appearanceBody, "colorMode", "colorMode"], [appearanceBody, "customColorLight", "customColorLight"], [appearanceBody, "customColorDark", "customColorDark"], [appearanceBody, "textColorMode", "textColorMode"], [appearanceBody, "customTextColorLight", "customTextColorLight"], [appearanceBody, "customTextColorDark", "customTextColorDark"]]
+        [appearanceBody, "orientation", "orientation"], [appearanceBody, "ringSize", "ringSize"], [appearanceBody, "ringSpacingPercent", "ringSpacingPercent"], [appearanceBody, "windowMargin", "windowMargin"], [appearanceBody, "textOpacity", "textOpacity"], [appearanceBody, "trackOpacity", "trackOpacity"], [appearanceBody, "arcOpacity", "arcOpacity"], [appearanceBody, "colorTheme", "colorTheme"], [appearanceBody, "colorMode", "colorMode"], [appearanceBody, "customColorLight", "customColorLight"], [appearanceBody, "customColorDark", "customColorDark"], [appearanceBody, "textColorMode", "textColorMode"], [appearanceBody, "customTextColorLight", "customTextColorLight"], [appearanceBody, "customTextColorDark", "customTextColorDark"]]
 
     function _wireBridges() {
         if (!dialog.configStore)

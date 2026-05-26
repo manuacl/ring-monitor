@@ -28,10 +28,19 @@ Kirigami.FormLayout {
     property bool updateAvailable: false
     property bool checkForUpdatesEnabled: true
 
+    // ── Autostart (standalone-only) ─────────────────────────────────
+    // Plasma users get auto-launch via plasmashell, so the wrapper
+    // leaves `autostartAvailable: false` and the toggle stays hidden.
+    // Standalone wires `true` + the current state — see the
+    // platforms/standalone/SettingsDialog.qml Autostart wiring.
+    property bool autostartAvailable: false
+    property bool autostartEnabled: false
+
     // ── Outputs (parent wires these into the UpdateChecker / config) ─
     signal acknowledgeClicked
     signal openStorePageClicked
     signal checkForUpdatesToggled(bool on)
+    signal autostartToggled(bool on)
 
     // ── 1. Version header ───────────────────────────────────────────
     QQC2.Label {
@@ -148,9 +157,19 @@ Kirigami.FormLayout {
         onClicked: body.checkForUpdatesToggled(checked)
     }
 
+    QQC2.CheckBox {
+        id: autostartCheckBox
+        Kirigami.FormData.label: qsTr("Startup:")
+        text: qsTr("Start automatically on login")
+        visible: body.autostartAvailable
+        checked: body.autostartEnabled
+        onClicked: body.autostartToggled(checked)
+    }
+
     // ── Test hooks ──────────────────────────────────────────────────
     readonly property alias _statusLabel: statusLabel
     readonly property alias _openStoreButton: openStoreButton
     readonly property alias _gotItButton: gotItButton
     readonly property alias _checkBox: checkBox
+    readonly property alias _autostartCheckBox: autostartCheckBox
 }

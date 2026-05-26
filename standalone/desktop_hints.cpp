@@ -11,24 +11,25 @@
 
 namespace ringmonitor {
 
-void forceXWaylandUnderMutter()
+void forceXWaylandUnderWayland()
 {
     // Reads at startup (before QGuiApplication) so Qt picks up the
     // platform plugin override.
-    const QByteArray desktop = qgetenv("XDG_CURRENT_DESKTOP").toLower();
     const QByteArray session = qgetenv("XDG_SESSION_TYPE").toLower();
-    const bool isGnome = desktop.contains("gnome");
     const bool isWayland = session == "wayland";
     const bool userOverride = !qgetenv("QT_QPA_PLATFORM").isEmpty();
 
-    if (isGnome && isWayland && !userOverride) {
-        // mutter has refused to implement wlr-layer-shell
-        // (gitlab.gnome.org/GNOME/mutter#973), so a native Wayland
-        // client can't pin itself to the wallpaper layer. XWayland
-        // honours `_NET_WM_STATE_BELOW + STICKY` well enough to give
-        // a Conky-like look. Best-effort with known glitches
-        // (Activities mode, desktop click) — same trade-off Conky
-        // users accept.
+    if (isWayland && !userOverride) {
+        // No mainstream Wayland compositor exposes wlr-layer-shell as
+        // an ergonomic Qt-native surface today: mutter refuses to
+        // implement it (gitlab.gnome.org/GNOME/mutter#973) and KWin
+        // does (layer-shell-qt) but the Qt module is unstable / not
+        // installed by default. XWayland, by contrast, lets us send
+        // `_NET_WM_STATE_BELOW + STICKY + SKIP_*` and gets us the
+        // Conky-on-the-wallpaper look on every Wayland compositor we
+        // care about (KWin, mutter). Best-effort, with known glitches
+        // (Activities mode, desktop click pass-through), same as the
+        // trade-off Conky users accept on Wayland.
         qputenv("QT_QPA_PLATFORM", "xcb");
     }
 }
@@ -109,14 +110,14 @@ void applyDesktopWindowHints(QWindow *window)
         internAtom(conn, "_NET_WM_STATE_SKIP_PAGER");
     const xcb_atom_t net_wm_window_type =
         internAtom(conn, "_NET_WM_WINDOW_TYPE");
-    const xcb_atom_t window_type_normal =
-        internAtom(conn, "_NET_WM_WINDOW_TYPE_NORMAL");
+    const xcb_atom_t window_type_desktop =
+        internAtom(conn, "_NET_WM_WINDOW_TYPE_DESKTOP");
 
     if (net_wm_state == XCB_ATOM_NONE || state_sticky == XCB_ATOM_NONE ||
         state_skip_taskbar == XCB_ATOM_NONE ||
         state_skip_pager == XCB_ATOM_NONE ||
         net_wm_window_type == XCB_ATOM_NONE ||
-        window_type_normal == XCB_ATOM_NONE)
+        window_type_desktop == XCB_ATOM_NONE)
         return;
 
     const xcb_screen_t *screen =
@@ -127,12 +128,16 @@ void applyDesktopWindowHints(QWindow *window)
     // Qt sets `_KDE_NET_WM_WINDOW_TYPE_OVERRIDE` as a side effect of
     // `Qt::FramelessWindowHint`. KWin then treats the window as
     // override-redirect — partially unmanaged — which strips standard
-    // window-management behaviour. Replace the type with a plain
-    // NORMAL so we get the regular treatment (compositing effects,
-    // EWMH state events) before applying our state hints.
+    // window-management behaviour. Replace the type with DESKTOP so
+    // KWin handles it as wallpaper-layer content: skips the focus /
+    // placement heuristic that gravity-shifts windows on resize (the
+    // root cause behind our slider-driven repositioning glitch — see
+    // QTBUG-57608 + the `setGeometry()` helper in `window_anchor.h`)
+    // and aligns us with the Conky / xfce4-panel convention for
+    // "lives on the wallpaper" widgets.
     xcb_change_property(conn, XCB_PROP_MODE_REPLACE, winid,
                         net_wm_window_type, XCB_ATOM_ATOM, 32, 1,
-                        &window_type_normal);
+                        &window_type_desktop);
 
     // One atom per ClientMessage is the most portable form (some WMs
     // only honour the first slot reliably).

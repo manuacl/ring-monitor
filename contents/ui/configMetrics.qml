@@ -29,6 +29,12 @@ KCM.SimpleKCM {
     // and the *Default variants Plasma auto-generates for "Reset".
     property var cfg_orientation
     property var cfg_orientationDefault
+    property var cfg_ringSize
+    property var cfg_ringSizeDefault
+    property var cfg_ringSpacingPercent
+    property var cfg_ringSpacingPercentDefault
+    property var cfg_windowMargin
+    property var cfg_windowMarginDefault
     property var cfg_textOpacity
     property var cfg_textOpacityDefault
     property var cfg_trackOpacity

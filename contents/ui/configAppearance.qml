@@ -18,6 +18,9 @@ KCM.SimpleKCM {
 
     // ── Bidirectional bridge: cfg_<key> ↔ body.<property> ────────────
     property alias cfg_orientation: body.orientation
+    property alias cfg_ringSize: body.ringSize
+    property alias cfg_ringSpacingPercent: body.ringSpacingPercent
+    property alias cfg_windowMargin: body.windowMargin
     property alias cfg_textOpacity: body.textOpacity
     property alias cfg_trackOpacity: body.trackOpacity
     property alias cfg_arcOpacity: body.arcOpacity
@@ -43,6 +46,9 @@ KCM.SimpleKCM {
     property var cfg_mergeGpuTempDefault
     property var cfg_tempUnit
     property var cfg_orientationDefault
+    property var cfg_ringSizeDefault
+    property var cfg_ringSpacingPercentDefault
+    property var cfg_windowMarginDefault
     property var cfg_textOpacityDefault
     property var cfg_trackOpacityDefault
     property var cfg_arcOpacityDefault

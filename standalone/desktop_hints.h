@@ -3,11 +3,15 @@
 // Compositor integration for the standalone binary — Conky-style
 // desktop widget behaviour on Linux. Two entry points:
 //
-//   forceXWaylandUnderMutter()      — pre-QGuiApplication env-var
-//                                     injection (mutter has no
-//                                     wlr-layer-shell support, so we
-//                                     fall back to XWayland just
-//                                     like Conky does).
+//   forceXWaylandUnderWayland()     — pre-QGuiApplication env-var
+//                                     injection. No mainstream Wayland
+//                                     compositor exposes layer-shell
+//                                     via a Qt-native surface today
+//                                     (mutter refuses, KWin's module
+//                                     is unstable), so we fall back
+//                                     to XWayland uniformly and rely
+//                                     on EWMH hints — same trade-off
+//                                     Conky takes.
 //   applyDesktopWindowHints(window) — post-window-creation EWMH hint
 //                                     setter (sticky / below /
 //                                     skip-taskbar / skip-pager).
@@ -22,7 +26,7 @@ class QWindow;
 
 namespace ringmonitor {
 
-void forceXWaylandUnderMutter();
+void forceXWaylandUnderWayland();
 void applyDesktopWindowHints(QWindow *window);
 
 }  // namespace ringmonitor

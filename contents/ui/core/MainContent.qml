@@ -48,10 +48,19 @@ GridLayout {
     readonly property string _tempMode: Catalog.resolveTempMode(content.configStore.tempUnit, Qt.locale().measurementSystem)
 
     columns: vertical ? 1 : count
-    rowSpacing: 12
-    columnSpacing: 12
-    implicitWidth: vertical ? 180 : 180 * count
-    implicitHeight: vertical ? 180 * count : 180
+    // Spacing between rings is configurable as a percentage of
+    // ringSize (default 7% — evaluates to 12px at the default
+    // ringSize=180, matching the previous hardcoded value).
+    // Proportional spacing keeps the visual balance whether the user
+    // picked tiny or huge rings. Same formula in Main.qml for the
+    // Window autosize.
+    readonly property int _ringSize: (content.configStore && content.configStore.ringSize) || 180
+    readonly property int _ringSpacingPercent: (content.configStore && content.configStore.ringSpacingPercent !== undefined) ? content.configStore.ringSpacingPercent : 7
+    readonly property int _ringSpacing: Math.round(_ringSize * _ringSpacingPercent / 100)
+    rowSpacing: _ringSpacing
+    columnSpacing: _ringSpacing
+    implicitWidth: _ringSize
+    implicitHeight: vertical ? _ringSize * count : Math.max(80, _ringSize / count)
 
     Repeater {
         id: ringRepeater

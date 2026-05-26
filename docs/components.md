@@ -42,6 +42,18 @@ Smoke-tested by `tests/qml/tst_AppearanceBody.qml` and
 qmltestrunner since they only import Kirigami + QtQuick.Controls
 (not the Plasma-only modules).
 
+`AppearanceBody` also exposes three sizing properties consumed by
+the standalone window auto-size (Plasma reads them too but the
+panel container may ignore them):
+
+- `ringSize` (Int, px) — per-ring side length. Slider range 80-800.
+- `ringSpacingPercent` (Int, 0-25) — gap between rings as a
+  percentage of `ringSize`. 7% reproduces the historic 12px default
+  at the original `ringSize=180`.
+- `windowMargin` (Int, 0-200 px) — inset between the rings and the
+  closest screen edge. Used by the standalone window to offset
+  itself from the top-right anchor; the Plasma panel ignores it.
+
 ## `Ring.qml`
 
 A circular gauge: 270° arc starting at 135° (90° gap at the bottom).
@@ -367,6 +379,7 @@ future reader) consumes `configStore.X` instead of reaching into
 | `acknowledgedVersion` | `string` | `Plasmoid.configuration.acknowledgedVersion` — the version the user clicked "Got it" on; the badge stays hidden until a newer one appears |
 | `localVersion` | `string` | `Plasmoid.metaData.version` — exposed here so `core/UpdateChecker.qml` can compare against the cached remote without importing Plasma |
 | `orientation` | `string` | `Plasmoid.configuration.orientation` |
+| `ringSize` | `int` | `Plasmoid.configuration.ringSize` — window WIDTH (px) in standalone; drives the autosize and the rings fill it 100% (vertical = N square rings stacked; horizontal = N square rings side-by-side, each `ringSize/N` wide). In Plasma the panel container may still stretch / shrink the widget regardless. Default 180, range 80-800. |
 | `textOpacity` | `real` | `Plasmoid.configuration.textOpacity` |
 | `trackOpacity` | `real` | `Plasmoid.configuration.trackOpacity` |
 | `arcOpacity` | `real` | `Plasmoid.configuration.arcOpacity` |
@@ -518,3 +531,12 @@ ambient discovery the rest of the time. Plasma 6 has no public
 Smoke-tested by `tests/qml/tst_AboutBody.qml` — exercises each of
 the four states + the action signal wiring (`acknowledgeClicked`,
 `openStorePageClicked`, `checkForUpdatesToggled`).
+
+A fifth row, "Start automatically on login", is gated on
+`autostartAvailable` (false on the Plasma side, true on standalone).
+When visible, the checkbox state mirrors `autostartEnabled` and
+emits `autostartToggled(on)` — the standalone wrapper wires that to
+the `Autostart` C++ helper, which creates / removes
+`~/.config/autostart/dev.manuacl.ringmonitor.desktop`. Plasma users
+manage autostart from the panel layout, so the row stays hidden
+there.

@@ -4,15 +4,15 @@ import QtQuick.Window
 // Standalone root window — counterpart to the PlasmoidItem in
 // contents/ui/main.qml. Frameless, transparent, fixed size for now.
 //
-// Scope at this stage (PR B1): a coloured placeholder so we can
-// confirm the window opens, takes its compositor flags, and renders
-// QML. The actual metric body (Core.MainContent) lands in PR D once
-// the standalone MetricsBackend can feed it.
+// Scope at this stage: PR D wires the `MetricsBackend` so the
+// window shows live CPU usage numbers (aggregate + per-core). It's
+// a smoke-test layout, not the final visual — `Core.MainContent`
+// (the ring gauges) lands once we have `Theme` and `ConfigStore`
+// adapters in PR F.
 //
-// All compositor-specific behaviour (always-on-bottom, layer-shell
-// anchoring, EWMH hints, click-through input region) is intentionally
-// absent here — PR C wires it through `flags:` and native window
-// handle attributes per platform.
+// Compositor-specific behaviour (always-on-bottom, EWMH hints,
+// click-through input region) sits in `standalone/desktop_hints.cpp`
+// — see PR C.
 
 Window {
     id: root
@@ -35,10 +35,14 @@ Window {
     flags: Qt.FramelessWindowHint | Qt.WindowStaysOnBottomHint
     color: "transparent"
 
-    // Placeholder body. Replaced by `Core.MainContent` in PR D once
-    // the standalone MetricsBackend exists. The dashed border and
-    // text make it obvious this is the standalone build (not a
-    // misrendered Plasma widget) when running both side-by-side.
+    MetricsBackend {
+        id: metrics
+    }
+
+    // Smoke-test readout. Replaced by `Core.MainContent` (the ring
+    // gauges) once Theme + ConfigStore adapters exist (PR F). For now
+    // we just need the numbers visible to confirm `/proc/stat` reads
+    // are landing and the deltas compute correctly.
     Rectangle {
         anchors.fill: parent
         color: "#332266aa"
@@ -47,7 +51,7 @@ Window {
 
         Column {
             anchors.centerIn: parent
-            spacing: 8
+            spacing: 10
 
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
@@ -58,10 +62,21 @@ Window {
             }
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: "standalone (B1 placeholder)"
+                text: metrics.loading ? "loading…" : "CPU: " + metrics.metricValue("cpu").toFixed(1) + "%"
                 color: "white"
-                opacity: 0.7
-                font.pixelSize: 12
+                font.pixelSize: 18
+            }
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: metrics.loading ? "" : "cores: " + metrics.coreValues.map(function (v) {
+                    return v.toFixed(0);
+                }).join(", ")
+                color: "white"
+                opacity: 0.8
+                font.pixelSize: 11
+                wrapMode: Text.WordWrap
+                width: root.width - 40
+                horizontalAlignment: Text.AlignHCenter
             }
         }
     }

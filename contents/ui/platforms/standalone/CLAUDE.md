@@ -15,10 +15,35 @@ under "Standalone target — backend choice".
 | Adapter | Purpose | Status |
 |---|---|---|
 | `Main.qml` | Frameless transparent `Window` root + Conky-style hints (X11 / XWayland) | PR B1 (placeholder) + PR C (X11 EWMH hints in `standalone/desktop_hints.cpp`) |
-| `MetricsBackend.qml` | Direct reads from `/proc/stat`, `/proc/meminfo`, `statvfs(3)` | not yet (PR D, E) |
+| `MetricsBackend.qml` | Direct reads from `/proc/stat`, `/proc/meminfo`, `statvfs(3)` | **PR D: CPU usage (`/proc/stat`) ✓** ; RAM / disk pending PR E |
 | `ConfigStore.qml` | `Qt.labs.settings` reader/writer | not yet (PR F) |
 | `Theme.qml` | Kirigami theme tokens + Qt.styleHints light/dark | not yet (PR F) |
 | `ThemedIcon.qml` | wraps `Kirigami.Icon` (same as Plasma adapter) | not yet (PR F) |
+
+## File-reading helper
+
+QML's `XMLHttpRequest` with `file://` is restricted in Qt 6.5+ —
+the QML loading context has to itself live under `file://` for the
+read to be allowed, and our QML loads from the compiled `qrc://`
+resource. The `ProcReader` helper in `standalone/proc_reader.{h,cpp}`
+sidesteps that with a `Q_INVOKABLE QString read(const QString &)`
+exposed to QML via `QML_ELEMENT` (auto-registered through
+`qt_add_qml_module(... SOURCES ...)`). Available in QML as
+`import RingMonitor.Standalone; ProcReader { id: reader }`.
+
+The class lives at global scope (not in `ringmonitor::`) because
+Qt 6's QML auto-registration generates code calling
+`qmlRegisterTypesAndRevisions<ProcReader>(...)` without
+namespace-qualifying the type. Namespaced classes need
+`QML_FOREIGN_NAMESPACE` boilerplate to register cleanly; the
+helper is a thin one-method utility, so the lower-friction
+global-scope path is the right trade-off. See `standalone/proc_reader.h`
+for the full rationale.
+
+The matching include-path tweak (`target_include_directories(...
+PRIVATE standalone)`) is required because the generated
+registration file includes our headers via `<proc_reader.h>`
+(angle brackets, system search path) rather than `"..."`.
 
 ## Compositor support matrix (current)
 

@@ -523,6 +523,30 @@ no bump" default).
 Return the PR URL **and** the chosen bump level (or "no bump") to the
 user.
 
+### 9. Code review — invoke `/code-review`
+
+Final step: hand the freshly-opened PR to Claude Code's built-in
+`/code-review` command for a multi-agent cloud review. Phase A only
+catches the mechanical rules (file size, qmllint, tests, plasma
+isolation, doc consistency) — `/code-review` is where deeper feedback
+(design smells, edge cases, security, naming) lands. Running it as
+the last finish-branch step keeps the user's review loop tight: phase
+A green → push → PR open → labelled → review feedback all in one
+flow, instead of having to remember to fire `/code-review` separately.
+
+```bash
+# Invoke from the user's prompt (not from a sub-tool — the slash
+# command is interpreted by the Claude Code client itself). Report:
+#   "Now run: /code-review <pr_number>"
+# so the user can press enter to fire it. Do NOT try to shell out
+# `claude /code-review` — the command isn't exposed at the CLI.
+```
+
+If `/code-review` is unavailable in the user's environment (older
+Claude Code, missing entitlements), say so and skip — don't block the
+finish-branch flow on it. The PR is already opened and labelled;
+reviews can happen async.
+
 ## Expected report
 
 Summary table at the end of phase A:

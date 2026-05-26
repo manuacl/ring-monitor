@@ -8,11 +8,14 @@ settings.
 
 ```
 ring-monitor/
-├── metadata.json                       — KPlugin descriptor
+├── metadata.json                       — KPlugin descriptor (Plasma build)
+├── CMakeLists.txt                      — standalone build (Qt 6 executable)
+├── standalone/
+│   └── main.cpp                        — C++ entry for the standalone binary
 ├── contents/
 │   ├── config/
 │   │   ├── main.xml                    — config schema (KConfigXT)
-│   │   └── config.qml                  — config dialog category list
+│   │   └── config.qml                  — config dialog category list (Plasma)
 │   └── ui/
 │       ├── main.qml                    — Plasmoid host (wraps Core.MainContent + 3 adapters)
 │       ├── configMetrics.qml           — Plasma wrapper (cfg_* aliases → Core.MetricsBody)
@@ -26,22 +29,34 @@ ring-monitor/
 │       │   ├── AppearanceBody.qml      — body of the Appearance page
 │       │   ├── ReorderLogic.js         — pure: drag math (testable)
 │       │   ├── MetricsCatalog.js       — pure: metric data + CSV helpers
-│       │   └── RingGeometry.js         — pure: ring stroke/radius/sweep math
+│       │   ├── RingGeometry.js         — pure: ring stroke/radius/sweep math
+│       │   └── SensorPicking.js        — pure: first-ready-wins sensor picking
 │       └── platforms/                  — host-specific adapters (one subdir per target)
-│           └── plasma/                  — Plasma adapters (single home of org.kde.* imports)
-│               ├── Theme.qml            — re-exposes Kirigami theme tokens
-│               ├── ThemedIcon.qml       — wraps Kirigami.Icon
-│               ├── ConfigStore.qml      — re-exposes Plasmoid.configuration as typed properties
-│               └── MetricsBackend.qml   — wraps KSysGuard sensor instances
+│           ├── plasma/                  — Plasma adapters (single home of org.kde.* imports)
+│           │   ├── Theme.qml            — re-exposes Kirigami theme tokens
+│           │   ├── ThemedIcon.qml       — wraps Kirigami.Icon
+│           │   ├── ConfigStore.qml      — re-exposes Plasmoid.configuration as typed properties
+│           │   └── MetricsBackend.qml   — wraps KSysGuard sensor instances
+│           └── standalone/              — standalone adapters (no Plasma deps; /proc + sysfs)
+│               └── Main.qml             — frameless transparent Window root (placeholder for now)
 ├── tests/
 │   ├── reorder-logic.test.mjs
 │   ├── metrics-catalog.test.mjs
 │   ├── ring-geometry.test.mjs
+│   ├── sensor-picking.test.mjs
 │   ├── config-store.test.mjs          — text-level guard (no Plasma runtime in CI)
 │   └── metrics-backend.test.mjs       — text-level guard (no Plasma runtime in CI)
 ├── docs/                               — you are here
 └── CLAUDE.md                           — short briefing for AI assistants
 ```
+
+The Plasma build is loaded by `plasmashell` directly from the source
+tree via the symlink at `~/.local/share/plasma/plasmoids/dev.manuacl.ringmonitor`.
+The standalone build is produced by `cmake -B build && cmake --build
+build`, emitting a single `build/ring-monitor-standalone` binary that
+embeds the QML as a compiled resource (no runtime filesystem
+lookup). See [`docs/plasma-isolation/plan.md`](plasma-isolation/plan.md)
+for the multi-PR standalone roadmap.
 
 ## Layering rule
 

@@ -55,6 +55,8 @@ shopt -s nullglob
 for f in contents/ui/*.qml contents/ui/*.js \
          contents/ui/core/*.qml contents/ui/core/*.js \
          contents/ui/platforms/plasma/*.qml \
+         contents/ui/platforms/standalone/*.qml \
+         standalone/*.cpp \
          tests/*.test.mjs tests/qml/*.qml; do
     lines=$(wc -l < "$f")
     if [ "$lines" -gt "$MAX" ]; then
@@ -65,7 +67,7 @@ done
 [ $status -eq 0 ] && echo "PASS: file-size (≤500 lines)"
 
 # 1b. qmlformat no-op on source .qml files.
-for f in contents/ui/*.qml contents/ui/core/*.qml contents/ui/platforms/plasma/*.qml; do
+for f in contents/ui/*.qml contents/ui/core/*.qml contents/ui/platforms/plasma/*.qml contents/ui/platforms/standalone/*.qml; do
     if ! diff -q "$f" <(qmlformat-qt6 "$f") > /dev/null; then
         echo "FAIL: $f is not qmlformat-clean"
         echo "  fix: qmlformat-qt6 --inplace $f"
@@ -74,7 +76,7 @@ for f in contents/ui/*.qml contents/ui/core/*.qml contents/ui/platforms/plasma/*
 done
 
 # 1c. qmllint on source + QML tests.
-qmllint-qt6 contents/ui/*.qml contents/ui/core/*.qml contents/ui/platforms/plasma/*.qml tests/qml/*.qml || status=1
+qmllint-qt6 contents/ui/*.qml contents/ui/core/*.qml contents/ui/platforms/plasma/*.qml contents/ui/platforms/standalone/*.qml tests/qml/*.qml || status=1
 
 # 1d. Plasma-isolation invariant: nothing under contents/ui/core/ may
 # import any org.kde.* module except org.kde.kirigami. The standalone
@@ -143,6 +145,8 @@ grep -nE '\?[^?]*\?[^:]*:[^:]*:' \
     contents/ui/*.qml contents/ui/*.js \
     contents/ui/core/*.qml contents/ui/core/*.js \
     contents/ui/platforms/plasma/*.qml \
+    contents/ui/platforms/standalone/*.qml \
+    standalone/*.cpp \
     tests/*.test.mjs tests/qml/*.qml \
     2>/dev/null && echo "FAIL: possibly nested ternaries (re-read matches)"
 ```
@@ -200,11 +204,11 @@ done
 # 4b. New .qml component (= new file under contents/ui) → auto-create
 # tst_<Name>.qml stub if missing (cf. tests/qml/tst_Ring.qml,
 # tst_MetricRow.qml, tst_DraggableList.qml).
-for qml in $(git diff --name-only --diff-filter=A origin/main...HEAD | grep '^contents/ui/\(core/\|platforms/plasma/\)\?.*\.qml$'); do
+for qml in $(git diff --name-only --diff-filter=A origin/main...HEAD | grep '^contents/ui/\(core/\|platforms/plasma/\|platforms/standalone/\)\?.*\.qml$'); do
     base=$(basename "$qml" .qml)
-    # Exclude main.qml and config* (Plasmoid entrypoints, not reusable
-    # components → no tst_*.qml expected).
-    case "$base" in main|configMetrics|configAppearance|configGeneral) continue ;; esac
+    # Exclude top-level wrappers + Main.qml (entry points, not
+    # reusable components → no tst_*.qml expected).
+    case "$base" in main|Main|configMetrics|configAppearance|configGeneral) continue ;; esac
     test_file="tests/qml/tst_${base}.qml"
     if [ ! -f "$test_file" ]; then
         echo "CREATE: $test_file (stub)"
@@ -212,8 +216,9 @@ for qml in $(git diff --name-only --diff-filter=A origin/main...HEAD | grep '^co
         # TestCase named after the component, one `test_smoke` that
         # instantiates the component and asserts it loads. Mark the
         # body with `// TODO: add real assertions` so the user sees it.
-        # The import path is "../../contents/ui/core" for core/ files
-        # and "../../contents/ui/platforms/plasma" for adapter files.
+        # The import path is "../../contents/ui/core" for core/ files,
+        # "../../contents/ui/platforms/plasma" for Plasma adapters,
+        # "../../contents/ui/platforms/standalone" for standalone adapters.
     fi
 done
 
@@ -230,9 +235,9 @@ done
 
 # 4d. New component (.qml) → add a stub entry in docs/components.md
 # if missing.
-for qml in $(git diff --name-only --diff-filter=A origin/main...HEAD | grep '^contents/ui/\(core/\|platforms/plasma/\)\?.*\.qml$'); do
+for qml in $(git diff --name-only --diff-filter=A origin/main...HEAD | grep '^contents/ui/\(core/\|platforms/plasma/\|platforms/standalone/\)\?.*\.qml$'); do
     base=$(basename "$qml" .qml)
-    case "$base" in main|configMetrics|configAppearance|configGeneral) continue ;; esac
+    case "$base" in main|Main|configMetrics|configAppearance|configGeneral) continue ;; esac
     if ! grep -q "$base" docs/components.md 2>/dev/null; then
         echo "CREATE: docs/components.md entry for $base (stub)"
         # Same shape: `## $base` + TODO line.

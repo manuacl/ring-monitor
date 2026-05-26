@@ -95,12 +95,35 @@ forbidden=$(grep -rnE 'import org\.kde\.' contents/ui/core/ 2>/dev/null | \
 if [ -n "$forbidden" ]; then
     echo "$forbidden"
     echo "FAIL: contents/ui/core/ imports a non-Kirigami org.kde.* module (plasma-isolation invariant)"
-    echo "  fix: wrap the Plasma-bound type in a thin contents/ui/platforms/plasma/<Name>.qml adapter"
-    echo "       (pattern: ThemedIcon.qml wraps Kirigami.Icon, ColorPicker.qml wraps KQuickControls.ColorButton)"
-    echo "       and have core/ import \"../platforms/plasma\" as Platform; Platform.<Name>"
+    echo "  fix option A: if the wrapped type is Kirigami-only, drop the adapter and import Kirigami directly"
+    echo "       (DraggableList swapped Platform.ThemedIcon → Kirigami.Icon this way in PR #32)"
+    echo "  fix option B: take the platform-specific Component as a property injected by the wrapper"
+    echo "       (AppearanceBody.colorPickerComponent — Plasma wrapper + standalone SettingsDialog each pass their own)"
     status=1
 else
     echo "PASS: plasma-isolation invariant (core/ has no non-Kirigami org.kde.* imports)"
+fi
+
+# 1d-bis. Path-based platform isolation: nothing in contents/ui/core/
+# may import a sibling platforms/* directory by relative path. The
+# `org.kde.*` check above catches the Plasma-namespace import; this
+# catches the "core/ → ../platforms/<X>" path import that hardcodes
+# core/ to ONE platform and silently breaks the standalone build at
+# runtime (the standalone adapter folder is not on its qrc:// path
+# even though it physically exists in the source tree).
+#
+# Found in PR #32 (PR F2): DraggableList.qml + AppearanceBody.qml both
+# imported "../platforms/plasma" — the standalone binary failed to
+# load with `qrc:/.../platforms/plasma: no such directory`. The two
+# fix patterns are listed in the PASS message above.
+path_forbidden=$(grep -rnE 'import "\.\./platforms/' contents/ui/core/ 2>/dev/null)
+if [ -n "$path_forbidden" ]; then
+    echo "$path_forbidden"
+    echo "FAIL: contents/ui/core/ imports a sibling platforms/* directory by relative path (platform-isolation invariant)"
+    echo "  fix: same two patterns as 1d above (Kirigami-direct OR Component-injection via wrapper)"
+    status=1
+else
+    echo "PASS: path-isolation (core/ does not import sibling platforms/* directories)"
 fi
 ```
 
@@ -446,6 +469,7 @@ else
 - [x] qmlformat no-op
 - [x] qmllint (exit 0)
 - [x] plasma-isolation invariant (`core/` has no non-Kirigami `org.kde.*` imports)
+- [x] path-isolation (`core/` does not import sibling `platforms/*` directories)
 - [x] `node --test` (<N/N>)
 - [x] `qmltestrunner-qt6` headless (<N/N>)
 - [x] `.js` modules / tests paired

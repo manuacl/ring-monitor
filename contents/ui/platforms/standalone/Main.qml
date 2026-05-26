@@ -1,14 +1,17 @@
 import QtQuick
 import QtQuick.Window
+import "../../core" as Core
 
 // Standalone root window — counterpart to the PlasmoidItem in
-// contents/ui/main.qml. Frameless, transparent, fixed size for now.
+// contents/ui/main.qml. Frameless, transparent, sized to the rings'
+// implicit content size.
 //
-// Scope at this stage: PR E wires the `MetricsBackend` so the
-// window shows live CPU (aggregate + per-core), RAM, and disk
-// usage. It's a smoke-test layout, not the final visual —
-// `Core.MainContent` (the ring gauges) lands once we have `Theme`
-// and `ConfigStore` adapters in PR F.
+// Scope at this stage (PR F1): the three platform adapters
+// (ConfigStore via Qt.labs.settings, Theme + ThemedIcon as Kirigami
+// passthroughs) are in place, so Core.MainContent renders the
+// actual rings here — replacing the smoke-test layout that PR D / E
+// shipped. The SettingsDialog opener (right-click menu or keyboard
+// shortcut) lands in PR F2.
 //
 // Compositor-specific behaviour (always-on-bottom, EWMH hints,
 // click-through input region) sits in `standalone/desktop_hints.cpp`
@@ -18,78 +21,50 @@ Window {
     id: root
 
     title: "ring-monitor"
-    width: 320
-    height: 480
+    // Track MainContent's implicit size so the window grows / shrinks
+    // with the enabled-metrics list. A small fixed padding so the
+    // rings don't kiss the window edges.
+    width: content.implicitWidth + 24
+    height: content.implicitHeight + 24
     visible: true
 
-    // Frameless + transparent so the eventual ring gauges sit on the
-    // wallpaper without a window chrome of their own. Plasma achieves
-    // the same via `Plasmoid.backgroundHints: NoBackground` — we get
-    // it explicitly here.
-    //
-    // WindowStaysOnBottomHint translates to `_NET_WM_STATE_BELOW`
-    // under X11/XWayland. The other EWMH states the Conky-style
-    // widget needs (sticky, skip-taskbar, skip-pager) are set by
-    // `standalone/desktop_hints.cpp` after the window is mapped —
-    // Qt has no direct flag for them.
     flags: Qt.FramelessWindowHint | Qt.WindowStaysOnBottomHint
     color: "transparent"
 
-    MetricsBackend {
-        id: metrics
+    // ── Platform adapters ───────────────────────────────────────────
+    // IDs are *Adapter-suffixed to avoid shadowing the same-named
+    // properties on MainContent (same name-resolution trap as in
+    // contents/ui/main.qml — Plasma side). Documented in
+    // ../../core/CLAUDE.md § "Don't reuse a property name as an id".
+    Theme {
+        id: themeAdapter
     }
 
-    // Smoke-test readout. Replaced by `Core.MainContent` (the ring
-    // gauges) once Theme + ConfigStore adapters exist (PR F). For now
-    // we just need the numbers visible to confirm `/proc/stat` reads
-    // are landing and the deltas compute correctly.
-    Rectangle {
-        anchors.fill: parent
-        color: "#332266aa"
-        border.color: "white"
-        border.width: 2
+    ConfigStore {
+        id: configStoreAdapter
+    }
 
-        Column {
-            anchors.centerIn: parent
-            spacing: 10
+    MetricsBackend {
+        id: metricsAdapter
+    }
 
-            Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: "ring-monitor"
-                color: "white"
-                font.pixelSize: 24
-                font.weight: Font.Light
-            }
-            Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: metrics.loading ? "loading…" : "CPU: " + metrics.metricValue("cpu").toFixed(1) + "%"
-                color: "white"
-                font.pixelSize: 18
-            }
-            Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: metrics.loading ? "" : "cores: " + metrics.coreValues.map(function (v) {
-                    return v.toFixed(0);
-                }).join(", ")
-                color: "white"
-                opacity: 0.8
-                font.pixelSize: 11
-                wrapMode: Text.WordWrap
-                width: root.width - 40
-                horizontalAlignment: Text.AlignHCenter
-            }
-            Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: metrics.loading ? "" : "RAM: " + metrics.metricValue("ram").toFixed(1) + "%"
-                color: "white"
-                font.pixelSize: 18
-            }
-            Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: metrics.loading ? "" : "Disk: " + metrics.metricValue("disk").toFixed(1) + "%"
-                color: "white"
-                font.pixelSize: 18
-            }
-        }
+    Core.UpdateChecker {
+        id: updateCheckerAdapter
+        configStore: configStoreAdapter
+    }
+
+    // ── Portable body ───────────────────────────────────────────────
+    Core.MainContent {
+        id: content
+        anchors.centerIn: parent
+        theme: themeAdapter
+        configStore: configStoreAdapter
+        metrics: metricsAdapter
+        updateChecker: updateCheckerAdapter
+        // No-op until PR F2 ships the SettingsDialog + a way to open
+        // it. The badge will fire this when the user has a pending
+        // update notification — for now we silently ignore.
+        // TODO(PR F2): open the SettingsDialog here.
+        onConfigureRequested: {}
     }
 }

@@ -62,8 +62,25 @@ qt_add_qml_module(ring-monitor-standalone
     QML_FILES
         contents/ui/platforms/standalone/Main.qml
         contents/ui/platforms/standalone/MetricsBackend.qml
+        contents/ui/platforms/standalone/Theme.qml
+        contents/ui/platforms/standalone/ThemedIcon.qml
+        contents/ui/platforms/standalone/ConfigStore.qml
+        contents/ui/core/Ring.qml
+        contents/ui/core/MainContent.qml
+        contents/ui/core/DraggableList.qml
+        contents/ui/core/MetricRow.qml
+        contents/ui/core/AboutBody.qml
+        contents/ui/core/AppearanceBody.qml
+        contents/ui/core/MetricsBody.qml
+        contents/ui/core/UpdateChecker.qml
         contents/ui/core/ProcStatParser.js
         contents/ui/core/MemInfoParser.js
+        contents/ui/core/MetricsCatalog.js
+        contents/ui/core/ColorThemes.js
+        contents/ui/core/ReorderLogic.js
+        contents/ui/core/RingGeometry.js
+        contents/ui/core/SensorPicking.js
+        contents/ui/core/UpdateCheck.js
 )
 
 target_link_libraries(ring-monitor-standalone PRIVATE

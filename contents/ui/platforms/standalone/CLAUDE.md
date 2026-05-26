@@ -14,11 +14,26 @@ under "Standalone target — backend choice".
 
 | Adapter | Purpose | Status |
 |---|---|---|
-| `Main.qml` | Frameless transparent `Window` root (counterpart to PlasmoidItem) | placeholder (PR B1) |
+| `Main.qml` | Frameless transparent `Window` root + Conky-style hints (X11 / XWayland) | PR B1 (placeholder) + PR C (X11 EWMH hints in `standalone/desktop_hints.cpp`) |
 | `MetricsBackend.qml` | Direct reads from `/proc/stat`, `/proc/meminfo`, `statvfs(3)` | not yet (PR D, E) |
 | `ConfigStore.qml` | `Qt.labs.settings` reader/writer | not yet (PR F) |
 | `Theme.qml` | Kirigami theme tokens + Qt.styleHints light/dark | not yet (PR F) |
 | `ThemedIcon.qml` | wraps `Kirigami.Icon` (same as Plasma adapter) | not yet (PR F) |
+
+## Compositor support matrix (current)
+
+| Compositor | Status | How |
+|---|---|---|
+| **Plasma-X11**, XFCE, Cinnamon, MATE, LXQt | ✓ native | Qt::FramelessWindowHint + Qt::WindowStaysOnBottomHint + xcb EWMH hints (sticky, skip-taskbar, skip-pager); window type forced to `_NET_WM_WINDOW_TYPE_NORMAL` to undo Qt's `_KDE_NET_WM_WINDOW_TYPE_OVERRIDE` default |
+| **Plasma-Wayland** | ✓ via XWayland fallback | User sets `QT_QPA_PLATFORM=xcb` manually; STICKY may show as no-op in `xprop` if Plasma is on a single virtual desktop, but BELOW + SKIP_TASKBAR + SKIP_PAGER apply correctly |
+| **GNOME-Wayland (mutter)** | ✓ via auto-XWayland | `desktop_hints.cpp` detects mutter from `XDG_CURRENT_DESKTOP` and force-sets `QT_QPA_PLATFORM=xcb` before `QGuiApplication` |
+| **sway / Hyprland (wlroots-Wayland)** | ⚠ degraded — works only if user sets `QT_QPA_PLATFORM=xcb` | Layer-shell-qt-based native integration lands in a future PR |
+| **KWin-Wayland native** | ⚠ degraded — same as sway above | Layer-shell-qt path same as above |
+
+The "native Wayland layer-shell" path is deferred to a future PR
+(scoped as PR C2 in [plan.md](../../../../docs/plasma-isolation/plan.md))
+because installing `layer-shell-qt-devel` on the dev box requires an
+`rpm-ostree install + reboot` cycle.
 
 ## Same-surface rule
 

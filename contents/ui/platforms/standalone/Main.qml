@@ -26,6 +26,12 @@ Window {
     // wallpaper without a window chrome of their own. Plasma achieves
     // the same via `Plasmoid.backgroundHints: NoBackground` — we get
     // it explicitly here.
+    //
+    // WindowStaysOnBottomHint translates to `_NET_WM_STATE_BELOW`
+    // under X11/XWayland. The other EWMH states the Conky-style
+    // widget needs (sticky, skip-taskbar, skip-pager) are set by
+    // `standalone/desktop_hints.cpp` after the window is mapped —
+    // Qt has no direct flag for them.
     flags: Qt.FramelessWindowHint | Qt.WindowStaysOnBottomHint
     color: "transparent"
 

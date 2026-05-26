@@ -21,6 +21,14 @@ set(CMAKE_AUTOMOC ON)
 # a resource.
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Qml Quick)
 
+# XCB is used by desktop_hints.cpp for the X11/XWayland EWMH hints
+# (sticky, skip-taskbar, skip-pager). The Qt 6 native interface gives
+# us the xcb_connection_t; we still need the xcb headers + lib to
+# call xcb_intern_atom / xcb_send_event directly. pkg-config keeps
+# this portable across Linux distros (Fedora, Debian, Arch).
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(XCB REQUIRED IMPORTED_TARGET xcb)
+
 qt_standard_project_setup(REQUIRES 6.5)
 
 # ── Standalone executable ───────────────────────────────────────────
@@ -32,6 +40,8 @@ qt_standard_project_setup(REQUIRES 6.5)
 # single `cmake --install` ships both.
 qt_add_executable(ring-monitor-standalone
     standalone/main.cpp
+    standalone/desktop_hints.cpp
+    standalone/desktop_hints.h
 )
 
 # Bundle the QML as a compiled resource under the
@@ -50,4 +60,5 @@ target_link_libraries(ring-monitor-standalone PRIVATE
     Qt6::Gui
     Qt6::Qml
     Qt6::Quick
+    PkgConfig::XCB
 )

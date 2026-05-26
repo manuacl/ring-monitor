@@ -61,14 +61,36 @@ QT_QPA_PLATFORM=offscreen ./build/ring-monitor-standalone &
 sleep 2 && kill %1
 ```
 
-What you currently see (PR B1 placeholder): a 320×480 frameless
-transparent window with a translucent blue rectangle and the text
-`ring-monitor / standalone (B1 placeholder)`. The Conky-style
-compositor flags (always-on-bottom, click-through, layer-shell)
-arrive in PR C; the actual metric rendering in PR D / E.
+What you currently see: a 320×480 frameless transparent window
+with a translucent blue rectangle. PR C added the X11 EWMH hints
+(`_NET_WM_STATE_BELOW`, `SKIP_TASKBAR`, `SKIP_PAGER`, `STICKY`) so
+the window behaves Conky-style — sits on the wallpaper, not in the
+taskbar/pager, visible across workspaces. The actual metric
+rendering arrives in PR D / E.
+
+On Plasma-Wayland (and any Wayland session that doesn't yet have
+native layer-shell support in our build), force XWayland to get the
+Conky behaviour:
+
+```bash
+QT_QPA_PLATFORM=xcb ./build/ring-monitor-standalone
+```
+
+Under GNOME-Wayland the binary auto-detects mutter and force-sets
+`QT_QPA_PLATFORM=xcb` itself (mutter doesn't implement
+`wlr-layer-shell`, same fallback Conky uses there).
+
+Verify the hints landed with `xprop`:
+
+```bash
+xprop -id "$(xdotool search --name 'ring-monitor' | head -1)" \
+    _NET_WM_STATE _NET_WM_WINDOW_TYPE
+# Expect: _NET_WM_WINDOW_TYPE_NORMAL (not OVERRIDE)
+#         _NET_WM_STATE has BELOW, SKIP_TASKBAR, SKIP_PAGER
+```
 
 Build deps on Fedora/Bazzite: `qt6-qtbase-devel
-qt6-qtdeclarative-devel kf6-kirigami cmake gcc-c++`.
+qt6-qtdeclarative-devel kf6-kirigami cmake gcc-c++ libxcb-devel`.
 
 ## Restarting plasmashell
 

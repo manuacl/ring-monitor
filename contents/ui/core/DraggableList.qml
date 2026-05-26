@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
-import "../platforms/plasma" as Platform
+import org.kde.kirigami as Kirigami
 import "ReorderLogic.js" as Logic
 
 // Reusable vertical list with drag-to-reorder behaviour.
@@ -156,7 +156,7 @@ ListView {
                 anchors.rightMargin: 6
                 spacing: root.smallSpacing
 
-                Platform.ThemedIcon {
+                Kirigami.Icon {
                     source: "transform-move"
                     implicitWidth: root.iconSize
                     implicitHeight: root.iconSize

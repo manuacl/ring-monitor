@@ -1,17 +1,18 @@
 import QtQuick
 import QtQuick.Window
+import QtQuick.Controls as QQC2
 import "../../core" as Core
 
 // Standalone root window — counterpart to the PlasmoidItem in
 // contents/ui/main.qml. Frameless, transparent, sized to the rings'
 // implicit content size.
 //
-// Scope at this stage (PR F1): the three platform adapters
+// Scope at this stage (PR F2): the three platform adapters
 // (ConfigStore via Qt.labs.settings, Theme + ThemedIcon as Kirigami
-// passthroughs) are in place, so Core.MainContent renders the
-// actual rings here — replacing the smoke-test layout that PR D / E
-// shipped. The SettingsDialog opener (right-click menu or keyboard
-// shortcut) lands in PR F2.
+// passthroughs) are in place, so Core.MainContent renders the actual
+// rings. SettingsDialog wraps the same three core bodies the Plasma
+// side reuses — opened via the right-click context menu or the
+// update-available badge.
 //
 // Compositor-specific behaviour (always-on-bottom, EWMH hints,
 // click-through input region) sits in `standalone/desktop_hints.cpp`
@@ -53,6 +54,38 @@ Window {
         configStore: configStoreAdapter
     }
 
+    SettingsDialog {
+        id: settingsDialog
+        configStore: configStoreAdapter
+        theme: themeAdapter
+        updateChecker: updateCheckerAdapter
+    }
+
+    // ── Right-click context menu ────────────────────────────────────
+    //
+    // MouseArea only captures right-click so left-click on the
+    // (future) interactive parts of the rings stays free. The
+    // popup() coordinates are local to the MouseArea, which fills
+    // the window — Menu positions itself at the cursor.
+    MouseArea {
+        anchors.fill: parent
+        acceptedButtons: Qt.RightButton
+        onClicked: mouse => contextMenu.popup()
+    }
+
+    QQC2.Menu {
+        id: contextMenu
+        QQC2.MenuItem {
+            text: qsTr("Settings…")
+            onTriggered: settingsDialog.show()
+        }
+        QQC2.MenuSeparator {}
+        QQC2.MenuItem {
+            text: qsTr("Quit")
+            onTriggered: Qt.quit()
+        }
+    }
+
     // ── Portable body ───────────────────────────────────────────────
     Core.MainContent {
         id: content
@@ -61,10 +94,9 @@ Window {
         configStore: configStoreAdapter
         metrics: metricsAdapter
         updateChecker: updateCheckerAdapter
-        // No-op until PR F2 ships the SettingsDialog + a way to open
-        // it. The badge will fire this when the user has a pending
-        // update notification — for now we silently ignore.
-        // TODO(PR F2): open the SettingsDialog here.
-        onConfigureRequested: {}
+        // The update-badge click opens the same dialog as the
+        // right-click menu — discoverable nudge for users who haven't
+        // found the right-click yet.
+        onConfigureRequested: settingsDialog.show()
     }
 }

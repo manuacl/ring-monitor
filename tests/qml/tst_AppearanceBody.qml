@@ -12,9 +12,23 @@ Item {
     width: 400
     height: 400
 
+    // Stub ColorPicker — the body imports zero platform-namespaced
+    // QML now, so the test provides the Component the wrapper would.
+    // Same `color` property + `accepted` signal surface as both real
+    // adapters (platforms/plasma/ColorPicker.qml and
+    // platforms/standalone/ColorPicker.qml).
+    Component {
+        id: stubColorPicker
+        Item {
+            property color color: "#000000"
+            signal accepted
+        }
+    }
+
     Ui.AppearanceBody {
         id: body
         anchors.fill: parent
+        colorPickerComponent: stubColorPicker
     }
 
     TestCase {
@@ -75,8 +89,10 @@ Item {
         function test_custom_text_color_round_trips_through_pickers() {
             body.customTextColorLight = "#aabbcc";
             body.customTextColorDark = "#112233";
-            compare(body._lightTextColorButton.color.toString().toLowerCase(), "#aabbcc");
-            compare(body._darkTextColorButton.color.toString().toLowerCase(), "#112233");
+            // _lightTextColorButton is a Loader since the Component-
+            // injection refactor; the picker swatch lives on .item.
+            compare(body._lightTextColorButton.item.color.toString().toLowerCase(), "#aabbcc");
+            compare(body._darkTextColorButton.item.color.toString().toLowerCase(), "#112233");
         }
     }
 }

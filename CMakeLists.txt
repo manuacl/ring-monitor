@@ -19,7 +19,7 @@ set(CMAKE_AUTOMOC ON)
 # modern idiomatic way to ship QML in an executable — no filesystem
 # path resolution at runtime, the QML is compiled into the binary as
 # a resource.
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Qml Quick)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2)
 
 # XCB is used by desktop_hints.cpp for the X11/XWayland EWMH hints
 # (sticky, skip-taskbar, skip-pager). The Qt 6 native interface gives
@@ -65,6 +65,8 @@ qt_add_qml_module(ring-monitor-standalone
         contents/ui/platforms/standalone/Theme.qml
         contents/ui/platforms/standalone/ThemedIcon.qml
         contents/ui/platforms/standalone/ConfigStore.qml
+        contents/ui/platforms/standalone/SettingsDialog.qml
+        contents/ui/platforms/standalone/ColorPicker.qml
         contents/ui/core/Ring.qml
         contents/ui/core/MainContent.qml
         contents/ui/core/DraggableList.qml
@@ -88,6 +90,7 @@ target_link_libraries(ring-monitor-standalone PRIVATE
     Qt6::Gui
     Qt6::Qml
     Qt6::Quick
+    Qt6::QuickControls2
     PkgConfig::XCB
 )
 

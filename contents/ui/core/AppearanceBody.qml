@@ -3,7 +3,6 @@ import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import "ColorThemes.js" as ColorThemes
-import "../platforms/plasma" as Platform
 
 // Body of the Appearance config page. Owns the form layout, the
 // RadioButtons, and the three opacity sliders.
@@ -13,6 +12,13 @@ import "../platforms/plasma" as Platform
 // `property alias` declarations. The body never touches Plasmoid
 // configuration directly.
 //
+// The ColorPicker control is platform-dependent (Plasma wraps
+// KQuickControls.ColorButton, standalone wraps a plain Button +
+// QtQuick.Dialogs.ColorDialog), so the body takes it as a Component
+// the wrapper injects. Keeps `core/` free of any `org.kde.*` import
+// except Kirigami — the platform isolation invariant documented in
+// `core/CLAUDE.md`.
+//
 // i18n strings use qsTr() rather than Plasma's i18n() — Qt's
 // translation framework works in both the Plasma applet runtime and
 // a future standalone build, while i18n() requires KF6 runtime. See
@@ -20,6 +26,14 @@ import "../platforms/plasma" as Platform
 
 Kirigami.FormLayout {
     id: body
+
+    // ── Adapter input (injected by wrapper) ─────────────────────────
+    //
+    // Surface contract: any QML item with a writable `color` property
+    // and an `accepted` signal fired when the user confirms a new
+    // colour. Both `platforms/plasma/ColorPicker.qml` and
+    // `platforms/standalone/ColorPicker.qml` honour this.
+    property Component colorPickerComponent
 
     // ── Bridged via aliases in the wrapper (cfg_orientation ↔ body.orientation, etc.) ──
     property string orientation: "horizontal"
@@ -172,10 +186,19 @@ Kirigami.FormLayout {
         Kirigami.FormData.label: qsTr("Light color:")
         visible: body.colorTheme === "custom"
 
-        Platform.ColorPicker {
+        Loader {
             id: lightColorButton
-            color: body.customColorLight
-            onAccepted: body.customColorLight = color
+            sourceComponent: body.colorPickerComponent
+            onLoaded: {
+                if (!item)
+                    return;
+                item.color = Qt.binding(function () {
+                    return body.customColorLight;
+                });
+                item.accepted.connect(function () {
+                    body.customColorLight = item.color;
+                });
+            }
         }
     }
 
@@ -183,10 +206,19 @@ Kirigami.FormLayout {
         Kirigami.FormData.label: qsTr("Dark color:")
         visible: body.colorTheme === "custom"
 
-        Platform.ColorPicker {
+        Loader {
             id: darkColorButton
-            color: body.customColorDark
-            onAccepted: body.customColorDark = color
+            sourceComponent: body.colorPickerComponent
+            onLoaded: {
+                if (!item)
+                    return;
+                item.color = Qt.binding(function () {
+                    return body.customColorDark;
+                });
+                item.accepted.connect(function () {
+                    body.customColorDark = item.color;
+                });
+            }
         }
     }
 
@@ -221,10 +253,19 @@ Kirigami.FormLayout {
         Kirigami.FormData.label: qsTr("Light text color:")
         visible: body.textColorMode === "custom"
 
-        Platform.ColorPicker {
+        Loader {
             id: lightTextColorButton
-            color: body.customTextColorLight
-            onAccepted: body.customTextColorLight = color
+            sourceComponent: body.colorPickerComponent
+            onLoaded: {
+                if (!item)
+                    return;
+                item.color = Qt.binding(function () {
+                    return body.customTextColorLight;
+                });
+                item.accepted.connect(function () {
+                    body.customTextColorLight = item.color;
+                });
+            }
         }
     }
 
@@ -232,10 +273,19 @@ Kirigami.FormLayout {
         Kirigami.FormData.label: qsTr("Dark text color:")
         visible: body.textColorMode === "custom"
 
-        Platform.ColorPicker {
+        Loader {
             id: darkTextColorButton
-            color: body.customTextColorDark
-            onAccepted: body.customTextColorDark = color
+            sourceComponent: body.colorPickerComponent
+            onLoaded: {
+                if (!item)
+                    return;
+                item.color = Qt.binding(function () {
+                    return body.customTextColorDark;
+                });
+                item.accepted.connect(function () {
+                    body.customTextColorDark = item.color;
+                });
+            }
         }
     }
 

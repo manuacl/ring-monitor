@@ -1,6 +1,7 @@
 import QtQuick
 import org.kde.kcmutils as KCM
 import "core" as Core
+import "platforms/plasma" as Platform
 
 // Plasma-side wrapper for the Appearance config page. All of the
 // rendering lives in AppearanceBody.qml — this file's only job is to
@@ -54,7 +55,18 @@ KCM.SimpleKCM {
     property var cfg_customTextColorDarkDefault
     property var cfg_tempUnitDefault
 
+    // ColorPicker is platform-specific (Plasma wraps KQuickControls.ColorButton,
+    // standalone wraps a plain Button + QtQuick.Dialogs.ColorDialog).
+    // AppearanceBody takes the wrapped widget as a Component prop so it
+    // stays free of any Platform-namespaced import — see core/CLAUDE.md
+    // § "Plasma isolation is the load-bearing invariant".
+    Component {
+        id: colorPickerComponent
+        Platform.ColorPicker {}
+    }
+
     Core.AppearanceBody {
         id: body
+        colorPickerComponent: colorPickerComponent
     }
 }

@@ -123,6 +123,18 @@ test("metricValue dispatches gpu and gpuTemp ids to the dynamic helpers", () => 
     assert.match(SOURCE, /if\s*\(\s*id\s*===\s*"gpuTemp"\s*\)\s*return\s+backend\._gpuTempValue/, 'metricValue must short-circuit id === "gpuTemp" to backend._gpuTempValue');
 });
 
+test("MetricsBackend imports SensorPicking and delegates the 'first ready wins' picking", () => {
+    // The two dynamic getters (_gpuTempValue, _gpuUsageValue) used to
+    // duplicate a `for (i) { if (s.status === Ready) return s.value }`
+    // block. The picking algorithm is now SensorPicking.pickFirstReadyValue
+    // in core/ — testable in Node, and reusable by the future
+    // standalone backend. The QML side just maps each Sensor to a
+    // {ready, value} pair and passes the list down.
+    assert.match(SOURCE, /import\s+["']\.\.\/\.\.\/core\/SensorPicking\.js["']\s+as\s+SensorPicking/, "MetricsBackend.qml must import the core SensorPicking module");
+    const callCount = (SOURCE.match(/SensorPicking\.pickFirstReadyValue\s*\(/g) || []).length;
+    assert.equal(callCount, 2, "expected exactly two pickFirstReadyValue call sites (_gpuTempValue, _gpuUsageValue)");
+});
+
 test("loading binding watches the universal aggregates' status", () => {
     // loading drives the 100%-fill warming-up animation in MainContent.
     // It must clear once cpuTotal AND ramSensor reach Sensor.Ready,

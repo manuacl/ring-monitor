@@ -2,6 +2,7 @@ import QtQuick
 import QtQml.Models
 import org.kde.ksysguard.sensors as Sensors
 import "../../core/MetricsCatalog.js" as Catalog
+import "../../core/SensorPicking.js" as SensorPicking
 
 // Platform adapter: wraps the KSysGuard sensor system used by the
 // Plasma build. Exposes the metric values main.qml needs as a stable
@@ -202,12 +203,16 @@ Item {
     property int _gpuTempTick: 0
     readonly property real _gpuTempValue: {
         backend._gpuTempTick;
+        var candidates = [];
         for (var i = 0; i < gpuTempInstantiator.count; i++) {
             var s = gpuTempInstantiator.objectAt(i);
-            if (s && s.status === Sensors.Sensor.Ready)
-                return s.value || 0;
+            if (s)
+                candidates.push({
+                    "ready": s.status === Sensors.Sensor.Ready,
+                    "value": s.value
+                });
         }
-        return 0;
+        return SensorPicking.pickFirstReadyValue(candidates);
     }
     Instantiator {
         id: gpuTempInstantiator
@@ -226,14 +231,21 @@ Item {
     readonly property real _gpuUsageValue: {
         backend._gpuUsageTick;
         // Aggregate first — when ksysguard exposes it we trust it.
-        if (gpuAllSensor.status === Sensors.Sensor.Ready)
-            return gpuAllSensor.value || 0;
+        var candidates = [
+            {
+                "ready": gpuAllSensor.status === Sensors.Sensor.Ready,
+                "value": gpuAllSensor.value
+            }
+        ];
         for (var i = 0; i < gpuUsageInstantiator.count; i++) {
             var s = gpuUsageInstantiator.objectAt(i);
-            if (s && s.status === Sensors.Sensor.Ready)
-                return s.value || 0;
+            if (s)
+                candidates.push({
+                    "ready": s.status === Sensors.Sensor.Ready,
+                    "value": s.value
+                });
         }
-        return 0;
+        return SensorPicking.pickFirstReadyValue(candidates);
     }
     Connections {
         target: gpuAllSensor

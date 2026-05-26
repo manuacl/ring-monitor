@@ -9,7 +9,7 @@
 | 3 | MetricsBackend extraction (`platforms/plasma/MetricsBackend.qml`) | merged (#11) |
 | 4 | Body extraction (`MainContent`/`AppearanceBody`/`MetricsBody` + `cfg_*` bridges) | merged (#12) |
 | 5 | FormLayout helper | **skipped** — `Kirigami.FormLayout` reads cleanly and Kirigami is usable outside Plasma on any Qt 6 desktop |
-| 6 | File reorganization into `core/` + `finish-branch` invariant | in flight (this PR) |
+| 6 | File reorganization into `core/` + `finish-branch` invariant | merged (#15 file-reorg, #19 platforms namespace rename) |
 
 Path notes from PR 6: the simpler variant was chosen — `core/`
 holds the portable subset, `platforms/plasma/` holds the Plasma
@@ -270,6 +270,152 @@ skill: rewrite hardcoded path greps + add
   Throughout PRs 1-5 these still work (files stay in place). PR 6
   rewrites them to point at `core/`.
 
+## Standalone target — backend choice
+
+**Scope.** The standalone target is **Linux, all distributions** —
+not Windows, not macOS. The architecture decisions below assume that
+constraint.
+
+### Window model (Conky-style desktop widget)
+
+The standalone window is **frameless, transparent, always on the
+wallpaper layer**, on all workspaces, no taskbar/pager entry. Input
+model: **left-click captured but inert** (no action), **right-click
+and hover captured** by the app (right-click → settings menu, hover
+reserved for a future feature).
+
+Per-compositor implementation:
+
+| Compositor | Mechanism |
+|---|---|
+| **X11** (Xorg or XWayland-only sessions) | `_NET_WM_WINDOW_TYPE_DESKTOP` + EWMH hints `sticky + below + skip_taskbar + skip_pager + undecorated` |
+| **KWin-Wayland** (KDE Plasma) | `wlr-layer-shell-unstable-v1`, `layer: background`, anchor + margin |
+| **sway / Hyprland / wlroots-Wayland** | Same as KWin (`wlr-layer-shell` is the wlroots-native protocol) |
+| **mutter (GNOME-Wayland)** | **No native path.** Force XWayland (`QT_QPA_PLATFORM=xcb` injected by our binary) + Conky-style hints: `own_window_type=normal` equivalent + `sticky,below,skip_taskbar,skip_pager,undecorated`. Best-effort: known glitches (raise/hide on desktop click, Activities mode breaks ordering) — same trade-off Conky's users accept. |
+
+The mutter case is a deliberate "imitate Conky" fallback because
+GNOME has refused to implement `wlr-layer-shell`
+([mutter#973](https://gitlab.gnome.org/GNOME/mutter/-/work_items/973))
+and provides no equivalent xdg-shell extension for third-party
+desktop widgets. The only "proper" GNOME path is a gjs/Clutter
+shell extension, which is out of scope (it would require
+reimplementing the entire QML rendering layer in JavaScript).
+
+### Distribution format
+
+**AppImage, single artifact**, hosted on GitHub Releases alongside
+the existing Plasma `.plasmoid` build. Rationale:
+
+- Works on every Linux distribution without per-distro packaging.
+- Embeds Qt 6 + Kirigami 6 so the user has zero runtime
+  dependencies to install — important because Kirigami isn't
+  installed by default outside KDE distros.
+- No sandbox, which keeps the direct `/proc`, `/sys/class/hwmon`,
+  `/sys/class/drm` reads simple and lets us subprocess
+  `nvidia-smi` without manifest gymnastics.
+- The user downloads one file, `chmod +x`, runs. Updates are
+  handled by the existing `UpdateChecker` (the GitHub Releases API
+  already powers it).
+
+Flatpak / native packages (RPM + DEB via OBS) are deferred — they
+add packaging maintenance overhead for marginal gain over AppImage
+as a v1 strategy. Revisit once the standalone build has real
+adoption.
+
+### MVP scope
+
+The first standalone version ships **a single fixed window with
+CPU, RAM, and disk** — no GPU, no temperatures, no swap.
+
+Sources:
+- CPU usage (total + per-core) via `/proc/stat` deltas
+- RAM via `/proc/meminfo` (`MemTotal`, `MemAvailable`)
+- Disk via `statvfs(3)` on the mount root
+
+Goal: validate the end-to-end loop — window creation, layer-shell /
+XWayland integration per compositor, Qt+QML lifecycle outside
+Plasma, `/proc` sampling cadence, ring animation. Once that loop is
+solid, GPU (sysfs + `nvidia-smi`), temperatures (hwmon), and swap
+are added as follow-up PRs.
+
+### Repository structure
+
+Same repo, single source tree. The standalone adapter sits at
+`contents/ui/platforms/standalone/` next to `platforms/plasma/`,
+sharing all of `contents/ui/core/`. The release pipeline produces
+two artifacts: the existing `.plasmoid` and the new AppImage.
+Splitting the repo would defeat the "maximize shared code" rule
+that drives the whole isolation refactor.
+
+### Standalone implementation sequence
+
+Eight PRs, delivered one at a time. Each one stops and waits for
+manual validation before the next starts. The Plasma build must keep
+working at every step.
+
+| # | Goal | What changes | Risk |
+|---|---|---|---|
+| **A** | Extract reusable picking helper | `core/SensorPicking.js` (new) with `pickFirstReadyValue(candidates)`. Replaces the two duplicated "first Ready sensor wins" blocks in `MetricsBackend.qml` (`_gpuUsageValue`, `_gpuTempValue`). Pure helper, fully testable in Node. **No standalone work yet — this is pre-work that benefits the Plasma build too.** | Near-zero. Refactor of existing logic, behaviour identical. |
+| **B** | Standalone build infrastructure | `CMakeLists.txt` at repo root, `standalone/main.cpp` that loads `contents/ui/platforms/standalone/Main.qml` and creates a frameless transparent Window. AppImage build script (`linuxdeploy` + `linuxdeploy-plugin-qt`). Plasma `.plasmoid` build untouched. Binary opens an empty window — no metrics yet. | Low. Pure infrastructure, doesn't touch Plasma. |
+| **C** | Window integration per compositor | Detect display server (X11 vs Wayland), under Wayland detect `wlr-layer-shell` (via `layer-shell-qt` if available, falls back to plain `xdg-toplevel`), set window flags per the table above. Force `QT_QPA_PLATFORM=xcb` under mutter (Conky-style fallback). Test on Plasma-X11, KWin-Wayland, sway, mutter. | Medium. The compositor matrix is where edge cases hide. |
+| **D** | Standalone `MetricsBackend` — CPU only | `platforms/standalone/MetricsBackend.qml` exposing the same surface as the Plasma adapter. Backend = `Timer` polling `/proc/stat` at 1 Hz, computing deltas. Per-core values populated. Hook the existing `core/MainContent.qml` view stack to this backend. | Medium. First time `core/` is consumed by something other than Plasma. |
+| **E** | Add RAM + disk to standalone backend | `/proc/meminfo` for RAM, `statvfs(3)` for disk. MVP is feature-complete at this point: CPU + cores + RAM + disk. Other metrics (gpu, swap, temp) return 0/null. | Low. Same pattern as PR D. |
+| **F** | Standalone `ConfigStore` + Settings dialog | `platforms/standalone/ConfigStore.qml` backed by `Qt.labs.settings` (INI file at `~/.config/dev.manuacl.ringmonitor/config.ini`). Settings dialog = a normal `Dialog` wrapping `core/MetricsBody.qml` and `core/AppearanceBody.qml` (already in `core/`, so this is mostly wiring). | Low-medium. The bodies are reusable, the writer side needs careful symmetric naming. |
+| **G** | Right-click menu + lifecycle | Right-click anywhere on the widget → context menu (Settings, About, Quit). System tray icon? Probably not for v1 (too DE-dependent). Autostart `.desktop` file optionally written by the app on first run. | Low. UI plumbing. |
+| **H** | Release pipeline | GitHub Actions: on a release tag, build the AppImage and attach it to the release. Update `docs/releasing.md`. The existing `UpdateChecker` in `core/` already polls GitHub Releases so update notifications work out of the box. | Low. Mostly CI YAML. |
+
+**Post-MVP** (separate PRs after H ships): GPU usage (DRM sysfs +
+`nvidia-smi`), CPU temperature (hwmon `coretemp` / `k10temp`), GPU
+temperature (hwmon attached to the DRM card, NVIDIA via
+`nvidia-smi`), swap.
+
+The deferred questions — **5. settings dialog opener UX** (tray icon
+vs right-click vs CLI) — get answered concretely in PR F/G.
+
+
+
+**Guiding principle: maximize what lives in `core/`.** Every line of
+logic that ends up duplicated between `platforms/plasma/` and the
+future `platforms/standalone/` is a line that has to be re-written,
+re-tested, and re-fixed twice. When in doubt, push the pure part of
+a Plasma-adapter file down into a `core/*.js` helper and let the
+adapter stay a thin wiring layer over the platform API. The `core/`
+import invariant (no `org.kde.*` except `org.kde.kirigami`) is the
+mechanised floor of this rule; the rule itself goes further — even
+inside what's allowed in `platforms/`, prefer to keep it small.
+
+**Backend.** The standalone `MetricsBackend.qml` will **not** depend
+on `libksysguard` / `org.kde.ksysguard.sensors`. It reads kernel and
+driver surfaces directly:
+
+| Metric | Source |
+|---|---|
+| CPU usage (total + per-core) | `/proc/stat` — sample `cpuN` lines, compute deltas between ticks |
+| RAM / swap | `/proc/meminfo` (`MemTotal`, `MemAvailable`, `SwapTotal`, `SwapFree`) |
+| CPU temperature | `/sys/class/hwmon/hwmon*/temp*_input` — pick the `coretemp` / `k10temp` package sensor by label |
+| GPU usage / VRAM / temperature (AMD, Intel) | `/sys/class/drm/cardN/device/gpu_busy_percent`, `mem_info_vram_used/total`, hwmon attached to the DRM node |
+| GPU usage / VRAM / temperature (NVIDIA) | subprocess `nvidia-smi --query-gpu=utilization.gpu,memory.used,memory.total,temperature.gpu --format=csv,noheader,nounits` |
+| Disk usage | `statvfs(3)` on the mount root |
+
+**Rationale.** A Plasma widget user already has `ksystemstats`
+running. A standalone user on GNOME / sway / Hyprland may not, and
+pulling `libksysguard6` + half of kf6 as a dependency just to read
+sensors is disproportionate. Reading `/proc` and `/sys` directly
+keeps the standalone build's footprint to **Qt 6 + Kirigami 6** only
+— which Kirigami already is.
+
+**Cost.** The discovery code currently provided for free by
+`SensorTreeModel` (per-core enumeration, GPU index probing, hwmon
+label classification) has to be reimplemented. Estimate: 2-3 weeks
+of focused work for the backend alone. Acceptable price for keeping
+the standalone build dep-clean.
+
+**Out of scope for now.** The work isn't scheduled yet — this
+section records the *decision*, not a commitment. When the
+standalone effort starts, the contract is: same `MetricsBackend.qml`
+property surface as the Plasma adapter, swappable at the
+`platforms/<host>/` seam, zero impact on `core/`.
+
 ## What this refactor does NOT solve
 
 - **Shipping a standalone build.** Still requires writing
@@ -278,5 +424,6 @@ skill: rewrite hardcoded path greps + add
   KDE's applet enumeration is bound to
   `KPackageStructure: "Plasma/Applet"`.
 - **Cross-platform metric semantics.** KSysGuard IDs
-  (`cpu/cpu0/usage`) don't map 1:1 to `/proc/stat` fields. Future
-  `MetricsBackend-standalone` needs translation per-platform.
+  (`cpu/cpu0/usage`) don't map 1:1 to `/proc/stat` fields. The
+  standalone `MetricsBackend.qml` needs the translation layer
+  described above (`/proc`, `/sys`, `nvidia-smi`).

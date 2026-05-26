@@ -126,3 +126,26 @@ for the UI) keeps the two concerns independent: a successful fetch with
 a remote == local doesn't surface a badge, and an unacknowledged update
 keeps showing the badge across widget restarts without re-hitting the
 network. Encoded as tests in `tests/update-check.test.mjs`.
+
+## `SensorPicking.js`
+
+Pure picking algorithm for "list of candidate sensors, return the
+first one that's ready". Used by `MetricsBackend.qml` for the GPU
+usage/temp fallback chain (try the `gpu/all/*` aggregate, fall back
+to any per-GPU sensor that resolved). The standalone backend will
+reuse the same helper when probing across hwmon paths and DRM
+cards — only the definition of "ready" differs per platform.
+
+| Function | Purpose |
+|---|---|
+| `pickFirstReadyValue(candidates)` | First `{ready:true}` candidate's `value` (`|| 0` for `undefined`/`NaN`); `0` if no candidate is ready. Null/undefined entries in the list are skipped so callers can build the list with `if (s) candidates.push(...)` without an extra filter pass. |
+
+Why a dedicated module instead of inlining? Two reasons. (1) The
+algorithm has subtle edge cases — a `value: 0` from a ready sensor
+must NOT fall through to the next candidate, but a `value: null`
+must (and the `|| 0` rule handles both). Centralising the test
+matrix in Node is cheaper than asserting it via QML test harnesses.
+(2) "Maximize shared code" — the standalone backend will reuse this
+verbatim, so it has to live in `core/`. See
+[`plasma-isolation/plan.md`](plasma-isolation/plan.md) "PR A" for
+the broader rationale.

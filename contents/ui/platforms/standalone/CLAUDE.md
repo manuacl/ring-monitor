@@ -15,7 +15,7 @@ under "Standalone target — backend choice".
 | Adapter | Purpose | Status |
 |---|---|---|
 | `Main.qml` | Frameless transparent `Window` root + Conky-style hints (X11 / XWayland) | PR B1 (placeholder) + PR C (X11 EWMH hints in `standalone/desktop_hints.cpp`) |
-| `MetricsBackend.qml` | Direct reads from `/proc/stat`, `/proc/meminfo`, `statvfs(3)` | **PR D: CPU usage (`/proc/stat`) ✓** ; RAM / disk pending PR E |
+| `MetricsBackend.qml` | Direct reads from `/proc/stat`, `/proc/meminfo`, `statvfs(3)` | **PR D: CPU usage (`/proc/stat`) ✓** ; **PR E: RAM (`/proc/meminfo`) + disk (`statvfs(/)`) ✓** ; GPU + temps post-MVP |
 | `ConfigStore.qml` | `Qt.labs.settings` reader/writer | not yet (PR F) |
 | `Theme.qml` | Kirigami theme tokens + Qt.styleHints light/dark | not yet (PR F) |
 | `ThemedIcon.qml` | wraps `Kirigami.Icon` (same as Plasma adapter) | not yet (PR F) |
@@ -29,7 +29,11 @@ resource. The `ProcReader` helper in `standalone/proc_reader.{h,cpp}`
 sidesteps that with a `Q_INVOKABLE QString read(const QString &)`
 exposed to QML via `QML_ELEMENT` (auto-registered through
 `qt_add_qml_module(... SOURCES ...)`). Available in QML as
-`import RingMonitor.Standalone; ProcReader { id: reader }`.
+`import RingMonitor.Standalone; ProcReader { id: reader }`. The same
+helper also wraps `statvfs(3)` via `Q_INVOKABLE QVariantMap statvfs(const QString &path)` —
+QML can't issue syscalls and `statvfs` is the only one we need for
+PR E (disk capacity). Returns `{ total, available }` in bytes; empty
+map on failure.
 
 The class lives at global scope (not in `ringmonitor::`) because
 Qt 6's QML auto-registration generates code calling

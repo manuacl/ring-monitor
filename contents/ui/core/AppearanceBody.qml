@@ -30,6 +30,9 @@ Kirigami.FormLayout {
     property string colorMode: "auto"
     property color customColorLight: "#3daee9"
     property color customColorDark: "#3daee9"
+    property string textColorMode: "system"
+    property color customTextColorLight: "#232629"
+    property color customTextColorDark: "#fcfcfc"
 
     // Built once at load time — the labels go through qsTr() so xgettext
     // picks them up, while ColorThemes.js stays free of i18n machinery.
@@ -187,6 +190,55 @@ Kirigami.FormLayout {
         }
     }
 
+    Item {
+        Kirigami.FormData.isSection: true
+    }
+
+    // Text color: "system" follows Kirigami.Theme.textColor (the default
+    // — pushes users toward the neutral gray that fits the "anneaux
+    // modernes épurés" aesthetic). "custom" exposes a L/D pair gated by
+    // the same colorMode (auto/light/dark) used by the ring color, so a
+    // user on a transparent panel or in standalone mode can pin the
+    // text to whatever reads best against their wallpaper.
+    RowLayout {
+        Kirigami.FormData.label: qsTr("Text color:")
+
+        QQC2.RadioButton {
+            id: textColorSystem
+            text: qsTr("System")
+            checked: body.textColorMode === "system"
+            onClicked: body.textColorMode = "system"
+        }
+        QQC2.RadioButton {
+            id: textColorCustom
+            text: qsTr("Custom")
+            checked: body.textColorMode === "custom"
+            onClicked: body.textColorMode = "custom"
+        }
+    }
+
+    RowLayout {
+        Kirigami.FormData.label: qsTr("Light text color:")
+        visible: body.textColorMode === "custom"
+
+        Platform.ColorPicker {
+            id: lightTextColorButton
+            color: body.customTextColorLight
+            onAccepted: body.customTextColorLight = color
+        }
+    }
+
+    RowLayout {
+        Kirigami.FormData.label: qsTr("Dark text color:")
+        visible: body.textColorMode === "custom"
+
+        Platform.ColorPicker {
+            id: darkTextColorButton
+            color: body.customTextColorDark
+            onAccepted: body.customTextColorDark = color
+        }
+    }
+
     // ── Test hooks ──────────────────────────────────────────────────
     readonly property alias _textSlider: textSlider
     readonly property alias _trackSlider: trackSlider
@@ -197,4 +249,8 @@ Kirigami.FormLayout {
     readonly property alias _modeDark: modeDark
     readonly property alias _lightColorButton: lightColorButton
     readonly property alias _darkColorButton: darkColorButton
+    readonly property alias _textColorSystem: textColorSystem
+    readonly property alias _textColorCustom: textColorCustom
+    readonly property alias _lightTextColorButton: lightTextColorButton
+    readonly property alias _darkTextColorButton: darkTextColorButton
 }

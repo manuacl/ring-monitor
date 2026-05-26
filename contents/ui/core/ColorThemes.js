@@ -64,11 +64,27 @@ function resolveColor(themeId, isDark, systemHighlight, customLight, customDark)
     return isDark ? theme.darkColor : theme.lightColor;
 }
 
+// Text color resolver — simpler than resolveColor (no predefined
+// palette): only "system" (forward the platform text color straight
+// through) and "custom" (pick between the user's L/D pair, gated by
+// the same effectiveIsDark resolution as the ring color). Unknown
+// modes fall back to "system" so a stale config value never produces
+// undefined.
+function resolveTextColor(mode, isDark, systemText, customLight, customDark) {
+    var resolvers = {
+        system: function () { return systemText; },
+        custom: function () { return isDark ? customDark : customLight; },
+    };
+    var pick = resolvers[mode] || resolvers.system;
+    return pick();
+}
+
 if (typeof module !== "undefined" && module.exports) {
     module.exports = {
         THEMES: THEMES,
         THEMES_BY_ID: THEMES_BY_ID,
         effectiveIsDark: effectiveIsDark,
         resolveColor: resolveColor,
+        resolveTextColor: resolveTextColor,
     };
 }

@@ -24,6 +24,9 @@ KCM.SimpleKCM {
     property alias cfg_colorMode: body.colorMode
     property alias cfg_customColorLight: body.customColorLight
     property alias cfg_customColorDark: body.customColorDark
+    property alias cfg_textColorMode: body.textColorMode
+    property alias cfg_customTextColorLight: body.customTextColorLight
+    property alias cfg_customTextColorDark: body.customTextColorDark
 
     // KDE bug 484541 placeholders — keys handled on other pages and the
     // *Default variants Plasma auto-generates for "Reset to defaults".
@@ -46,6 +49,9 @@ KCM.SimpleKCM {
     property var cfg_colorModeDefault
     property var cfg_customColorLightDefault
     property var cfg_customColorDarkDefault
+    property var cfg_textColorModeDefault
+    property var cfg_customTextColorLightDefault
+    property var cfg_customTextColorDarkDefault
     property var cfg_tempUnitDefault
 
     Core.AppearanceBody {

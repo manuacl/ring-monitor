@@ -79,6 +79,21 @@
             <default>#3daee9</default>
         </entry>
 
+        <entry name="textColorMode" type="String">
+            <label>How the label/value text color is picked: "system" (follow Kirigami theme) or "custom"</label>
+            <default>system</default>
+        </entry>
+
+        <entry name="customTextColorLight" type="Color">
+            <label>Text color used in light color schemes when textColorMode=custom</label>
+            <default>#232629</default>
+        </entry>
+
+        <entry name="customTextColorDark" type="Color">
+            <label>Text color used in dark color schemes when textColorMode=custom</label>
+            <default>#fcfcfc</default>
+        </entry>
+
         <entry name="tempUnit" type="String">
             <label>Temperature display unit: "auto" (follow system), "celsius", or "fahrenheit"</label>
             <default>auto</default>

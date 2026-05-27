@@ -127,6 +127,29 @@ request against Qt's default frameless override-redirect window-type
 exists to avoid. It surfaced as a brief jump on first show. Deferring
 to step 3 lets the window-type land first.
 
+### `_NET_WM_STATE` is set as a property, not via a ClientMessage
+
+`applyDesktopWindowHints` in `standalone/desktop_hints.cpp` writes the
+state list (`STICKY + SKIP_TASKBAR + SKIP_PAGER + BELOW`) using
+`xcb_change_property` with `XCB_PROP_MODE_REPLACE`, **not** via
+`xcb_send_event` ClientMessages. The reason is the call timing: the
+function runs from `main.cpp` **between** `engine.loadFromModule` and
+`app.exec()`, when the QML `visible: true` show() request has been
+queued but the event loop hasn't started yet — the X server hasn't
+seen `MapWindow` for our window. EWMH §"_NET_WM_STATE" assigns
+ClientMessages to runtime mutation of **mapped** windows; KWin (and
+mutter through XWayland) silently drop ClientMessages targeting
+unmapped windows, which is why STICKY / SKIP_TASKBAR / SKIP_PAGER
+used to show up flaky in `xprop` after launch.
+
+Setting the property pre-map is the spec-compliant declaration path
+— the WM reads it during `MapRequest` and treats absent or empty as
+"no states". `_NET_WM_STATE_BELOW` is included explicitly: Qt's xcb
+plugin would add it post-map via ClientMessage (driven by
+`Qt::WindowStaysOnBottomHint`), but our `REPLACE` would otherwise
+clobber any pre-existing list, so being explicit removes the race
+with Qt's init order. Text-guarded by `tests/desktop-hints.test.mjs`.
+
 ### XWayland probe before forcing `QT_QPA_PLATFORM=xcb`
 
 `forceXWaylandUnderWayland` in `standalone/desktop_hints.cpp` must

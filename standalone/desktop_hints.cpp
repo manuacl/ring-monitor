@@ -55,7 +55,7 @@ namespace {
 xcb_atom_t internAtom(xcb_connection_t *conn, const char *name)
 {
     const xcb_intern_atom_cookie_t cookie =
-        xcb_intern_atom(conn, 0, qstrlen(name), name);
+        xcb_intern_atom(conn, 0, static_cast<uint16_t>(qstrlen(name)), name);
     xcb_intern_atom_reply_t *reply =
         xcb_intern_atom_reply(conn, cookie, nullptr);
     if (!reply)
@@ -63,37 +63,6 @@ xcb_atom_t internAtom(xcb_connection_t *conn, const char *name)
     const xcb_atom_t atom = reply->atom;
     std::free(reply);
     return atom;
-}
-
-// EWMH-spec'd way to change `_NET_WM_STATE` at runtime: send a
-// ClientMessage to the root window with _NET_WM_STATE_ADD (=1) and up
-// to two state atoms. We need three (sticky, skip_taskbar, skip_pager
-// — `_NET_WM_STATE_BELOW` already set by Qt::WindowStaysOnBottomHint),
-// so two messages are required.
-void addStates(xcb_connection_t *conn,
-               xcb_window_t winid,
-               xcb_window_t root,
-               xcb_atom_t net_wm_state,
-               xcb_atom_t atom_a,
-               xcb_atom_t atom_b)
-{
-    xcb_client_message_event_t event = {};
-    event.response_type = XCB_CLIENT_MESSAGE;
-    event.format = 32;
-    event.window = winid;
-    event.type = net_wm_state;
-    event.data.data32[0] = 1;  // _NET_WM_STATE_ADD
-    event.data.data32[1] = atom_a;
-    event.data.data32[2] = atom_b;  // 0 if only one atom
-    event.data.data32[3] = 1;  // source indication: normal application
-    event.data.data32[4] = 0;
-
-    xcb_send_event(conn,
-                   /*propagate=*/false,
-                   root,
-                   XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT |
-                       XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY,
-                   reinterpret_cast<const char *>(&event));
 }
 
 }  // namespace
@@ -124,6 +93,7 @@ void applyDesktopWindowHints(QWindow *window)
         internAtom(conn, "_NET_WM_STATE_SKIP_TASKBAR");
     const xcb_atom_t state_skip_pager =
         internAtom(conn, "_NET_WM_STATE_SKIP_PAGER");
+    const xcb_atom_t state_below = internAtom(conn, "_NET_WM_STATE_BELOW");
     const xcb_atom_t net_wm_window_type =
         internAtom(conn, "_NET_WM_WINDOW_TYPE");
     const xcb_atom_t window_type_desktop =
@@ -131,14 +101,9 @@ void applyDesktopWindowHints(QWindow *window)
 
     if (net_wm_state == XCB_ATOM_NONE || state_sticky == XCB_ATOM_NONE ||
         state_skip_taskbar == XCB_ATOM_NONE ||
-        state_skip_pager == XCB_ATOM_NONE ||
+        state_skip_pager == XCB_ATOM_NONE || state_below == XCB_ATOM_NONE ||
         net_wm_window_type == XCB_ATOM_NONE ||
         window_type_desktop == XCB_ATOM_NONE)
-        return;
-
-    const xcb_screen_t *screen =
-        xcb_setup_roots_iterator(xcb_get_setup(conn)).data;
-    if (!screen)
         return;
 
     // Qt sets `_KDE_NET_WM_WINDOW_TYPE_OVERRIDE` as a side effect of
@@ -150,24 +115,43 @@ void applyDesktopWindowHints(QWindow *window)
     // root cause behind our slider-driven repositioning glitch — see
     // QTBUG-57608 + the `setGeometry()` helper in `window_anchor.h`)
     // and aligns us with the Conky / xfce4-panel convention for
-    // "lives on the wallpaper" widgets.
+    // "lives on the wallpaper" widgets. The WM reads this property
+    // during MapRequest — works pre-map (which is when this function
+    // runs from `main.cpp`, ahead of `app.exec()`).
     xcb_change_property(conn, XCB_PROP_MODE_REPLACE, winid,
                         net_wm_window_type, XCB_ATOM_ATOM, 32, 1,
                         &window_type_desktop);
 
-    // One atom per ClientMessage is the most portable form (some WMs
-    // only honour the first slot reliably).
+    // _NET_WM_STATE: declared as a PROPERTY before the window maps,
+    // not via a ClientMessage. EWMH §"_NET_WM_STATE" assigns the
+    // ClientMessage protocol (`_NET_WM_STATE_ADD` etc.) to mutating
+    // the state list of a **mapped** window at runtime — but our
+    // caller in `main.cpp` runs synchronously between
+    // `engine.loadFromModule` and `app.exec()`, so the QML
+    // `visible: true` show() request hasn't yet been processed by the
+    // event loop and `MapWindow` has not been issued to the X server.
+    // KWin (and mutter through XWayland) silently drop ClientMessages
+    // targeting unmapped windows, which left STICKY / SKIP_TASKBAR /
+    // SKIP_PAGER intermittent in `xprop` after launch. Writing the
+    // property with the full state list is the spec-compliant pre-map
+    // declaration — the WM reads it during MapRequest and treats
+    // absent / empty as "no states".
     //
-    // STICKY caveat: on KWin under Wayland (XWayland clients), the
-    // "all workspaces" concept maps to KWin's virtual-desktop list,
-    // which on a default Plasma-Wayland session is a single desktop
-    // — so the STICKY property may not appear in `xprop` output
-    // even when set. The hint is still correct (and works on real
-    // X11 sessions with multiple workspaces) and harmless on Wayland.
-    addStates(conn, winid, screen->root, net_wm_state, state_sticky, 0);
-    addStates(conn, winid, screen->root, net_wm_state, state_skip_taskbar,
-              0);
-    addStates(conn, winid, screen->root, net_wm_state, state_skip_pager, 0);
+    // BELOW is included explicitly even though Qt adds it via
+    // `Qt::WindowStaysOnBottomHint`: Qt's own add arrives post-map
+    // through a ClientMessage, but our REPLACE here would otherwise
+    // clobber any pre-existing list. Being explicit is cheaper than
+    // racing Qt's xcb-plugin initialisation order. STICKY caveat is
+    // unchanged: on a default Plasma-Wayland session (single virtual
+    // desktop) STICKY may not appear in `xprop`, but the hint is
+    // still correct (and works on real X11 sessions with multiple
+    // workspaces).
+    const xcb_atom_t states[] = {state_sticky, state_skip_taskbar,
+                                 state_skip_pager, state_below};
+    xcb_change_property(conn, XCB_PROP_MODE_REPLACE, winid, net_wm_state,
+                        XCB_ATOM_ATOM, 32,
+                        sizeof(states) / sizeof(states[0]), states);
+
     xcb_flush(conn);
 }
 

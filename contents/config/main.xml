@@ -38,6 +38,27 @@
             <default>horizontal</default>
         </entry>
 
+        <entry name="ringSize" type="Int">
+            <label>Per-ring side in pixels. Drives the standalone window's autosize (rings × count + spacings along the stack axis). In the Plasma panel the container may stretch or shrink the widget regardless.</label>
+            <default>180</default>
+            <min>80</min>
+            <max>800</max>
+        </entry>
+
+        <entry name="ringSpacingPercent" type="Int">
+            <label>Spacing between rings as a percentage of ringSize. 7 = the historic 12px default at ringSize=180; 0 = rings touch.</label>
+            <default>7</default>
+            <min>0</min>
+            <max>25</max>
+        </entry>
+
+        <entry name="windowMargin" type="Int">
+            <label>Pixels between the rings and the closest screen edge. Used by the standalone window to inset itself from the top-right anchor. No effect inside the Plasma panel (the panel container handles its own placement).</label>
+            <default>0</default>
+            <min>0</min>
+            <max>200</max>
+        </entry>
+
         <entry name="textOpacity" type="Double">
             <label>Opacity of labels and values</label>
             <default>1.0</default>

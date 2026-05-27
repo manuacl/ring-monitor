@@ -37,6 +37,9 @@ Item {
 
         function init() {
             body.orientation = "horizontal";
+            body.ringSize = 180;
+            body.ringSpacingPercent = 7;
+            body.windowMargin = 0;
             body.textOpacity = 1.0;
             body.trackOpacity = 0.15;
             body.arcOpacity = 1.0;
@@ -65,11 +68,60 @@ Item {
             body.arcOpacity = 0.25;
             compare(body._arcSlider.value, 0.25);
         }
+        function test_ringSize_drives_slider_value() {
+            body.ringSize = 240;
+            compare(body._ringSizeSlider.value, 240);
+        }
+        function test_ringSize_default_is_180() {
+            compare(body.ringSize, 180);
+            compare(body._ringSizeSlider.value, 180);
+        }
+        function test_ringSize_slider_range_80_to_800() {
+            compare(body._ringSizeSlider.from, 80);
+            compare(body._ringSizeSlider.to, 800);
+        }
+        function test_ringSpacing_default_is_7_percent() {
+            compare(body.ringSpacingPercent, 7);
+            compare(body._ringSpacingSlider.value, 7);
+        }
+        function test_ringSpacing_drives_slider_value() {
+            body.ringSpacingPercent = 15;
+            compare(body._ringSpacingSlider.value, 15);
+        }
+        function test_ringSpacing_slider_range_0_to_25() {
+            compare(body._ringSpacingSlider.from, 0);
+            compare(body._ringSpacingSlider.to, 25);
+        }
+        function test_windowMargin_default_is_0() {
+            compare(body.windowMargin, 0);
+            compare(body._windowMarginSlider.value, 0);
+        }
+        function test_windowMargin_drives_slider_value() {
+            body.windowMargin = 60;
+            compare(body._windowMarginSlider.value, 60);
+        }
+        function test_windowMargin_slider_range_0_to_200() {
+            compare(body._windowMarginSlider.from, 0);
+            compare(body._windowMarginSlider.to, 200);
+        }
+        // The Plasma host never reads `windowMargin` (only the
+        // standalone Window-anchor code does), so the slider's row
+        // is hidden by default. Standalone SettingsDialog opts in by
+        // flipping the flag — same gating pattern as
+        // AboutBody.autostartAvailable.
+        function test_windowMarginVisible_defaults_false_hides_slider() {
+            body.windowMarginVisible = false;
+            compare(body._windowMarginSlider.parent.visible, false);
+        }
+        function test_windowMarginVisible_true_shows_slider() {
+            body.windowMarginVisible = true;
+            compare(body._windowMarginSlider.parent.visible, true);
+        }
 
         // ── Round trip: write → read each property name ───────────────
         // Catches a typo in any of the 4 property declarations.
         function test_all_bridged_properties_readwrite() {
-            const keys = ["orientation", "textOpacity", "trackOpacity", "arcOpacity", "textColorMode", "customTextColorLight", "customTextColorDark"];
+            const keys = ["orientation", "ringSize", "ringSpacingPercent", "windowMargin", "textOpacity", "trackOpacity", "arcOpacity", "textColorMode", "customTextColorLight", "customTextColorDark"];
             for (const k of keys) {
                 verify(k in body, "AppearanceBody must expose property " + k);
             }

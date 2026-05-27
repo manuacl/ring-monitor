@@ -35,6 +35,9 @@ Settings {
 
     // ── Appearance group ────────────────────────────────────────────
     property string orientation: "horizontal"
+    property int ringSize: 180
+    property int ringSpacingPercent: 7
+    property int windowMargin: 0
     property real textOpacity: 1.0
     property real trackOpacity: 0.15
     property real arcOpacity: 1.0

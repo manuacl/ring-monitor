@@ -25,7 +25,7 @@ int main(int argc, char *argv[])
 {
     // MUST run before QGuiApplication: Qt reads QT_QPA_PLATFORM at
     // app init, so any forced override has to land first.
-    ringmonitor::forceXWaylandUnderMutter();
+    ringmonitor::forceXWaylandUnderWayland();
 
     QGuiApplication app(argc, argv);
 

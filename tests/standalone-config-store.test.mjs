@@ -28,7 +28,7 @@ const PLASMA_SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "plat
 // standalone, or vice versa.
 const EXPECTED_KEYS = [
     "metricOrder", "enabledMetrics", "showCpuCores", "mergeCpuTemp", "mergeGpuTemp",
-    "orientation", "textOpacity", "trackOpacity", "arcOpacity",
+    "orientation", "ringSize", "ringSpacingPercent", "windowMargin", "textOpacity", "trackOpacity", "arcOpacity",
     "colorTheme", "colorMode", "customColorLight", "customColorDark",
     "textColorMode", "customTextColorLight", "customTextColorDark",
     "tempUnit",

@@ -29,6 +29,9 @@ Item {
 
     // ── Appearance group ────────────────────────────────────────────
     readonly property string orientation: Plasmoid.configuration.orientation
+    readonly property int ringSize: Plasmoid.configuration.ringSize
+    readonly property int ringSpacingPercent: Plasmoid.configuration.ringSpacingPercent
+    readonly property int windowMargin: Plasmoid.configuration.windowMargin
     readonly property real textOpacity: Plasmoid.configuration.textOpacity
     readonly property real trackOpacity: Plasmoid.configuration.trackOpacity
     readonly property real arcOpacity: Plasmoid.configuration.arcOpacity

@@ -50,8 +50,16 @@ Item {
     property bool showUpdateBadge: false
     signal updateBadgeClicked
 
-    implicitWidth: 180
-    implicitHeight: 180
+    // Implicit size intentionally zero: the parent (GridLayout in
+    // MainContent on standalone, or the Plasma panel slot) decides the
+    // ring's bounding box and Ring scales to it via `size`. Hardcoding
+    // 180 here meant the GridLayout's natural size always won over
+    // MainContent's `implicitWidth: configStore.ringSize` setting,
+    // so the user's "Window width" slider in the standalone Settings
+    // dialog did nothing. The Plasma side never relied on these
+    // implicits — panel sizing always provides explicit dimensions.
+    implicitWidth: 0
+    implicitHeight: 0
 
     // Everything scales with the smaller dimension via Geom.dimensionsFor.
     readonly property real size: Math.min(width, height)

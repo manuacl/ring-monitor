@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Window
 import QtQuick.Controls as QQC2
+import RingMonitor.Standalone
 import "../../core" as Core
 
 // Standalone root window — counterpart to the PlasmoidItem in
@@ -22,12 +23,120 @@ Window {
     id: root
 
     title: "ring-monitor"
-    // Track MainContent's implicit size so the window grows / shrinks
-    // with the enabled-metrics list. A small fixed padding so the
-    // rings don't kiss the window edges.
-    width: content.implicitWidth + 24
-    height: content.implicitHeight + 24
+    // Window dimensions are computed HERE (not via MainContent's
+    // implicit) because the GridLayout's auto-implicit derived from
+    // its children's natural sizes would overpower an `implicitWidth`
+    // set on the layout itself. Computing on the parent Window side
+    // gives us authoritative control.
+    //
+    // `ringSize` is the per-ring side length. Rings are square; the
+    // window's extent along the stack axis is `count` rings plus the
+    // GridLayout's row/column spacings. The perpendicular extent
+    // equals `ringSize`.
+    //
+    //   vertical:   width = ringSize
+    //               height = ringSize × count + (count-1) × spacing
+    //   horizontal: width  = ringSize × count + (count-1) × spacing
+    //               height = ringSize
+    //
+    // Both dimensions capped at the screen size so a wild slider /
+    // metric-count combo never pushes the window off-screen.
+    readonly property int _ringSize: Math.max(80, (configStoreAdapter.ringSize || 180))
+    readonly property int _ringSpacingPercent: (configStoreAdapter.ringSpacingPercent !== undefined) ? configStoreAdapter.ringSpacingPercent : 7
+    readonly property int _gridSpacing: Math.round(_ringSize * _ringSpacingPercent / 100)
+    readonly property int _stripLength: _ringSize * content.count + (content.count - 1) * _gridSpacing
+    // Screen-edge inset (px). Subtracts from the available cap so the
+    // window fits within `Screen - 2*margin` along each axis and the
+    // anchor leaves `margin` pixels of wallpaper between the rings and
+    // the closest screen edge (top + right).
+    readonly property int _windowMargin: (configStoreAdapter.windowMargin !== undefined) ? configStoreAdapter.windowMargin : 0
+    readonly property int _targetWidth: Math.min(content.vertical ? _ringSize : _stripLength, Screen.width - 2 * _windowMargin)
+    readonly property int _targetHeight: Math.min(content.vertical ? _stripLength : _ringSize, Screen.height - 2 * _windowMargin)
     visible: true
+
+    // Top-right anchored at the very edge of the screen (y = 0) — the
+    // window is always-on-bottom so any Plasma panel at the top draws
+    // over the first few rows of pixels; the user accepted this
+    // trade-off ("toujours à 0px du haut") to maximise vertical room.
+    //
+    // Geometry has to be applied as one atomic xcb_configure_window
+    // (X|Y|WIDTH|HEIGHT mask + StaticGravity) — see QTBUG-57608 and
+    // window_anchor.h. Per-property setters (which is what QML
+    // `x:`/`y:`/`width:`/`height:` bindings emit) generate multiple
+    // ConfigureRequests that KWin processes with NorthWestGravity,
+    // gravity-shifting the window between each request → the
+    // slider-driven resize ended up off-anchor (top edge above y=0).
+    // We deliberately DO NOT bind `width:`/`height:` (which would
+    // issue setWidth/setHeight per-property setters before our
+    // callback fires, producing a visible gravity-shift flicker). The
+    // _target* properties hold the desired size; `_anchor()` reads
+    // them and pushes everything in one atomic setGeometry call via
+    // `WindowAnchor.setGeometry` → QWindow::setGeometry(QRect), the
+    // only Qt entry point that sends a single ConfigureRequest with
+    // StaticGravity. Qt.callLater coalesces consecutive slider
+    // firings so we send exactly one update per tick.
+    function _anchor() {
+        WindowAnchor.setGeometry(root, Screen.width - root._targetWidth - root._windowMargin, root._windowMargin, root._targetWidth, root._targetHeight);
+    }
+    // Defer the first anchor so `applyDesktopWindowHints` (called
+    // from main.cpp right after `engine.loadFromModule` returns) has
+    // a chance to swap the window-type to `_NET_WM_WINDOW_TYPE_DESKTOP`
+    // BEFORE we issue the first setGeometry. The synchronous order is:
+    //   1. engine.loadFromModule → Component.onCompleted fires
+    //   2. applyDesktopWindowHints(window) sets DESKTOP type
+    //   3. app.exec() — event loop starts, Qt.callLater fires
+    // Calling `_anchor()` directly in step 1 issued the first
+    // configure-request against Qt's default frameless override-redirect
+    // window-type — exactly the gravity-shift scenario the WindowAnchor
+    // pattern exists to avoid, surfacing as the brief jump on first
+    // show. Qt.callLater queues it to step 3 instead.
+    Component.onCompleted: Qt.callLater(_anchor)
+    // Connections (rather than `on_TargetWidthChanged:`) — handlers
+    // for underscore-prefixed properties are awkward to spell in QML
+    // (`on_TargetWidthChanged`, mixing leading underscore + capital).
+    // A `Connections { target: root }` block stays readable and lets
+    // both inputs share one slot.
+    Connections {
+        target: root
+        function on_TargetWidthChanged() {
+            Qt.callLater(root._anchor);
+        }
+        function on_TargetHeightChanged() {
+            Qt.callLater(root._anchor);
+        }
+        // `_windowMargin` shifts the anchor (x/y origin) without
+        // necessarily changing _target{Width,Height} — at the default
+        // ringSize the screen-cap doesn't kick in, so the width/height
+        // signals never fire. Listen to the margin directly so a
+        // slider move always re-anchors.
+        function on_WindowMarginChanged() {
+            Qt.callLater(root._anchor);
+        }
+    }
+    // Re-anchor on display reconfig: user plugging in a 4K external,
+    // KDE switching the primary, or any System Settings → Displays
+    // change. Without this, the existing _target* signals won't fire
+    // (at typical ringSize the screen-cap branch is inert) and the
+    // window stays at the OLD monitor's right edge — now mid-screen
+    // or off-screen on the new primary. `root.Screen` is the Qt
+    // attached property reflecting the screen the Window currently
+    // sits on; its width/height change when the screen resolution
+    // changes OR when the window migrates to a different screen.
+    Connections {
+        target: root.Screen
+        function onWidthChanged() {
+            Qt.callLater(root._anchor);
+        }
+        function onHeightChanged() {
+            Qt.callLater(root._anchor);
+        }
+    }
+    // `onScreenChanged` fires when the Window itself moves between
+    // physical screens (e.g. KDE drags it to follow the primary).
+    // Width/height may stay identical across two same-resolution
+    // monitors, so the above Connections wouldn't fire — this handler
+    // covers that case.
+    onScreenChanged: Qt.callLater(root._anchor)
 
     flags: Qt.FramelessWindowHint | Qt.WindowStaysOnBottomHint
     color: "transparent"
@@ -89,7 +198,12 @@ Window {
     // ── Portable body ───────────────────────────────────────────────
     Core.MainContent {
         id: content
-        anchors.centerIn: parent
+        // Edge-to-edge: rings render at 100% of the window width — no
+        // padding. anchors.fill (instead of centerIn) so the rings
+        // honour the capped Window size; when implicit would exceed
+        // Screen, the GridLayout delegates downsize via their
+        // Layout.fillWidth / fillHeight constraints.
+        anchors.fill: parent
         theme: themeAdapter
         configStore: configStoreAdapter
         metrics: metricsAdapter

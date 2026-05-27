@@ -59,6 +59,10 @@ qt_add_qml_module(ring-monitor-standalone
     SOURCES
         standalone/proc_reader.cpp
         standalone/proc_reader.h
+        standalone/autostart.cpp
+        standalone/autostart.h
+        standalone/window_anchor.cpp
+        standalone/window_anchor.h
     QML_FILES
         contents/ui/platforms/standalone/Main.qml
         contents/ui/platforms/standalone/MetricsBackend.qml

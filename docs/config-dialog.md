@@ -12,6 +12,7 @@
 </group>
 <group name="Appearance">
     <entry name="orientation"          type="String"> <default>horizontal</default> </entry>
+    <entry name="ringSize"             type="Int">    <default>180</default> ... </entry>
     <entry name="textOpacity"          type="Double"> <default>1.0</default> ... </entry>
     <entry name="trackOpacity"         type="Double"> <default>0.15</default> ... </entry>
     <entry name="arcOpacity"           type="Double"> <default>1.0</default> ... </entry>

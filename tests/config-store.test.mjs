@@ -21,7 +21,7 @@ const SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms",
 
 // Keys must match contents/config/main.xml — update both when adding a
 // new config entry.
-const EXPECTED_KEYS = ["metricOrder", "enabledMetrics", "showCpuCores", "mergeCpuTemp", "mergeGpuTemp", "orientation", "textOpacity", "trackOpacity", "arcOpacity", "colorTheme", "colorMode", "customColorLight", "customColorDark", "textColorMode", "customTextColorLight", "customTextColorDark", "tempUnit", "checkForUpdatesEnabled", "lastUpdateCheck", "latestKnownVersion", "acknowledgedVersion"];
+const EXPECTED_KEYS = ["metricOrder", "enabledMetrics", "showCpuCores", "mergeCpuTemp", "mergeGpuTemp", "orientation", "ringSize", "ringSpacingPercent", "windowMargin", "textOpacity", "trackOpacity", "arcOpacity", "colorTheme", "colorMode", "customColorLight", "customColorDark", "textColorMode", "customTextColorLight", "customTextColorDark", "tempUnit", "checkForUpdatesEnabled", "lastUpdateCheck", "latestKnownVersion", "acknowledgedVersion"];
 
 test("ConfigStore declares every persisted config key", () => {
     for (const key of EXPECTED_KEYS) {

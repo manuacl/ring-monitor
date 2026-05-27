@@ -35,8 +35,19 @@ Kirigami.FormLayout {
     // `platforms/standalone/ColorPicker.qml` honour this.
     property Component colorPickerComponent
 
+    // `windowMargin` is only consumed by the standalone Window
+    // anchoring code (platforms/standalone/Main.qml). Inside a Plasma
+    // panel the slot position is set by plasmashell, so the slider is
+    // dead UI there — hide it by default, and let the standalone
+    // SettingsDialog flip it on. Same pattern as AboutBody's
+    // `autostartAvailable`.
+    property bool windowMarginVisible: false
+
     // ── Bridged via aliases in the wrapper (cfg_orientation ↔ body.orientation, etc.) ──
     property string orientation: "horizontal"
+    property int ringSize: 180
+    property int ringSpacingPercent: 7
+    property int windowMargin: 0
     property real textOpacity: 1.0
     property real trackOpacity: 0.15
     property real arcOpacity: 1.0
@@ -69,6 +80,89 @@ Kirigami.FormLayout {
             text: qsTr("Vertical")
             checked: body.orientation === "vertical"
             onClicked: body.orientation = "vertical"
+        }
+    }
+
+    Item {
+        Kirigami.FormData.isSection: true
+    }
+
+    // Ring size — the per-ring side in pixels. The standalone window
+    // is frameless and transparent, so the user only ever sees the
+    // rings themselves; the container auto-sizes around them
+    // (`ringSize × count + spacings` along the stack axis). On Plasma
+    // the panel container may stretch / shrink the widget regardless
+    // of this setting. Range 80-800 in 20px steps.
+    RowLayout {
+        Kirigami.FormData.label: qsTr("Ring size:")
+        Layout.fillWidth: true
+
+        QQC2.Slider {
+            id: ringSizeSlider
+            from: 80
+            to: 800
+            stepSize: 20
+            snapMode: QQC2.Slider.SnapAlways
+            value: body.ringSize
+            onMoved: body.ringSize = value
+            Layout.fillWidth: true
+        }
+        QQC2.Label {
+            text: body.ringSize + " px"
+            Layout.minimumWidth: Kirigami.Units.gridUnit * 3
+            horizontalAlignment: Text.AlignRight
+        }
+    }
+
+    // Ring spacing — gap between rings as a percent of ringSize. 0%
+    // makes the rings touch; the historic visual default (12px at
+    // ringSize=180) corresponds to 7%. Stepping at 1% keeps the
+    // slider feel of a "fine" adjustment vs the bigger ringSize one.
+    RowLayout {
+        Kirigami.FormData.label: qsTr("Ring spacing:")
+        Layout.fillWidth: true
+
+        QQC2.Slider {
+            id: ringSpacingSlider
+            from: 0
+            to: 25
+            stepSize: 1
+            snapMode: QQC2.Slider.SnapAlways
+            value: body.ringSpacingPercent
+            onMoved: body.ringSpacingPercent = value
+            Layout.fillWidth: true
+        }
+        QQC2.Label {
+            text: body.ringSpacingPercent + " %"
+            Layout.minimumWidth: Kirigami.Units.gridUnit * 3
+            horizontalAlignment: Text.AlignRight
+        }
+    }
+
+    // Screen margin — pixels between the rings and the nearest screen
+    // edge. Only consumed by the standalone Window anchor; inside a
+    // Plasma panel the slot position is plasmashell's job, so this
+    // whole row is hidden via `windowMarginVisible` (set true only
+    // by the standalone SettingsDialog).
+    RowLayout {
+        Kirigami.FormData.label: qsTr("Screen margin:")
+        Layout.fillWidth: true
+        visible: body.windowMarginVisible
+
+        QQC2.Slider {
+            id: windowMarginSlider
+            from: 0
+            to: 200
+            stepSize: 10
+            snapMode: QQC2.Slider.SnapAlways
+            value: body.windowMargin
+            onMoved: body.windowMargin = value
+            Layout.fillWidth: true
+        }
+        QQC2.Label {
+            text: body.windowMargin + " px"
+            Layout.minimumWidth: Kirigami.Units.gridUnit * 3
+            horizontalAlignment: Text.AlignRight
         }
     }
 
@@ -290,6 +384,9 @@ Kirigami.FormLayout {
     }
 
     // ── Test hooks ──────────────────────────────────────────────────
+    readonly property alias _ringSizeSlider: ringSizeSlider
+    readonly property alias _ringSpacingSlider: ringSpacingSlider
+    readonly property alias _windowMarginSlider: windowMarginSlider
     readonly property alias _textSlider: textSlider
     readonly property alias _trackSlider: trackSlider
     readonly property alias _arcSlider: arcSlider

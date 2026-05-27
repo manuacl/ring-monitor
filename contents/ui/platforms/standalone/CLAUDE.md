@@ -21,6 +21,7 @@ under "Standalone target — backend choice".
 | `Theme.qml` | Kirigami theme tokens + Qt.styleHints light/dark | **PR F1 ✓ — mirrors the Plasma adapter byte-for-byte** |
 | `ThemedIcon.qml` | wraps `Kirigami.Icon` (same as Plasma adapter) | **PR F1 ✓ — one-liner mirror of the Plasma adapter** |
 | `ColorPicker.qml` | wraps a plain `QQC2.AbstractButton` + `QtQuick.Dialogs.ColorDialog` (the Plasma adapter wraps `KQuickControls.ColorButton`, which is not a runtime dep of the standalone build) | **PR F2 ✓** |
+| `Autostart` (C++ in `standalone/autostart.{h,cpp}`, registered via `QML_ELEMENT`) | Writes / removes `~/.config/autostart/dev.manuacl.ringmonitor.desktop` so the user can toggle "Start on login" from the Settings dialog. Plasma side uses plasmashell instead, so the toggle is hidden there (`AboutBody.autostartAvailable` gated). | **PR G ✓** |
 
 ## File-reading helper
 
@@ -56,9 +57,9 @@ registration file includes our headers via `<proc_reader.h>`
 | Compositor | Status | How |
 |---|---|---|
 | **Plasma-X11**, XFCE, Cinnamon, MATE, LXQt | ✓ native | Qt::FramelessWindowHint + Qt::WindowStaysOnBottomHint + xcb EWMH hints (sticky, skip-taskbar, skip-pager); window type forced to `_NET_WM_WINDOW_TYPE_NORMAL` to undo Qt's `_KDE_NET_WM_WINDOW_TYPE_OVERRIDE` default |
-| **Plasma-Wayland** | ✓ via XWayland fallback | User sets `QT_QPA_PLATFORM=xcb` manually; STICKY may show as no-op in `xprop` if Plasma is on a single virtual desktop, but BELOW + SKIP_TASKBAR + SKIP_PAGER apply correctly |
-| **GNOME-Wayland (mutter)** | ✓ via auto-XWayland | `desktop_hints.cpp` detects mutter from `XDG_CURRENT_DESKTOP` and force-sets `QT_QPA_PLATFORM=xcb` before `QGuiApplication` |
-| **sway / Hyprland (wlroots-Wayland)** | ⚠ degraded — works only if user sets `QT_QPA_PLATFORM=xcb` | Layer-shell-qt-based native integration lands in a future PR |
+| **Plasma-Wayland** | ✓ via auto-XWayland | `forceXWaylandUnderWayland` in `desktop_hints.cpp` force-sets `QT_QPA_PLATFORM=xcb` before `QGuiApplication`, gated on `QStandardPaths::findExecutable("Xwayland")` so the app falls back to native Wayland (no Conky hints) if XWayland is missing rather than crashing. STICKY may show as no-op in `xprop` on a single virtual desktop, but BELOW + SKIP_TASKBAR + SKIP_PAGER apply correctly |
+| **GNOME-Wayland (mutter)** | ✓ via auto-XWayland | Same path as Plasma-Wayland; mutter ships XWayland by default, so the probe always succeeds |
+| **sway / Hyprland (wlroots-Wayland)** | ✓ via auto-XWayland (if `xwayland` package installed) or degraded native otherwise | Same probe — if the user installed XWayland they get the Conky behaviour; minimal installs fall back to native Wayland with the EWMH hints no-op'd. Layer-shell-qt-based native integration lands in a future PR |
 | **KWin-Wayland native** | ⚠ degraded — same as sway above | Layer-shell-qt path same as above |
 
 The "native Wayland layer-shell" path is deferred to a future PR
@@ -83,6 +84,73 @@ window class `ring-monitor-standalone` with **"Skip switcher: Force
 Yes"**. App-side, the fix is the native layer-shell path: a
 wlr-layer-shell "background" layer surface never participates in
 any switcher by design. That's covered by PR C2.
+
+### `_NET_WM_WINDOW_TYPE_DESKTOP` can swallow right-click on some compositors
+
+`applyDesktopWindowHints` rewrites the window type to `DESKTOP` so
+KWin treats the window as wallpaper-layer content (atomic setGeometry,
+no gravity-shift on resize — see `WindowAnchor`). The trade-off: on
+some KWin point releases and Plasma containment configurations, a
+`DESKTOP`-typed client has right-click forwarded to the **containment
+menu** (wallpaper-level "Add widget…" / "Configure desktop…")
+instead of the window's own `MouseArea`. The widget's only entry
+point to Settings + Quit lives behind that right-click, so the
+regression is total UX loss.
+
+The current dev box keeps right-click delivered (verified live), but
+this should be considered fragile across KWin versions and entirely
+unknown on non-KDE compositors. The real fix is the native
+wlr-layer-shell path (background layer surface, no window-type
+involved) — scoped as PR C2 in
+[`docs/plasma-isolation/plan.md`](../../../../docs/plasma-isolation/plan.md).
+If right-click ever stops working post-upgrade, the diagnosis ladder
+is: (1) try `_NET_WM_WINDOW_TYPE_NORMAL` (loses gravity-shift fix —
+regression risk on slider resize); (2) try `_NET_WM_WINDOW_TYPE_DOCK`
+(panel-style — different KWin handling); (3) accelerate PR C2.
+
+### Initial `_anchor()` must be deferred via `Qt.callLater`
+
+`Main.qml` calls `_anchor()` from `Component.onCompleted` to issue
+the first atomic `setGeometry` against the Window. **Wrap that first
+call in `Qt.callLater`** — do not call `_anchor()` directly. The
+synchronous boot order is:
+
+1. `engine.loadFromModule` → `Component.onCompleted` fires
+2. `applyDesktopWindowHints(window)` swaps the window-type to
+   `_NET_WM_WINDOW_TYPE_DESKTOP` (called from `main.cpp` right after
+   `loadFromModule` returns)
+3. `app.exec()` — the event loop starts and `Qt.callLater` fires
+
+Calling `_anchor()` directly in step 1 issued the first configure
+request against Qt's default frameless override-redirect window-type
+— exactly the gravity-shift scenario the `WindowAnchor` pattern
+exists to avoid. It surfaced as a brief jump on first show. Deferring
+to step 3 lets the window-type land first.
+
+### XWayland probe before forcing `QT_QPA_PLATFORM=xcb`
+
+`forceXWaylandUnderWayland` in `standalone/desktop_hints.cpp` must
+gate the `qputenv("QT_QPA_PLATFORM", "xcb")` on
+`QStandardPaths::findExecutable("Xwayland")` returning a non-empty
+path. Without the probe, a user running Plasma 6 Wayland who removed
+`xorg-x11-server-Xwayland` (or any minimal Sway/Hyprland install
+that ships without it) gets a hard crash at startup —
+`QGuiApplication` aborts with "Could not load the Qt platform plugin
+xcb" before any QML loads. Falling back to native Wayland makes the
+Conky-on-the-wallpaper hints no-op (the X11 native interface returns
+nullptr off X11), but the app still runs.
+
+### Autostart `Exec=` line must shell-escape the path
+
+`Autostart::buildDesktopFileContent` runs the current binary path
+through `quoteExecArg` before splicing into the `Exec=` line.
+Without that, an AppImage installed under a path containing spaces
+(e.g. `~/Applications/Ring Monitor.AppImage`, common with
+AppImageLauncher) breaks autostart silently — the XDG launcher
+tokenises on whitespace and tries to exec the wrong binary. The
+XDG-spec escape order is load-bearing: backslash is escaped before
+`"`, `$`, and backtick (text-level-guarded by
+`tests/autostart.test.mjs`).
 
 ## Same-surface rule
 

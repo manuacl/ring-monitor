@@ -138,7 +138,7 @@ cards — only the definition of "ready" differs per platform.
 
 | Function | Purpose |
 |---|---|
-| `pickFirstReadyValue(candidates)` | First `{ready:true}` candidate's `value` (`|| 0` for `undefined`/`NaN`); `0` if no candidate is ready. Null/undefined entries in the list are skipped so callers can build the list with `if (s) candidates.push(...)` without an extra filter pass. |
+| `pickFirstReadyValue(candidates)` | First `{ready:true}` candidate's `value` (`\|\| 0` for `undefined` / `NaN` / `null` / `false` / `""`); `0` if no candidate is ready. Null/undefined entries in the list are skipped so callers can build the list with `if (s) candidates.push(...)` without an extra filter pass. Subtle semantic: a candidate with `ready: true` AND a falsy value still **wins** — the helper returns `0` rather than falling through to subsequent candidates. The fallthrough path is only entered when `ready` itself is false. This matches the pre-`pickFirstReadyValue` pattern (`sensor.value \|\| 0` after a `status === Ready` check), so the refactor is semantics-preserving. If "try the next ready candidate when this one has no value" is ever wanted, that's a new helper, not a tweak of this one. |
 
 Why a dedicated module instead of inlining? Two reasons. (1) The
 algorithm has subtle edge cases — a `value: 0` from a ready sensor

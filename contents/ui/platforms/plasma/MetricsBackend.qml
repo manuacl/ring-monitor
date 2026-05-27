@@ -231,6 +231,21 @@ Item {
     readonly property real _gpuUsageValue: {
         backend._gpuUsageTick;
         // Aggregate first — when ksysguard exposes it we trust it.
+        //
+        // Semantics note since the `pickFirstReadyValue` refactor
+        // (PR #25): the helper does NOT fall through to the next
+        // candidate when a ready candidate has a falsy value — it
+        // short-circuits via `return c.value || 0`, matching the
+        // pre-refactor `gpuAllSensor.value || 0`. KSysGuard can
+        // transiently report `status === Ready` with `value ===
+        // undefined` during sensor discovery; both pre- and
+        // post-refactor that yields `0` rather than the per-device
+        // fallback. Locked in by the `tests/sensor-picking.test.mjs`
+        // "ready candidate with null value wins and yields 0" case.
+        // If we ever want true "try the next ready candidate"
+        // semantics, that's a SensorPicking change (+ helper rename
+        // to disambiguate from this short-circuit form), not a
+        // local tweak.
         var candidates = [
             {
                 "ready": gpuAllSensor.status === Sensors.Sensor.Ready,

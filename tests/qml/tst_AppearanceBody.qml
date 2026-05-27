@@ -20,6 +20,17 @@ Item {
     Component {
         id: stubColorPicker
         Item {
+            // Mirrors the implicit dimensions both real adapters
+            // declare (platforms/plasma/ColorPicker.qml and
+            // platforms/standalone/ColorPicker.qml both set
+            // `implicitWidth: 32; implicitHeight: 24`). Today the
+            // tests only assert `Loader.item.color`, but if a
+            // future test exercises layout (the button row in
+            // AppearanceBody.qml), a 0×0 stub would collapse the
+            // surrounding RowLayout and the geometry assertions
+            // would fail for the wrong reason.
+            implicitWidth: 32
+            implicitHeight: 24
             property color color: "#000000"
             signal accepted
         }

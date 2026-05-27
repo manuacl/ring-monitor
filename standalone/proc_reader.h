@@ -37,13 +37,17 @@ public:
 
     // Synchronous read. Returns the file contents on success, an
     // empty string on any failure (missing file, no read permission,
-    // I/O error, **or path outside the `/proc/` / `/sys/` allowlist**).
-    // Callers (typically a `Timer.onTriggered` in QML) are expected to
-    // tolerate empty / partial input — the `ProcStatParser` helpers in
-    // `core/` do. The allowlist exists because `Q_INVOKABLE` exposes
-    // this to every QML context and a leaf calling `read("/etc/...")`
-    // would otherwise turn the helper into an arbitrary file-read
-    // primitive.
+    // I/O error, **or path outside the `/proc/` / `/sys/` allowlist
+    // after `QDir::cleanPath` normalises `..`**). Callers (typically
+    // a `Timer.onTriggered` in QML) are expected to tolerate empty /
+    // partial input — the `ProcStatParser` helpers in `core/` do.
+    //
+    // The widget runs as the user, so this isn't a privilege boundary:
+    // any file `reader.read(...)` could return is also a file the
+    // user can `cat` directly. The allowlist exists to keep the QML
+    // side honest at dev time — a typo'd path emits `qWarning` instead
+    // of silently leaking unrelated data. See `proc_reader.cpp` for
+    // the full rationale.
     Q_INVOKABLE QString read(const QString &path) const;
 
     // statvfs(3) wrapper. Returns { "total": <bytes>, "free":

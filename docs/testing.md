@@ -24,15 +24,78 @@ node --watch --test tests/
 
 ## Test files
 
+Two runners, two test layers:
+
+- **`tests/*.test.mjs`** — Node tests (pure-JS modules from
+  `contents/ui/core/*.js`, plus text-level guards for QML / C++
+  files the CI container can't load). Run via `node --test tests/`.
+- **`tests/qml/tst_*.qml`** — `qmltestrunner-qt6` tests for what
+  depends on the QML runtime (component rendering, model
+  forwarding, signal flow). Run via `qmltestrunner-qt6 -input
+  tests/qml`.
+
+`tests/run-all.sh` chains both; CI reproduces the same two steps
+in `.github/workflows/ci.yml`.
+
+### Node tests (`tests/*.test.mjs`)
+
+Pure-logic tests for `core/*.js` modules:
+
 | File | Covers |
 |---|---|
-| `tests/reorder-logic.test.mjs` | drag-to-reorder math from `ReorderLogic.js` |
-| `tests/metrics-catalog.test.mjs` | catalog + CSV helpers from `MetricsCatalog.js` |
-| `tests/ring-geometry.test.mjs` | sweep/radius/sizing math from `RingGeometry.js` |
-| `tests/color-themes.test.mjs` | themes catalog + dispatch from `ColorThemes.js` |
+| `metrics-catalog.test.mjs` | catalog ids, sensor mapping, CSV helpers, °C→%/°F conversion, sensor-discovery classifier |
+| `ring-geometry.test.mjs` | sweep / radius / sizing math from `RingGeometry.js` |
+| `reorder-logic.test.mjs` | drag-to-reorder array transform (`applyMove`, `computeYShift`) |
+| `color-themes.test.mjs` | theme registry + dark/light variant resolution |
+| `sensor-picking.test.mjs` | `pickFirstReadyValue` short-circuit semantics |
+| `proc-stat-parser.test.mjs` | `/proc/stat` parser + percent math + SCENARIO guards (`cpu`-prefix gate, counter wraparound) |
+| `mem-info-parser.test.mjs` | `/proc/meminfo` parser + `usagePercent` (RAM) + `diskUsagePercent` (df formula) |
+| `update-check.test.mjs` | semver + notification gating for the in-widget update badge |
 
-All current logic is covered. New pure modules should ship with a
-matching `*.test.mjs`.
+Text-level guards (Plasma adapter — `org.kde.plasma.plasmoid` /
+`org.kde.ksysguard.sensors` imports aren't in the CI container):
+
+| File | Covers |
+|---|---|
+| `config-store.test.mjs` | every persisted key declared + bound to `Plasmoid.configuration.X` |
+| `metrics-backend.test.mjs` | public surface + universal Sensor instances + `SensorTreeModel` discovery + Instantiator pattern |
+
+Text-level guards (standalone adapter + C++ files — no
+`qmltestrunner` path for files that import `RingMonitor.Standalone`
+or that have no Qt-runtime entry point):
+
+| File | Covers |
+|---|---|
+| `standalone-config-store.test.mjs` | standalone `ConfigStore` mirrors the Plasma key set |
+| `standalone-metrics-backend.test.mjs` | wiring of `/proc/stat`, `/proc/meminfo`, `statvfs`, `diskUsagePercent` |
+| `standalone-settings-dialog.test.mjs` | `SettingsDialog._bridgeMap` covers every persisted key |
+| `standalone-main.test.mjs` | `Main.qml` — deferred `_anchor`, Screen re-anchor, settings-only recovery branch |
+| `standalone-main-cpp.test.mjs` | `main.cpp` — argv parse, `settingsOnlyMode` context property, gated EWMH hints |
+| `autostart.test.mjs` | `autostart.cpp` desktop-entry write / remove contract |
+| `desktop-hints.test.mjs` | `desktop_hints.cpp` — `_NET_WM_STATE` property write, BELOW in list, XWayland probe, `qWarning` on no-op |
+| `proc-reader.test.mjs` | `proc_reader.cpp` `/proc/` + `/sys/` allowlist, refusal warning, isolation invariant |
+
+### QML tests (`tests/qml/tst_*.qml`)
+
+Rendered through `qmltestrunner-qt6` — covers the things a Node text
+guard can't see (binding flow, signal emission, layout):
+
+| File | Covers |
+|---|---|
+| `tst_Ring.qml` | label / value / unit rendering, sweep angles, `nestedValues` count, split mode, `rawValue` override |
+| `tst_MetricRow.qml` | row layout, checkbox state, `extraContent`, disabled cascade |
+| `tst_DraggableList.qml` | `rowModel` forwarding, drag scenarios, no-op drags |
+| `tst_MetricsBody.qml` | order CSV ↔ model, `isEnabled` / `setEnabled`, descriptions, `tempUnit` radios |
+| `tst_AppearanceBody.qml` | opacity sliders bind two-way, mode radios |
+| `tst_MainContent.qml` | ring composition + theme propagation |
+| `tst_AboutBody.qml` | version display + update-badge wiring |
+| `tst_Theme.qml` | Kirigami theme passthrough + `Qt.styleHints` live light/dark |
+| `tst_ThemedIcon.qml` | `Kirigami.Icon` wrapper surface |
+| `tst_UpdateChecker.qml` | manual-check signal flow + state transitions |
+| `tst_ReorderCycle.qml` | end-to-end drag-cycle regression |
+
+New pure modules / new adapter files should ship with a matching
+entry above. The rule lives in [`../tests/CLAUDE.md`](../tests/CLAUDE.md).
 
 ### Naming convention
 

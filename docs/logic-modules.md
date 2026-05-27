@@ -138,7 +138,7 @@ cards — only the definition of "ready" differs per platform.
 
 | Function | Purpose |
 |---|---|
-| `pickFirstReadyValue(candidates)` | First `{ready:true}` candidate's `value` (`|| 0` for `undefined`/`NaN`); `0` if no candidate is ready. Null/undefined entries in the list are skipped so callers can build the list with `if (s) candidates.push(...)` without an extra filter pass. |
+| `pickFirstReadyValue(candidates)` | First `{ready:true}` candidate's `value` (`\|\| 0` for `undefined` / `NaN` / `null` / `false` / `""`); `0` if no candidate is ready. Null/undefined entries in the list are skipped so callers can build the list with `if (s) candidates.push(...)` without an extra filter pass. Subtle semantic: a candidate with `ready: true` AND a falsy value still **wins** — the helper returns `0` rather than falling through to subsequent candidates. The fallthrough path is only entered when `ready` itself is false. This matches the pre-`pickFirstReadyValue` pattern (`sensor.value \|\| 0` after a `status === Ready` check), so the refactor is semantics-preserving. If "try the next ready candidate when this one has no value" is ever wanted, that's a new helper, not a tweak of this one. |
 
 Why a dedicated module instead of inlining? Two reasons. (1) The
 algorithm has subtle edge cases — a `value: 0` from a ready sensor
@@ -160,7 +160,7 @@ percentages from the difference between two samples.
 
 | Function | Purpose |
 |---|---|
-| `parseProcStat(content)` | Parses raw `/proc/stat` text into `{ all, cores }`. `all` is the aggregate `cpu` line; `cores` is an array of per-CPU rows. Each sample is `{ idle, total }` jiffies. Defensive against null / empty / malformed input (returns `{ all: null, cores: [] }`). |
+| `parseProcStat(content)` | Parses raw `/proc/stat` text into `{ all, cores }`. `all` is the aggregate `cpu` line; `cores` is an array of per-CPU rows. Each sample is `{ idle, total }` jiffies. Defensive against null / empty / malformed input (returns `{ all: null, cores: [] }`). Outer gate is `^cpu(\d*)\b` so `cpufreq`, `cpu_avg_freq`, and other `cpu`-prefixed metadata lines never enter the inner parser — locked in by a SCENARIO test in `tests/proc-stat-parser.test.mjs`. |
 | `percentFromSample(prev, cur)` | Usage % between two samples: `100 * (1 - idleDelta / totalDelta)`. Clamped to `[0, 100]` and zero on a `totalDelta <= 0` (clock skew / same-jiffy sample). |
 
 Lives in `core/` (not in the standalone adapter directory) on the same
@@ -171,16 +171,16 @@ Covered by `tests/proc-stat-parser.test.mjs`.
 
 ## `MemInfoParser.js`
 
-Pure parser for `/proc/meminfo` plus the small percent helper that
-the RAM **and** disk paths both feed. Used by the standalone
-`MetricsBackend.qml` (PR E in the standalone roadmap): the QML
-adapter reads `/proc/meminfo` via `ProcReader` and queries
-`ProcReader.statvfs("/")` for disk capacity, then hands both into
-this module.
+Pure parser for `/proc/meminfo` plus two percent helpers — one for
+RAM, one for disk. Used by the standalone `MetricsBackend.qml` (PR E
+in the standalone roadmap): the QML adapter reads `/proc/meminfo`
+via `ProcReader` and queries `ProcReader.statvfs("/")` for disk
+capacity, then hands each into the matching helper.
 
 | Function | Purpose |
 |---|---|
 | `parseMemInfo(content)` | Parses `/proc/meminfo` into `{ total, available }` (kB). Defensive against null / empty / malformed input (fields stay `null`). Picks `MemAvailable` rather than `MemTotal - MemFree` — same convention as `free -h`; using `MemFree` would report 90 %+ on any machine with a healthy page cache. |
-| `usagePercent(total, available)` | Generic `(1 - available / total) * 100`, clamped to `[0, 100]`. Returns `0` on missing / non-numeric inputs. Unit-agnostic: kB for RAM, bytes for disk — the ratio cancels the unit, which is exactly why the disk path reuses this helper instead of carrying its own. |
+| `usagePercent(total, available)` | `(1 - available / total) * 100`, clamped to `[0, 100]`. Returns `0` on missing / non-numeric inputs. Used for the **RAM** path, where `MemAvailable` already accounts for reclaimable cache. Not appropriate for disks with a root reservation — use `diskUsagePercent` there. |
+| `diskUsagePercent(total, free, available)` | df(1)'s "Use%" formula: `(total - free) / (total - free + available)`, clamped to `[0, 100]`. Returns `0` on missing / non-numeric inputs. Treats root-reserved blocks (~5 % on ext4) as "size invisible to the user" — without this, a freshly-formatted empty ext4 would report 5 % used. Wired to the **disk** path in `standalone/MetricsBackend.qml`. |
 
 Covered by `tests/mem-info-parser.test.mjs`.

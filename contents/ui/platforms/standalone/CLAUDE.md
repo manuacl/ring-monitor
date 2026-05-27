@@ -15,6 +15,7 @@ under "Standalone target — backend choice".
 | Adapter | Purpose | Status |
 |---|---|---|
 | `Main.qml` | Frameless transparent `Window` root + Conky-style hints (X11 / XWayland) | PR B1 (placeholder) + PR C (X11 EWMH hints in `standalone/desktop_hints.cpp`) + **PR F1 ✓ — `Core.MainContent` renders the actual rings** |
+| `SettingsOnlyRoot.qml` | Recovery-mode QML root loaded when the binary runs with `--open-settings`. Hosts only the `SettingsDialog` (no rings, no MetricsBackend). | **PR #37 follow-up ✓** |
 | `MetricsBackend.qml` | Direct reads from `/proc/stat`, `/proc/meminfo`, `statvfs(3)` | **PR D: CPU usage (`/proc/stat`) ✓** ; **PR E: RAM (`/proc/meminfo`) + disk (`statvfs(/)`) ✓** ; GPU + temps post-MVP |
 | `ConfigStore.qml` | `Qt.labs.settings` reader/writer | **PR F1 ✓ — Settings root, defaults mirror `main.xml`** ; **PR F2 ✓ — SettingsDialog drives writes through this instance** |
 | `SettingsDialog.qml` | Tabbed `Window` wrapping `core/MetricsBody` + `core/AppearanceBody` + `core/AboutBody`; opened via right-click on the widget or the update-available badge | **PR F2 ✓** |
@@ -38,6 +39,57 @@ QML can't issue syscalls and `statvfs` is the only one we need for
 PR E (disk capacity). Returns `{ total, available }` in bytes; empty
 map on failure.
 
+`read()` is **allowlisted to `/proc/` and `/sys/` only**, with the
+input first run through `QDir::cleanPath` so the allowlist applies
+to the resolved path (i.e. `reader.read("/proc/../etc/passwd")` is
+refused, not silently opened). Every other path returns the empty
+string with a `qWarning("ProcReader::read refused …")` on stderr.
+
+**Threat model context.** The widget runs as the local user — not
+as root, not as a network service, not in a sandbox — so the
+allowlist is **not** a privilege boundary: any file `reader.read(...)`
+could return is also a file the user can `cat` directly from their
+terminal. The allowlist exists to keep the QML side honest at dev
+time: a typo'd path emits a greppable `qWarning` instead of
+silently returning unrelated data. Same reasoning for the
+`QDir::cleanPath` step — without it the header comment claiming
+"only `/proc/` and `/sys/`" would be a lie. New sensors that need a
+different prefix (e.g. `/var/run/...`) must extend the allowlist in
+`proc_reader.cpp` and add a `tests/proc-reader.test.mjs` guard for
+the new prefix.
+
+`statvfs()` does NOT carry an allowlist (intentional asymmetry):
+it's a filesystem-metadata syscall, and `df -h /any/path` from the
+user's terminal returns the same numbers. If a future per-mount
+selector lands, the input still goes through `realpath(3)` on the
+QML side for display purposes (see the disk-metric section below)
+rather than via a syscall-side allowlist.
+
+### Disk metric: known limitations of `statvfs(3)`
+
+`MetricsBackend.qml` calls `reader.statvfs(backend._diskMount)`
+(default `"/"`) and renders the result through
+`MemInfoParser.diskUsagePercent`. Two caveats inherent to `statvfs`
+itself that we explicitly accept rather than work around:
+
+1. **Symlinks are followed.** `statvfs("/data")` where `/data → /mnt/big`
+   silently reports `/mnt/big`'s numbers. Users won't normally hit
+   this with the `/` default; flagged for the future per-mount
+   selector — the UI should resolve the path with `realpath(3)` and
+   display the canonical form so what's queried matches what's shown.
+
+2. **Bind mounts / btrfs subvols / overlayfs are not detected.** On
+   Bazzite (our documented target) `/` is a btrfs subvol on an
+   rpm-ostree composed tree; `statvfs` reports "size of the whole
+   btrfs pool", not the per-subvol quota a user might expect. Same
+   story for overlay roots (containers, OCI bundles) and `mount
+   --bind` setups. Long-term fix is `statfs(2)` (note: different
+   syscall) checking `f_type` to detect `BTRFS_SUPER_MAGIC`,
+   `OVERLAYFS_SUPER_MAGIC`, `TMPFS_MAGIC`, and either warning or
+   exposing a per-mount selector — out of scope for the MVP. If a
+   user reports "disk ring shows wrong size on my btrfs", the cause
+   is here.
+
 The class lives at global scope (not in `ringmonitor::`) because
 Qt 6's QML auto-registration generates code calling
 `qmlRegisterTypesAndRevisions<ProcReader>(...)` without
@@ -57,7 +109,7 @@ registration file includes our headers via `<proc_reader.h>`
 | Compositor | Status | How |
 |---|---|---|
 | **Plasma-X11**, XFCE, Cinnamon, MATE, LXQt | ✓ native | Qt::FramelessWindowHint + Qt::WindowStaysOnBottomHint + xcb EWMH hints (sticky, skip-taskbar, skip-pager); window type forced to `_NET_WM_WINDOW_TYPE_NORMAL` to undo Qt's `_KDE_NET_WM_WINDOW_TYPE_OVERRIDE` default |
-| **Plasma-Wayland** | ✓ via auto-XWayland | `forceXWaylandUnderWayland` in `desktop_hints.cpp` force-sets `QT_QPA_PLATFORM=xcb` before `QGuiApplication`, gated on `QStandardPaths::findExecutable("Xwayland")` so the app falls back to native Wayland (no Conky hints) if XWayland is missing rather than crashing. STICKY may show as no-op in `xprop` on a single virtual desktop, but BELOW + SKIP_TASKBAR + SKIP_PAGER apply correctly |
+| **Plasma-Wayland** | ✓ via auto-XWayland | `forceXWaylandUnderWayland` in `desktop_hints.cpp` force-sets `QT_QPA_PLATFORM=xcb` before `QGuiApplication`, gated on `QStandardPaths::findExecutable("Xwayland")` so the app falls back to native Wayland (no Conky hints) if XWayland is missing rather than crashing. STICKY + BELOW + SKIP_TASKBAR + SKIP_PAGER are all declared as a `_NET_WM_STATE` property pre-map (not via ClientMessage — see § below); STICKY may not surface in `xprop` on a single-virtual-desktop session but the hint is still set |
 | **GNOME-Wayland (mutter)** | ✓ via auto-XWayland | Same path as Plasma-Wayland; mutter ships XWayland by default, so the probe always succeeds |
 | **sway / Hyprland (wlroots-Wayland)** | ✓ via auto-XWayland (if `xwayland` package installed) or degraded native otherwise | Same probe — if the user installed XWayland they get the Conky behaviour; minimal installs fall back to native Wayland with the EWMH hints no-op'd. Layer-shell-qt-based native integration lands in a future PR |
 | **KWin-Wayland native** | ⚠ degraded — same as sway above | Layer-shell-qt path same as above |
@@ -108,6 +160,45 @@ is: (1) try `_NET_WM_WINDOW_TYPE_NORMAL` (loses gravity-shift fix —
 regression risk on slider resize); (2) try `_NET_WM_WINDOW_TYPE_DOCK`
 (panel-style — different KWin handling); (3) accelerate PR C2.
 
+**Recovery path for users who hit the regression:** the binary
+accepts a `--open-settings` (alias `--settings`) flag that loads a
+minimal recovery QML root showing just the `SettingsDialog`:
+
+```bash
+pkill -f ring-monitor-standalone
+ring-monitor-standalone --open-settings
+```
+
+Implementation: `standalone/main.cpp` parses argv before
+`QGuiApplication` (the flag also gates `forceXWaylandUnderWayland`,
+which must mutate `QT_QPA_PLATFORM` before Qt initialises) and uses
+the parsed boolean to choose which QML root to load —
+`SettingsOnlyRoot.qml` in recovery mode, `Main.qml` otherwise. The
+recovery root hosts only `ConfigStore`, `Theme`, `UpdateChecker`,
+and `SettingsDialog`; the rings widget (MetricsBackend Timer
+polling `/proc`, MainContent's tree, Screen Connections,
+WindowAnchor) is not constructed at all. Quit is wired to the
+dialog's `onClosing` signal — intent-driven (not based on
+`Window.visibility === Hidden`), so a future programmatic hide
+(modal color picker, hide-and-reopen) doesn't accidentally kill the
+recovery process. Config writes go through the same `QSettings`
+file the running widget reads, so the user kills + relaunches the
+running widget to apply (`Qt.labs.settings` doesn't watch — a
+live-reload via `QFileSystemWatcher` is out of scope for the minimal
+recovery).
+
+The previous shape (now reverted) threaded a `_settingsOnly`
+boolean through eight sites — argv parse, two startup gates, a
+context property, a `typeof`-guarded QML alias, `visible:` binding,
+a branched `Component.onCompleted`, a Qt.quit Connections — and
+still constructed the full widget invisibly. The MetricsBackend
+Timer kept polling, every slider drag in the dialog triggered a
+`setGeometry` on the hidden window, and a stuck `statvfs` would
+have blocked the GUI thread of the recovery process. Loading a
+separate root is shorter, doesn't waste syscalls, and the
+priority-driven quit is robust to future programmatic-hide
+features.
+
 ### Initial `_anchor()` must be deferred via `Qt.callLater`
 
 `Main.qml` calls `_anchor()` from `Component.onCompleted` to issue
@@ -126,6 +217,42 @@ request against Qt's default frameless override-redirect window-type
 — exactly the gravity-shift scenario the `WindowAnchor` pattern
 exists to avoid. It surfaced as a brief jump on first show. Deferring
 to step 3 lets the window-type land first.
+
+### `_NET_WM_STATE` is set as a property, not via a ClientMessage
+
+`applyDesktopWindowHints` in `standalone/desktop_hints.cpp` writes the
+state list (`STICKY + SKIP_TASKBAR + SKIP_PAGER + BELOW`) using
+`xcb_change_property` with `XCB_PROP_MODE_REPLACE`, **not** via
+`xcb_send_event` ClientMessages. The reason is the call timing: the
+function runs from `main.cpp` **between** `engine.loadFromModule` and
+`app.exec()`, when the QML `visible: true` show() request has been
+queued but the event loop hasn't started yet — the X server hasn't
+seen `MapWindow` for our window. EWMH §"_NET_WM_STATE" assigns
+ClientMessages to runtime mutation of **mapped** windows; KWin (and
+mutter through XWayland) silently drop ClientMessages targeting
+unmapped windows, which is why STICKY / SKIP_TASKBAR / SKIP_PAGER
+used to show up flaky in `xprop` after launch.
+
+Setting the property pre-map is the spec-compliant declaration path
+— the WM reads it during `MapRequest` and treats absent or empty as
+"no states". `_NET_WM_STATE_BELOW` is included explicitly: Qt's xcb
+plugin would add it post-map via ClientMessage (driven by
+`Qt::WindowStaysOnBottomHint`), but our `REPLACE` would otherwise
+clobber any pre-existing list, so being explicit removes the race
+with Qt's init order. Text-guarded by `tests/desktop-hints.test.mjs`.
+
+The **pre-map** requirement is also load-bearing for any future
+caller: `applyDesktopWindowHints` only updates the WM's state view
+because the property write happens before `MapWindow` is issued.
+Calling it post-map (e.g. on a theme switch, runtime "show on all
+desktops" toggle, or re-anchor after a monitor hot-plug) silently
+fails — the property updates, but KWin / mutter only re-read the
+state list at map time, so `xprop` would show the right value while
+the WM behaviour stays unchanged. The contract is spelled out
+above the declaration in `standalone/desktop_hints.h` and asserted
+in debug builds via `Q_ASSERT(!window->isExposed())`. A future
+"re-apply on theme switch" path needs a sibling helper that uses
+`xcb_send_event(ClientMessage)` instead.
 
 ### XWayland probe before forcing `QT_QPA_PLATFORM=xcb`
 

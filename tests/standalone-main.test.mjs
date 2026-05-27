@@ -20,6 +20,12 @@
 //   3. Geometry re-anchor on `onScreenChanged` (window migrates
 //      between same-resolution monitors — width/height wouldn't
 //      fire).
+//   4. Main.qml is the widget-only root — the --open-settings
+//      recovery path lives in SettingsOnlyRoot.qml. This file must
+//      NOT re-introduce `_settingsOnly` / `settingsOnlyMode` /
+//      conditional `visible:` threading (the SettingsOnlyRoot
+//      refactor erased the eight-site flag the previous shape
+//      carried).
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -34,13 +40,46 @@ const SRC = readFileSync(
 );
 
 test("initial _anchor() is deferred via Qt.callLater", () => {
-    // The match accepts whitespace variation but rejects a direct
-    // `_anchor()` call from Component.onCompleted (which would
-    // bypass the deferral and hit the wrong window-type).
+    // The match accepts whitespace variation and a surrounding block
+    // (the settings-only branch lives in the same `Component.onCompleted`)
+    // but rejects a direct `_anchor()` call (which would bypass the
+    // deferral and hit the wrong window-type).
     assert.match(
         SRC,
-        /Component\.onCompleted\s*:\s*Qt\.callLater\(\s*_anchor\s*\)/,
-        "Component.onCompleted must defer _anchor via Qt.callLater",
+        /Qt\.callLater\(\s*_anchor\s*\)/,
+        "the initial _anchor must be deferred via Qt.callLater",
+    );
+    // And the direct synchronous form must not exist anywhere — that's
+    // exactly what the deferral exists to avoid.
+    assert.doesNotMatch(
+        SRC,
+        /Component\.onCompleted\s*:\s*_anchor\s*\(\s*\)/,
+        "Component.onCompleted must NOT call _anchor() directly (bypasses the deferral)",
+    );
+});
+
+test("Main.qml is the widget-only root (no recovery-mode threading)", () => {
+    // Recovery mode lives in `SettingsOnlyRoot.qml`, loaded by
+    // main.cpp when --open-settings is passed. Main.qml must NOT
+    // re-introduce a `_settingsOnly` flag, a `settingsOnlyMode`
+    // context-property read, or a conditional `visible:` — those
+    // were the eight-site threading the SettingsOnlyRoot refactor
+    // erased. Locking these absences in here ensures a regression
+    // bringing the flag back would land in CI red.
+    assert.doesNotMatch(
+        SRC,
+        /settingsOnlyMode/,
+        "Main.qml must NOT reference settingsOnlyMode (recovery lives in SettingsOnlyRoot.qml)",
+    );
+    assert.doesNotMatch(
+        SRC,
+        /_settingsOnly/,
+        "Main.qml must NOT carry a _settingsOnly property",
+    );
+    assert.match(
+        SRC,
+        /visible\s*:\s*true/,
+        "the rings Window must be unconditionally visible (recovery is a separate root)",
     );
 });
 

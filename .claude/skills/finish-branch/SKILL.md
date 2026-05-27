@@ -560,6 +560,39 @@ and skip — don't block the finish-branch flow on it. The PR is
 already opened and labelled; reviews can happen async if a
 contributor fires `/code-review <pr_number>` manually later.
 
+**Triage the findings before proposing fixes.** Ring-monitor is a
+desktop widget that runs as the local user — not a network service,
+not a privileged daemon. When `/code-review` returns a list of
+findings, rank them against the user's stated priority order before
+asking "should I fix everything?":
+
+1. **Wrong / stale data** (priority 1) — sensors silently zero,
+   parser drops a real line, ring shows the wrong number → fix.
+2. **Config that doesn't round-trip on every supported host**
+   (priority 2) — Plasma 6 Wayland / Plasma X11 / standalone on
+   KWin/mutter/sway/Hyprland → fix.
+3. **Glitches & fluidity regressions** (priority 3) — window
+   flicker, gravity-shift on resize, ring jumping, slider lag,
+   SettingsDialog stutter on open or tab switch → fix.
+4. **PC-stability risks** (priority 4) — anything that loops,
+   leaks, holds a kwin surface, or blocks the GUI thread on a stuck
+   syscall (`statvfs` on a hung NFS, sync I/O on a slow mount) →
+   fix ruthlessly; see [[feedback-avoid-rapid-standalone-relaunch]]
+   for the 2026-05-27 kwin soft-hang precedent.
+5. **Security defense-in-depth** (low priority for this product) —
+   path-allowlist gaps, sandbox holes, info-disclosure oracles. The
+   widget runs as the user, so a "leaked" file is one the user can
+   already `cat`. Apply the minimum that prevents a documented
+   guarantee from being a lie (e.g. clean `..` if the comment
+   claims the prefix blocks something, otherwise skip). Do NOT
+   propose CIA-grade `ASSERT`-everywhere / canonicalise-everywhere
+   refactors proactively.
+
+Full rationale in the [[feedback-threat-model-priorities]] memory.
+Present the recalibrated triage table to the user before
+implementing — they may want to skip / defer / lighten findings
+that fall in category 5.
+
 ## Expected report
 
 Summary table at the end of phase A:

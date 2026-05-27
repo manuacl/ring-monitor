@@ -26,6 +26,21 @@
 //   percentFromSample(prev, cur) - usage % over the interval; safe
 //                                  against zero deltas and NaN.
 
+// Hoisted to module scope: parseProcStat runs once per CPU tick
+// (~1 Hz × app lifetime), and per-call regex re-allocation isn't
+// reliably elided by QML's V4 engine. Module scope = one literal
+// for the lifetime of the process.
+//
+// The regex itself: `^cpu` then optional digits, then a word
+// boundary. `\b` rejects `cpufreq`, `cpu_avg_freq`, `cpuidle` and
+// similar `cpu`-prefixed metadata that real /proc/stat files
+// don't emit today but the kernel could add. The outer prefix
+// gate below (line.indexOf("cpu") === 0) is the zero-allocation
+// fast path — we only pay the regex on lines that already match
+// the `cpu` literal, of which a typical /proc/stat has ~10
+// (aggregate + N cores) out of ~17 total lines.
+var CPU_LINE_RE = /^cpu(\d*)\b/;
+
 function parseProcStat(content) {
     var out = {
         "all": null,
@@ -37,7 +52,16 @@ function parseProcStat(content) {
     var coreMap = {};
     for (var i = 0; i < lines.length; i++) {
         var line = lines[i].trim();
+        // Prefix gate first: cheap `indexOf` rejects intr / ctxt /
+        // btime / processes / procs_running / procs_blocked / softirq
+        // (~7 non-cpu lines per /proc/stat) without allocating a
+        // RegExpResult array. Only `cpu`-prefixed lines reach the
+        // regex, which then enforces the word boundary against
+        // hypothetical cpufreq-style false positives.
         if (line.indexOf("cpu") !== 0)
+            continue;
+        var lineMatch = line.match(CPU_LINE_RE);
+        if (!lineMatch)
             continue;
         var parts = line.split(/\s+/);
         var head = parts[0];
@@ -48,10 +72,8 @@ function parseProcStat(content) {
         }
         if (head === "cpu") {
             out.all = fields;
-        } else {
-            var m = head.match(/^cpu(\d+)$/);
-            if (m)
-                coreMap[parseInt(m[1], 10)] = fields;
+        } else if (lineMatch[1].length > 0) {
+            coreMap[parseInt(lineMatch[1], 10)] = fields;
         }
     }
     var indices = Object.keys(coreMap).map(Number).sort(function (a, b) {

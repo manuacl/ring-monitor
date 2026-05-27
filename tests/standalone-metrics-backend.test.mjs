@@ -58,6 +58,15 @@ test("standalone MetricsBackend wires disk via statvfs(/)", () => {
     // future per-mount selector is allowed to override this, but the
     // current default must stay on root.
     assert.match(SOURCE, /["']\/["']/, "must reference the root mount '/' for the default disk path");
+    // Review finding 🟠 PR #30: disk usage must use df(1)'s formula
+    // via diskUsagePercent, not the naive usagePercent (which counts
+    // the ext4 5% root reservation as used and reports a non-zero
+    // percent on a freshly-formatted empty disk). Lock the wiring in.
+    assert.match(
+        SOURCE,
+        /MemInfoParser\.diskUsagePercent\s*\(\s*disk\.total\s*,\s*disk\.free\s*,\s*disk\.available\s*\)/,
+        "disk percent must be computed via diskUsagePercent(total, free, available) so it matches `df`",
+    );
 });
 
 test("standalone MetricsBackend exposes ram + disk through metricValue", () => {

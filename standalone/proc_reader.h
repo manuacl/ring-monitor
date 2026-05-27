@@ -37,16 +37,35 @@ public:
 
     // Synchronous read. Returns the file contents on success, an
     // empty string on any failure (missing file, no read permission,
-    // I/O error). Callers (typically a `Timer.onTriggered` in QML)
-    // are expected to tolerate empty / partial input — the
-    // `ProcStatParser` helpers in `core/` do.
+    // I/O error, **or path outside the `/proc/` / `/sys/` allowlist
+    // after `QDir::cleanPath` normalises `..`**). Callers (typically
+    // a `Timer.onTriggered` in QML) are expected to tolerate empty /
+    // partial input — the `ProcStatParser` helpers in `core/` do.
+    //
+    // The widget runs as the user, so this isn't a privilege boundary:
+    // any file `reader.read(...)` could return is also a file the
+    // user can `cat` directly. The allowlist exists to keep the QML
+    // side honest at dev time — a typo'd path emits `qWarning` instead
+    // of silently leaking unrelated data. See `proc_reader.cpp` for
+    // the full rationale.
     Q_INVOKABLE QString read(const QString &path) const;
 
-    // statvfs(3) wrapper. Returns { "total": <bytes>, "available":
-    // <bytes> } on success; empty map on any failure (path missing,
-    // not mounted, EACCES). `total` uses f_blocks (filesystem-wide
-    // size); `available` uses f_bavail (free space minus root
-    // reservation — the value `df` displays in the "Avail" column).
-    // Both are bytes (`f_blocks * f_frsize`).
+    // statvfs(3) wrapper. Returns { "total": <bytes>, "free":
+    // <bytes>, "available": <bytes> } on success; empty map on any
+    // failure (path missing, not mounted, EACCES). All three fields
+    // are in bytes (`f_X * f_frsize`):
+    //   - `total`     = f_blocks (filesystem-wide size, includes
+    //                   root reservation)
+    //   - `free`      = f_bfree  (all unused blocks, including the
+    //                   root reservation)
+    //   - `available` = f_bavail (unused blocks reachable by an
+    //                   unprivileged user; matches `df`'s "Avail")
+    //
+    // Both `free` and `available` are exposed so QML can compute
+    // df(1)'s "Use%" formula `(total - free) / (total - free +
+    // available)` via `MemInfoParser.diskUsagePercent`. The naive
+    // `(total - available) / total` would count the ~5% ext4 root
+    // reservation as "used" and report a non-zero usage on a
+    // freshly-formatted empty filesystem.
     Q_INVOKABLE QVariantMap statvfs(const QString &path) const;
 };

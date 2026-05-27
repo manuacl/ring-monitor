@@ -108,8 +108,11 @@ Item {
         var mem = MemInfoParser.parseMemInfo(memRaw);
         backend._ramUsage = MemInfoParser.usagePercent(mem.total, mem.available);
         // ── statvfs(/) (disk) ───────────────────────────────────────
+        // diskUsagePercent uses df(1)'s formula (excludes root-reserved
+        // blocks from "size") so the ring matches `df -h /` output.
+        // usagePercent would count the ext4 5% reservation as used.
         var disk = reader.statvfs(backend._diskMount);
-        backend._diskUsage = MemInfoParser.usagePercent(disk.total, disk.available);
+        backend._diskUsage = MemInfoParser.diskUsagePercent(disk.total, disk.free, disk.available);
         // Bump _tick last so all readonly properties depending on it
         // re-evaluate together after every metric has its fresh value.
         backend._tick++;

@@ -106,6 +106,32 @@ test("desktop_hints includes no Plasma headers (standalone isolation)", () => {
     );
 });
 
+test("forceXWaylandUnderWayland warns when Xwayland is missing", () => {
+    // Review finding 🟠 PR #27: without a diagnostic line the silent
+    // fallback to native Wayland (where applyDesktopWindowHints no-ops)
+    // leaves the user with an un-hinted floating window and no clue why.
+    // The warning must mention Xwayland and the EWMH hint family so it's
+    // greppable in the journal.
+    assert.match(
+        SRC,
+        /qWarning\([^)]*Xwayland[\s\S]*?_NET_WM_/,
+        "must qWarning when Xwayland is missing, naming the EWMH hint family",
+    );
+});
+
+test("applyDesktopWindowHints warns when X11 native interface is unavailable", () => {
+    // Same review finding 🟠 PR #27: the second silent-no-op branch
+    // is when nativeInterface<QX11Application>() returns nullptr
+    // (running on native Wayland after the XWayland probe declined to
+    // force xcb, or on a non-X11 platform). Emit a warning so the
+    // unset hints are debuggable.
+    assert.match(
+        SRC,
+        /if\s*\(\s*!x11\s*\)\s*\{[\s\S]*?qWarning\([^)]*native Wayland/,
+        "must qWarning when the X11 native interface is unavailable",
+    );
+});
+
 test("xcb_intern_atom length is explicitly cast to uint16_t", () => {
     // Cosmetic but matters under -Wconversion: qstrlen returns uint,
     // xcb_intern_atom takes uint16_t. Implicit narrowing trips clang

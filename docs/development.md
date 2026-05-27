@@ -85,6 +85,16 @@ window without the Conky integration. Install the `Xwayland`
 package or wait for the layer-shell native path (PR C2) to get
 the full behaviour.
 
+Both no-op branches (Xwayland missing on $PATH, and X11 native
+interface returning null) emit a `qWarning(…)` on stderr / the
+journal. To diagnose a "why is my window floating" report:
+
+```bash
+ring-monitor-standalone 2>&1 | grep -i "ring-monitor:"
+# or, when launched from .desktop:
+journalctl --user -n 60 --since "1 min ago" | grep ring-monitor
+```
+
 Verify the hints landed with `xprop`:
 
 ```bash

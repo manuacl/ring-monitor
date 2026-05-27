@@ -1,6 +1,7 @@
 #include "desktop_hints.h"
 
 #include <QByteArray>
+#include <QDebug>
 #include <QGuiApplication>
 #include <QStandardPaths>
 #include <QWindow>
@@ -34,8 +35,21 @@ void forceXWaylandUnderWayland()
     // QStandardPaths::findExecutable walks $PATH so it catches
     // Xwayland whether it lives in /usr/bin (Debian/Fedora default)
     // or /usr/libexec (some Arch builds, NixOS profiles).
-    if (QStandardPaths::findExecutable(QStringLiteral("Xwayland")).isEmpty())
+    if (QStandardPaths::findExecutable(QStringLiteral("Xwayland")).isEmpty()) {
+        // Without a diagnostic line, a user on minimal Sway/Hyprland
+        // (no `xorg-x11-server-Xwayland`) sees a floating window with
+        // no taskbar exclusion, no STICKY, no DESKTOP type, and no
+        // explanation. Emit a single warning so the failure mode is
+        // greppable in the journal / stderr.
+        qWarning(
+            "ring-monitor: Xwayland not found on $PATH — staying on "
+            "native Wayland. The Conky-style EWMH hints "
+            "(_NET_WM_WINDOW_TYPE_DESKTOP, _NET_WM_STATE_BELOW, "
+            "STICKY, SKIP_TASKBAR, SKIP_PAGER) require X11 and will "
+            "no-op. Install the Xwayland package for the full "
+            "wallpaper-layer behaviour.");
         return;
+    }
 
     // No mainstream Wayland compositor exposes wlr-layer-shell as an
     // ergonomic Qt-native surface today: mutter refuses to implement
@@ -74,10 +88,21 @@ void applyDesktopWindowHints(QWindow *window)
 
     // Native interface returns nullptr off X11. Wayland-native
     // integration (layer-shell-qt) is a separate code path in a
-    // follow-up PR.
+    // follow-up PR. Emit a warning so the no-op is debuggable: this
+    // branch is reached when `forceXWaylandUnderWayland` decided not
+    // to force xcb (no Xwayland on $PATH, or user override pointing
+    // to wayland), or when running directly on Wayland without a
+    // Wayland session env var.
     auto *x11 = qGuiApp->nativeInterface<QNativeInterface::QX11Application>();
-    if (!x11)
+    if (!x11) {
+        qWarning(
+            "ring-monitor: X11 native interface unavailable — running "
+            "on native Wayland (or a non-X11 platform). EWMH hints "
+            "(_NET_WM_WINDOW_TYPE_DESKTOP, _NET_WM_STATE_BELOW, "
+            "STICKY, SKIP_TASKBAR, SKIP_PAGER) will not be set; the "
+            "window will appear as a normal floating Qt window.");
         return;
+    }
 
     xcb_connection_t *conn = x11->connection();
     if (!conn)

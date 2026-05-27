@@ -44,19 +44,13 @@ for a new component triggers a stub creation. Full rationale in
 
 ## What lives where
 
-| Test file | What it covers |
-|---|---|
-| `metrics-catalog.test.mjs` | catalog ids, sensor-id mapping, CSV helpers, temperature conversion (°C→%/°F), merged-temp filtering, sensor-discovery classifier |
-| `ring-geometry.test.mjs` | full / half / split-half sweep math, `dimensionsFor`, `nestedRingLayout` (count-aware) |
-| `color-themes.test.mjs` | theme registry, dark/light variant resolution, "system" theme passthrough |
-| `reorder-logic.test.mjs` | `applyMove` (drag-and-drop array transform), `computeYShift` |
-| `config-store.test.mjs` | text-level guard: every persisted config key is declared + readonly + bound to `Plasmoid.configuration.X` |
-| `metrics-backend.test.mjs` | text-level guard: public surface + universal Sensor instances + `SensorTreeModel` discovery + Instantiator pattern + `loading` binding |
-| `qml/tst_Ring.qml` | label / value / unit text rendering, sweep angles, nestedValues count, split mode, rawValue override |
-| `qml/tst_MetricRow.qml` | row layout, checkbox state, extraContent, disabled cascade |
-| `qml/tst_DraggableList.qml` | rowModel forwarding, drag scenarios, no-op drags |
-| `qml/tst_MetricsBody.qml` | order CSV ↔ model, isEnabled/setEnabled, descriptions, tempUnit radios |
-| `qml/tst_AppearanceBody.qml` | opacity sliders bind two-way, mode radios |
+Full per-file inventory in [`../docs/testing.md`](../docs/testing.md) §
+"Test files". This file keeps the rule-shaped content (filename
+convention, when to add a test, text-level Node-guard pattern); the
+inventory belongs in `docs/` per the convention in
+[`../docs/CLAUDE.md`](../docs/CLAUDE.md) ("`CLAUDE.md` is scannable
+briefing, `docs/` is read-on-demand explanation including file
+inventories").
 
 ## Text-level Node guards for QML files (a recurring pattern)
 

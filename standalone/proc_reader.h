@@ -37,9 +37,13 @@ public:
 
     // Synchronous read. Returns the file contents on success, an
     // empty string on any failure (missing file, no read permission,
-    // I/O error). Callers (typically a `Timer.onTriggered` in QML)
-    // are expected to tolerate empty / partial input — the
-    // `ProcStatParser` helpers in `core/` do.
+    // I/O error, **or path outside the `/proc/` / `/sys/` allowlist**).
+    // Callers (typically a `Timer.onTriggered` in QML) are expected to
+    // tolerate empty / partial input — the `ProcStatParser` helpers in
+    // `core/` do. The allowlist exists because `Q_INVOKABLE` exposes
+    // this to every QML context and a leaf calling `read("/etc/...")`
+    // would otherwise turn the helper into an arbitrary file-read
+    // primitive.
     Q_INVOKABLE QString read(const QString &path) const;
 
     // statvfs(3) wrapper. Returns { "total": <bytes>, "available":

@@ -38,6 +38,18 @@ QML can't issue syscalls and `statvfs` is the only one we need for
 PR E (disk capacity). Returns `{ total, available }` in bytes; empty
 map on failure.
 
+`read()` is **allowlisted to `/proc/` and `/sys/` only**. Every other
+path returns the empty string with a `qWarning("ProcReader::read
+refused …")` on stderr. The reasoning: `Q_INVOKABLE` exposes the
+method to every QML context in the standalone build, and a leaf
+component calling `reader.read("/etc/shadow")` would otherwise turn
+this into an arbitrary file-read primitive. New sensors that need a
+different prefix (e.g. `/var/run/...`) must extend the allowlist in
+`proc_reader.cpp` and add a `tests/proc-reader.test.mjs` guard for
+the new prefix. `statvfs()` accepts any path because its consumer is
+a user-configured mount point — covered in the disk-metric section
+below.
+
 The class lives at global scope (not in `ringmonitor::`) because
 Qt 6's QML auto-registration generates code calling
 `qmlRegisterTypesAndRevisions<ProcReader>(...)` without

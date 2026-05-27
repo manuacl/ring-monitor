@@ -45,15 +45,27 @@ Window {
     // Plasma scheme.
     color: dialog.theme ? dialog.theme.backgroundColor : Kirigami.Theme.backgroundColor
 
-    // Centre on the primary screen + wire the two-way bridges at
-    // startup. Single Component.onCompleted because QML only allows
-    // one per object. Without the centring the window pops at (0, 0)
-    // which lands in the corner of the leftmost monitor.
-    Component.onCompleted: {
-        dialog.x = (Screen.width - dialog.width) / 2;
-        dialog.y = (Screen.height - dialog.height) / 2;
-        dialog._wireBridges();
+    // Centre on the actual destination screen — NOT at
+    // Component.onCompleted. The `Screen` attached property reads
+    // the screen the Window currently lives on, but a hidden Window
+    // hasn't been assigned a screen yet — so at onCompleted it
+    // resolves to the primary screen even when the widget that opens
+    // the dialog lives on a secondary monitor. Recenter when the
+    // Window transitions from hidden to visible: at that moment Qt
+    // has decided which screen to map us on and `Screen.*` reflects
+    // it. `Screen.virtualX/Y` puts the dialog in the screen's own
+    // coordinate space (a multi-monitor `Window.x = N` is virtual-
+    // desktop-absolute on X11, so a bare centring formula would land
+    // on the leftmost screen even when the destination Screen is the
+    // rightmost).
+    function _recenterOnCurrentScreen() {
+        dialog.x = Screen.virtualX + (Screen.width - dialog.width) / 2;
+        dialog.y = Screen.virtualY + (Screen.height - dialog.height) / 2;
     }
+    onVisibleChanged: if (dialog.visible)
+        dialog._recenterOnCurrentScreen()
+
+    Component.onCompleted: dialog._wireBridges()
 
     // ColorPicker injected into AppearanceBody as a Component — the
     // body stays platform-agnostic; the standalone ColorPicker wraps
@@ -103,18 +115,30 @@ Window {
             anchors.topMargin: Kirigami.Units.smallSpacing
             currentIndex: tabBar.currentIndex
 
+            // ScrollView.availableWidth is content-area width minus
+            // the vertical scrollbar — the idiomatic input for a
+            // single-child Flickable body's `width`. The previous
+            // `parent.parent.width` walked through ScrollView's
+            // internal Flickable to read StackLayout.width, which
+            // Qt has reorganised across 6.x point releases (e.g.
+            // QQC2 ScrollView's internal hierarchy changed in 6.4
+            // → 6.5). Bind to the documented public property
+            // instead so a future Qt shuffle doesn't silently break
+            // the widths.
             QQC2.ScrollView {
+                id: metricsScroll
                 Core.MetricsBody {
                     id: metricsBody
                     theme: dialog.theme
-                    width: parent.parent.width
+                    width: metricsScroll.availableWidth
                 }
             }
 
             QQC2.ScrollView {
+                id: appearanceScroll
                 Core.AppearanceBody {
                     id: appearanceBody
-                    width: parent.parent.width
+                    width: appearanceScroll.availableWidth
                     colorPickerComponent: colorPickerComponent
                     // Only the standalone host consumes `windowMargin`
                     // (the Plasma panel slot is plasmashell-positioned).
@@ -124,9 +148,10 @@ Window {
             }
 
             QQC2.ScrollView {
+                id: aboutScroll
                 Core.AboutBody {
                     id: aboutBody
-                    width: parent.parent.width
+                    width: aboutScroll.availableWidth
                     localVersion: dialog.configStore ? dialog.configStore.localVersion : ""
                     remoteVersion: dialog.updateChecker ? dialog.updateChecker.remoteVersion : ""
                     updateAvailable: dialog.updateChecker ? dialog.updateChecker.updateAvailable : false

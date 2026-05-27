@@ -140,3 +140,49 @@ test("percentFromSample handles samples with missing optional fields", () => {
     const result = Parser.percentFromSample(prev, cur);
     assert.ok(Math.abs(result - 50) < 0.001, `expected ~50, got ${result}`);
 });
+
+// ── SCENARIO: `cpu`-prefixed non-CPU lines must not perturb the parse ──
+
+test("SCENARIO: `cpufreq` and other cpu-prefixed metadata lines are ignored", () => {
+    // Review finding 🟠 PR #29: the outer guard `line.indexOf("cpu") !== 0`
+    // accepted `cpufreq 2400 …`, `cpu_avg_freq …`, etc. — these fed
+    // through the inner parser, parseInt'd their fields, and only got
+    // discarded later because no branch claimed them. After the fix
+    // (regex `^cpu(\d*)\b`), those lines are rejected at the gate.
+    // The output is identical pre/post-fix (no behavior regression) —
+    // this SCENARIO locks the regression guard in place so a future
+    // refactor doesn't loosen the gate back.
+    const sample = [
+        "cpu  300 0 150 2400 30 0 0 0",
+        "cpu0 100 0 50 800 10 0 0 0",
+        "cpufreq 2400 3200 1800",                 // synthetic — not a real /proc/stat line
+        "cpu_avg_freq 2000",                       // synthetic
+        "cpuidle 12345",                           // synthetic
+        "cpu1 100 0 50 800 10 0 0 0",
+        "intr 5",
+        ""
+    ].join("\n");
+    const result = Parser.parseProcStat(sample);
+    // Aggregate and the two real cores parsed cleanly; the synthetic
+    // lookalikes did not become extra `cores` entries and did not
+    // overwrite `all`.
+    assert.deepEqual(result.all, [300, 0, 150, 2400, 30, 0, 0, 0]);
+    assert.equal(result.cores.length, 2);
+    assert.deepEqual(result.cores[0], [100, 0, 50, 800, 10, 0, 0, 0]);
+    assert.deepEqual(result.cores[1], [100, 0, 50, 800, 10, 0, 0, 0]);
+});
+
+test("SCENARIO: a hypothetical `cpu99X` line is rejected (word-boundary check)", () => {
+    // The `\b` boundary on `^cpu(\d*)\b` prevents `cpu99extra` from
+    // being parsed as core 99. Real /proc/stat doesn't emit such a
+    // line today, but the guard is cheap and a future kernel change
+    // could.
+    const sample = [
+        "cpu  100 0 50 800 10",
+        "cpu0 50 0 25 400 5",
+        "cpu99extra 1 2 3",   // synthetic — must NOT become core 99
+        ""
+    ].join("\n");
+    const result = Parser.parseProcStat(sample);
+    assert.equal(result.cores.length, 1, "only the real cpu0 line should yield a core");
+});

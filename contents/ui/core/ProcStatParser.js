@@ -35,9 +35,20 @@ function parseProcStat(content) {
         return out;
     var lines = content.split("\n");
     var coreMap = {};
+    // Outer gate: only `cpu` (aggregate) and `cpuN` (per-core) lines
+    // are kept. `/proc/stat` also contains `cpufreq`, `cpu_avg_freq`,
+    // and other `cpu`-prefixed metadata on some platforms (and the
+    // kernel could add more). Without the `\b` boundary check, those
+    // lines used to enter the inner parser, parseInt their fields,
+    // and only get discarded later because no branch claimed them —
+    // wasted work per tick. The regex is the same one used to extract
+    // the per-core index, factored out so the inner block doesn't
+    // need to re-test.
+    var cpuLineRe = /^cpu(\d*)\b/;
     for (var i = 0; i < lines.length; i++) {
         var line = lines[i].trim();
-        if (line.indexOf("cpu") !== 0)
+        var lineMatch = line.match(cpuLineRe);
+        if (!lineMatch)
             continue;
         var parts = line.split(/\s+/);
         var head = parts[0];
@@ -48,10 +59,8 @@ function parseProcStat(content) {
         }
         if (head === "cpu") {
             out.all = fields;
-        } else {
-            var m = head.match(/^cpu(\d+)$/);
-            if (m)
-                coreMap[parseInt(m[1], 10)] = fields;
+        } else if (lineMatch[1].length > 0) {
+            coreMap[parseInt(lineMatch[1], 10)] = fields;
         }
     }
     var indices = Object.keys(coreMap).map(Number).sort(function (a, b) {

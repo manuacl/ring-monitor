@@ -78,7 +78,19 @@ Window {
     function _anchor() {
         WindowAnchor.setGeometry(root, Screen.width - root._targetWidth - root._windowMargin, root._windowMargin, root._targetWidth, root._targetHeight);
     }
-    Component.onCompleted: _anchor()
+    // Defer the first anchor so `applyDesktopWindowHints` (called
+    // from main.cpp right after `engine.loadFromModule` returns) has
+    // a chance to swap the window-type to `_NET_WM_WINDOW_TYPE_DESKTOP`
+    // BEFORE we issue the first setGeometry. The synchronous order is:
+    //   1. engine.loadFromModule → Component.onCompleted fires
+    //   2. applyDesktopWindowHints(window) sets DESKTOP type
+    //   3. app.exec() — event loop starts, Qt.callLater fires
+    // Calling `_anchor()` directly in step 1 issued the first
+    // configure-request against Qt's default frameless override-redirect
+    // window-type — exactly the gravity-shift scenario the WindowAnchor
+    // pattern exists to avoid, surfacing as the brief jump on first
+    // show. Qt.callLater queues it to step 3 instead.
+    Component.onCompleted: Qt.callLater(_anchor)
     // Connections (rather than `on_TargetWidthChanged:`) — handlers
     // for underscore-prefixed properties are awkward to spell in QML
     // (`on_TargetWidthChanged`, mixing leading underscore + capital).

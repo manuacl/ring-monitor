@@ -85,6 +85,50 @@ Yes"**. App-side, the fix is the native layer-shell path: a
 wlr-layer-shell "background" layer surface never participates in
 any switcher by design. That's covered by PR C2.
 
+### Initial `_anchor()` must be deferred via `Qt.callLater`
+
+`Main.qml` calls `_anchor()` from `Component.onCompleted` to issue
+the first atomic `setGeometry` against the Window. **Wrap that first
+call in `Qt.callLater`** — do not call `_anchor()` directly. The
+synchronous boot order is:
+
+1. `engine.loadFromModule` → `Component.onCompleted` fires
+2. `applyDesktopWindowHints(window)` swaps the window-type to
+   `_NET_WM_WINDOW_TYPE_DESKTOP` (called from `main.cpp` right after
+   `loadFromModule` returns)
+3. `app.exec()` — the event loop starts and `Qt.callLater` fires
+
+Calling `_anchor()` directly in step 1 issued the first configure
+request against Qt's default frameless override-redirect window-type
+— exactly the gravity-shift scenario the `WindowAnchor` pattern
+exists to avoid. It surfaced as a brief jump on first show. Deferring
+to step 3 lets the window-type land first.
+
+### XWayland probe before forcing `QT_QPA_PLATFORM=xcb`
+
+`forceXWaylandUnderWayland` in `standalone/desktop_hints.cpp` must
+gate the `qputenv("QT_QPA_PLATFORM", "xcb")` on
+`QStandardPaths::findExecutable("Xwayland")` returning a non-empty
+path. Without the probe, a user running Plasma 6 Wayland who removed
+`xorg-x11-server-Xwayland` (or any minimal Sway/Hyprland install
+that ships without it) gets a hard crash at startup —
+`QGuiApplication` aborts with "Could not load the Qt platform plugin
+xcb" before any QML loads. Falling back to native Wayland makes the
+Conky-on-the-wallpaper hints no-op (the X11 native interface returns
+nullptr off X11), but the app still runs.
+
+### Autostart `Exec=` line must shell-escape the path
+
+`Autostart::buildDesktopFileContent` runs the current binary path
+through `quoteExecArg` before splicing into the `Exec=` line.
+Without that, an AppImage installed under a path containing spaces
+(e.g. `~/Applications/Ring Monitor.AppImage`, common with
+AppImageLauncher) breaks autostart silently — the XDG launcher
+tokenises on whitespace and tries to exec the wrong binary. The
+XDG-spec escape order is load-bearing: backslash is escaped before
+`"`, `$`, and backtick (text-level-guarded by
+`tests/autostart.test.mjs`).
+
 ## Same-surface rule
 
 When implementing an adapter here, the contract is:

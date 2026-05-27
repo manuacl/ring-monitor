@@ -54,6 +54,38 @@ panel container may ignore them):
   closest screen edge. Used by the standalone window to offset
   itself from the top-right anchor; the Plasma panel ignores it.
 
+## `MainContent.qml` — implicit dimensions
+
+`MainContent` is a `GridLayout` of N square rings (`Ring.qml`
+delegates inside a `Repeater`). It's mounted on the Plasma host
+(`contents/ui/main.qml`) as `fullRepresentation` **with no
+`Layout.preferredWidth/Height` override**, so the panel allocation
+is driven entirely by the layout's auto-computed `implicitWidth` /
+`implicitHeight`. Sizing them wrong squashes every ring in the
+panel slot — there is no auto-correction downstream.
+
+The layout's implicits are derived from the **delegate** Layout
+hints, not from an explicit binding on the GridLayout itself:
+`QQuickLayout` ignores explicit `implicitWidth` / `implicitHeight`
+on the layout and recomputes them from its children's
+`Layout.preferredWidth` / `Layout.preferredHeight` on each polish
+pass. The Ring delegate sets `Layout.preferredWidth: _ringSize` and
+`Layout.preferredHeight: _ringSize`, which gives the expected
+bounding box for `N` rings of side `ringSize` separated by a
+`ringSpacing = round(ringSize × ringSpacingPercent / 100)` gap:
+
+| `orientation`   | `implicitWidth`                            | `implicitHeight`                            |
+|---|---|---|
+| `"horizontal"`  | `N × ringSize + (N - 1) × ringSpacing`     | `ringSize`                                  |
+| `"vertical"`    | `ringSize`                                 | `N × ringSize + (N - 1) × ringSpacing`      |
+
+The standalone host (`platforms/standalone/Main.qml`) computes the
+window size with the same formula on the `Window` side and uses
+`anchors.fill: parent` on the embedded `MainContent`, so a regression
+in the implicit-dimensions formula would not surface there — it only
+hits the Plasma fullRepresentation path. Regression-guarded by
+`tests/qml/tst_MainContent.qml`.
+
 ## `Ring.qml`
 
 A circular gauge: 270° arc starting at 135° (90° gap at the bottom).

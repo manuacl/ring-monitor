@@ -2,6 +2,7 @@
 
 #include <QByteArray>
 #include <QGuiApplication>
+#include <QStandardPaths>
 #include <QWindow>
 #include <QtGui/qguiapplication_platform.h>
 
@@ -18,20 +19,35 @@ void forceXWaylandUnderWayland()
     const QByteArray session = qgetenv("XDG_SESSION_TYPE").toLower();
     const bool isWayland = session == "wayland";
     const bool userOverride = !qgetenv("QT_QPA_PLATFORM").isEmpty();
+    if (!isWayland || userOverride)
+        return;
 
-    if (isWayland && !userOverride) {
-        // No mainstream Wayland compositor exposes wlr-layer-shell as
-        // an ergonomic Qt-native surface today: mutter refuses to
-        // implement it (gitlab.gnome.org/GNOME/mutter#973) and KWin
-        // does (layer-shell-qt) but the Qt module is unstable / not
-        // installed by default. XWayland, by contrast, lets us send
-        // `_NET_WM_STATE_BELOW + STICKY + SKIP_*` and gets us the
-        // Conky-on-the-wallpaper look on every Wayland compositor we
-        // care about (KWin, mutter). Best-effort, with known glitches
-        // (Activities mode, desktop click pass-through), same as the
-        // trade-off Conky users accept on Wayland.
-        qputenv("QT_QPA_PLATFORM", "xcb");
-    }
+    // Probe XWayland on $PATH before forcing xcb: if the user removed
+    // `xorg-x11-server-Xwayland` (or runs a minimal Sway/Hyprland
+    // install without it), `QT_QPA_PLATFORM=xcb` makes Qt's xcb
+    // plugin fail to load → `QGuiApplication` aborts with "Could not
+    // load the Qt platform plugin xcb" and the binary never starts.
+    // Fall back to native Wayland in that case — the EWMH hints in
+    // `applyDesktopWindowHints` will no-op (the X11 native interface
+    // returns nullptr off X11) but the app still runs.
+    //
+    // QStandardPaths::findExecutable walks $PATH so it catches
+    // Xwayland whether it lives in /usr/bin (Debian/Fedora default)
+    // or /usr/libexec (some Arch builds, NixOS profiles).
+    if (QStandardPaths::findExecutable(QStringLiteral("Xwayland")).isEmpty())
+        return;
+
+    // No mainstream Wayland compositor exposes wlr-layer-shell as an
+    // ergonomic Qt-native surface today: mutter refuses to implement
+    // it (gitlab.gnome.org/GNOME/mutter#973) and KWin does
+    // (layer-shell-qt) but the Qt module is unstable / not installed
+    // by default. XWayland, by contrast, lets us send
+    // `_NET_WM_STATE_BELOW + STICKY + SKIP_*` and gets us the
+    // Conky-on-the-wallpaper look on every Wayland compositor we
+    // care about (KWin, mutter). Best-effort, with known glitches
+    // (Activities mode, desktop click pass-through), same as the
+    // trade-off Conky users accept on Wayland.
+    qputenv("QT_QPA_PLATFORM", "xcb");
 }
 
 namespace {

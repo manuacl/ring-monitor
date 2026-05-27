@@ -59,8 +59,25 @@ GridLayout {
     readonly property int _ringSpacing: Math.round(_ringSize * _ringSpacingPercent / 100)
     rowSpacing: _ringSpacing
     columnSpacing: _ringSpacing
-    implicitWidth: _ringSize
-    implicitHeight: vertical ? _ringSize * count : Math.max(80, _ringSize / count)
+    // The Plasma host (contents/ui/main.qml) mounts this Item as
+    // `fullRepresentation` with no Layout.preferredWidth/Height
+    // override, so the panel allocation is driven entirely by the
+    // GridLayout's auto-implicit dimensions — i.e. the sum of
+    // delegate Layout.preferredWidth/Height plus row/column spacing.
+    // The Ring delegates below set `Layout.preferredWidth: _ringSize`
+    // (and likewise for height), which naturally yields:
+    //   horizontal: implicitWidth  = N*_ringSize + (N-1)*_ringSpacing
+    //               implicitHeight = _ringSize
+    //   vertical:   implicitWidth  = _ringSize
+    //               implicitHeight = N*_ringSize + (N-1)*_ringSpacing
+    // Do not try to override `implicitWidth/Height` on the GridLayout
+    // directly — QQuickLayout silently overwrites those bindings from
+    // its own children pass. The PR #35 review caught the symptom
+    // (horizontal strip collapsing to a single-ring slot) and the
+    // initial fix attempt of binding the formula on the layout was
+    // ignored by Qt; the supported escape hatch is the per-delegate
+    // preferred* properties. See tst_MainContent.qml for the
+    // regression coverage.
 
     Repeater {
         id: ringRepeater
@@ -91,8 +108,18 @@ GridLayout {
             // right-half path.
             readonly property var _tempInfo: (_isTemp || _splitOn) ? Catalog.convertTemp(_rawTempC, content._tempMode) : null
 
+            // Layout.preferredWidth/Height drive the GridLayout's
+            // auto-implicit dimensions (Layout silently ignores an
+            // explicit `implicitWidth` set on itself, so the only
+            // supported way to size the parent layout is via the
+            // delegates' preferred*). fillWidth/fillHeight let the
+            // rings expand when the host gives the widget more room
+            // (e.g. standalone Window dragged wider); minimum*
+            // protects against squashing below 80px.
             Layout.fillWidth: true
             Layout.fillHeight: true
+            Layout.preferredWidth: content._ringSize
+            Layout.preferredHeight: content._ringSize
             Layout.minimumWidth: 80
             Layout.minimumHeight: 80
 

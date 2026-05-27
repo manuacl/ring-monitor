@@ -45,13 +45,43 @@ QString Autostart::currentExecPath() const
     return self;
 }
 
+QString Autostart::quoteExecArg(const QString &arg)
+{
+    // Per the XDG Desktop Entry Spec §"The Exec key", any argument
+    // containing a reserved character (space, tab, newline, quote,
+    // backslash, `>`, `<`, `~`, `|`, `&`, `;`, `$`, `*`, `?`, `#`,
+    // `(`, `)`, backtick) must be double-quoted, and inside double
+    // quotes the four chars `"`, `\`, `$`, `` ` `` must be escaped
+    // with a leading backslash. We quote unconditionally — the cost
+    // is one extra pair of quotes for the common case, the win is
+    // that paths with spaces (e.g. `~/Applications/Ring Monitor.AppImage`
+    // under AppImageLauncher) survive XDG launcher tokenisation
+    // instead of being parsed as two argv tokens.
+    //
+    // Backslashes are escaped first so subsequent inserted backslashes
+    // don't get doubled by a later replace pass.
+    QString escaped = arg;
+    escaped.replace(QLatin1Char('\\'), QStringLiteral("\\\\"));
+    escaped.replace(QLatin1Char('"'), QStringLiteral("\\\""));
+    escaped.replace(QLatin1Char('$'), QStringLiteral("\\$"));
+    escaped.replace(QLatin1Char('`'), QStringLiteral("\\`"));
+    return QLatin1Char('"') + escaped + QLatin1Char('"');
+}
+
 QString Autostart::buildDesktopFileContent() const
 {
     // env QT_QPA_PLATFORM=xcb forces XWayland under Wayland sessions
     // so the EWMH hints in desktop_hints.cpp (sticky / skip-taskbar
     // / skip-pager / below) actually apply. Harmless on X11. Drop
     // when native layer-shell support lands (PR C2).
-    const QString exec = QStringLiteral("env QT_QPA_PLATFORM=xcb ") + currentExecPath();
+    //
+    // Only the executable path is quoted: `env` and the
+    // `KEY=VALUE` assignment are fixed identifiers free of reserved
+    // characters, so they're left bare (the spec allows unquoted
+    // tokens). The path is the only piece a user can introduce
+    // spaces / special chars into.
+    const QString exec = QStringLiteral("env QT_QPA_PLATFORM=xcb ")
+                         + quoteExecArg(currentExecPath());
     return QStringLiteral("[Desktop Entry]\n"
                           "Type=Application\n"
                           "Name=Ring Monitor\n"

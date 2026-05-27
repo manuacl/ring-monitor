@@ -113,6 +113,30 @@ Window {
             Qt.callLater(root._anchor);
         }
     }
+    // Re-anchor on display reconfig: user plugging in a 4K external,
+    // KDE switching the primary, or any System Settings → Displays
+    // change. Without this, the existing _target* signals won't fire
+    // (at typical ringSize the screen-cap branch is inert) and the
+    // window stays at the OLD monitor's right edge — now mid-screen
+    // or off-screen on the new primary. `root.Screen` is the Qt
+    // attached property reflecting the screen the Window currently
+    // sits on; its width/height change when the screen resolution
+    // changes OR when the window migrates to a different screen.
+    Connections {
+        target: root.Screen
+        function onWidthChanged() {
+            Qt.callLater(root._anchor);
+        }
+        function onHeightChanged() {
+            Qt.callLater(root._anchor);
+        }
+    }
+    // `onScreenChanged` fires when the Window itself moves between
+    // physical screens (e.g. KDE drags it to follow the primary).
+    // Width/height may stay identical across two same-resolution
+    // monitors, so the above Connections wouldn't fire — this handler
+    // covers that case.
+    onScreenChanged: Qt.callLater(root._anchor)
 
     flags: Qt.FramelessWindowHint | Qt.WindowStaysOnBottomHint
     color: "transparent"

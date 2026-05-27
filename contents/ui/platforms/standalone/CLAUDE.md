@@ -85,6 +85,29 @@ Yes"**. App-side, the fix is the native layer-shell path: a
 wlr-layer-shell "background" layer surface never participates in
 any switcher by design. That's covered by PR C2.
 
+### `_NET_WM_WINDOW_TYPE_DESKTOP` can swallow right-click on some compositors
+
+`applyDesktopWindowHints` rewrites the window type to `DESKTOP` so
+KWin treats the window as wallpaper-layer content (atomic setGeometry,
+no gravity-shift on resize — see `WindowAnchor`). The trade-off: on
+some KWin point releases and Plasma containment configurations, a
+`DESKTOP`-typed client has right-click forwarded to the **containment
+menu** (wallpaper-level "Add widget…" / "Configure desktop…")
+instead of the window's own `MouseArea`. The widget's only entry
+point to Settings + Quit lives behind that right-click, so the
+regression is total UX loss.
+
+The current dev box keeps right-click delivered (verified live), but
+this should be considered fragile across KWin versions and entirely
+unknown on non-KDE compositors. The real fix is the native
+wlr-layer-shell path (background layer surface, no window-type
+involved) — scoped as PR C2 in
+[`docs/plasma-isolation/plan.md`](../../../../docs/plasma-isolation/plan.md).
+If right-click ever stops working post-upgrade, the diagnosis ladder
+is: (1) try `_NET_WM_WINDOW_TYPE_NORMAL` (loses gravity-shift fix —
+regression risk on slider resize); (2) try `_NET_WM_WINDOW_TYPE_DOCK`
+(panel-style — different KWin handling); (3) accelerate PR C2.
+
 ### Initial `_anchor()` must be deferred via `Qt.callLater`
 
 `Main.qml` calls `_anchor()` from `Component.onCompleted` to issue

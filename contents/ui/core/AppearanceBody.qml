@@ -35,6 +35,14 @@ Kirigami.FormLayout {
     // `platforms/standalone/ColorPicker.qml` honour this.
     property Component colorPickerComponent
 
+    // `windowMargin` is only consumed by the standalone Window
+    // anchoring code (platforms/standalone/Main.qml). Inside a Plasma
+    // panel the slot position is set by plasmashell, so the slider is
+    // dead UI there — hide it by default, and let the standalone
+    // SettingsDialog flip it on. Same pattern as AboutBody's
+    // `autostartAvailable`.
+    property bool windowMarginVisible: false
+
     // ── Bridged via aliases in the wrapper (cfg_orientation ↔ body.orientation, etc.) ──
     property string orientation: "horizontal"
     property int ringSize: 180
@@ -132,14 +140,14 @@ Kirigami.FormLayout {
     }
 
     // Screen margin — pixels between the rings and the nearest screen
-    // edge. Used by the standalone window to inset itself from the
-    // top-right corner (x = Screen.width - width - margin; y = margin).
-    // No-op inside the Plasma panel — the panel container places the
-    // widget itself — but the slider stays visible for the shared UI;
-    // KDE Plasma users can leave it at 0.
+    // edge. Only consumed by the standalone Window anchor; inside a
+    // Plasma panel the slot position is plasmashell's job, so this
+    // whole row is hidden via `windowMarginVisible` (set true only
+    // by the standalone SettingsDialog).
     RowLayout {
         Kirigami.FormData.label: qsTr("Screen margin:")
         Layout.fillWidth: true
+        visible: body.windowMarginVisible
 
         QQC2.Slider {
             id: windowMarginSlider

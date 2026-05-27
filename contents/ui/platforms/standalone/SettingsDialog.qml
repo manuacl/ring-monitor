@@ -116,6 +116,10 @@ Window {
                     id: appearanceBody
                     width: parent.parent.width
                     colorPickerComponent: colorPickerComponent
+                    // Only the standalone host consumes `windowMargin`
+                    // (the Plasma panel slot is plasmashell-positioned).
+                    // Mirrors the `autostartAvailable` gate on AboutBody.
+                    windowMarginVisible: true
                 }
             }
 

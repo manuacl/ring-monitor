@@ -108,7 +108,7 @@ Item {
         // ── Round trip: write → read each property name ───────────────
         // Catches a typo in any of the 4 property declarations.
         function test_all_bridged_properties_readwrite() {
-            const keys = ["orientation", "ringSize", "textOpacity", "trackOpacity", "arcOpacity", "textColorMode", "customTextColorLight", "customTextColorDark"];
+            const keys = ["orientation", "ringSize", "ringSpacingPercent", "windowMargin", "textOpacity", "trackOpacity", "arcOpacity", "textColorMode", "customTextColorLight", "customTextColorDark"];
             for (const k of keys) {
                 verify(k in body, "AppearanceBody must expose property " + k);
             }

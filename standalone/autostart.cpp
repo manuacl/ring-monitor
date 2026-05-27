@@ -38,8 +38,15 @@ QString Autostart::currentExecPath() const
     const QString self = QCoreApplication::applicationFilePath();
     const QByteArray appImage = qgetenv("APPIMAGE");
     const QByteArray appDir = qgetenv("APPDIR");
+    // Compare with `appDir + "/"` so a prefix that only coincidentally
+    // shares a path with another AppImage mount doesn't match. E.g.
+    // launching from a Limux/Ghostty terminal that is itself an
+    // AppImage exports APPDIR=/tmp/.mount_limuxAB; our binary may
+    // actually live at /tmp/.mount_limuxABCDE/usr/bin/ring-monitor
+    // (different mount), and a bare startsWith() would falsely match
+    // and point the autostart Exec= at the terminal's AppImage.
     if (!appImage.isEmpty() && !appDir.isEmpty()
-        && self.startsWith(QString::fromLocal8Bit(appDir))) {
+        && self.startsWith(QString::fromLocal8Bit(appDir) + QLatin1Char('/'))) {
         return QString::fromLocal8Bit(appImage);
     }
     return self;

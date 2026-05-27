@@ -145,6 +145,31 @@ is: (1) try `_NET_WM_WINDOW_TYPE_NORMAL` (loses gravity-shift fix —
 regression risk on slider resize); (2) try `_NET_WM_WINDOW_TYPE_DOCK`
 (panel-style — different KWin handling); (3) accelerate PR C2.
 
+**Recovery path for users who hit the regression:** the binary
+accepts a `--open-settings` (alias `--settings`) flag that skips the
+rings window entirely and opens just the `SettingsDialog`:
+
+```bash
+pkill -f ring-monitor-standalone
+ring-monitor-standalone --open-settings
+```
+
+Implementation: `standalone/main.cpp` parses argv before
+`QGuiApplication`, exposes the parsed boolean as the `settingsOnlyMode`
+context property, and gates `forceXWaylandUnderWayland` +
+`applyDesktopWindowHints` on `!openSettings` (the dialog is a normal
+floating window — no Conky-style EWMH). `Main.qml` reads
+`settingsOnlyMode` via a `typeof !== "undefined"` guard (so
+qmltestrunner contexts where the property isn't set still render the
+default widget mode), sets `visible: !_settingsOnly` on the root
+Window, opens the dialog from `Component.onCompleted`, and calls
+`Qt.quit()` when `settingsDialog.visibility === Window.Hidden`
+(there's no widget UI to fall back to in recovery mode). Config
+writes go through the same `QSettings` file the running widget reads,
+so the user kills + relaunches the running widget to apply
+(`Qt.labs.settings` doesn't watch — a live-reload via
+`QFileSystemWatcher` is out of scope for the minimal recovery).
+
 ### Initial `_anchor()` must be deferred via `Qt.callLater`
 
 `Main.qml` calls `_anchor()` from `Component.onCompleted` to issue

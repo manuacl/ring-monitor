@@ -110,6 +110,24 @@ xprop -id "$(xdotool search --name 'ring-monitor' | head -1)" \
 Build deps on Fedora/Bazzite: `qt6-qtbase-devel
 qt6-qtdeclarative-devel kf6-kirigami cmake gcc-c++ libxcb-devel`.
 
+### Settings-only recovery launch
+
+If `_NET_WM_WINDOW_TYPE_DESKTOP` swallows right-click on a given
+compositor (KWin regression, mutter quirk) and the user can't reach
+Settings or Quit, they can launch the binary in recovery mode:
+
+```bash
+pkill -f ring-monitor-standalone
+ring-monitor-standalone --open-settings   # or --settings
+```
+
+The recovery process renders only the SettingsDialog (no rings, no
+EWMH hints). Closing the dialog terminates the process. Config writes
+land in the same `~/.config/dev.manuacl/ring-monitor.conf`, so the
+user relaunches the widget without the flag once configuration is
+done. See § "Recovery path" in
+`contents/ui/platforms/standalone/CLAUDE.md` for the full rationale.
+
 ## Restarting plasmashell
 
 ```bash

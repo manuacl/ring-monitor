@@ -34,13 +34,57 @@ const SRC = readFileSync(
 );
 
 test("initial _anchor() is deferred via Qt.callLater", () => {
-    // The match accepts whitespace variation but rejects a direct
-    // `_anchor()` call from Component.onCompleted (which would
-    // bypass the deferral and hit the wrong window-type).
+    // The match accepts whitespace variation and a surrounding block
+    // (the settings-only branch lives in the same `Component.onCompleted`)
+    // but rejects a direct `_anchor()` call (which would bypass the
+    // deferral and hit the wrong window-type).
     assert.match(
         SRC,
-        /Component\.onCompleted\s*:\s*Qt\.callLater\(\s*_anchor\s*\)/,
-        "Component.onCompleted must defer _anchor via Qt.callLater",
+        /Qt\.callLater\(\s*_anchor\s*\)/,
+        "the initial _anchor must be deferred via Qt.callLater",
+    );
+    // And the direct synchronous form must not exist anywhere — that's
+    // exactly what the deferral exists to avoid.
+    assert.doesNotMatch(
+        SRC,
+        /Component\.onCompleted\s*:\s*_anchor\s*\(\s*\)/,
+        "Component.onCompleted must NOT call _anchor() directly (bypasses the deferral)",
+    );
+});
+
+test("settings-only recovery mode is wired in Main.qml", () => {
+    // Review finding 🟠 PR #32: right-click is the only entry to the
+    // SettingsDialog, and a compositor regression on
+    // `_NET_WM_WINDOW_TYPE_DESKTOP` (KWin / mutter) can swallow it.
+    // The `--open-settings` argv flag (parsed in main.cpp) exposes
+    // `settingsOnlyMode` as a context property; Main.qml reads it
+    // through a `typeof ... !== 'undefined'` guard so qmltestrunner
+    // contexts where the property isn't set still render the default
+    // widget mode.
+    assert.match(
+        SRC,
+        /settingsOnlyMode/,
+        "Main.qml must reference the settingsOnlyMode context property",
+    );
+    assert.match(
+        SRC,
+        /typeof\s+settingsOnlyMode\s*!==\s*["']undefined["']/,
+        "must guard the context-property lookup with typeof !== 'undefined' for qmltestrunner / hot-reload contexts",
+    );
+    // The main Window must hide in settings-only mode — otherwise the
+    // frameless DESKTOP shell still tries to map alongside the
+    // recovery dialog and the user gets back into the same trap.
+    assert.match(
+        SRC,
+        /visible\s*:\s*!_settingsOnly/,
+        "Window.visible must be `!_settingsOnly` so the rings stay hidden during recovery",
+    );
+    // Closing the dialog must terminate the process — there's no
+    // widget UI to fall back to in settings-only mode.
+    assert.match(
+        SRC,
+        /settingsDialog\.visibility\s*===\s*Window\.Hidden[\s\S]*?Qt\.quit\(\)/,
+        "the SettingsDialog Hidden transition must call Qt.quit() in settings-only mode",
     );
 });
 

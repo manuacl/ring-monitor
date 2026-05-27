@@ -39,11 +39,18 @@ Item {
         return backend._coreUsage.slice();
     }
 
-    // True until the second `/proc/stat` sample lands — CPU usage
-    // requires two samples (the delta between them). RAM and disk
-    // are point-in-time reads and would technically be ready on the
-    // first tick, but gating them on the same flag keeps the warm-up
-    // sweep visually consistent across all three rings.
+    // True until the second `/proc/stat` sample lands ~1 s after
+    // startup (the Timer fires every `interval` ms). CPU usage
+    // requires two samples (the delta between them); the first tick
+    // captures `_prev`, the second tick computes the percent. RAM
+    // and disk are point-in-time reads and would technically be
+    // ready on the first tick, but gating them on the same flag
+    // keeps the warm-up sweep visually consistent across all three
+    // rings — no reader needs to wonder whether one specific value
+    // is "still loading" or "really zero". The 1 s warm-up is the
+    // cost of this consistency; a future `Qt.callLater(_sample)` in
+    // `Component.onCompleted` could halve it if the boot-time blank
+    // ever becomes a UX complaint.
     readonly property bool loading: backend._prev === null
 
     function metricValue(id) {

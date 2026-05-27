@@ -21,6 +21,14 @@
 // Dual-loaded by QML and Node (the standard `module.exports` shim at
 // the bottom mirrors every other module under `core/`).
 //
+// `_clampPercent` is a local mirror of `RingGeometry.clampPercent`
+// (same `!isFinite || <0 || >100` semantics). The two stay separate
+// because QML's `.import` of a `.js` module requires `.pragma
+// library` on the importee, which would change `RingGeometry`'s
+// per-instance semantics across all importers — not worth it for
+// a 4-line helper. If a third module ever needs the same clamp,
+// extract a `Numeric.js` shared library then.
+//
 // Public surface:
 //   parseMemInfo(content)         - { total, available } in kB, or
 //                                   nulls on missing/malformed input.
@@ -43,6 +51,16 @@
 //                                    freshly-formatted ext4 root.
 //                                    Clamped to [0, 100]; 0 when total
 //                                    is missing/zero.
+
+function _clampPercent(p) {
+    if (!isFinite(p))
+        return 0;
+    if (p < 0)
+        return 0;
+    if (p > 100)
+        return 100;
+    return p;
+}
 
 function parseMemInfo(content) {
     var out = {
@@ -73,13 +91,7 @@ function usagePercent(total, available) {
         return 0;
     if (typeof available !== "number" || isNaN(available))
         return 0;
-    var used = total - available;
-    var pct = (used / total) * 100;
-    if (pct < 0)
-        return 0;
-    if (pct > 100)
-        return 100;
-    return pct;
+    return _clampPercent(((total - available) / total) * 100);
 }
 
 function diskUsagePercent(total, free, available) {
@@ -93,12 +105,7 @@ function diskUsagePercent(total, free, available) {
     var denom = used + available;
     if (denom <= 0)
         return 0;
-    var pct = (used / denom) * 100;
-    if (pct < 0)
-        return 0;
-    if (pct > 100)
-        return 100;
-    return pct;
+    return _clampPercent((used / denom) * 100);
 }
 
 if (typeof module !== "undefined" && module.exports) {

@@ -142,6 +142,19 @@ test("diskUsagePercent: clamps to [0, 100] for absurd inputs", () => {
     assert.ok(pct === 100 || pct === 0);
 });
 
+test("usagePercent + diskUsagePercent: non-finite arithmetic returns 0 (matches RingGeometry.clampPercent)", () => {
+    // After the clampPercent dedup, the local _clampPercent guards
+    // against `!isFinite` results (Infinity from a divide-by-tiny,
+    // NaN from operations that go inconsistent). Returning 0 — same
+    // as RingGeometry.clampPercent — surfaces "no data" rather than
+    // propagating Infinity into the ring sweep math (which would
+    // render a glitched arc). Real /proc + statvfs inputs never
+    // trigger this; the guard is defense against future contract
+    // drift in the C++ helper.
+    assert.equal(Parser.usagePercent(Number.MIN_VALUE, -Number.MAX_VALUE), 0);
+    assert.equal(Parser.diskUsagePercent(Number.MIN_VALUE, 0, -Number.MAX_VALUE), 0);
+});
+
 test("diskUsagePercent: differs from usagePercent on reserved filesystems", () => {
     // Same 100 / 95 (total / available) inputs, freshly empty:
     // - usagePercent says 5% (counts reservation as used)

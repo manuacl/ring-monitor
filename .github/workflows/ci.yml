@@ -102,3 +102,40 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: qmltestrunner-qt6 -input tests/qml
+
+  # ── Standalone C++ build ────────────────────────────────────────────
+  #
+  # Compiles `ring-monitor-standalone` end-to-end so a broken
+  # `CMakeLists.txt`, a missing system header (xcb-devel,
+  # qt6-qtdeclarative-devel), or a regression in `standalone/*.cpp`
+  # gets caught in CI instead of waiting for a contributor's local
+  # build. Mirrors `docs/development.md` § "Standalone build".
+  #
+  # No headless smoke test here — that needs a Wayland or X session
+  # the runner can't provide, and the QML side is already exercised
+  # by `qml-checks` above. This job is purely "does the C++ link".
+  standalone-build:
+    name: Standalone C++ build
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:41
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install build toolchain
+        run: |
+          dnf install -y --setopt=install_weak_deps=False \
+            cmake \
+            gcc-c++ \
+            make \
+            pkgconf-pkg-config \
+            qt6-qtbase-devel \
+            qt6-qtdeclarative-devel \
+            kf6-kirigami \
+            libxcb-devel
+
+      - name: Configure
+        run: cmake -B build -S .
+
+      - name: Build
+        run: cmake --build build

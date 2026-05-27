@@ -267,6 +267,43 @@ xcb" before any QML loads. Falling back to native Wayland makes the
 Conky-on-the-wallpaper hints no-op (the X11 native interface returns
 nullptr off X11), but the app still runs.
 
+### Centring a QML `Window` must happen at `onVisibleChanged`, not `Component.onCompleted`
+
+The `Screen` attached property reads the screen the Window currently
+lives on — but a hidden Window has not been assigned a screen yet.
+At `Component.onCompleted` the dialog hasn't been shown, so `Screen.*`
+defaults to the primary screen. Multi-monitor users opening the
+dialog from a widget on a secondary screen would otherwise see the
+dialog pop on primary.
+
+Recenter from `onVisibleChanged: if (visible) ...`. At that point
+Qt has decided which screen to map the Window on and `Screen.*`
+reflects it. Add the `Screen.virtualX/Y` offsets to the centring
+formula too — `Window.x` is virtual-desktop-absolute on X11, so a
+bare `(Screen.width - dialog.width) / 2` lands on the leftmost
+screen regardless of which screen Qt mapped the window to.
+
+Canonical example: `SettingsDialog.qml::_recenterOnCurrentScreen()`.
+The pattern applies to any new QML Window that wants to centre
+itself on its actual destination screen.
+
+### `ScrollView` body widths use `ScrollView.availableWidth`, not `parent.parent.width`
+
+Reaching the StackLayout (or other outer container) width from
+inside a `ScrollView` by walking `parent.parent.width` traverses
+the `Flickable` that `ScrollView` instantiates internally. Qt has
+reorganised that internal hierarchy across 6.x point releases
+(`Flickable` → `contentItem` → other levels of indirection across
+6.4 / 6.5), and a future point release can quietly break the
+binding without a qmllint warning.
+
+The documented public input is `ScrollView.availableWidth`
+(content width minus the vertical scrollbar). Give the ScrollView
+an `id` and bind the child's width to `<id>.availableWidth`.
+
+Canonical example: `SettingsDialog.qml` — three ScrollViews each
+binding their body's width to their own `.availableWidth`.
+
 ### Autostart `Exec=` line must shell-escape the path
 
 `Autostart::buildDesktopFileContent` runs the current binary path

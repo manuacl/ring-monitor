@@ -132,6 +132,37 @@ test("applyDesktopWindowHints warns when X11 native interface is unavailable", (
     );
 });
 
+test("applyDesktopWindowHints header documents the pre-map requirement", () => {
+    // The function only works PRE-MAP — it uses xcb_change_property,
+    // which the WM reads at MapRequest. Calling it after the window
+    // is mapped silently fails (property updates, but KWin/mutter
+    // don't re-read state post-map). A future caller adding a
+    // "reapply hints on theme switch" path without reading the cpp
+    // would silently break STICKY/SKIP_TASKBAR/SKIP_PAGER again.
+    // The header must spell out the contract above the declaration.
+    assert.match(
+        HEADER,
+        /PRE-MAP[\s\S]*?applyDesktopWindowHints/,
+        "header must mention PRE-MAP requirement above the declaration",
+    );
+    assert.match(
+        HEADER,
+        /BEFORE\s+`?app\.exec\(\)`?|before.*MapWindow|before.*MapRequest/,
+        "header must explain WHEN to call it (before app.exec / MapWindow / MapRequest)",
+    );
+});
+
+test("applyDesktopWindowHints asserts the pre-map invariant in debug builds", () => {
+    // Q_ASSERT(!window->isExposed()) catches a future post-map caller
+    // loudly in debug builds. Release builds no-op the assert but
+    // still get the property write — wrong WM state, but no crash.
+    assert.match(
+        SRC,
+        /Q_ASSERT\(\s*!window->isExposed\(\)\s*\)/,
+        "must Q_ASSERT(!window->isExposed()) as the pre-map invariant guard",
+    );
+});
+
 test("xcb_intern_atom length is explicitly cast to uint16_t", () => {
     // Cosmetic but matters under -Wconversion: qstrlen returns uint,
     // xcb_intern_atom takes uint16_t. Implicit narrowing trips clang

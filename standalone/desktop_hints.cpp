@@ -86,6 +86,13 @@ void applyDesktopWindowHints(QWindow *window)
     if (!window)
         return;
 
+    // Pre-map contract — see header docblock. `isExposed()` returns
+    // true only after the WM has delivered MapNotify; before
+    // `app.exec()` runs it's reliably false. Debug-only so a release
+    // build still produces (incorrectly) a property write rather
+    // than crashing the widget.
+    Q_ASSERT(!window->isExposed());
+
     // Native interface returns nullptr off X11. Wayland-native
     // integration (layer-shell-qt) is a separate code path in a
     // follow-up PR. Emit a warning so the no-op is debuggable: this

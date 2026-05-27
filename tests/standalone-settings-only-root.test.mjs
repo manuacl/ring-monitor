@@ -8,7 +8,12 @@
 //
 // The contract these guards lock in:
 //
-//   1. The root Window is invisible — the dialog draws itself.
+//   1. The root is a non-Window type (Item / QtObject). A top-level
+//      `Window { visible: false }` would become the implicit
+//      transient parent of any Window child instantiated inside
+//      it, and the WM won't map a transient child while its parent
+//      is unmapped — the SettingsDialog never appears on screen.
+//      Verified live during the PR #37 verify pass.
 //   2. ConfigStore + Theme + UpdateChecker are instantiated (the
 //      SettingsDialog needs them) but MetricsBackend is NOT.
 //      The whole point of the separate root is to avoid building
@@ -32,18 +37,24 @@ const SRC = readFileSync(
     "utf8",
 );
 
-test("SettingsOnlyRoot is an invisible Window host", () => {
-    // The user sees only the SettingsDialog (which is a separate
-    // Window). The root is just a parent for the adapters + dialog.
+test("SettingsOnlyRoot uses a non-Window root (Item) to avoid transient-parent trap", () => {
+    // A `Window { visible: false }` root would make the inner
+    // SettingsDialog a transient child whose mapping is gated on
+    // the (unmapped) parent — the dialog never appears. Verified
+    // live during PR #37: with Window root, xwininfo found zero
+    // ring-monitor windows after --open-settings; with Item, the
+    // dialog mapped as expected. Lock the non-Window root in so a
+    // future "let's make the host visible for X reason" refactor
+    // can't quietly reintroduce the trap.
     assert.match(
+        SRC,
+        /^Item\s*{/m,
+        "root component must be Item (not Window) to avoid the transient-parent mapping trap",
+    );
+    assert.doesNotMatch(
         SRC,
         /^Window\s*{/m,
-        "root component must be a Window",
-    );
-    assert.match(
-        SRC,
-        /visible\s*:\s*false/,
-        "the host Window must be invisible — the dialog draws itself",
+        "root must NOT be a Window — the transient-parent gating would prevent the SettingsDialog from mapping",
     );
 });
 

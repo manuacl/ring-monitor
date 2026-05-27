@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Window
 import RingMonitor.Standalone
 import "../../core" as Core
 
@@ -27,14 +26,22 @@ import "../../core" as Core
 // the quit intent-driven: a future programmatic hide (modal color
 // picker, hide-while-Apply-and-reopen) wouldn't kill the recovery
 // process mid-edit.
+//
+// Why `Item` and not an invisible `Window`: a top-level `Window`
+// with `visible: false` becomes the implicit transient parent of
+// any `Window` child instantiated inside it. On X11 / XWayland Qt
+// treats nested Windows as transient-for the parent, and the WM
+// won't map a transient child while its parent is unmapped — the
+// SettingsDialog never appears on screen. Using a non-Window root
+// avoids the transient relationship entirely; SettingsDialog
+// becomes a stand-alone top-level Window owned by the QML object
+// graph but not by any parent surface. Verified live: with
+// `Window { visible: false }` as root, `xwininfo -tree -root` shows
+// zero ring-monitor windows after `--open-settings`; with `Item`,
+// the dialog maps as expected.
 
-Window {
+Item {
     id: root
-
-    // Invisible host. The dialog is a separate Window that draws
-    // itself.
-    title: "ring-monitor (settings recovery)"
-    visible: false
 
     ConfigStore {
         id: configStoreAdapter

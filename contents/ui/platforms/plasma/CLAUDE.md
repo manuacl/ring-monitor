@@ -104,7 +104,7 @@ journal. Full discussion in
 If a QML change to a config page doesn't seem to take effect after
 restarting plasmashell, clear
 `~/.cache/{plasmashell,kcmshell6,plasmawindowed}/qmlcache/` and
-restart again. The project's `refresh-widget` skill already does this.
+restart again. The project's `refresh-plasma-widget` skill already does this.
 
 ## Other plasmashell quirks
 

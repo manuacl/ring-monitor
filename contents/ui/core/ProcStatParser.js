@@ -26,6 +26,21 @@
 //   percentFromSample(prev, cur) - usage % over the interval; safe
 //                                  against zero deltas and NaN.
 
+// Hoisted to module scope: parseProcStat runs once per CPU tick
+// (~1 Hz × app lifetime), and per-call regex re-allocation isn't
+// reliably elided by QML's V4 engine. Module scope = one literal
+// for the lifetime of the process.
+//
+// The regex itself: `^cpu` then optional digits, then a word
+// boundary. `\b` rejects `cpufreq`, `cpu_avg_freq`, `cpuidle` and
+// similar `cpu`-prefixed metadata that real /proc/stat files
+// don't emit today but the kernel could add. The outer prefix
+// gate below (line.indexOf("cpu") === 0) is the zero-allocation
+// fast path — we only pay the regex on lines that already match
+// the `cpu` literal, of which a typical /proc/stat has ~10
+// (aggregate + N cores) out of ~17 total lines.
+var CPU_LINE_RE = /^cpu(\d*)\b/;
+
 function parseProcStat(content) {
     var out = {
         "all": null,
@@ -35,19 +50,17 @@ function parseProcStat(content) {
         return out;
     var lines = content.split("\n");
     var coreMap = {};
-    // Outer gate: only `cpu` (aggregate) and `cpuN` (per-core) lines
-    // are kept. `/proc/stat` also contains `cpufreq`, `cpu_avg_freq`,
-    // and other `cpu`-prefixed metadata on some platforms (and the
-    // kernel could add more). Without the `\b` boundary check, those
-    // lines used to enter the inner parser, parseInt their fields,
-    // and only get discarded later because no branch claimed them —
-    // wasted work per tick. The regex is the same one used to extract
-    // the per-core index, factored out so the inner block doesn't
-    // need to re-test.
-    var cpuLineRe = /^cpu(\d*)\b/;
     for (var i = 0; i < lines.length; i++) {
         var line = lines[i].trim();
-        var lineMatch = line.match(cpuLineRe);
+        // Prefix gate first: cheap `indexOf` rejects intr / ctxt /
+        // btime / processes / procs_running / procs_blocked / softirq
+        // (~7 non-cpu lines per /proc/stat) without allocating a
+        // RegExpResult array. Only `cpu`-prefixed lines reach the
+        // regex, which then enforces the word boundary against
+        // hypothetical cpufreq-style false positives.
+        if (line.indexOf("cpu") !== 0)
+            continue;
+        var lineMatch = line.match(CPU_LINE_RE);
         if (!lineMatch)
             continue;
         var parts = line.split(/\s+/);

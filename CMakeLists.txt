@@ -10,9 +10,11 @@ project(ring-monitor-standalone
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# AUTOMOC for QObject-derived classes (we have none yet, but every Qt
-# tutorial keeps this on by default so contributors don't have to
-# remember when it kicks in).
+# AUTOMOC scans every translation unit for `Q_OBJECT` /
+# `QML_ELEMENT` and runs `moc` on the matching headers. The
+# QObject subclasses live in `standalone/*.{cpp,h}` —
+# `proc_reader`, `autostart`, `window_anchor` are all
+# `QObject` + `QML_ELEMENT` for QML registration.
 set(CMAKE_AUTOMOC ON)
 
 # Qt 6.5+ ships qt_add_qml_module and loadFromModule(), which is the

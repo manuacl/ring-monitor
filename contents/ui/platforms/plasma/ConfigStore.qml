@@ -30,8 +30,23 @@ Item {
     // ── Appearance group ────────────────────────────────────────────
     readonly property string orientation: Plasmoid.configuration.orientation
     readonly property int ringSize: Plasmoid.configuration.ringSize
-    readonly property int ringSpacingPercent: Plasmoid.configuration.ringSpacingPercent
-    readonly property int windowMargin: Plasmoid.configuration.windowMargin
+    // Hardcoded 0 on Plasma — see AppearanceBody.qml's docblock on
+    // `ringSpacingVisible`: a non-zero spacing eats into the user's
+    // dragged frame area (rings shrink to compensate), so forcing 0
+    // gives back the wasted pixels and the rings render edge-to-edge
+    // in the frame. The slider is hidden on Plasma too, so the user
+    // never sets a value through the UI; the schema default of 7
+    // applies only to standalone. The Plasmoid.configuration entry is
+    // intentionally ignored here.
+    readonly property int ringSpacingPercent: 0
+    // Hardcoded 0 on Plasma — windowMargin is only consumed by the
+    // standalone Window anchoring code (Main.qml::WindowAnchor.setGeometry).
+    // The Plasma slot position is plasmashell's job, and the
+    // AppearanceBody slider is hidden on Plasma via
+    // `windowMarginVisible`. Hardcoding to 0 makes the "unused on
+    // Plasma" intent explicit and prevents a stray Plasmoid.configuration
+    // value from leaking into a future Plasma-side consumer.
+    readonly property int windowMargin: 0
     readonly property real textOpacity: Plasmoid.configuration.textOpacity
     readonly property real trackOpacity: Plasmoid.configuration.trackOpacity
     readonly property real arcOpacity: Plasmoid.configuration.arcOpacity

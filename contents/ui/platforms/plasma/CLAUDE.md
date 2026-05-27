@@ -106,6 +106,37 @@ restarting plasmashell, clear
 `~/.cache/{plasmashell,kcmshell6,plasmawindowed}/qmlcache/` and
 restart again. The project's `refresh-plasma-widget` skill already does this.
 
+## Frame-fixed settings: hide the slider, hardcode the adapter
+
+On the Plasma desktop containment the plasmoid frame is user-dragged
+to a fixed size; the GridLayout's `rowSpacing` / `columnSpacing` eat
+into that area and the Ring delegates' `Layout.fillWidth/fillHeight`
+shrink the rings proportionally to compensate. **A "Ring spacing"-
+style slider therefore looks like a no-op to the user** (rings shrink
+as gap grows, net total unchanged). Same shape for any future setting
+that interacts with the GridLayout's metrics (extra padding,
+inter-section gaps, etc.).
+
+When a setting falls into this profile, use the two-step pattern
+documented inline on `ringSpacingPercent` (PR #40) and `windowMargin`:
+
+1. **Hide the UI** — add a `property bool <key>Visible: false` to
+   `core/AppearanceBody.qml`, wrap the slider row in
+   `visible: body.<key>Visible`. The standalone `SettingsDialog`
+   flips it on; the Plasma wrapper leaves it default. Same
+   opt-in pattern as `AboutBody.autostartAvailable`.
+2. **Hardcode the value** in `platforms/plasma/ConfigStore.qml` —
+   `readonly property int <key>: 0` instead of binding through
+   `Plasmoid.configuration.<key>`. Add the key to
+   `HARDCODED_OVERRIDES` in `tests/config-store.test.mjs` and pin
+   the hardcoded value with a dedicated test so a future
+   "let me restore the binding" refactor lands as CI red.
+
+The schema entry in `contents/config/main.xml` stays — standalone
+still consumes it, and a user who knows what they're doing can still
+override the Plasma side by hand-editing the appletsrc (binding is
+bypassed, but the key persists; useful for debugging).
+
 ## Other plasmashell quirks
 
 - **`plasmawindowed` exits silently on QML parse errors** → check the

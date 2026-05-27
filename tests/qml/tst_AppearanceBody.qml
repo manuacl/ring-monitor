@@ -128,6 +128,18 @@ Item {
             body.windowMarginVisible = true;
             compare(body._windowMarginSlider.parent.visible, true);
         }
+        // Same gating pattern for `ringSpacing` — on Plasma, the
+        // desktop frame is user-dragged-fixed and rings shrink to
+        // compensate when spacing grows, so the slider is near-no-op
+        // visually. Hide the row by default; standalone opts in.
+        function test_ringSpacingVisible_defaults_false_hides_slider() {
+            body.ringSpacingVisible = false;
+            compare(body._ringSpacingSlider.parent.visible, false);
+        }
+        function test_ringSpacingVisible_true_shows_slider() {
+            body.ringSpacingVisible = true;
+            compare(body._ringSpacingSlider.parent.visible, true);
+        }
 
         // ── Round trip: write → read each property name ───────────────
         // Catches a typo in any of the 4 property declarations.

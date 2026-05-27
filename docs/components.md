@@ -49,15 +49,25 @@ panel container may ignore them):
 - `ringSize` (Int, px) — per-ring side length. Slider range 80-800.
 - `ringSpacingPercent` (Int, 0-25) — gap between rings as a
   percentage of `ringSize`. 7% reproduces the historic 12px default
-  at the original `ringSize=180`.
+  at the original `ringSize=180`. The slider that drives this
+  property is hidden by default — the body exposes
+  `ringSpacingVisible` (default `false`) which the standalone
+  `SettingsDialog` flips to `true`. The Plasma wrapper leaves it
+  default AND hardcodes `configStore.ringSpacingPercent` to `0`
+  (overriding the schema default), because on the Plasma desktop
+  containment the frame is user-dragged-fixed: a non-zero spacing
+  eats into the available area and rings shrink to compensate, so
+  the slider would be a visual no-op. Same opt-in pattern as
+  `AboutBody.autostartAvailable`.
 - `windowMargin` (Int, 0-200 px) — inset between the rings and the
   closest screen edge. Used by the standalone window to offset
   itself from the top-right anchor; the Plasma panel ignores it.
   The slider that drives this property is hidden by default — the
   body exposes `windowMarginVisible` (default `false`) which the
   standalone `SettingsDialog` flips to `true`. The Plasma wrapper
-  leaves it default, so Plasma users never see a control that
-  wouldn't do anything for them. Same opt-in pattern as
+  leaves it default AND hardcodes `configStore.windowMargin` to `0`
+  (the value is never read on the Plasma side, the hardcode makes
+  the "unused on Plasma" intent explicit). Same opt-in pattern as
   `AboutBody.autostartAvailable`.
 
 ## `MainContent.qml` — implicit dimensions

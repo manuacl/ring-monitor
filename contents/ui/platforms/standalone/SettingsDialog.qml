@@ -153,10 +153,24 @@ Window {
                     id: appearanceBody
                     width: appearanceScroll.availableWidth
                     colorPickerComponent: colorPickerComponent
-                    // Only the standalone host consumes `windowMargin`
-                    // (the Plasma panel slot is plasmashell-positioned).
-                    // Mirrors the `autostartAvailable` gate on AboutBody.
+                    // Only the standalone host shows these two sliders:
+                    //
+                    //   `windowMargin` is consumed by the standalone
+                    //   Window anchoring code only (plasmashell
+                    //   positions the Plasma panel slot itself).
+                    //
+                    //   `ringSpacing` IS read on both hosts, but on
+                    //   Plasma the desktop frame is user-dragged-fixed
+                    //   and rings shrink to compensate — the visible
+                    //   effect is dominated by the frame, not the
+                    //   spacing. On standalone the Window auto-sizes
+                    //   to rings × count + spacings, so the slider
+                    //   has obvious visual feedback.
+                    //
+                    // Same gate convention as `autostartAvailable` on
+                    // AboutBody.
                     windowMarginVisible: true
+                    ringSpacingVisible: true
                 }
             }
 

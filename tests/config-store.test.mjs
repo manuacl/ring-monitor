@@ -38,9 +38,56 @@ test("ConfigStore properties are readonly (reads-only-by-design contract)", () =
     }
 });
 
+// Keys deliberately overridden in the Plasma adapter rather than
+// bound through to `Plasmoid.configuration`. Each entry must come
+// with a dedicated test below explaining the override.
+const HARDCODED_OVERRIDES = new Set(["ringSpacingPercent", "windowMargin"]);
+
 test("ConfigStore binds each property to the matching Plasmoid.configuration key", () => {
     for (const key of EXPECTED_KEYS) {
+        if (HARDCODED_OVERRIDES.has(key)) continue;
         const bindingPattern = new RegExp(`${key}\\s*:\\s*Plasmoid\\.configuration\\.${key}\\b`);
         assert.match(SOURCE, bindingPattern, `ConfigStore.qml property "${key}" must bind to Plasmoid.configuration.${key}`);
     }
+});
+
+test("ConfigStore hardcodes ringSpacingPercent to 0 on Plasma (frame-fixed widget)", () => {
+    // On the Plasma desktop containment the plasmoid frame is
+    // user-dragged-fixed; the GridLayout's rowSpacing/columnSpacing
+    // eats into the available frame area, shrinking the rings to
+    // compensate. Forcing ringSpacingPercent=0 gives those pixels
+    // back so the rings render edge-to-edge in the frame. The
+    // AppearanceBody slider is also hidden on Plasma via
+    // `ringSpacingVisible`, so the user never sets a value through
+    // the UI — the standalone host keeps its own configurable value.
+    assert.match(
+        SOURCE,
+        /readonly\s+property\s+int\s+ringSpacingPercent\s*:\s*0\b/,
+        "ConfigStore must hardcode ringSpacingPercent to 0 (Plasma-specific override)",
+    );
+    assert.doesNotMatch(
+        SOURCE,
+        /ringSpacingPercent\s*:\s*Plasmoid\.configuration\.ringSpacingPercent/,
+        "ConfigStore must NOT bind ringSpacingPercent through to Plasmoid.configuration (that would reintroduce the frame-fixed visual no-op)",
+    );
+});
+
+test("ConfigStore hardcodes windowMargin to 0 on Plasma (unused — plasmashell positions the slot)", () => {
+    // windowMargin is only consumed by the standalone Window
+    // anchoring code (Main.qml::WindowAnchor.setGeometry). On Plasma
+    // the slot position is plasmashell's job and AppearanceBody hides
+    // the slider via `windowMarginVisible`. Hardcoding to 0 makes
+    // the "unused on Plasma" intent explicit and prevents a stray
+    // Plasmoid.configuration value from leaking into a future
+    // Plasma-side consumer.
+    assert.match(
+        SOURCE,
+        /readonly\s+property\s+int\s+windowMargin\s*:\s*0\b/,
+        "ConfigStore must hardcode windowMargin to 0 (Plasma-specific override)",
+    );
+    assert.doesNotMatch(
+        SOURCE,
+        /windowMargin\s*:\s*Plasmoid\.configuration\.windowMargin/,
+        "ConfigStore must NOT bind windowMargin through to Plasmoid.configuration (unused on Plasma)",
+    );
 });

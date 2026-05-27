@@ -43,6 +43,25 @@ Kirigami.FormLayout {
     // `autostartAvailable`.
     property bool windowMarginVisible: false
 
+    // `ringSpacingPercent` IS read by `core/MainContent.qml` on both
+    // hosts (it sets the GridLayout's rowSpacing/columnSpacing), but
+    // the user-visible effect on Plasma is near-zero: the desktop
+    // plasmoid frame has a user-dragged fixed size, and the Ring
+    // delegates declare `Layout.fillWidth: true` + `Layout.fillHeight:
+    // true`, so a bigger spacing just shrinks each ring proportionally
+    // to keep the total fitting in the frame. Net visual change is
+    // dominated by the frame, not by the spacing — moving the slider
+    // looks like a no-op to the user.
+    //
+    // Same convention as `windowMarginVisible` — hide the slider by
+    // default, the standalone SettingsDialog flips it on (the
+    // standalone Window auto-sizes to rings × count + spacings along
+    // the stack axis, so spacing changes are visually obvious).
+    // Plasma's configAppearance.qml doesn't set it → slider stays
+    // hidden, the setting still has its default schema value if
+    // anyone really needs to override it from the config file.
+    property bool ringSpacingVisible: false
+
     // ── Bridged via aliases in the wrapper (cfg_orientation ↔ body.orientation, etc.) ──
     property string orientation: "horizontal"
     property int ringSize: 180
@@ -118,9 +137,12 @@ Kirigami.FormLayout {
     // makes the rings touch; the historic visual default (12px at
     // ringSize=180) corresponds to 7%. Stepping at 1% keeps the
     // slider feel of a "fine" adjustment vs the bigger ringSize one.
+    // Whole row hidden via `ringSpacingVisible` on Plasma (the
+    // standalone SettingsDialog flips it on) — see the docblock above.
     RowLayout {
         Kirigami.FormData.label: qsTr("Ring spacing:")
         Layout.fillWidth: true
+        visible: body.ringSpacingVisible
 
         QQC2.Slider {
             id: ringSpacingSlider

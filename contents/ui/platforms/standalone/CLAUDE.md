@@ -50,6 +50,31 @@ the new prefix. `statvfs()` accepts any path because its consumer is
 a user-configured mount point — covered in the disk-metric section
 below.
 
+### Disk metric: known limitations of `statvfs(3)`
+
+`MetricsBackend.qml` calls `reader.statvfs(backend._diskMount)`
+(default `"/"`) and renders the result through
+`MemInfoParser.diskUsagePercent`. Two caveats inherent to `statvfs`
+itself that we explicitly accept rather than work around:
+
+1. **Symlinks are followed.** `statvfs("/data")` where `/data → /mnt/big`
+   silently reports `/mnt/big`'s numbers. Users won't normally hit
+   this with the `/` default; flagged for the future per-mount
+   selector — the UI should resolve the path with `realpath(3)` and
+   display the canonical form so what's queried matches what's shown.
+
+2. **Bind mounts / btrfs subvols / overlayfs are not detected.** On
+   Bazzite (our documented target) `/` is a btrfs subvol on an
+   rpm-ostree composed tree; `statvfs` reports "size of the whole
+   btrfs pool", not the per-subvol quota a user might expect. Same
+   story for overlay roots (containers, OCI bundles) and `mount
+   --bind` setups. Long-term fix is `statfs(2)` (note: different
+   syscall) checking `f_type` to detect `BTRFS_SUPER_MAGIC`,
+   `OVERLAYFS_SUPER_MAGIC`, `TMPFS_MAGIC`, and either warning or
+   exposing a per-mount selector — out of scope for the MVP. If a
+   user reports "disk ring shows wrong size on my btrfs", the cause
+   is here.
+
 The class lives at global scope (not in `ringmonitor::`) because
 Qt 6's QML auto-registration generates code calling
 `qmlRegisterTypesAndRevisions<ProcReader>(...)` without

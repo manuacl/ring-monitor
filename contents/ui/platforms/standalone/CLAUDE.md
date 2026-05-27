@@ -267,6 +267,56 @@ xcb" before any QML loads. Falling back to native Wayland makes the
 Conky-on-the-wallpaper hints no-op (the X11 native interface returns
 nullptr off X11), but the app still runs.
 
+### Centring a QML `Window` must happen ONCE on the first `onVisibleChanged`, not on `Component.onCompleted` and not on every show
+
+Two-layered rule:
+
+1. **Not `Component.onCompleted`** — the `Screen` attached property
+   reads the screen the Window currently lives on, but a hidden
+   Window has not been assigned a screen yet. At onCompleted the
+   dialog hasn't been shown, so `Screen.*` defaults to the primary
+   screen. Multi-monitor users opening the dialog from a widget on
+   a secondary screen would otherwise see the dialog pop on primary.
+
+2. **Not on every `onVisibleChanged`** — a dialog instance is
+   typically constructed once and `show()` is called repeatedly
+   across the app lifetime. An unguarded `onVisibleChanged: if
+   (visible) recenter()` runs on every false→true transition,
+   wiping any position the user dragged the dialog to on a previous
+   open. Gate the recenter with a one-shot boolean (`_centered`)
+   so it runs exactly ONCE on the first hidden→visible transition:
+   that's when `Screen.*` is finally accurate, and after that Qt's
+   QWindow already remembers the position across hide/show cycles
+   — which matches every other window-managed dialog on the
+   platform.
+
+Always add the `Screen.virtualX/Y` offsets to the centring formula
+— `Window.x` is virtual-desktop-absolute on X11, so a bare
+`(Screen.width - dialog.width) / 2` lands on the leftmost screen
+regardless of which screen Qt mapped the window to.
+
+Canonical example: `SettingsDialog.qml::_recenterOnCurrentScreen()`
++ its `_centered` gate. The pattern applies to any new QML Window
+that wants to centre itself on its actual destination screen and
+respect the user's subsequent placement.
+
+### `ScrollView` body widths use `ScrollView.availableWidth`, not `parent.parent.width`
+
+Reaching the StackLayout (or other outer container) width from
+inside a `ScrollView` by walking `parent.parent.width` traverses
+the `Flickable` that `ScrollView` instantiates internally. Qt has
+reorganised that internal hierarchy across 6.x point releases
+(`Flickable` → `contentItem` → other levels of indirection across
+6.4 / 6.5), and a future point release can quietly break the
+binding without a qmllint warning.
+
+The documented public input is `ScrollView.availableWidth`
+(content width minus the vertical scrollbar). Give the ScrollView
+an `id` and bind the child's width to `<id>.availableWidth`.
+
+Canonical example: `SettingsDialog.qml` — three ScrollViews each
+binding their body's width to their own `.availableWidth`.
+
 ### Autostart `Exec=` line must shell-escape the path
 
 `Autostart::buildDesktopFileContent` runs the current binary path

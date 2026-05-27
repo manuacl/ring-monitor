@@ -75,14 +75,16 @@ test("pickFirstReadyValue returns a ready candidate's value when it is 0 (does n
     assert.equal(SensorPicking.pickFirstReadyValue(candidates), 0);
 });
 
-test("pickFirstReadyValue returns a non-zero ready value when the first candidate's value is falsy", () => {
+test("pickFirstReadyValue: a ready candidate with null value wins and yields 0 (does not fall through)", () => {
     // `value || 0` is correct because the contract says callers
     // either pass a finite number or rely on the fallback. We test
-    // the value=null edge case here.
+    // the value=null edge case here. The previous title said "returns
+    // a non-zero ready value" which contradicts what the assertion
+    // actually checks — the first ready wins even when its value
+    // coerces to 0 via `|| 0`.
     const candidates = [
         { ready: true, value: null },
         { ready: true, value: 50 },
     ];
-    // The first ready wins, even when its value coerces to 0.
     assert.equal(SensorPicking.pickFirstReadyValue(candidates), 0);
 });

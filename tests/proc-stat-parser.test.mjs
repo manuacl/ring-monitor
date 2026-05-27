@@ -172,6 +172,65 @@ test("SCENARIO: `cpufreq` and other cpu-prefixed metadata lines are ignored", ()
     assert.deepEqual(result.cores[1], [100, 0, 50, 800, 10, 0, 0, 0]);
 });
 
+test("SCENARIO: post-s2idle resume with stale per-core counters returns 0%", () => {
+    // After the laptop wakes from s2idle, some per-core counters can
+    // look "older" than the aggregate (the kernel resumed the core
+    // partway through tick accounting). If `cur` ends up numerically
+    // smaller than `prev` for any core, `dTotal <= 0` short-circuits
+    // to 0 — the ring shows "idle" for that tick instead of a NaN /
+    // negative-going gauge. Reproduces a real wakeup pattern reported
+    // upstream (LKML 2023) where /proc/stat samples taken too close
+    // to resume show a per-core regression vs. the pre-sleep sample.
+    const preSleep  = [200, 0, 80, 1200, 5, 0, 0, 0];   // core was busy before sleep
+    const postWake  = [195, 0, 78, 1199, 4, 0, 0, 0];   // counters slightly lower (or unchanged) right after resume
+    assert.equal(Parser.percentFromSample(preSleep, postWake), 0,
+        "post-resume regression must clamp to 0, not propagate a negative pct");
+});
+
+test("SCENARIO: core hotplug-out — parser produces a shorter cores array without throwing", () => {
+    // Live core hotplug-out (echo 0 > /sys/devices/system/cpu/cpu3/online)
+    // drops `cpu3` from /proc/stat between samples. parseProcStat must
+    // produce a shorter `cores` array without inventing values. The
+    // downstream length-mismatch handling in MetricsBackend
+    // (Math.min(prev, cur) in MetricsBackend.qml) is NOT covered by
+    // this test — it's only the parser side that's guarded here.
+    const beforeHotplug = [
+        "cpu  400 0 200 3200 40 0 0 0",
+        "cpu0 100 0 50 800 10 0 0 0",
+        "cpu1 100 0 50 800 10 0 0 0",
+        "cpu2 100 0 50 800 10 0 0 0",
+        "cpu3 100 0 50 800 10 0 0 0",
+        ""
+    ].join("\n");
+    const afterHotplug = [
+        "cpu  301 0 151 2401 31 0 0 0",
+        "cpu0 101 0 51 801 11 0 0 0",
+        "cpu1 100 0 50 800 10 0 0 0",
+        "cpu2 100 0 50 800 10 0 0 0",
+        // cpu3 missing — hotplugged out
+        ""
+    ].join("\n");
+    const before = Parser.parseProcStat(beforeHotplug);
+    const after = Parser.parseProcStat(afterHotplug);
+    assert.equal(before.cores.length, 4);
+    assert.equal(after.cores.length, 3, "hotplug-out must yield a shorter cores array, not throw");
+    // Sanity: the surviving cores are still index-ordered and intact.
+    assert.deepEqual(after.cores[0], [101, 0, 51, 801, 11, 0, 0, 0]);
+});
+
+test("SCENARIO: core hotplug-in — new core appears late, percentFromSample tolerates missing fields", () => {
+    // Reverse case: echo 1 > /sys/devices/system/cpu/cpu3/online
+    // re-introduces a core. The first sample after hotplug-in has
+    // counters that started from 0 (or a small post-init value);
+    // percentFromSample against the missing-prev case (zero-length
+    // prev) returns 0 — the MetricsBackend skips that core for one
+    // tick, then the next tick has both prev and cur for the new
+    // core and percent computes normally.
+    const freshlyOnline = [50, 0, 25, 400, 5, 0, 0, 0];
+    assert.equal(Parser.percentFromSample([], freshlyOnline), 0,
+        "missing prev (newly-online core) must yield 0, not crash on prev.length===0");
+});
+
 test("SCENARIO: a hypothetical `cpu99X` line is rejected (word-boundary check)", () => {
     // The `\b` boundary on `^cpu(\d*)\b` prevents `cpu99extra` from
     // being parsed as core 99. Real /proc/stat doesn't emit such a

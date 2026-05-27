@@ -11,12 +11,14 @@
 //
 //   1. `--open-settings` (and the `--settings` alias) parsed from
 //      argv before QGuiApplication constructs.
-//   2. The parsed flag is exposed to QML as the `settingsOnlyMode`
-//      context property — the QML side reads that to skip the
-//      rings window and show the SettingsDialog directly.
-//   3. EWMH hints + XWayland forcing are skipped in settings-only
-//      mode (the settings dialog is a normal floating window, not
-//      a wallpaper-layer widget).
+//   2. The parsed flag switches the QML root that's loaded —
+//      `SettingsOnlyRoot` (recovery, dialog-only) vs `Main` (rings
+//      widget). No `settingsOnlyMode` context property is exposed
+//      anymore (the SettingsOnlyRoot refactor erased the eight-site
+//      flag threading).
+//   3. EWMH hints + XWayland forcing are skipped in recovery mode
+//      (the settings dialog is a normal floating window, not a
+//      wallpaper-layer widget).
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -46,14 +48,28 @@ test("main.cpp parses --open-settings (and --settings alias) from argv", () => {
     );
 });
 
-test("main.cpp exposes settingsOnlyMode as a QML context property", () => {
-    // The QML side (Main.qml) reads `settingsOnlyMode` to branch on
-    // recovery mode — see `standalone-main.test.mjs`. Lock the
-    // property NAME here so a rename can't silently drift.
+test("main.cpp loads SettingsOnlyRoot in recovery mode, Main otherwise", () => {
+    // The SettingsOnlyRoot refactor swapped flag-threading for
+    // root-swapping: --open-settings loads a minimal recovery QML
+    // root, the normal launch loads the full widget. The choice
+    // must be wired through engine.loadFromModule.
     assert.match(
         SRC,
-        /setContextProperty\([^)]*["']settingsOnlyMode["']/,
-        "must register the parsed flag as a QML context property named settingsOnlyMode",
+        /openSettings\s*\?\s*["']SettingsOnlyRoot["']\s*:\s*["']Main["']/,
+        "must pick SettingsOnlyRoot vs Main based on openSettings",
+    );
+    assert.match(
+        SRC,
+        /engine\.loadFromModule\(\s*["']RingMonitor\.Standalone["']\s*,\s*qmlRoot\s*\)/,
+        "must pass the chosen root name to loadFromModule",
+    );
+    // Regression guard: the old `setContextProperty("settingsOnlyMode", ...)`
+    // shape MUST be gone — leaving it would resurrect the eight-site
+    // threading the refactor erased.
+    assert.doesNotMatch(
+        SRC,
+        /setContextProperty\([^)]*settingsOnlyMode/,
+        "must NOT setContextProperty(\"settingsOnlyMode\", ...) — recovery is a separate QML root now",
     );
 });
 

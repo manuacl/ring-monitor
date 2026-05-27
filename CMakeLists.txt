@@ -65,6 +65,7 @@ qt_add_qml_module(ring-monitor-standalone
         standalone/window_anchor.h
     QML_FILES
         contents/ui/platforms/standalone/Main.qml
+        contents/ui/platforms/standalone/SettingsOnlyRoot.qml
         contents/ui/platforms/standalone/MetricsBackend.qml
         contents/ui/platforms/standalone/Theme.qml
         contents/ui/platforms/standalone/ThemedIcon.qml

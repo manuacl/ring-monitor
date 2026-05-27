@@ -15,6 +15,7 @@ under "Standalone target — backend choice".
 | Adapter | Purpose | Status |
 |---|---|---|
 | `Main.qml` | Frameless transparent `Window` root + Conky-style hints (X11 / XWayland) | PR B1 (placeholder) + PR C (X11 EWMH hints in `standalone/desktop_hints.cpp`) + **PR F1 ✓ — `Core.MainContent` renders the actual rings** |
+| `SettingsOnlyRoot.qml` | Recovery-mode QML root loaded when the binary runs with `--open-settings`. Hosts only the `SettingsDialog` (no rings, no MetricsBackend). | **PR #37 follow-up ✓** |
 | `MetricsBackend.qml` | Direct reads from `/proc/stat`, `/proc/meminfo`, `statvfs(3)` | **PR D: CPU usage (`/proc/stat`) ✓** ; **PR E: RAM (`/proc/meminfo`) + disk (`statvfs(/)`) ✓** ; GPU + temps post-MVP |
 | `ConfigStore.qml` | `Qt.labs.settings` reader/writer | **PR F1 ✓ — Settings root, defaults mirror `main.xml`** ; **PR F2 ✓ — SettingsDialog drives writes through this instance** |
 | `SettingsDialog.qml` | Tabbed `Window` wrapping `core/MetricsBody` + `core/AppearanceBody` + `core/AboutBody`; opened via right-click on the widget or the update-available badge | **PR F2 ✓** |
@@ -38,17 +39,31 @@ QML can't issue syscalls and `statvfs` is the only one we need for
 PR E (disk capacity). Returns `{ total, available }` in bytes; empty
 map on failure.
 
-`read()` is **allowlisted to `/proc/` and `/sys/` only**. Every other
-path returns the empty string with a `qWarning("ProcReader::read
-refused …")` on stderr. The reasoning: `Q_INVOKABLE` exposes the
-method to every QML context in the standalone build, and a leaf
-component calling `reader.read("/etc/shadow")` would otherwise turn
-this into an arbitrary file-read primitive. New sensors that need a
+`read()` is **allowlisted to `/proc/` and `/sys/` only**, with the
+input first run through `QDir::cleanPath` so the allowlist applies
+to the resolved path (i.e. `reader.read("/proc/../etc/passwd")` is
+refused, not silently opened). Every other path returns the empty
+string with a `qWarning("ProcReader::read refused …")` on stderr.
+
+**Threat model context.** The widget runs as the local user — not
+as root, not as a network service, not in a sandbox — so the
+allowlist is **not** a privilege boundary: any file `reader.read(...)`
+could return is also a file the user can `cat` directly from their
+terminal. The allowlist exists to keep the QML side honest at dev
+time: a typo'd path emits a greppable `qWarning` instead of
+silently returning unrelated data. Same reasoning for the
+`QDir::cleanPath` step — without it the header comment claiming
+"only `/proc/` and `/sys/`" would be a lie. New sensors that need a
 different prefix (e.g. `/var/run/...`) must extend the allowlist in
 `proc_reader.cpp` and add a `tests/proc-reader.test.mjs` guard for
-the new prefix. `statvfs()` accepts any path because its consumer is
-a user-configured mount point — covered in the disk-metric section
-below.
+the new prefix.
+
+`statvfs()` does NOT carry an allowlist (intentional asymmetry):
+it's a filesystem-metadata syscall, and `df -h /any/path` from the
+user's terminal returns the same numbers. If a future per-mount
+selector lands, the input still goes through `realpath(3)` on the
+QML side for display purposes (see the disk-metric section below)
+rather than via a syscall-side allowlist.
 
 ### Disk metric: known limitations of `statvfs(3)`
 
@@ -146,8 +161,8 @@ regression risk on slider resize); (2) try `_NET_WM_WINDOW_TYPE_DOCK`
 (panel-style — different KWin handling); (3) accelerate PR C2.
 
 **Recovery path for users who hit the regression:** the binary
-accepts a `--open-settings` (alias `--settings`) flag that skips the
-rings window entirely and opens just the `SettingsDialog`:
+accepts a `--open-settings` (alias `--settings`) flag that loads a
+minimal recovery QML root showing just the `SettingsDialog`:
 
 ```bash
 pkill -f ring-monitor-standalone
@@ -155,20 +170,34 @@ ring-monitor-standalone --open-settings
 ```
 
 Implementation: `standalone/main.cpp` parses argv before
-`QGuiApplication`, exposes the parsed boolean as the `settingsOnlyMode`
-context property, and gates `forceXWaylandUnderWayland` +
-`applyDesktopWindowHints` on `!openSettings` (the dialog is a normal
-floating window — no Conky-style EWMH). `Main.qml` reads
-`settingsOnlyMode` via a `typeof !== "undefined"` guard (so
-qmltestrunner contexts where the property isn't set still render the
-default widget mode), sets `visible: !_settingsOnly` on the root
-Window, opens the dialog from `Component.onCompleted`, and calls
-`Qt.quit()` when `settingsDialog.visibility === Window.Hidden`
-(there's no widget UI to fall back to in recovery mode). Config
-writes go through the same `QSettings` file the running widget reads,
-so the user kills + relaunches the running widget to apply
-(`Qt.labs.settings` doesn't watch — a live-reload via
-`QFileSystemWatcher` is out of scope for the minimal recovery).
+`QGuiApplication` (the flag also gates `forceXWaylandUnderWayland`,
+which must mutate `QT_QPA_PLATFORM` before Qt initialises) and uses
+the parsed boolean to choose which QML root to load —
+`SettingsOnlyRoot.qml` in recovery mode, `Main.qml` otherwise. The
+recovery root hosts only `ConfigStore`, `Theme`, `UpdateChecker`,
+and `SettingsDialog`; the rings widget (MetricsBackend Timer
+polling `/proc`, MainContent's tree, Screen Connections,
+WindowAnchor) is not constructed at all. Quit is wired to the
+dialog's `onClosing` signal — intent-driven (not based on
+`Window.visibility === Hidden`), so a future programmatic hide
+(modal color picker, hide-and-reopen) doesn't accidentally kill the
+recovery process. Config writes go through the same `QSettings`
+file the running widget reads, so the user kills + relaunches the
+running widget to apply (`Qt.labs.settings` doesn't watch — a
+live-reload via `QFileSystemWatcher` is out of scope for the minimal
+recovery).
+
+The previous shape (now reverted) threaded a `_settingsOnly`
+boolean through eight sites — argv parse, two startup gates, a
+context property, a `typeof`-guarded QML alias, `visible:` binding,
+a branched `Component.onCompleted`, a Qt.quit Connections — and
+still constructed the full widget invisibly. The MetricsBackend
+Timer kept polling, every slider drag in the dialog triggered a
+`setGeometry` on the hidden window, and a stuck `statvfs` would
+have blocked the GUI thread of the recovery process. Loading a
+separate root is shorter, doesn't waste syscalls, and the
+priority-driven quit is robust to future programmatic-hide
+features.
 
 ### Initial `_anchor()` must be deferred via `Qt.callLater`
 
@@ -211,6 +240,19 @@ plugin would add it post-map via ClientMessage (driven by
 `Qt::WindowStaysOnBottomHint`), but our `REPLACE` would otherwise
 clobber any pre-existing list, so being explicit removes the race
 with Qt's init order. Text-guarded by `tests/desktop-hints.test.mjs`.
+
+The **pre-map** requirement is also load-bearing for any future
+caller: `applyDesktopWindowHints` only updates the WM's state view
+because the property write happens before `MapWindow` is issued.
+Calling it post-map (e.g. on a theme switch, runtime "show on all
+desktops" toggle, or re-anchor after a monitor hot-plug) silently
+fails — the property updates, but KWin / mutter only re-read the
+state list at map time, so `xprop` would show the right value while
+the WM behaviour stays unchanged. The contract is spelled out
+above the declaration in `standalone/desktop_hints.h` and asserted
+in debug builds via `Q_ASSERT(!window->isExposed())`. A future
+"re-apply on theme switch" path needs a sibling helper that uses
+`xcb_send_event(ClientMessage)` instead.
 
 ### XWayland probe before forcing `QT_QPA_PLATFORM=xcb`
 

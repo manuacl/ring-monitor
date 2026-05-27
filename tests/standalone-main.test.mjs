@@ -20,6 +20,12 @@
 //   3. Geometry re-anchor on `onScreenChanged` (window migrates
 //      between same-resolution monitors — width/height wouldn't
 //      fire).
+//   4. Main.qml is the widget-only root — the --open-settings
+//      recovery path lives in SettingsOnlyRoot.qml. This file must
+//      NOT re-introduce `_settingsOnly` / `settingsOnlyMode` /
+//      conditional `visible:` threading (the SettingsOnlyRoot
+//      refactor erased the eight-site flag the previous shape
+//      carried).
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -52,39 +58,28 @@ test("initial _anchor() is deferred via Qt.callLater", () => {
     );
 });
 
-test("settings-only recovery mode is wired in Main.qml", () => {
-    // Review finding 🟠 PR #32: right-click is the only entry to the
-    // SettingsDialog, and a compositor regression on
-    // `_NET_WM_WINDOW_TYPE_DESKTOP` (KWin / mutter) can swallow it.
-    // The `--open-settings` argv flag (parsed in main.cpp) exposes
-    // `settingsOnlyMode` as a context property; Main.qml reads it
-    // through a `typeof ... !== 'undefined'` guard so qmltestrunner
-    // contexts where the property isn't set still render the default
-    // widget mode.
-    assert.match(
+test("Main.qml is the widget-only root (no recovery-mode threading)", () => {
+    // Recovery mode lives in `SettingsOnlyRoot.qml`, loaded by
+    // main.cpp when --open-settings is passed. Main.qml must NOT
+    // re-introduce a `_settingsOnly` flag, a `settingsOnlyMode`
+    // context-property read, or a conditional `visible:` — those
+    // were the eight-site threading the SettingsOnlyRoot refactor
+    // erased. Locking these absences in here ensures a regression
+    // bringing the flag back would land in CI red.
+    assert.doesNotMatch(
         SRC,
         /settingsOnlyMode/,
-        "Main.qml must reference the settingsOnlyMode context property",
+        "Main.qml must NOT reference settingsOnlyMode (recovery lives in SettingsOnlyRoot.qml)",
+    );
+    assert.doesNotMatch(
+        SRC,
+        /_settingsOnly/,
+        "Main.qml must NOT carry a _settingsOnly property",
     );
     assert.match(
         SRC,
-        /typeof\s+settingsOnlyMode\s*!==\s*["']undefined["']/,
-        "must guard the context-property lookup with typeof !== 'undefined' for qmltestrunner / hot-reload contexts",
-    );
-    // The main Window must hide in settings-only mode — otherwise the
-    // frameless DESKTOP shell still tries to map alongside the
-    // recovery dialog and the user gets back into the same trap.
-    assert.match(
-        SRC,
-        /visible\s*:\s*!_settingsOnly/,
-        "Window.visible must be `!_settingsOnly` so the rings stay hidden during recovery",
-    );
-    // Closing the dialog must terminate the process — there's no
-    // widget UI to fall back to in settings-only mode.
-    assert.match(
-        SRC,
-        /settingsDialog\.visibility\s*===\s*Window\.Hidden[\s\S]*?Qt\.quit\(\)/,
-        "the SettingsDialog Hidden transition must call Qt.quit() in settings-only mode",
+        /visible\s*:\s*true/,
+        "the rings Window must be unconditionally visible (recovery is a separate root)",
     );
 });
 

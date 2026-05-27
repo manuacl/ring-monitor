@@ -22,19 +22,6 @@ import "../../core" as Core
 Window {
     id: root
 
-    // Context property exposed by main.cpp. `true` when the binary was
-    // launched with `--open-settings` / `--settings` — recovery path
-    // for compositors that swallow right-click on
-    // `_NET_WM_WINDOW_TYPE_DESKTOP` windows. The root window stays
-    // hidden and the SettingsDialog is shown immediately; closing the
-    // dialog terminates the process.
-    //
-    // Context-property lookup yields `undefined` in qmltestrunner /
-    // hot-reload contexts where main.cpp isn't the host — the `=== true`
-    // strict comparison makes the default branch (full widget mode)
-    // stable in those cases.
-    readonly property bool _settingsOnly: (typeof settingsOnlyMode !== "undefined") && (settingsOnlyMode === true)
-
     title: "ring-monitor"
     // Window dimensions are computed HERE (not via MainContent's
     // implicit) because the GridLayout's auto-implicit derived from
@@ -65,8 +52,7 @@ Window {
     readonly property int _windowMargin: (configStoreAdapter.windowMargin !== undefined) ? configStoreAdapter.windowMargin : 0
     readonly property int _targetWidth: Math.min(content.vertical ? _ringSize : _stripLength, Screen.width - 2 * _windowMargin)
     readonly property int _targetHeight: Math.min(content.vertical ? _stripLength : _ringSize, Screen.height - 2 * _windowMargin)
-    // Hidden in settings-only mode — we just want the SettingsDialog.
-    visible: !_settingsOnly
+    visible: true
 
     // Top-right anchored at the very edge of the screen (y = 0) — the
     // window is always-on-bottom so any Plasma panel at the top draws
@@ -104,28 +90,7 @@ Window {
     // window-type — exactly the gravity-shift scenario the WindowAnchor
     // pattern exists to avoid, surfacing as the brief jump on first
     // show. Qt.callLater queues it to step 3 instead.
-    Component.onCompleted: {
-        if (_settingsOnly) {
-            // Recovery path: skip the anchor (the rings window is
-            // hidden) and surface the settings dialog. `Qt.quit()`
-            // hook on close terminates the orphan process when the
-            // user dismisses the dialog.
-            settingsDialog.show();
-            return;
-        }
-        Qt.callLater(_anchor);
-    }
-    // Settings-only mode: when the recovery dialog closes, terminate
-    // the process (there's no widget UI to fall back to). visibility
-    // transitions from non-Hidden to Hidden cover both window-frame
-    // close and ESC dismissal.
-    Connections {
-        target: settingsDialog
-        function onVisibilityChanged() {
-            if (root._settingsOnly && settingsDialog.visibility === Window.Hidden)
-                Qt.quit();
-        }
-    }
+    Component.onCompleted: Qt.callLater(_anchor)
     // Connections (rather than `on_TargetWidthChanged:`) — handlers
     // for underscore-prefixed properties are awkward to spell in QML
     // (`on_TargetWidthChanged`, mixing leading underscore + capital).

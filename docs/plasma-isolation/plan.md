@@ -263,7 +263,7 @@ skill: rewrite hardcoded path greps + add
   context-property propagation through `Loader`. Touching this file
   is risky — add extra QML test coverage
   (`tests/qml/tst_DraggableList.qml`) before any refactor.
-- **`refresh-widget` skill** clears 3 qmlcaches. After each PR, run
+- **`refresh-plasma-widget` skill** clears 3 qmlcaches. After each PR, run
   it before manual testing to avoid stale-symbol false positives.
 - **finish-branch skill greps hardcoded paths** today
   (`grep -n "Plasmoid\.configuration" contents/ui/Ring.qml ...`).

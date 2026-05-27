@@ -24,7 +24,7 @@ opened on red**.
 
 ## When NOT to use
 
-- To validate a visual UI fix → prefer `refresh-widget` + human eye.
+- To validate a visual UI fix → prefer `refresh-plasma-widget` + human eye.
 - For a WIP commit that will be squashed later — this skill audits the
   final state, not each intermediate step.
 
@@ -476,7 +476,7 @@ else
 - [x] No nested ternaries
 - [x] DIP (leaves don't read `Plasmoid.configuration`)
 - [x] Tests & docs consistent with diff
-- [ ] <visual check if UI: refresh-widget + eye>
+- [ ] <visual check if UI: refresh-plasma-widget + eye>
 
 (Decompose the phase-A checks into individual bullets — each one
 already ran locally, so they go in as `[x]`. The merger then sees
@@ -523,29 +523,42 @@ no bump" default).
 Return the PR URL **and** the chosen bump level (or "no bump") to the
 user.
 
-### 9. Code review — invoke `/code-review`
+### 9. Code review — delegate to `/code-review`
 
-Final step: hand the freshly-opened PR to Claude Code's built-in
-`/code-review` command for a multi-agent cloud review. Phase A only
-catches the mechanical rules (file size, qmllint, tests, plasma
-isolation, doc consistency) — `/code-review` is where deeper feedback
-(design smells, edge cases, security, naming) lands. Running it as
-the last finish-branch step keeps the user's review loop tight: phase
-A green → push → PR open → labelled → review feedback all in one
-flow, instead of having to remember to fire `/code-review` separately.
+Final step: hand the freshly-opened PR to the `/code-review` plugin
+command (ships in `~/.claude/plugins/marketplaces/claude-plugins-official/plugins/code-review/`)
+for a multi-agent cloud review. Phase A only catches the mechanical
+rules (file size, qmllint, tests, plasma isolation, doc
+consistency) — `/code-review` is where deeper feedback (design
+smells, edge cases, security, naming) lands. Auto-firing it from
+step 9 closes the loop in one flow: phase A green → push → PR
+opened → labelled → review feedback, no separate manual fire
+required.
 
-```bash
-# Invoke from the user's prompt (not from a sub-tool — the slash
-# command is interpreted by the Claude Code client itself). Report:
-#   "Now run: /code-review <pr_number>"
-# so the user can press enter to fire it. Do NOT try to shell out
-# `claude /code-review` — the command isn't exposed at the CLI.
+Invoke via the Skill tool, same chaining mechanism as step 8
+(`bump-label`):
+
+```
+Skill(skill="code-review", args="<pr_number>")
 ```
 
-If `/code-review` is unavailable in the user's environment (older
-Claude Code, missing entitlements), say so and skip — don't block the
-finish-branch flow on it. The PR is already opened and labelled;
-reviews can happen async.
+Pass the PR number captured at step 7. The plugin spawns a Haiku
+eligibility check, then 5 parallel Sonnet review agents (CLAUDE.md
+adherence, shallow bug scan, git-blame historical context, prior-PR
+comments, code-comment compliance), filters findings via a Haiku
+confidence-scoring pass (only ≥80 survive), and finally posts a
+`gh pr comment` so the feedback lands on the PR itself.
+
+Cost note: the user accepts the per-PR spend for this auto-fire (see
+`feedback-paid-review-apis` memory). If they ever ask to turn it
+off, drop this step rather than reverting to the old "prompt the
+user" pattern — half-measures are worse than either extreme.
+
+If the `code-review` plugin is not installed in the user's
+environment, the Skill call will fail; surface the error briefly
+and skip — don't block the finish-branch flow on it. The PR is
+already opened and labelled; reviews can happen async if a
+contributor fires `/code-review <pr_number>` manually later.
 
 ## Expected report
 

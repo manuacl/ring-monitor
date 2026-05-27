@@ -1,10 +1,10 @@
 ---
-name: refresh-widget
-description: Reload the ring-monitor Plasma widget after a code change — clears qmlcaches, restarts plasmashell, then greps the journal for QML/ringmon errors. Use when the user says "actualise l'app", "reload widget", "refresh ring-monitor", or after modifying contents/ui/*.qml, contents/config/main.xml, or metadata.json.
+name: refresh-plasma-widget
+description: Reload the ring-monitor Plasma widget after a code change — clears qmlcaches, restarts plasmashell, then greps the journal for QML/ringmon errors. Plasma-host workflow only (the standalone binary doesn't need this — just relaunch it). Use when the user says "actualise l'app", "reload widget", "refresh ring-monitor", or after modifying contents/ui/*.qml, contents/config/main.xml, or metadata.json.
 user-invocable: true
 ---
 
-# Refresh ring-monitor widget
+# Refresh ring-monitor Plasma widget
 
 Rafraîchit l'instance du widget installée dans le panneau Plasma de l'utilisateur après une modif locale. Le code source vit dans `~/projects/ring-monitor/`, monté dans Plasma via le symlink `~/.local/share/plasma/plasmoids/dev.manuacl.ringmonitor → ~/projects/ring-monitor` (voir `docs/development.md` § Layout).
 

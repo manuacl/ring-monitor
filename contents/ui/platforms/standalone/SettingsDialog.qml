@@ -50,20 +50,33 @@ Window {
     // the screen the Window currently lives on, but a hidden Window
     // hasn't been assigned a screen yet — so at onCompleted it
     // resolves to the primary screen even when the widget that opens
-    // the dialog lives on a secondary monitor. Recenter when the
-    // Window transitions from hidden to visible: at that moment Qt
-    // has decided which screen to map us on and `Screen.*` reflects
-    // it. `Screen.virtualX/Y` puts the dialog in the screen's own
+    // the dialog lives on a secondary monitor. Recenter on the
+    // FIRST hidden→visible transition: at that moment Qt has decided
+    // which screen to map us on and `Screen.*` reflects it.
+    // `Screen.virtualX/Y` puts the dialog in the screen's own
     // coordinate space (a multi-monitor `Window.x = N` is virtual-
     // desktop-absolute on X11, so a bare centring formula would land
     // on the leftmost screen even when the destination Screen is the
     // rightmost).
+    //
+    // `_centered` gates the recenter to the FIRST open only. Without
+    // the gate, every close-then-reopen wipes any user-dragged
+    // position — the dialog is instantiated once in Main.qml and
+    // `show()` reuses the same instance, so subsequent opens would
+    // snap back to centre regardless of where the user had moved it.
+    // Qt's QWindow already preserves the last position on hide+show,
+    // which is what users expect from a window-managed dialog.
+    property bool _centered: false
     function _recenterOnCurrentScreen() {
         dialog.x = Screen.virtualX + (Screen.width - dialog.width) / 2;
         dialog.y = Screen.virtualY + (Screen.height - dialog.height) / 2;
     }
-    onVisibleChanged: if (dialog.visible)
-        dialog._recenterOnCurrentScreen()
+    onVisibleChanged: {
+        if (dialog.visible && !dialog._centered) {
+            dialog._recenterOnCurrentScreen();
+            dialog._centered = true;
+        }
+    }
 
     Component.onCompleted: dialog._wireBridges()
 

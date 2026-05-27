@@ -187,13 +187,13 @@ test("SCENARIO: post-s2idle resume with stale per-core counters returns 0%", () 
         "post-resume regression must clamp to 0, not propagate a negative pct");
 });
 
-test("SCENARIO: core hotplug-out — parser handles cur with fewer cores than prev", () => {
+test("SCENARIO: core hotplug-out — parser produces a shorter cores array without throwing", () => {
     // Live core hotplug-out (echo 0 > /sys/devices/system/cpu/cpu3/online)
-    // drops `cpu3` from /proc/stat between samples. The parser must
-    // produce a shorter `cores` array without crashing or inventing
-    // values — the MetricsBackend already iterates against the
-    // smaller of prev/cur lengths (Math.min), so dropping a core
-    // mid-run results in one less ring next tick, not a TypeError.
+    // drops `cpu3` from /proc/stat between samples. parseProcStat must
+    // produce a shorter `cores` array without inventing values. The
+    // downstream length-mismatch handling in MetricsBackend
+    // (Math.min(prev, cur) in MetricsBackend.qml) is NOT covered by
+    // this test — it's only the parser side that's guarded here.
     const beforeHotplug = [
         "cpu  400 0 200 3200 40 0 0 0",
         "cpu0 100 0 50 800 10 0 0 0",

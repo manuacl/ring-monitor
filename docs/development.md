@@ -90,8 +90,11 @@ Verify the hints landed with `xprop`:
 ```bash
 xprop -id "$(xdotool search --name 'ring-monitor' | head -1)" \
     _NET_WM_STATE _NET_WM_WINDOW_TYPE
-# Expect: _NET_WM_WINDOW_TYPE_NORMAL (not OVERRIDE)
-#         _NET_WM_STATE has BELOW, SKIP_TASKBAR, SKIP_PAGER
+# Expect: _NET_WM_WINDOW_TYPE_DESKTOP (not OVERRIDE)
+#         _NET_WM_STATE has BELOW, SKIP_TASKBAR, SKIP_PAGER, STICKY
+# (STICKY may be missing on a default Plasma-Wayland session — single
+#  virtual desktop — but the hint is still set; multi-desktop X11
+#  sessions show all four.)
 ```
 
 Build deps on Fedora/Bazzite: `qt6-qtbase-devel

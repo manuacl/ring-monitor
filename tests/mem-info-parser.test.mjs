@@ -87,9 +87,68 @@ test("usagePercent: returns 0 when available is null / NaN / undefined", () => {
 });
 
 test("usagePercent: unit-agnostic — same answer for kB or bytes", () => {
-    // The ratio cancels the unit. This is what lets the statvfs (disk)
-    // path reuse the same helper without converting bytes → kB.
+    // The ratio cancels the unit.
     const kB = Parser.usagePercent(16275216, 9029768);
     const bytes = Parser.usagePercent(16275216 * 1024, 9029768 * 1024);
     assert.equal(kB, bytes);
+});
+
+// ── diskUsagePercent ────────────────────────────────────────────────
+
+test("diskUsagePercent: matches df on a fresh ext4 (5% root reservation)", () => {
+    // SCENARIO: a freshly-formatted 100 GB ext4 root filesystem.
+    // - total       = 100 GB (f_blocks)
+    // - free        = 100 GB (f_bfree, all blocks unused)
+    // - available   = 95 GB  (f_bavail, free minus the 5% root reservation)
+    // df shows 0% used. The naive (total - available) / total would
+    // report 5% used because the root reservation counts as "used"
+    // in that formula. The correct formula treats the reservation
+    // as "size invisible to the user" — denom = used + available.
+    const total = 100_000_000_000;
+    const free = 100_000_000_000;
+    const available = 95_000_000_000;
+    assert.equal(Parser.diskUsagePercent(total, free, available), 0);
+});
+
+test("diskUsagePercent: 50% used when half the user-visible space is consumed", () => {
+    // 100 GB total, 50 GB free, 45 GB available (5 GB reserved).
+    // used = 50 GB; denom = used + available = 95 GB; pct = 50/95 = 52.63%.
+    // Cross-check against `df`: `df` reports 53% for this exact case.
+    const pct = Parser.diskUsagePercent(100, 50, 45);
+    assert.ok(Math.abs(pct - (50 / 95) * 100) < 1e-9);
+});
+
+test("diskUsagePercent: 100% when no available blocks remain", () => {
+    // Disk is "full" for the unprivileged user even though f_bfree > 0
+    // (root-reserved blocks still free). df shows 100%.
+    assert.equal(Parser.diskUsagePercent(100, 5, 0), 100);
+});
+
+test("diskUsagePercent: returns 0 on invalid input", () => {
+    assert.equal(Parser.diskUsagePercent(null, 50, 40), 0);
+    assert.equal(Parser.diskUsagePercent(0, 50, 40), 0);
+    assert.equal(Parser.diskUsagePercent(-10, 50, 40), 0);
+    assert.equal(Parser.diskUsagePercent(100, null, 40), 0);
+    assert.equal(Parser.diskUsagePercent(100, NaN, 40), 0);
+    assert.equal(Parser.diskUsagePercent(100, 50, null), 0);
+    assert.equal(Parser.diskUsagePercent(100, 50, NaN), 0);
+});
+
+test("diskUsagePercent: clamps to [0, 100] for absurd inputs", () => {
+    // free > total → used negative → clamped to 0
+    assert.equal(Parser.diskUsagePercent(100, 200, 50), 0);
+    // available negative → > 100, clamped
+    const pct = Parser.diskUsagePercent(100, 0, -50);
+    assert.ok(pct === 100 || pct === 0);
+});
+
+test("diskUsagePercent: differs from usagePercent on reserved filesystems", () => {
+    // Same 100 / 95 (total / available) inputs, freshly empty:
+    // - usagePercent says 5% (counts reservation as used)
+    // - diskUsagePercent says 0% (matches df)
+    // The 5% gap is exactly the ext4 root reservation. This test
+    // guards the regression where someone "simplifies" the disk
+    // path back to usagePercent.
+    assert.equal(Parser.usagePercent(100, 95), 5);
+    assert.equal(Parser.diskUsagePercent(100, 100, 95), 0);
 });

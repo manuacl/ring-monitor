@@ -171,16 +171,16 @@ Covered by `tests/proc-stat-parser.test.mjs`.
 
 ## `MemInfoParser.js`
 
-Pure parser for `/proc/meminfo` plus the small percent helper that
-the RAM **and** disk paths both feed. Used by the standalone
-`MetricsBackend.qml` (PR E in the standalone roadmap): the QML
-adapter reads `/proc/meminfo` via `ProcReader` and queries
-`ProcReader.statvfs("/")` for disk capacity, then hands both into
-this module.
+Pure parser for `/proc/meminfo` plus two percent helpers — one for
+RAM, one for disk. Used by the standalone `MetricsBackend.qml` (PR E
+in the standalone roadmap): the QML adapter reads `/proc/meminfo`
+via `ProcReader` and queries `ProcReader.statvfs("/")` for disk
+capacity, then hands each into the matching helper.
 
 | Function | Purpose |
 |---|---|
 | `parseMemInfo(content)` | Parses `/proc/meminfo` into `{ total, available }` (kB). Defensive against null / empty / malformed input (fields stay `null`). Picks `MemAvailable` rather than `MemTotal - MemFree` — same convention as `free -h`; using `MemFree` would report 90 %+ on any machine with a healthy page cache. |
-| `usagePercent(total, available)` | Generic `(1 - available / total) * 100`, clamped to `[0, 100]`. Returns `0` on missing / non-numeric inputs. Unit-agnostic: kB for RAM, bytes for disk — the ratio cancels the unit, which is exactly why the disk path reuses this helper instead of carrying its own. |
+| `usagePercent(total, available)` | `(1 - available / total) * 100`, clamped to `[0, 100]`. Returns `0` on missing / non-numeric inputs. Used for the **RAM** path, where `MemAvailable` already accounts for reclaimable cache. Not appropriate for disks with a root reservation — use `diskUsagePercent` there. |
+| `diskUsagePercent(total, free, available)` | df(1)'s "Use%" formula: `(total - free) / (total - free + available)`, clamped to `[0, 100]`. Returns `0` on missing / non-numeric inputs. Treats root-reserved blocks (~5 % on ext4) as "size invisible to the user" — without this, a freshly-formatted empty ext4 would report 5 % used. Wired to the **disk** path in `standalone/MetricsBackend.qml`. |
 
 Covered by `tests/mem-info-parser.test.mjs`.

@@ -35,8 +35,16 @@ QVariantMap ProcReader::statvfs(const QString &path) const
     struct ::statvfs s;
     if (::statvfs(path.toLocal8Bit().constData(), &s) != 0)
         return {};
+    // f_bfree (all free blocks, including root-reserved) is exposed
+    // alongside f_blocks and f_bavail so the QML side can compute
+    // df(1)'s "Use%" formula — (blocks - bfree) / (blocks - bfree +
+    // bavail) — instead of the naive (blocks - bavail) / blocks
+    // which counts the root reservation as "used" and reports ~5%
+    // used on a freshly-formatted empty ext4 root. See
+    // MemInfoParser.diskUsagePercent.
     return {
         { QStringLiteral("total"),     static_cast<qulonglong>(s.f_blocks) * s.f_frsize },
+        { QStringLiteral("free"),      static_cast<qulonglong>(s.f_bfree)  * s.f_frsize },
         { QStringLiteral("available"), static_cast<qulonglong>(s.f_bavail) * s.f_frsize },
     };
 }

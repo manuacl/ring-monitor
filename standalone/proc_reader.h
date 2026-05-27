@@ -46,11 +46,22 @@ public:
     // primitive.
     Q_INVOKABLE QString read(const QString &path) const;
 
-    // statvfs(3) wrapper. Returns { "total": <bytes>, "available":
-    // <bytes> } on success; empty map on any failure (path missing,
-    // not mounted, EACCES). `total` uses f_blocks (filesystem-wide
-    // size); `available` uses f_bavail (free space minus root
-    // reservation — the value `df` displays in the "Avail" column).
-    // Both are bytes (`f_blocks * f_frsize`).
+    // statvfs(3) wrapper. Returns { "total": <bytes>, "free":
+    // <bytes>, "available": <bytes> } on success; empty map on any
+    // failure (path missing, not mounted, EACCES). All three fields
+    // are in bytes (`f_X * f_frsize`):
+    //   - `total`     = f_blocks (filesystem-wide size, includes
+    //                   root reservation)
+    //   - `free`      = f_bfree  (all unused blocks, including the
+    //                   root reservation)
+    //   - `available` = f_bavail (unused blocks reachable by an
+    //                   unprivileged user; matches `df`'s "Avail")
+    //
+    // Both `free` and `available` are exposed so QML can compute
+    // df(1)'s "Use%" formula `(total - free) / (total - free +
+    // available)` via `MemInfoParser.diskUsagePercent`. The naive
+    // `(total - available) / total` would count the ~5% ext4 root
+    // reservation as "used" and report a non-zero usage on a
+    // freshly-formatted empty filesystem.
     Q_INVOKABLE QVariantMap statvfs(const QString &path) const;
 };

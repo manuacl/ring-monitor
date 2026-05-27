@@ -57,9 +57,9 @@ registration file includes our headers via `<proc_reader.h>`
 | Compositor | Status | How |
 |---|---|---|
 | **Plasma-X11**, XFCE, Cinnamon, MATE, LXQt | ✓ native | Qt::FramelessWindowHint + Qt::WindowStaysOnBottomHint + xcb EWMH hints (sticky, skip-taskbar, skip-pager); window type forced to `_NET_WM_WINDOW_TYPE_NORMAL` to undo Qt's `_KDE_NET_WM_WINDOW_TYPE_OVERRIDE` default |
-| **Plasma-Wayland** | ✓ via XWayland fallback | User sets `QT_QPA_PLATFORM=xcb` manually; STICKY may show as no-op in `xprop` if Plasma is on a single virtual desktop, but BELOW + SKIP_TASKBAR + SKIP_PAGER apply correctly |
-| **GNOME-Wayland (mutter)** | ✓ via auto-XWayland | `desktop_hints.cpp` detects mutter from `XDG_CURRENT_DESKTOP` and force-sets `QT_QPA_PLATFORM=xcb` before `QGuiApplication` |
-| **sway / Hyprland (wlroots-Wayland)** | ⚠ degraded — works only if user sets `QT_QPA_PLATFORM=xcb` | Layer-shell-qt-based native integration lands in a future PR |
+| **Plasma-Wayland** | ✓ via auto-XWayland | `forceXWaylandUnderWayland` in `desktop_hints.cpp` force-sets `QT_QPA_PLATFORM=xcb` before `QGuiApplication`, gated on `QStandardPaths::findExecutable("Xwayland")` so the app falls back to native Wayland (no Conky hints) if XWayland is missing rather than crashing. STICKY may show as no-op in `xprop` on a single virtual desktop, but BELOW + SKIP_TASKBAR + SKIP_PAGER apply correctly |
+| **GNOME-Wayland (mutter)** | ✓ via auto-XWayland | Same path as Plasma-Wayland; mutter ships XWayland by default, so the probe always succeeds |
+| **sway / Hyprland (wlroots-Wayland)** | ✓ via auto-XWayland (if `xwayland` package installed) or degraded native otherwise | Same probe — if the user installed XWayland they get the Conky behaviour; minimal installs fall back to native Wayland with the EWMH hints no-op'd. Layer-shell-qt-based native integration lands in a future PR |
 | **KWin-Wayland native** | ⚠ degraded — same as sway above | Layer-shell-qt path same as above |
 
 The "native Wayland layer-shell" path is deferred to a future PR

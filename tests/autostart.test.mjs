@@ -85,3 +85,15 @@ test("setEnabled(false) removes the autostart file (no empty-rewrite)", () => {
         "setEnabled(false) must call QFile::remove on the autostart file",
     );
 });
+
+test("currentExecPath matches APPDIR with a trailing slash", () => {
+    // A bare `self.startsWith(appDir)` matches a different AppImage
+    // mount whose ID coincidentally shares a prefix (Limux/Ghostty
+    // terminal hosting our binary from a sibling mount). Requiring
+    // the trailing `/` enforces a directory-boundary match.
+    assert.match(
+        SRC,
+        /self\.startsWith\(\s*QString::fromLocal8Bit\(\s*appDir\s*\)\s*\+\s*QLatin1Char\(\s*'\/'\s*\)\s*\)/,
+        "the APPDIR prefix check must require a trailing slash so a coincidental prefix from a sibling mount does not match",
+    );
+});

@@ -104,6 +104,19 @@ Item {
             compare(body._windowMarginSlider.from, 0);
             compare(body._windowMarginSlider.to, 200);
         }
+        // The Plasma host never reads `windowMargin` (only the
+        // standalone Window-anchor code does), so the slider's row
+        // is hidden by default. Standalone SettingsDialog opts in by
+        // flipping the flag — same gating pattern as
+        // AboutBody.autostartAvailable.
+        function test_windowMarginVisible_defaults_false_hides_slider() {
+            body.windowMarginVisible = false;
+            compare(body._windowMarginSlider.parent.visible, false);
+        }
+        function test_windowMarginVisible_true_shows_slider() {
+            body.windowMarginVisible = true;
+            compare(body._windowMarginSlider.parent.visible, true);
+        }
 
         // ── Round trip: write → read each property name ───────────────
         // Catches a typo in any of the 4 property declarations.

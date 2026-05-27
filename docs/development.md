@@ -68,17 +68,22 @@ the window behaves Conky-style — sits on the wallpaper, not in the
 taskbar/pager, visible across workspaces. The actual metric
 rendering arrives in PR D / E.
 
-On Plasma-Wayland (and any Wayland session that doesn't yet have
-native layer-shell support in our build), force XWayland to get the
-Conky behaviour:
+On any Wayland session that doesn't yet have native layer-shell
+support in our build, the binary auto-forces XWayland: at startup
+`forceXWaylandUnderWayland` (in `standalone/desktop_hints.cpp`)
+checks `XDG_SESSION_TYPE=wayland`, probes for the `Xwayland`
+executable on `$PATH`, and if found sets `QT_QPA_PLATFORM=xcb`
+before `QGuiApplication` constructs. No manual `QT_QPA_PLATFORM`
+needed.
 
-```bash
-QT_QPA_PLATFORM=xcb ./build/ring-monitor-standalone
-```
-
-Under GNOME-Wayland the binary auto-detects mutter and force-sets
-`QT_QPA_PLATFORM=xcb` itself (mutter doesn't implement
-`wlr-layer-shell`, same fallback Conky uses there).
+If `Xwayland` is not installed (minimal Sway/Hyprland install, a
+user who removed `xorg-x11-server-Xwayland`), the binary falls
+back to native Wayland — the EWMH hints in `applyDesktopWindowHints`
+no-op (the X11 native interface returns nullptr), so the window
+shows up as an ordinary frameless `WindowStaysOnBottomHint` Qt
+window without the Conky integration. Install the `Xwayland`
+package or wait for the layer-shell native path (PR C2) to get
+the full behaviour.
 
 Verify the hints landed with `xprop`:
 

@@ -64,6 +64,14 @@ test("SettingsDialog instantiates the three core bodies", () => {
     assert.match(SOURCE, /Core\.AboutBody\s*{/, "must instantiate Core.AboutBody");
 });
 
+test("SettingsDialog opts in to AppearanceBody.windowMarginVisible", () => {
+    // The shared AppearanceBody hides the Screen margin slider by
+    // default — only the standalone Window consumes the property.
+    // Mirrors the autostartAvailable gate on AboutBody. Without this
+    // line the slider would never appear for standalone users.
+    assert.match(SOURCE, /windowMarginVisible\s*:\s*true/, "AppearanceBody.windowMarginVisible must be true so the Screen margin slider renders");
+});
+
 test("SettingsDialog uses the pull + change-signal write-back pattern", () => {
     // _wireBridges must contain both halves: initial pull (body[bodyProp] = configStore[storeProp])
     // AND a XChanged signal connect that writes back.

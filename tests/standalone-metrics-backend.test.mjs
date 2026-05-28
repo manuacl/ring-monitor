@@ -61,7 +61,7 @@ test("standalone MetricsBackend wires disk multi-partition discovery", () => {
     assert.match(SOURCE, /reader\.read\(["']\/proc\/mounts["']\)/, "must read /proc/mounts through the ProcReader helper");
     assert.match(SOURCE, /DiskDiscovery\.parseMounts\s*\(/, "must parse mounts via the pure helper");
     assert.match(SOURCE, /DiskDiscovery\.buildPartitions\s*\(/, "must build the deduped partition list via the pure helper");
-    assert.match(SOURCE, /DiskDiscovery\.defaultSelection\s*\(/, "must resolve the $HOME-bearing default via the pure helper");
+    assert.match(SOURCE, /DiskDiscovery\.defaultOrFirst\s*\(/, "must resolve the default via defaultOrFirst (same helper the picker uses, incl. the first-partition fallback)");
     assert.match(SOURCE, /reader\.blockDeviceInfo\s*\(/, "must resolve uuid/label via ProcReader.blockDeviceInfo");
     assert.match(SOURCE, /reader\.canonicalHome\s*\(/, "must resolve $HOME via ProcReader.canonicalHome");
     assert.doesNotMatch(SOURCE, /_diskMount/, "the hardcoded composefs '/' mount must be gone");

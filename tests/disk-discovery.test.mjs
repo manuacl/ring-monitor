@@ -113,3 +113,26 @@ test("defaultSelection: a plain /home mount is matched directly", () => {
     const sel = Disk.defaultSelection(m, parts, "/home/alice");
     assert.deepEqual(sel, ["/dev/sda2"]);
 });
+
+// ── defaultOrFirst (shared by the backend + the picker; must agree) ──
+
+test("defaultOrFirst: returns the home FS when detected", () => {
+    const m = Disk.parseMounts(BAZZITE_MOUNTS);
+    const parts = Disk.buildPartitions(m, {});
+    assert.deepEqual(Disk.defaultOrFirst(m, parts, "/var/home/manu"), ["/dev/sda3"]);
+});
+
+test("defaultOrFirst: falls back to the first partition when home detection fails", () => {
+    // SCENARIO (re-review): the backend rendered parts[0] but the picker
+    // seeded [] because only the backend had this fallback — widget showed a
+    // ring while every checkbox was unchecked. Both now use defaultOrFirst.
+    const m = Disk.parseMounts(BAZZITE_MOUNTS);
+    const parts = Disk.buildPartitions(m, {});
+    const fallback = Disk.defaultOrFirst(m, parts, ""); // home unresolved
+    assert.equal(fallback.length, 1);
+    assert.equal(fallback[0], parts[0].id);
+});
+
+test("defaultOrFirst: empty when there are no partitions at all", () => {
+    assert.deepEqual(Disk.defaultOrFirst([], [], "/home/x"), []);
+});

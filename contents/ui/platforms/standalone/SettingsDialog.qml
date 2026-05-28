@@ -106,7 +106,9 @@ Window {
                 "label": parts[i].label
             });
         dialog._diskPartitions = out;
-        dialog._defaultPartitionIds = DiskDiscovery.defaultSelection(mounts, parts, partitionReader.canonicalHome());
+        // Same helper as the backend so the seeded default matches the
+        // widget's rendered default (incl. the first-partition fallback).
+        dialog._defaultPartitionIds = DiskDiscovery.defaultOrFirst(mounts, parts, partitionReader.canonicalHome());
     }
 
     // ColorPicker injected into AppearanceBody as a Component — the

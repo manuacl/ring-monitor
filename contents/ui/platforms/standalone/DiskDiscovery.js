@@ -148,10 +148,24 @@ function defaultSelection(mounts, partitions, canonicalHome) {
     return [];
 }
 
+// The selection the disk ring defaults to when the user has chosen nothing:
+// the $HOME-bearing filesystem, falling back to the first discovered
+// partition so the ring is never empty on an exotic layout where home
+// detection fails. Used by BOTH the backend (what the widget renders) and
+// the SettingsDialog (what the picker seeds) — they MUST agree, or the
+// widget shows a ring while the picker shows everything unchecked.
+function defaultOrFirst(mounts, partitions, canonicalHome) {
+    var def = defaultSelection(mounts, partitions, canonicalHome);
+    if (def.length === 0 && partitions && partitions.length > 0)
+        return [partitions[0].id];
+    return def;
+}
+
 if (typeof module !== "undefined" && module.exports) {
     module.exports = {
         parseMounts: parseMounts,
         buildPartitions: buildPartitions,
         defaultSelection: defaultSelection,
+        defaultOrFirst: defaultOrFirst,
     };
 }

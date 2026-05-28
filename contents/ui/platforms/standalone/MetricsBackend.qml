@@ -259,13 +259,10 @@ Item {
             mountForId[parts[i].id] = parts[i].mountpoint;
         backend._mountForId = mountForId;
         backend._partitions = parts;
-        // Default = the $HOME-bearing filesystem; fall back to the first
-        // discovered partition so the ring is never empty on an exotic
-        // layout where home detection fails.
-        var def = DiskDiscovery.defaultSelection(mounts, parts, backend._canonicalHome);
-        if (def.length === 0 && parts.length > 0)
-            def = [parts[0].id];
-        backend.defaultPartitionIds = def;
+        // Default = the $HOME-bearing filesystem (or the first partition when
+        // home detection fails). Same helper as the SettingsDialog picker so
+        // the rendered default and the seeded default never diverge.
+        backend.defaultPartitionIds = DiskDiscovery.defaultOrFirst(mounts, parts, backend._canonicalHome);
     }
 
     function _sample() {

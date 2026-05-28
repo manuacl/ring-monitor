@@ -400,11 +400,22 @@ behind=$(git rev-list --count HEAD..origin/main)
 
 ### 6. CLAUDE.md lessons reflection — last thing before push
 
-Look back over the branch and surface 0–3 candidate additions to
-`CLAUDE.md`. Then ask the user verbatim:
+This reflection is **yours to do, not a question to delegate.** Look
+back over the whole session — not just the branch diff, but the dead
+ends, reverted experiments, and anything that cost an iteration — and
+**proactively propose 0–3 concrete candidate rules** for a `CLAUDE.md`.
 
-> Est-ce que tu vois des règles à rajouter dans CLAUDE.md en
-> fonction de ce qu'on a fait dans cette branche ?
+Each proposal must be specific enough to paste in:
+- the exact wording of the rule,
+- which `CLAUDE.md` file + section it lands in,
+- one line on the incident this session that motivates it.
+
+Do **not** ask the user an open-ended "do you see any rules to add?" —
+surfacing the candidates is your job; the user's job is only to
+accept / decline / tweak. If, after genuinely reviewing the session,
+nothing clears the "worth a rule" bar below, say so explicitly
+("nothing worth a rule this branch") and proceed to step 7. An empty
+but reasoned proposal is a valid outcome; a delegated question is not.
 
 **What is worth a rule:**
 

@@ -119,18 +119,32 @@ void ProcReader::requestStatvfs(const QString &mount)
     m_statvfsInFlight.insert(mount);
 
     // Detached worker: blocks in statvfs() off the GUI thread, then hops
-    // the result back via the event loop. qApp is the delivery context
-    // (alive for the whole process); the QPointer guards the rare case
-    // of ProcReader being torn down before the queued call runs (checked
-    // on the GUI thread, where the object also lives — no data race).
+    // the result back via the event loop. The QPointer guards the rare
+    // case of ProcReader being torn down before the queued call runs
+    // (checked on the GUI thread, where the object also lives — no data
+    // race). The result is delivered through the live QCoreApplication
+    // instance: re-read it inside the worker and bail if it's gone, so a
+    // worker that finishes mid-shutdown (qApp already destroyed) drops the
+    // result instead of dereferencing a null context.
     QPointer<ProcReader> self(this);
-    std::thread([self, mount]() {
-        const QVariantMap result = statvfsBytes(mount);
-        QMetaObject::invokeMethod(qApp, [self, mount, result]() {
-            if (self)
-                self->onStatvfsDone(mount, result);
-        });
-    }).detach();
+    try {
+        std::thread([self, mount]() {
+            const QVariantMap result = statvfsBytes(mount);
+            QCoreApplication *app = QCoreApplication::instance();
+            if (!app)
+                return; // app tearing down — process is exiting, drop the result
+            QMetaObject::invokeMethod(app, [self, mount, result]() {
+                if (self)
+                    self->onStatvfsDone(mount, result);
+            });
+        }).detach();
+    } catch (const std::system_error &) {
+        // Thread creation failed (resource/FD exhaustion). Clear the
+        // in-flight flag so the mount is retried next tick rather than
+        // stuck forever, and never let the exception unwind into the QML
+        // binding evaluation that called this Q_INVOKABLE.
+        m_statvfsInFlight.remove(mount);
+    }
 }
 
 void ProcReader::onStatvfsDone(const QString &mount, const QVariantMap &result)

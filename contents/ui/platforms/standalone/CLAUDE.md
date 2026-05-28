@@ -186,9 +186,11 @@ The disk ring is **one equal-thickness concentric ring per selected
 mounted filesystem**, centre = their average. `MetricsBackend.qml`
 discovers filesystems from `/proc/mounts` (via `ProcReader.read`),
 deduplicates them by device through `DiskDiscovery.js`, and reads each
-selected partition's usage with `reader.statvfs(<mountpoint>)` +
-`MemInfoParser.diskUsagePercent` (df(1)'s formula). Selection persists
-as the `enabledPartitions` CSV; empty = the `$HOME`-bearing filesystem.
+selected partition's usage **off the GUI thread** via the async
+`reader.requestStatvfs(<mountpoint>)` / `reader.cachedStatvfs(...)` pair
+(see "`statvfs` runs off the GUI thread" below) + `MemInfoParser.diskUsagePercent`
+(df(1)'s formula). Selection persists as the `enabledPartitions` CSV;
+empty = the `$HOME`-bearing filesystem.
 
 Identity + labels: each partition's **id** is its fs UUID and its
 **label** is the volume label, both resolved by

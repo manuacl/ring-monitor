@@ -102,6 +102,16 @@ It silently breaks the drag — the implicit `model`/`index` and
 model`. Apply the pragma only to delegate-free files (`main.qml`,
 `Ring.qml` are OK).
 
+### `DraggableList.qml`: nesting one inside another needs a distinct `dragKey`
+
+An unkeyed `DropArea` accepts events from **any** drag source (Qt docs),
+so two unscoped `DraggableList`s cross-fire: nest the disk-partition
+picker inside the metrics list and dragging an inner row floats fine but
+never reorders — the outer list's `DropArea`s swallow the drop, the inner
+`_dropTarget` never updates, the row snaps back. Give each nested instance
+its own `dragKey` (the picker uses `"diskPartition"`, the metrics list the
+default `"row"`); it's applied to every row's `Drag.keys` and `DropArea.keys`.
+
 ### Don't reuse a property name as an `id` when passing it down
 
 Pattern that bites — typically inside a `Component` template like

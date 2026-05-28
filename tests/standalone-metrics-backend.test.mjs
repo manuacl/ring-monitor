@@ -105,18 +105,32 @@ test("standalone MetricsBackend coerces an unresolved cpuTemp to 0 (same-surface
     // return 0 then, matching the Plasma adapter (valueFromSensorMap
     // returns 0 for an unread sensor). Otherwise a consumer doing
     // arithmetic gets NaN on standalone but 0 on Plasma.
-    assert.match(SOURCE, /function\s+_coercedCpuTempC\s*\(\s*\)\s*{[\s\S]*?isFinite\s*\(\s*backend\._cpuTempC\s*\)\s*\?\s*backend\._cpuTempC\s*:\s*0/, "_coercedCpuTempC must return isFinite(_cpuTempC) ? _cpuTempC : 0");
-    assert.match(SOURCE, /id\s*===\s*["']cpuTemp["']\s*\)?\s*\n?\s*return\s+backend\._coercedCpuTempC/, "metricValue('cpuTemp') must return the coerced value, not raw _cpuTempC");
+    //
+    // Assert intent (the function exists, tests finiteness of _cpuTempC,
+    // and yields 0 otherwise), not the exact ternary spelling — so a
+    // harmless rewrite / qmlformat reflow doesn't red the guard.
+    const body = SOURCE.match(/function\s+_coercedCpuTempC\s*\(\s*\)\s*{([\s\S]*?)}/);
+    assert.ok(body, "must declare function _coercedCpuTempC()");
+    assert.match(body[1], /isFinite/, "_coercedCpuTempC must finiteness-check before returning");
+    assert.match(body[1], /_cpuTempC/, "_coercedCpuTempC must read _cpuTempC");
+    assert.match(body[1], /\b0\b/, "_coercedCpuTempC must yield 0 when not finite");
+    // metricValue('cpuTemp') and metricRawTemp('cpu') route through the
+    // coercer rather than returning raw _cpuTempC.
+    assert.match(SOURCE, /["']cpuTemp["'][\s\S]{0,60}_coercedCpuTempC/, "metricValue('cpuTemp') must return the coerced value");
 });
 
-test("standalone MetricsBackend re-resolves the temp path when a driver loads late", () => {
-    // Resolved in onCompleted, BUT also retried in _sample while still
-    // empty — a hwmon driver modprobed after autostart (login before
-    // sensor modules load) must be picked up instead of leaving the ring
-    // stuck at 0 for the whole session. The retry is a no-op once
-    // resolved (single string check, no sysfs walk).
-    assert.match(SOURCE, /Component\.onCompleted:\s*[\s\S]*?_resolveCpuTempPath\s*\(/, "must resolve the CPU temp path in Component.onCompleted");
-    assert.match(SOURCE, /if\s*\(\s*!\s*backend\._cpuTempPath\s*\)\s*\n?\s*backend\._cpuTempPath\s*=\s*backend\._resolveCpuTempPath\s*\(/, "_sample must re-resolve _cpuTempPath while it is still empty");
+test("standalone MetricsBackend re-resolves the temp path within a bounded warm-up window", () => {
+    // A hwmon driver modprobed shortly after autostart (login before the
+    // sensor modules load) must be picked up — but a machine with NO CPU
+    // temp sensor must not re-walk /sys forever. So the retry is bounded:
+    // resolve while empty AND under a max attempt count, then give up.
+    assert.match(SOURCE, /property\s+int\s+_cpuTempMaxResolveAttempts/, "must declare a bounded max-attempts property");
+    assert.match(
+        SOURCE,
+        /!\s*backend\._cpuTempPath\s*&&\s*backend\._cpuTempResolveAttempts\s*<\s*backend\._cpuTempMaxResolveAttempts/,
+        "_sample must gate the re-resolve on both an empty path AND the attempt bound",
+    );
+    assert.match(SOURCE, /_cpuTempResolveAttempts\+\+|_cpuTempResolveAttempts\s*=\s*backend\._cpuTempResolveAttempts\s*\+\s*1/, "must increment the attempt counter so the retry terminates");
 });
 
 test("standalone MetricsBackend polls on a Timer", () => {

@@ -107,12 +107,19 @@ Item {
     property var _coreUsage: []
     property real _ramUsage: 0
     property real _diskUsage: 0
-    // Resolved once at startup (the hwmonN numbering + owning chip are
-    // machine-specific — see CpuTempDiscovery.js). "" when no CPU
-    // temperature sensor was found; _cpuTempC then stays NaN, which
-    // Catalog.tempToPercent / convertTemp render as an unavailable 0.
+    // Resolved lazily over a short warm-up window (the hwmonN numbering
+    // + owning chip are machine-specific — see CpuTempDiscovery.js).
+    // "" while unresolved; _cpuTempC then stays NaN, coerced to 0 at the
+    // public surface by _coercedCpuTempC.
     property string _cpuTempPath: ""
     property real _cpuTempC: NaN
+    // Bounded retry: a hwmon driver (coretemp/k10temp/…) can be modprobed
+    // a few seconds AFTER the widget autostarts at login, so we re-walk
+    // sysfs for the first _cpuTempMaxResolveAttempts ticks. After that we
+    // give up — a machine with genuinely no CPU temp sensor (VM, unknown
+    // hardware) must NOT re-walk /sys every second for the whole session.
+    property int _cpuTempResolveAttempts: 0
+    readonly property int _cpuTempMaxResolveAttempts: 30  // ~30s at the 1Hz Timer
 
     // Walk /sys/class/hwmon, then fall back to /sys/class/thermal, and
     // return the sysfs file to read each tick — or "" if none. All the
@@ -208,27 +215,23 @@ Item {
         var disk = reader.statvfs(backend._diskMount);
         backend._diskUsage = MemInfoParser.diskUsagePercent(disk.total, disk.free, disk.available);
         // ── hwmon / thermal (CPU temperature) ───────────────────────
-        // Re-resolve while still unresolved: the hwmon driver
-        // (coretemp / k10temp / …) can be modprobed AFTER the widget
-        // starts — common when it autostarts at login before the sensor
-        // modules load. Without the retry the temp ring would stay stuck
-        // at 0 for the whole session. Once resolved, the guard is a
-        // single string check (no sysfs walk) per tick.
-        if (!backend._cpuTempPath)
+        // Resolve the sysfs path on the first tick, retrying for a
+        // bounded warm-up window if it doesn't resolve immediately (a
+        // late-modprobed driver). Once resolved, or once the window
+        // closes, this is a single string check (no sysfs walk) per
+        // tick — the common "no sensor" case stops scanning instead of
+        // re-walking /sys forever. (triggeredOnStart fires the first
+        // _sample at startup, so no separate Component.onCompleted.)
+        if (!backend._cpuTempPath && backend._cpuTempResolveAttempts < backend._cpuTempMaxResolveAttempts) {
+            backend._cpuTempResolveAttempts++;
             backend._cpuTempPath = backend._resolveCpuTempPath();
+        }
         if (backend._cpuTempPath)
             backend._cpuTempC = CpuTemp.parseTempCelsius(reader.read(backend._cpuTempPath));
         // Bump _tick last so all readonly properties depending on it
         // re-evaluate together after every metric has its fresh value.
         backend._tick++;
     }
-
-    // Resolve the CPU-temperature sysfs path before the first sample.
-    // onCompleted runs synchronously during construction, ahead of the
-    // Timer's queued triggeredOnStart fire, so _cpuTempPath is set by
-    // the time _sample() first reads it. If nothing resolves here (no
-    // driver loaded yet), _sample() keeps retrying until one appears.
-    Component.onCompleted: backend._cpuTempPath = backend._resolveCpuTempPath()
 
     Timer {
         interval: 1000

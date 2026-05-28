@@ -125,6 +125,35 @@ test("ProcReader::read warns on refused paths", () => {
     );
 });
 
+test("ProcReader exposes blockDeviceInfo + canonicalHome for disk discovery", () => {
+    // DiskDiscovery.js needs a stable id (fs UUID) + friendly label
+    // (volume label) per partition, and the resolved $HOME to pick the
+    // default. Both are declared Q_INVOKABLE in the header.
+    assert.match(
+        HEADER,
+        /Q_INVOKABLE\s+QVariantMap\s+blockDeviceInfo\s*\(\s*\)\s*const/,
+        "must declare Q_INVOKABLE QVariantMap blockDeviceInfo() const",
+    );
+    assert.match(
+        HEADER,
+        /Q_INVOKABLE\s+QString\s+canonicalHome\s*\(\s*\)\s*const/,
+        "must declare Q_INVOKABLE QString canonicalHome() const",
+    );
+});
+
+test("blockDeviceInfo walks both by-uuid and by-label, resolves to device", () => {
+    // The id must be the fs UUID (stable across reboots / sd* reordering)
+    // and the label the volume label — mirrors ksysguard's Plasma keying.
+    assert.match(SRC, /\/dev\/disk\/by-uuid/, "must enumerate /dev/disk/by-uuid");
+    assert.match(SRC, /\/dev\/disk\/by-label/, "must enumerate /dev/disk/by-label");
+    // canonicalFilePath resolves the by-uuid/by-label symlink to /dev/sdaN.
+    assert.match(
+        SRC,
+        /canonicalFilePath\s*\(\s*\)/,
+        "must resolve the symlink to its device via canonicalFilePath",
+    );
+});
+
 test("proc_reader includes no Plasma headers (standalone isolation)", () => {
     assert.doesNotMatch(
         SRC,

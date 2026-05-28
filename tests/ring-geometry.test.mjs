@@ -201,3 +201,52 @@ test('left/rightHalfSweepFor: non-finite input → 0 (clamped via clampPercent)'
     assert.equal(Geom.leftHalfSweepFor(Infinity), 0);
     assert.equal(Geom.rightHalfSweepFor(Infinity), 0);
 });
+
+// ── equalRingLayout (disk multi-partition mode) ───────────────────────
+
+test('DISK_COMFORT_RING_COUNT is exposed and equals 5', () => {
+    assert.equal(Geom.DISK_COMFORT_RING_COUNT, 5);
+});
+
+test('equalRingLayout: count=0 returns empty layout', () => {
+    const out = Geom.equalRingLayout(90, 10, 4, 0);
+    assert.deepEqual(out, { stroke: 0, gap: 0, radii: [] });
+});
+
+test('equalRingLayout: outermost ring sits AT the main radius (no inset)', () => {
+    // Unlike nested rings (inset below a separate main ring), the disk rings
+    // ARE the main ring — radii[0] must equal ringRadius exactly.
+    const out = Geom.equalRingLayout(90, 10, 4, 1);
+    assert.equal(out.radii[0], 90);
+    assert.equal(out.stroke, 10);
+});
+
+test('equalRingLayout: low count uses preferred (full) stroke + gap, steps inward', () => {
+    const out = Geom.equalRingLayout(90, 10, 4, 3);
+    assert.equal(out.stroke, 10);
+    assert.equal(out.gap, 4);
+    // radii[i] = ringRadius - i*(stroke+gap) = 90, 76, 62
+    assert.deepEqual(out.radii, [90, 76, 62]);
+});
+
+test('equalRingLayout: 5 partitions still preferred (last comfortable count)', () => {
+    const out = Geom.equalRingLayout(90, 10, 4, 5);
+    assert.equal(out.stroke, 10);
+    assert.equal(out.gap, 4);
+    assert.equal(out.radii.length, 5);
+});
+
+test('equalRingLayout: 6+ partitions shrink to fit the 5-ring envelope', () => {
+    const out = Geom.equalRingLayout(90, 10, 4, 6);
+    // envelope = 5*(10+4)=70; unit = 70/(2*6)=5.833…; stroke=gap=unit
+    assert.ok(out.stroke < 10, `expected shrink below 10, got ${out.stroke}`);
+    assert.equal(out.stroke, out.gap);
+    assert.equal(out.radii.length, 6);
+    assert.equal(out.radii[0], 90);  // outermost still pinned to the main radius
+});
+
+test('equalRingLayout: high count floors stroke at 1px', () => {
+    const out = Geom.equalRingLayout(90, 10, 4, 100);
+    assert.equal(out.stroke, 1);
+    assert.equal(out.gap, 1);
+});

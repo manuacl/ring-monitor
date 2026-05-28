@@ -28,6 +28,14 @@ Item {
     // (e.g. per-core CPU usage inside the total CPU ring)
     property var nestedValues: []
 
+    // Optional: array of 0-100 values rendered as equal-thickness concentric
+    // rings that REPLACE the single main arc (disk multi-partition mode — one
+    // full-stroke ring per selected filesystem). When non-empty the normal and
+    // split arcs hide; the centre shows `rawValue` (the parent passes the
+    // partition average) instead of any single ring's value. Distinct from
+    // nestedValues, which keeps the main ring and nests thin rings inside it.
+    property var equalValues: []
+
     // Optional: when `splitMode` is true the outer ring is scinded at
     // the top into two half-arcs growing bottom-up from the gap edges:
     //   - left half  = `value`        (0-100, usage %)
@@ -73,6 +81,11 @@ Item {
     // stack within a fixed visual envelope (see Geom.nestedRingLayout).
     readonly property var nestedLayout: Geom.nestedRingLayout(root.ringRadius, root.ringStroke, dims.nestedStroke, dims.nestedGap, root.nestedValues.length)
     readonly property real nestedStroke: nestedLayout.stroke
+
+    // Equal-ring (disk) mode: full-stroke concentric rings, outermost at the
+    // main radius. nestedGap is reused as the inter-ring gap.
+    readonly property bool _equalMode: root.equalValues.length > 0
+    readonly property var equalLayout: Geom.equalRingLayout(root.ringRadius, root.ringStroke, dims.nestedGap, root.equalValues.length)
 
     // Smooth main value transitions — displayValue drives the sweep
     // and (when no rawValue override) the centre text.
@@ -145,7 +158,7 @@ Item {
             id: trackShape
             anchors.fill: parent
             antialiasing: true
-            visible: !root.splitMode
+            visible: !root.splitMode && !root._equalMode
             preferredRendererType: Shape.CurveRenderer
             ShapePath {
                 strokeColor: Qt.rgba(1, 1, 1, root.trackOpacity)
@@ -167,7 +180,7 @@ Item {
             id: arcShape
             anchors.fill: parent
             antialiasing: true
-            visible: !root.splitMode
+            visible: !root.splitMode && !root._equalMode
             opacity: root.arcOpacity
             preferredRendererType: Shape.CurveRenderer
             ShapePath {
@@ -193,7 +206,7 @@ Item {
             id: leftTrackShape
             anchors.fill: parent
             antialiasing: true
-            visible: root.splitMode
+            visible: root.splitMode && !root._equalMode
             preferredRendererType: Shape.CurveRenderer
             ShapePath {
                 strokeColor: Qt.rgba(1, 1, 1, root.trackOpacity)
@@ -215,7 +228,7 @@ Item {
             id: leftArcShape
             anchors.fill: parent
             antialiasing: true
-            visible: root.splitMode
+            visible: root.splitMode && !root._equalMode
             opacity: root.arcOpacity
             preferredRendererType: Shape.CurveRenderer
             ShapePath {
@@ -242,7 +255,7 @@ Item {
             id: rightTrackShape
             anchors.fill: parent
             antialiasing: true
-            visible: root.splitMode
+            visible: root.splitMode && !root._equalMode
             preferredRendererType: Shape.CurveRenderer
             ShapePath {
                 strokeColor: Qt.rgba(1, 1, 1, root.trackOpacity)
@@ -264,7 +277,7 @@ Item {
             id: rightArcShape
             anchors.fill: parent
             antialiasing: true
-            visible: root.splitMode
+            visible: root.splitMode && !root._equalMode
             opacity: root.arcOpacity
             preferredRendererType: Shape.CurveRenderer
             ShapePath {
@@ -283,72 +296,42 @@ Item {
             }
         }
 
-        // ── Concentric inner rings (nested values) ───────────────────────
+        // ── Concentric inner rings (thin, nested inside the main ring) ───
+        // CPU cores: subordinate rings at reduced opacity so the main ring
+        // and centre text stay dominant.
         Repeater {
             id: nestedRepeater
             model: root.nestedValues.length
 
-            delegate: Item {
-                id: nestedItem
-                anchors.fill: parent
-
+            delegate: ConcentricArc {
                 required property int index
+                radius: root.nestedLayout.radii[index] || 0
+                stroke: root.nestedStroke
+                value: root.nestedValues[index] || 0
+                ringColor: root.ringColor
+                trackOpacity: root.trackOpacity
+                arcOpacity: root.arcOpacity
+                trackOpacityFactor: 0.6
+                arcOpacityFactor: 0.55
+            }
+        }
 
-                readonly property real r: root.nestedLayout.radii[index] || 0
-                readonly property real v: root.nestedValues[index] || 0
+        // ── Equal-thickness concentric rings (disk multi-partition mode) ──
+        // Full-stroke rings replacing the main arc, one per selected
+        // filesystem (outermost at the main radius). Full opacity — these
+        // ARE the ring, not a subordinate overlay.
+        Repeater {
+            id: equalRepeater
+            model: root.equalValues.length
 
-                // Smooth this core's value
-                property real dv: v
-                Behavior on dv {
-                    NumberAnimation {
-                        duration: 400
-                        easing.type: Easing.OutCubic
-                    }
-                }
-                onVChanged: dv = v
-
-                Shape {
-                    id: nTrack
-                    anchors.fill: parent
-                    antialiasing: true
-                    preferredRendererType: Shape.CurveRenderer
-                    ShapePath {
-                        strokeColor: Qt.rgba(1, 1, 1, root.trackOpacity * 0.6)
-                        strokeWidth: root.nestedStroke
-                        fillColor: "transparent"
-                        capStyle: ShapePath.RoundCap
-                        PathAngleArc {
-                            centerX: nTrack.width / 2
-                            centerY: nTrack.height / 2
-                            radiusX: nestedItem.r
-                            radiusY: nestedItem.r
-                            startAngle: Geom.BASE_START_ANGLE
-                            sweepAngle: Geom.BASE_SWEEP_ANGLE
-                        }
-                    }
-                }
-
-                Shape {
-                    id: nArc
-                    anchors.fill: parent
-                    antialiasing: true
-                    opacity: 0.55 * root.arcOpacity
-                    preferredRendererType: Shape.CurveRenderer
-                    ShapePath {
-                        strokeColor: root.ringColor
-                        strokeWidth: root.nestedStroke
-                        fillColor: "transparent"
-                        capStyle: ShapePath.RoundCap
-                        PathAngleArc {
-                            centerX: nArc.width / 2
-                            centerY: nArc.height / 2
-                            radiusX: nestedItem.r
-                            radiusY: nestedItem.r
-                            startAngle: Geom.BASE_START_ANGLE
-                            sweepAngle: Geom.sweepForPercent(nestedItem.dv)
-                        }
-                    }
-                }
+            delegate: ConcentricArc {
+                required property int index
+                radius: root.equalLayout.radii[index] || 0
+                stroke: root.equalLayout.stroke
+                value: root.equalValues[index] || 0
+                ringColor: root.ringColor
+                trackOpacity: root.trackOpacity
+                arcOpacity: root.arcOpacity
             }
         }
 
@@ -374,7 +357,7 @@ Item {
 
         Text {
             id: splitValueText
-            visible: root.splitMode
+            visible: root.splitMode && !root._equalMode
             anchors.verticalCenter: parent.verticalCenter
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.horizontalCenterOffset: root.size * 0.18
@@ -454,6 +437,7 @@ Item {
     readonly property real _leftSweepAngle: Geom.leftHalfSweepFor(root.displayValue)
     readonly property real _rightSweepAngle: Geom.rightHalfSweepFor(root.displaySplitValue)
     readonly property bool _fullArcVisible: arcShape.visible
+    readonly property int _equalRingCount: equalRepeater.count
     readonly property bool _leftArcVisible: leftArcShape.visible
     readonly property bool _rightArcVisible: rightArcShape.visible
     readonly property bool _splitValueTextVisible: splitValueText.visible

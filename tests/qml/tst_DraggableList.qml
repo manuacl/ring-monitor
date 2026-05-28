@@ -86,6 +86,16 @@ Item {
             compare(root.capturedIndices[1], 1);
             compare(root.capturedIndices[2], 2);
         }
+
+        // The drag scope key (Drag.keys / DropArea.keys). Defaults to "row"
+        // for standalone lists; a nested list (e.g. the disk-partition picker
+        // inside the metrics list) must override it to a distinct value so
+        // the two lists don't fire each other's DropAreas. Guards against the
+        // property being dropped — without keys, nested lists cross-talk and
+        // the inner drag floats but never reorders (DropAreas never fire).
+        function test_dragKey_defaults_to_row() {
+            compare(list.dragKey, "row");
+        }
     }
 
     TestCase {

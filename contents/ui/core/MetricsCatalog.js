@@ -27,7 +27,7 @@ var METRIC_LABELS = {
     swap: "SWAP",
     gpu: "GPU",
     gpuTemp: "GPU T",
-    disk: "DISK",
+    disk: "DISKS",
 };
 
 // METRIC_SENSOR_IDS maps the catalog id to its ksysguard sensor. For
@@ -159,19 +159,31 @@ function classifyDiscoveredIds(allIds) {
     var cores = [];
     var gpuTemps = [];
     var gpuUsages = [];
+    var diskParts = [];
     for (var i = 0; i < allIds.length; i++) {
         var id = allIds[i];
         if (/^cpu\/cpu\d+\/usage$/.test(id)) cores.push(id);
         else if (/^gpu\/gpu\d+\/temperature$/.test(id)) gpuTemps.push(id);
         else if (/^gpu\/gpu\d+\/usage$/.test(id)) gpuUsages.push(id);
+        // Per-filesystem usage. ksysguard keys these by UUID
+        // (disk/<uuid>/usedPercent) and only emits them for mounted
+        // filesystems — physical disks (disk/sda/...) have no usedPercent.
+        // The middle segment is restricted to id chars ([A-Za-z0-9_-]) so
+        // the regex SUBSCRIPTION node the SensorTreeModel also exposes —
+        // `disk/(?!all).*/usedPercent`, the matcher behind the disk/all
+        // aggregate — is NOT mistaken for a real partition. Exclude the
+        // disk/all aggregate too (kept as a static sensor).
+        else if (/^disk\/[A-Za-z0-9_-]+\/usedPercent$/.test(id) && id !== "disk/all/usedPercent") diskParts.push(id);
     }
     cores.sort(_naturalCompareSensorIds);
     gpuTemps.sort(_naturalCompareSensorIds);
     gpuUsages.sort(_naturalCompareSensorIds);
+    diskParts.sort(_naturalCompareSensorIds);
     return {
         coreUsageIds: cores,
         gpuTempIds: gpuTemps,
         gpuUsageIds: gpuUsages,
+        diskPartitionUsageIds: diskParts,
     };
 }
 

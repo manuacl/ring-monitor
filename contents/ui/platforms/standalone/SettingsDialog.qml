@@ -4,6 +4,7 @@ import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import RingMonitor.Standalone
+import "DiskDiscovery.js" as DiskDiscovery
 import "../../core" as Core
 
 // Standalone counterpart of the Plasma config dialog
@@ -76,9 +77,33 @@ Window {
             dialog._recenterOnCurrentScreen();
             dialog._centered = true;
         }
+        // Re-enumerate filesystems each time the dialog opens so a disk
+        // plugged since the last open shows up in the partition picker.
+        if (dialog.visible)
+            dialog._refreshDiskPartitions();
     }
 
     Component.onCompleted: dialog._wireBridges()
+
+    // Disk partition discovery for the picker. The dialog has no
+    // MetricsBackend, so it runs the same pure DiskDiscovery over its own
+    // ProcReader to enumerate mounted filesystems ([{id, label}]). Values
+    // aren't needed here — only the selectable list.
+    ProcReader {
+        id: partitionReader
+    }
+    property var _diskPartitions: []
+    function _refreshDiskPartitions() {
+        var mounts = DiskDiscovery.parseMounts(partitionReader.read("/proc/mounts"));
+        var parts = DiskDiscovery.buildPartitions(mounts, partitionReader.blockDeviceInfo());
+        var out = [];
+        for (let i = 0; i < parts.length; i++)
+            out.push({
+                "id": parts[i].id,
+                "label": parts[i].label
+            });
+        dialog._diskPartitions = out;
+    }
 
     // ColorPicker injected into AppearanceBody as a Component — the
     // body stays platform-agnostic; the standalone ColorPicker wraps
@@ -143,6 +168,7 @@ Window {
                 Core.MetricsBody {
                     id: metricsBody
                     theme: dialog.theme
+                    diskPartitions: dialog._diskPartitions
                     width: metricsScroll.availableWidth
                 }
             }
@@ -211,7 +237,7 @@ Window {
     // standalone-settings-dialog.test.mjs text guard for that).
     readonly property var _bridgeMap: [
         // MetricsBody
-        [metricsBody, "metricOrderCsv", "metricOrder"], [metricsBody, "enabledMetricsCsv", "enabledMetrics"], [metricsBody, "showCpuCores", "showCpuCores"], [metricsBody, "mergeCpuTemp", "mergeCpuTemp"], [metricsBody, "mergeGpuTemp", "mergeGpuTemp"], [metricsBody, "tempUnit", "tempUnit"],
+        [metricsBody, "metricOrderCsv", "metricOrder"], [metricsBody, "enabledMetricsCsv", "enabledMetrics"], [metricsBody, "enabledPartitionsCsv", "enabledPartitions"], [metricsBody, "partitionOrderCsv", "partitionOrder"], [metricsBody, "showCpuCores", "showCpuCores"], [metricsBody, "mergeCpuTemp", "mergeCpuTemp"], [metricsBody, "mergeGpuTemp", "mergeGpuTemp"], [metricsBody, "tempUnit", "tempUnit"],
         // AppearanceBody
         [appearanceBody, "orientation", "orientation"], [appearanceBody, "ringSize", "ringSize"], [appearanceBody, "ringSpacingPercent", "ringSpacingPercent"], [appearanceBody, "windowMargin", "windowMargin"], [appearanceBody, "textOpacity", "textOpacity"], [appearanceBody, "trackOpacity", "trackOpacity"], [appearanceBody, "arcOpacity", "arcOpacity"], [appearanceBody, "colorTheme", "colorTheme"], [appearanceBody, "colorMode", "colorMode"], [appearanceBody, "customColorLight", "customColorLight"], [appearanceBody, "customColorDark", "customColorDark"], [appearanceBody, "textColorMode", "textColorMode"], [appearanceBody, "customTextColorLight", "customTextColorLight"], [appearanceBody, "customTextColorDark", "customTextColorDark"]]
 

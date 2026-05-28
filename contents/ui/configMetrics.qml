@@ -20,6 +20,8 @@ KCM.SimpleKCM {
     // ── Bidirectional bridge: cfg_<key> ↔ body.<property> ────────────
     property alias cfg_metricOrder: body.metricOrderCsv
     property alias cfg_enabledMetrics: body.enabledMetricsCsv
+    property alias cfg_enabledPartitions: body.enabledPartitionsCsv
+    property alias cfg_partitionOrder: body.partitionOrderCsv
     property alias cfg_showCpuCores: body.showCpuCores
     property alias cfg_mergeCpuTemp: body.mergeCpuTemp
     property alias cfg_mergeGpuTemp: body.mergeGpuTemp
@@ -58,9 +60,20 @@ KCM.SimpleKCM {
     property var cfg_tempUnitDefault
     property var cfg_metricOrderDefault
     property var cfg_enabledMetricsDefault
+    property var cfg_enabledPartitionsDefault
+    property var cfg_partitionOrderDefault
     property var cfg_showCpuCoresDefault
     property var cfg_mergeCpuTempDefault
     property var cfg_mergeGpuTempDefault
+    // Update-check keys (handled on the About page via UpdateChecker).
+    property var cfg_checkForUpdatesEnabled
+    property var cfg_checkForUpdatesEnabledDefault
+    property var cfg_lastUpdateCheck
+    property var cfg_lastUpdateCheckDefault
+    property var cfg_latestKnownVersion
+    property var cfg_latestKnownVersionDefault
+    property var cfg_acknowledgedVersion
+    property var cfg_acknowledgedVersionDefault
 
     // ID is *Adapter-suffixed to avoid shadowing MetricsBody's
     // `theme` property — same QML name-resolution trap as in main.qml.
@@ -68,8 +81,16 @@ KCM.SimpleKCM {
         id: themeAdapter
     }
 
+    // Live disk partition discovery for the picker. The KCM config page has
+    // no MetricsBackend, so it instantiates its own DiskPartitions adapter
+    // (the same one the backend uses) to enumerate mounted filesystems.
+    Platform.DiskPartitions {
+        id: diskPartitionsAdapter
+    }
+
     Core.MetricsBody {
         id: body
         theme: themeAdapter
+        diskPartitions: diskPartitionsAdapter.partitions
     }
 }

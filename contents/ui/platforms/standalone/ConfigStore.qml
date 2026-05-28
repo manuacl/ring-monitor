@@ -29,6 +29,12 @@ Settings {
     // ── Metrics group ───────────────────────────────────────────────
     property string metricOrder: "cpu,cpuTemp,ram,swap,gpu,gpuTemp,disk"
     property string enabledMetrics: "cpu,ram"
+    // Selected disk partition ids (empty = the backend's default, i.e. the
+    // $HOME-bearing filesystem on standalone).
+    property string enabledPartitions: ""
+    // All discovered partition ids in display order (first = outermost ring).
+    // Empty = alphabetical by label.
+    property string partitionOrder: ""
     property bool showCpuCores: true
     property bool mergeCpuTemp: false
     property bool mergeGpuTemp: false

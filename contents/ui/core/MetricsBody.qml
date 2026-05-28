@@ -3,6 +3,7 @@ import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import "ReorderLogic.js" as Logic
 import "MetricsCatalog.js" as Catalog
+import "DiskMetrics.js" as DiskMetrics
 
 // Body of the Metrics config page. Owns the reorderable list, the
 // internal ListModel, and the per-row UI (CheckBox + drag handle +
@@ -22,10 +23,17 @@ ColumnLayout {
 
     // ── Adapter input ───────────────────────────────────────────────
     property var theme
+    // Discovered disk partitions ([{id, label}]) injected by the platform
+    // wrapper (Plasma: configMetrics via DiskPartitions; standalone:
+    // SettingsDialog via the backend). Drives the per-partition checkboxes
+    // under the disk row.
+    property var diskPartitions: []
 
     // ── Bridged via aliases in the wrapper (cfg_metricOrder ↔ body.metricOrderCsv, etc.) ──
     property string metricOrderCsv: ""
     property string enabledMetricsCsv: ""
+    property string enabledPartitionsCsv: ""
+    property string partitionOrderCsv: ""
     property bool showCpuCores: false
     property bool mergeCpuTemp: false
     property bool mergeGpuTemp: false
@@ -34,6 +42,12 @@ ColumnLayout {
     // ── Internal — the displayed order is a ListModel built from metricOrderCsv ──
     ListModel {
         id: orderModel
+    }
+
+    // Parallel model for the disk partition reorder list (built from
+    // partitionOrderCsv merged with the discovered diskPartitions).
+    ListModel {
+        id: partitionOrderModel
     }
 
     // Descriptions are owned by the body so it stays self-contained.
@@ -45,7 +59,7 @@ ColumnLayout {
             swap: qsTr("Swap usage"),
             gpu: qsTr("GPU usage"),
             gpuTemp: qsTr("GPU temperature"),
-            disk: qsTr("Disk space used (all partitions)")
+            disk: qsTr("Disk space per selected partition")
         })
 
     function currentOrder() {
@@ -88,8 +102,45 @@ ColumnLayout {
             body.mergeGpuTemp = false;
     }
 
+    function isPartitionEnabled(id) {
+        return Catalog.parseCsv(body.enabledPartitionsCsv).indexOf(id) !== -1;
+    }
+
+    function setPartitionEnabled(id, on) {
+        body.enabledPartitionsCsv = Catalog.toggleEnabled(Catalog.parseCsv(body.enabledPartitionsCsv), id, on).join(",");
+    }
+
+    function currentPartitionOrder() {
+        const arr = [];
+        for (let i = 0; i < partitionOrderModel.count; i++)
+            arr.push(partitionOrderModel.get(i).partId);
+        return arr;
+    }
+
+    // Rebuild the partition reorder model: saved order first, then
+    // newly-discovered partitions appended alphabetically (the default).
+    function loadPartitionOrder() {
+        partitionOrderModel.clear();
+        const ordered = DiskMetrics.orderPartitions(body.partitionOrderCsv, body.diskPartitions || []);
+        for (let i = 0; i < ordered.length; i++) {
+            partitionOrderModel.append({
+                partId: ordered[i].id,
+                partLabel: ordered[i].label
+            });
+        }
+    }
+
+    function commitPartitionOrder() {
+        body.partitionOrderCsv = currentPartitionOrder().join(",");
+    }
+
     onMetricOrderCsvChanged: loadOrder()
-    Component.onCompleted: loadOrder()
+    onPartitionOrderCsvChanged: loadPartitionOrder()
+    onDiskPartitionsChanged: loadPartitionOrder()
+    Component.onCompleted: {
+        loadOrder();
+        loadPartitionOrder();
+    }
 
     Layout.fillWidth: true
     spacing: body.theme ? body.theme.smallSpacing : 4
@@ -140,6 +191,8 @@ ColumnLayout {
                         return cpuTempMergeToggle;
                     if (_metricId === "gpuTemp")
                         return gpuTempMergeToggle;
+                    if (_metricId === "disk")
+                        return diskPartitionsPicker;
                     return null;
                 }
             }
@@ -239,8 +292,72 @@ ColumnLayout {
         }
     }
 
+    // Reorderable list of discovered filesystems — checked partitions render
+    // as equal-thickness concentric rings inside the disk gauge, in this
+    // list's order (top = outermost ring, bottom = innermost). Default order
+    // is alphabetical by label; drag the handle to reorder. Empty selection
+    // falls back to the backend default (the $HOME filesystem on standalone;
+    // the disk/all aggregate on Plasma). A hint shows when no partitions were
+    // discovered (e.g. the config dialog ran before ksysguard populated the
+    // tree). This DraggableList is nested inside the disk row's extraContent,
+    // which is itself indented inside the metrics DraggableList — the inner
+    // drag handle sits to the right of the outer one, so the two don't fight.
+    Component {
+        id: diskPartitionsPicker
+        ColumnLayout {
+            spacing: body.theme ? body.theme.smallSpacing : 4
+            QQC2.Label {
+                visible: partitionOrderModel.count === 0
+                text: qsTr("No partitions detected.")
+                opacity: 0.7
+            }
+            DraggableList {
+                id: partitionList
+                visible: partitionOrderModel.count > 0
+                // Distinct drag scope so this nested list and the outer
+                // metrics list (dragKey "row") don't fire each other's
+                // DropAreas — the cause of "drag floats but nothing reorders".
+                dragKey: "diskPartition"
+                Layout.fillWidth: true
+                Layout.preferredHeight: implicitHeight
+                model: partitionOrderModel
+                rowHeight: body.theme ? body.theme.unit * 1.6 : 28
+                smallSpacing: body.theme ? body.theme.smallSpacing : 4
+                iconSize: body.theme ? body.theme.iconSize : 16
+                highlightColor: body.theme ? body.theme.highlightColor : "#3daee9"
+                backgroundColor: body.theme ? body.theme.backgroundColor : "#1e1e1e"
+
+                rowContent: Component {
+                    QQC2.CheckBox {
+                        readonly property string _partId: parent && parent.rowModel ? parent.rowModel.partId : ""
+                        text: parent && parent.rowModel ? parent.rowModel.partLabel : ""
+                        checked: body.isPartitionEnabled(_partId)
+                        onClicked: body.setPartitionEnabled(_partId, checked)
+                    }
+                }
+
+                onReordered: function (from, to) {
+                    const next = Logic.applyMove(body.currentPartitionOrder(), from, to);
+                    const labelById = {};
+                    const parts = body.diskPartitions || [];
+                    for (let i = 0; i < parts.length; i++)
+                        labelById[parts[i].id] = parts[i].label;
+                    partitionOrderModel.clear();
+                    for (let j = 0; j < next.length; j++) {
+                        partitionOrderModel.append({
+                            partId: next[j],
+                            partLabel: labelById[next[j]] || next[j]
+                        });
+                    }
+                    body.commitPartitionOrder();
+                }
+            }
+        }
+    }
+
     // ── Test hooks ──────────────────────────────────────────────────
     readonly property alias _orderModel: orderModel
+    readonly property alias _partitionOrderModel: partitionOrderModel
     readonly property alias _list: list
     readonly property alias _tempUnitAuto: tempUnitAuto
     readonly property alias _tempUnitCelsius: tempUnitCelsius

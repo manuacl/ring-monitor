@@ -55,7 +55,7 @@ Item {
         }
         function test_label_disk() {
             row.metricId = "disk";
-            compare(row._labelText, "DISK");
+            compare(row._labelText, "DISKS");
         }
         function test_label_empty_id() {
             row.metricId = "";

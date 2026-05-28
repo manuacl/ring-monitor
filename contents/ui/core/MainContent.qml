@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import "MetricsCatalog.js" as Catalog
 import "ColorThemes.js" as ColorThemes
+import "DiskMetrics.js" as DiskMetrics
 
 // Body of the plasmoid's fullRepresentation. Renders the active rings
 // in a horizontal or vertical strip based on configStore.orientation.
@@ -55,6 +56,25 @@ GridLayout {
     // two delegate bindings below stay readable.
     readonly property bool _isDark: ColorThemes.effectiveIsDark(content.configStore.colorMode, content.theme.isDarkMode)
 
+    // Disk multi-partition selection, resolved once here and shared by the
+    // disk ring delegate. The persisted CSV is intersected with the
+    // partitions the backend actually discovered; an empty result (nothing
+    // selected, or only stale ids) falls back to the platform default
+    // (the $HOME filesystem on standalone, [] = aggregate on Plasma).
+    // Partition ids in the user's configured display order (first =
+    // outermost ring), then filtered to the enabled subset. Order comes
+    // from configStore.partitionOrder (default alphabetical); membership
+    // from enabledPartitions. Empty selection → the platform default.
+    readonly property var _orderedPartitionIds: DiskMetrics.orderPartitions(content.configStore.partitionOrder, content.metrics.availablePartitions || []).map(function (p) {
+        return p.id;
+    })
+    readonly property var _diskSelectedIds: {
+        var sel = DiskMetrics.selectPartitions(content._orderedPartitionIds, Catalog.parseCsv(content.configStore.enabledPartitions));
+        if (sel.length === 0)
+            return content.metrics.defaultPartitionIds || [];
+        return sel;
+    }
+
     columns: vertical ? 1 : count
     // Spacing between rings is configurable as a percentage of
     // ringSize (default 7% — evaluates to 12px at the default
@@ -107,6 +127,24 @@ GridLayout {
             //      merge* config when both sides are enabled.
             readonly property bool _isTemp: Catalog.isTempMetric(modelData)
             readonly property bool _splitOn: Catalog.isSplitForBase(modelData, content._rawEnabledList, content.configStore.mergeCpuTemp, content.configStore.mergeGpuTemp)
+            // Disk multi-partition: one equal-thickness ring per selected
+            // filesystem, centre = their average. Empty when not the disk
+            // ring or when nothing resolved (→ aggregate single ring via the
+            // normal `value` binding below). During loading every ring
+            // sweeps to 100% like the others.
+            readonly property bool _isDisk: modelData === "disk"
+            readonly property var _diskValues: {
+                if (!_isDisk)
+                    return [];
+                var ids = content._diskSelectedIds;
+                if (content.metrics.loading)
+                    return ids.map(function () {
+                        return 100;
+                    });
+                return ids.map(function (id) {
+                    return content.metrics.partitionValue(id);
+                });
+            }
             // Raw °C for the secondary readout (split right half OR
             // dedicated temp metric). Cheap query — always evaluated
             // for the metrics that have a temperature sensor.
@@ -143,9 +181,22 @@ GridLayout {
             // rings: value drives the sweep so it must be the mapped
             // percent; the actual °C goes into rawValue below.
             value: content.metrics.loading ? 100 : (_isTemp ? Catalog.tempToPercent(_rawTempC) : content.metrics.metricValue(modelData))
-            rawValue: !content.metrics.loading && _isTemp && _tempInfo ? _tempInfo.value : NaN
+            // Centre text: disk equal mode shows the partition average; temp
+            // rings show the °C/°F reading; everything else falls back to
+            // `value` (NaN sentinel). During loading rawValue stays NaN so
+            // the centre reveals 100 → actual alongside the sweep.
+            rawValue: {
+                if (_isDisk && _diskValues.length > 0)
+                    return content.metrics.loading ? NaN : DiskMetrics.averagePercent(_diskValues);
+                if (!content.metrics.loading && _isTemp && _tempInfo)
+                    return _tempInfo.value;
+                return NaN;
+            }
             unit: _isTemp && _tempInfo ? _tempInfo.unit : "%"
             nestedValues: modelData === "cpu" && content.configStore.showCpuCores ? content.metrics.coreValues : []
+            // Equal-thickness concentric rings for the selected disk
+            // partitions ([] for every other ring → normal single arc).
+            equalValues: _diskValues
             splitMode: _splitOn
             // splitValue stays a percentage (0-100) so the geometry math
             // and tempToPercent threshold work in °C regardless of the

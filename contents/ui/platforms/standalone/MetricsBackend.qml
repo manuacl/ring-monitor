@@ -3,6 +3,7 @@ import RingMonitor.Standalone
 import "ProcStatParser.js" as ProcStatParser
 import "MemInfoParser.js" as MemInfoParser
 import "CpuTempDiscovery.js" as CpuTemp
+import "DiskDiscovery.js" as DiskDiscovery
 import "../../core/MetricsCatalog.js" as Catalog
 
 // Standalone counterpart of `platforms/plasma/MetricsBackend.qml`.
@@ -14,6 +15,9 @@ import "../../core/MetricsCatalog.js" as Catalog
 //   function metricValue(id)
 //   function metricRawTemp(id)
 //   function metricTempPercent(id)
+//   readonly property var availablePartitions   (disk multi-ring)
+//   readonly property var defaultPartitionIds
+//   function partitionValue(id)
 //
 // Backend = single `Timer` polling at 2 Hz (every 500 ms, matching the
 // Plasma ksysguard cadence) via the
@@ -63,8 +67,13 @@ Item {
             return backend._aggregateUsage;
         if (id === "ram")
             return backend._ramUsage;
+        // Aggregate fallback: the standalone "disk" value is the default
+        // (home) partition rather than statvfs("/") — on rpm-ostree hosts
+        // "/" is a composefs overlay stuck near 100%. MainContent normally
+        // renders disk in multi-partition mode and never reads this; it's
+        // the sane single-number answer for any aggregate consumer.
         if (id === "disk")
-            return backend._diskUsage;
+            return backend.defaultPartitionIds.length > 0 ? backend.partitionValue(backend.defaultPartitionIds[0]) : 0;
         if (id === "gpu")
             return backend._gpuUsage;
         if (id === "swap")
@@ -105,6 +114,34 @@ Item {
         return Catalog.tempToPercent(metricRawTemp(id));
     }
 
+    // ── Disk partitions (multi-ring) ─────────────────────────────────
+    //
+    // availablePartitions / defaultPartitionIds are rebuilt only when
+    // /proc/mounts actually changes (USB plug, mount/unmount), so the
+    // identity stays stable across ticks. Mirrors the Plasma adapter's
+    // SensorTreeModel-driven discovery surface.
+    readonly property var availablePartitions: backend._partitions.map(function (p) {
+        return {
+            "id": p.id,
+            "label": p.label
+        };
+    })
+    property var defaultPartitionIds: []
+
+    // Per-partition usage %, read live so the rings track the same 2 Hz
+    // cadence as the other metrics. Reading _tick keeps the binding
+    // reactive; statvfs runs only for the ids MainContent actually asks
+    // about (the selected partitions), so an unselected spun-down disk is
+    // never probed.
+    function partitionValue(id) {
+        backend._tick;
+        var mount = backend._mountForId[id];
+        if (!mount)
+            return 0;
+        var disk = reader.statvfs(mount);
+        return MemInfoParser.diskUsagePercent(disk.total, disk.free, disk.available);
+    }
+
     // ── Internal ────────────────────────────────────────────────────
 
     ProcReader {
@@ -122,7 +159,13 @@ Item {
     property var _coreUsage: []
     property real _ramUsage: 0
     property real _swapUsage: 0
-    property real _diskUsage: 0
+    // Discovered filesystems (rebuilt only when /proc/mounts changes).
+    // _partitions: [{id, label, mountpoint, device}]; _mountForId maps a
+    // partition id to its representative mountpoint for the live statvfs.
+    property var _partitions: []
+    property var _mountForId: ({})
+    property string _lastMountsRaw: ""
+    property string _canonicalHome: ""
     // Resolved lazily over a short warm-up window (the hwmonN numbering
     // + owning chip are machine-specific — see CpuTempDiscovery.js).
     // "" while unresolved; _cpuTempC then stays NaN, coerced to 0 at the
@@ -199,11 +242,31 @@ Item {
         return zone ? base + "/" + zone + "/temp" : "";
     }
 
-    // Root filesystem — matches the Plasma adapter's `disk/all/usedPercent`
-    // surface closely enough for the MVP. A per-mount selector becomes
-    // relevant only when multiple disks are exposed; configurable in
-    // a follow-up if asked for.
-    readonly property string _diskMount: "/"
+    // Rebuild the partition list from /proc/mounts. Cheap string compare
+    // gate so the (slightly heavier) block-device walk + rebuild only runs
+    // when mounts actually change — a USB plug/unmount, not every tick.
+    function _refreshPartitions() {
+        var raw = reader.read("/proc/mounts");
+        if (raw === backend._lastMountsRaw)
+            return;
+        backend._lastMountsRaw = raw;
+        if (!backend._canonicalHome)
+            backend._canonicalHome = reader.canonicalHome();
+        var mounts = DiskDiscovery.parseMounts(raw);
+        var parts = DiskDiscovery.buildPartitions(mounts, reader.blockDeviceInfo());
+        var mountForId = {};
+        for (var i = 0; i < parts.length; i++)
+            mountForId[parts[i].id] = parts[i].mountpoint;
+        backend._mountForId = mountForId;
+        backend._partitions = parts;
+        // Default = the $HOME-bearing filesystem; fall back to the first
+        // discovered partition so the ring is never empty on an exotic
+        // layout where home detection fails.
+        var def = DiskDiscovery.defaultSelection(mounts, parts, backend._canonicalHome);
+        if (def.length === 0 && parts.length > 0)
+            def = [parts[0].id];
+        backend.defaultPartitionIds = def;
+    }
 
     function _sample() {
         // ── /proc/stat (CPU) ────────────────────────────────────────
@@ -233,12 +296,11 @@ Item {
         // is non-zero on a typical desktop; 0 only on a genuinely
         // swapless host (usagePercent returns 0 when swapTotal is 0).
         backend._swapUsage = MemInfoParser.usagePercent(mem.swapTotal, mem.swapFree);
-        // ── statvfs(/) (disk) ───────────────────────────────────────
-        // diskUsagePercent uses df(1)'s formula (excludes root-reserved
-        // blocks from "size") so the ring matches `df -h /` output.
-        // usagePercent would count the ext4 5% reservation as used.
-        var disk = reader.statvfs(backend._diskMount);
-        backend._diskUsage = MemInfoParser.diskUsagePercent(disk.total, disk.free, disk.available);
+        // ── disk partitions ─────────────────────────────────────────
+        // Refresh the discovered filesystem list when mounts change; the
+        // per-partition usage % itself is read live in partitionValue(id)
+        // (statvfs with df(1)'s formula) only for the selected rings.
+        backend._refreshPartitions();
         // ── hwmon / thermal (CPU temperature) ───────────────────────
         // Resolve the sysfs path on the first tick, retrying for a
         // bounded warm-up window if it doesn't resolve immediately (a

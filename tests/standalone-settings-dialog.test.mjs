@@ -31,6 +31,8 @@ const SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms",
 const BRIDGED_KEYS = [
     ["metricOrderCsv", "metricOrder"],
     ["enabledMetricsCsv", "enabledMetrics"],
+    ["enabledPartitionsCsv", "enabledPartitions"],
+    ["partitionOrderCsv", "partitionOrder"],
     ["showCpuCores", "showCpuCores"],
     ["mergeCpuTemp", "mergeCpuTemp"],
     ["mergeGpuTemp", "mergeGpuTemp"],

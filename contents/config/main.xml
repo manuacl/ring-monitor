@@ -16,6 +16,16 @@
             <default>cpu,ram</default>
         </entry>
 
+        <entry name="enabledPartitions" type="String">
+            <label>Comma-separated disk partition ids to show as concentric rings inside the disk gauge. Empty = the backend default (the $HOME-bearing filesystem on standalone; the disk/all aggregate on Plasma).</label>
+            <default></default>
+        </entry>
+
+        <entry name="partitionOrder" type="String">
+            <label>All discovered disk partition ids in display order (whether enabled or not). First = outermost ring, last = innermost. Empty = alphabetical by volume label.</label>
+            <default></default>
+        </entry>
+
         <entry name="showCpuCores" type="Bool">
             <label>Show per-core CPU usage as concentric rings inside the CPU ring</label>
             <default>true</default>

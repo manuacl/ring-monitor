@@ -4,6 +4,42 @@ All notable user-facing changes to Ring Monitor. Internal refactors,
 test additions, and tooling updates are intentionally omitted — the
 git history covers those.
 
+## [0.6.0] — 2026-05-28
+
+### Added
+
+- **The disk gauge can now show several rings — one per filesystem.**
+  Instead of a single disk ring, you can render multiple
+  equal-thickness concentric rings, one for each mounted filesystem
+  you select. The number in the center shows their average usage.
+  - Pick which partitions to show with **checkboxes in Settings**
+    (under the disk metric), and **reorder them by drag-and-drop** —
+    the one at the top becomes the outermost ring, the one at the
+    bottom the innermost. Default order is alphabetical by volume
+    label.
+  - Each filesystem is labeled by its **volume label** (for example
+    "bazzite"), the same in both the Plasma and standalone builds.
+  - On Plasma, leaving the selection empty keeps the original single
+    aggregate disk ring — the multi-ring view is opt-in.
+- The metric label was renamed from **"DISK" to "DISKS"** to match the
+  new multi-filesystem view.
+- **The standalone build gained more metrics, catching up to the Plasma
+  version.** It can now show **CPU temperature**, **GPU usage and
+  temperature** (NVIDIA cards), and **swap usage** rings — on top of the
+  CPU, RAM, and disk gauges it already had.
+  - GPU readings come straight from the NVIDIA driver (no `nvidia-smi`
+    process spawned each refresh); on non-NVIDIA machines the GPU rings
+    simply stay empty.
+  - Swap correctly reflects zram, which is the default on Bazzite.
+
+### Fixed
+
+- **Standalone disk usage is now correct on Bazzite and other
+  rpm-ostree systems.** The standalone disk ring used to be stuck near
+  100% because it measured the read-only system image instead of your
+  real storage. It now defaults to the filesystem that holds your home
+  directory and reports its actual usage.
+
 ## [0.5.3] — 2026-05-28
 
 Consolidates the 0.5.1 → 0.5.3 work into one release. Two themes: a
@@ -143,6 +179,7 @@ No user-visible changes.
 First public release. Plasma 6 widget rendering CPU, RAM, swap,
 GPU, and disk usage as circular ring gauges with rounded caps.
 
+[0.6.0]: https://github.com/manuacl/ring-monitor/releases/tag/v0.6.0
 [0.5.3]: https://github.com/manuacl/ring-monitor/releases/tag/v0.5.3
 [0.5.0]: https://github.com/manuacl/ring-monitor/releases/tag/v0.5.0
 [0.4.0]: https://github.com/manuacl/ring-monitor/releases/tag/v0.4.0

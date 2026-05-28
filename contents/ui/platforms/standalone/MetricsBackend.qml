@@ -15,7 +15,8 @@ import "../../core/MetricsCatalog.js" as Catalog
 //   function metricRawTemp(id)
 //   function metricTempPercent(id)
 //
-// Backend = single `Timer` polling once per second via the
+// Backend = single `Timer` polling at 2 Hz (every 500 ms, matching the
+// Plasma ksysguard cadence) via the
 // `ProcReader` C++ helper (`/proc/stat`, `/proc/meminfo`, `statvfs`
 // on `/`), then deferring the parse + percent math to the pure
 // modules in `core/`. Maximum work in `core/`, minimum in this
@@ -42,7 +43,7 @@ Item {
         return backend._coreUsage.slice();
     }
 
-    // True until the second `/proc/stat` sample lands ~1 s after
+    // True until the second `/proc/stat` sample lands ~0.5 s after
     // startup (the Timer fires every `interval` ms). CPU usage
     // requires two samples (the delta between them); the first tick
     // captures `_prev`, the second tick computes the percent. RAM
@@ -50,7 +51,7 @@ Item {
     // ready on the first tick, but gating them on the same flag
     // keeps the warm-up sweep visually consistent across all three
     // rings — no reader needs to wonder whether one specific value
-    // is "still loading" or "really zero". The 1 s warm-up is the
+    // is "still loading" or "really zero". The ~0.5 s warm-up is the
     // cost of this consistency; a future `Qt.callLater(_sample)` in
     // `Component.onCompleted` could halve it if the boot-time blank
     // ever becomes a UX complaint.
@@ -130,9 +131,9 @@ Item {
     // a few seconds AFTER the widget autostarts at login, so we re-walk
     // sysfs for the first _cpuTempMaxResolveAttempts ticks. After that we
     // give up — a machine with genuinely no CPU temp sensor (VM, unknown
-    // hardware) must NOT re-walk /sys every second for the whole session.
+    // hardware) must NOT re-walk /sys every tick for the whole session.
     property int _cpuTempResolveAttempts: 0
-    readonly property int _cpuTempMaxResolveAttempts: 30  // ~30s at the 1Hz Timer
+    readonly property int _cpuTempMaxResolveAttempts: 60  // ~30s at the 2 Hz Timer
     // GPU (NVIDIA/NVML). _gpuUsage is a 0-100 percent; _gpuTempC is raw °C
     // (NaN until/unless NVML reports it, coerced to 0 at the surface).
     property real _gpuUsage: 0
@@ -262,7 +263,13 @@ Item {
     }
 
     Timer {
-        interval: 1000
+        // 500 ms (2 Hz) to match the Plasma adapter: the ksysguard
+        // daemon pushes sensor updates at ~500 ms, so a 1 Hz Timer here
+        // made the standalone rings step in coarser jumps than the
+        // Plasma widget (measured, not assumed). 500 ms also sits just
+        // above Ring.qml's 400 ms value animation, so each sweep
+        // finishes before the next sample — no overlapping easings.
+        interval: 500
         running: true
         repeat: true
         triggeredOnStart: true

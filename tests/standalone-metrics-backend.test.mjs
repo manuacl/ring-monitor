@@ -148,9 +148,9 @@ test("standalone MetricsBackend re-resolves the temp path within a bounded warm-
 });
 
 test("standalone MetricsBackend polls on a Timer", () => {
-    // Polling cadence: once per second is the contract documented in
-    // platforms/standalone/CLAUDE.md. Use the interval value as the
-    // marker — looser than full Timer block matching, tighter than no
-    // assertion at all.
-    assert.match(SOURCE, /Timer\s*{[\s\S]*?interval:\s*1000/, "must declare a Timer with interval: 1000ms");
+    // Polling cadence: 500 ms (2 Hz) to match the Plasma ksysguard
+    // cadence — see platforms/standalone/CLAUDE.md. Use the interval
+    // value as the marker — looser than full Timer block matching,
+    // tighter than no assertion at all.
+    assert.match(SOURCE, /Timer\s*{[\s\S]*?interval:\s*500/, "must declare a Timer with interval: 500ms");
 });

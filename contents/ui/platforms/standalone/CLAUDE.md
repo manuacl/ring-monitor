@@ -44,7 +44,7 @@ package. (Mirror of `platforms/plasma/SensorPicking.js`.) Placement rule:
 nvtop / btop / Conky / KDE's `ksystemstats` use. We deliberately do
 **not** shell out to `nvidia-smi`: a per-poll process spawn is ~20 ms
 (a dropped frame at 60 fps) and churns fork/exec; NVML calls are
-microseconds, so `NvmlReader.sample()` runs synchronously in the 1 Hz
+microseconds, so `NvmlReader.sample()` runs synchronously in the 2 Hz
 `_sample()` with no GUI-thread jank.
 
 Load-bearing details:
@@ -71,6 +71,20 @@ Load-bearing details:
 readable through the existing `ProcReader`, no library; Intel usage
 needs i915 perf (elevated perms), so Intel would be temp-only first.
 The vendor-detection seam lands with that PR.
+
+## Poll cadence: 500 ms (2 Hz), matching Plasma
+
+The `_sample()` `Timer` runs at **500 ms**, not 1 Hz. The Plasma
+adapter doesn't set a rate — its `Sensors.Sensor` instances are pushed
+by the ksysguard daemon, which polls at ~500 ms (measured on the dev
+box with a `qml-qt6` probe subscribing to `cpu/all/usage`: steady
+499–501 ms). A 1 Hz Timer here made the standalone rings step in
+visibly coarser jumps than the Plasma widget for the same hardware.
+500 ms also sits just above `core/Ring.qml`'s 400 ms value animation,
+so each sweep finishes before the next sample — going below ~400 ms
+would overlap easings. The `/proc/stat` CPU delta window shrinks to
+0.5 s to match. Pinned by `tests/standalone-metrics-backend.test.mjs`
+("polls on a Timer" → `interval: 500`).
 
 ## New QML/JS files must be added to `CMakeLists.txt` `QML_FILES`
 

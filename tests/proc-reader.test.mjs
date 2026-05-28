@@ -154,6 +154,50 @@ test("blockDeviceInfo walks both by-uuid and by-label, resolves to device", () =
     );
 });
 
+test("ProcReader exposes the async statvfs surface (issue #48)", () => {
+    // The disk rings must read per-partition usage WITHOUT blocking the GUI
+    // thread on an unresponsive mount. The header declares the non-blocking
+    // pair + the completion signal.
+    assert.match(
+        HEADER,
+        /Q_INVOKABLE\s+void\s+requestStatvfs\s*\(\s*const\s+QString\s*&/,
+        "must declare Q_INVOKABLE void requestStatvfs(const QString &mount)",
+    );
+    assert.match(
+        HEADER,
+        /Q_INVOKABLE\s+QVariantMap\s+cachedStatvfs\s*\(\s*const\s+QString\s*&[^)]*\)\s*const/,
+        "must declare Q_INVOKABLE QVariantMap cachedStatvfs(const QString &mount) const",
+    );
+    assert.match(
+        HEADER,
+        /signals:[\s\S]*?void\s+statvfsReady\s*\(\s*const\s+QString\s*&/,
+        "must declare the statvfsReady(const QString &mount) signal",
+    );
+});
+
+test("requestStatvfs runs statvfs on a detached worker thread (no GUI block, no exit hang)", () => {
+    // A detached std::thread — NOT a QThreadPool — is deliberate: a pool's
+    // dtor waitForDone() would block process exit forever on a mount stuck
+    // in an uninterruptible statvfs; a detached thread is reaped by the OS
+    // at exit instead. The blocking syscall must run off the GUI thread and
+    // the result hop back via the event loop.
+    assert.match(SRC, /std::thread/, "must spawn a std::thread for the blocking statvfs");
+    assert.match(SRC, /\.detach\s*\(\s*\)/, "the worker thread must be detached (so a stuck mount can't hang process exit)");
+    assert.doesNotMatch(SRC, /QThreadPool/, "must NOT use QThreadPool (its dtor would block exit on a hung mount)");
+    assert.match(SRC, /QMetaObject::invokeMethod/, "must hop the result back to the GUI thread via QMetaObject::invokeMethod");
+    assert.match(SRC, /QPointer<ProcReader>/, "must guard the queued delivery with a QPointer in case ProcReader is torn down first");
+});
+
+test("requestStatvfs dedups in-flight mounts and throttles re-reads", () => {
+    // Idempotent by construction: a mount already being read is not
+    // re-launched (so a hung mount freezes exactly one worker, not a pile),
+    // and a mount read within the throttle window is skipped (so
+    // re-evaluating the QML binding every render doesn't spin the syscall).
+    assert.match(SRC, /m_statvfsInFlight\.contains\s*\(\s*mount\s*\)/, "must skip a mount that already has a worker in flight");
+    assert.match(SRC, /m_statvfsInFlight\.insert\s*\(\s*mount\s*\)/, "must mark a mount in-flight before launching its worker");
+    assert.match(SRC, /kStatvfsMinIntervalMs/, "must throttle re-reads against kStatvfsMinIntervalMs");
+});
+
 test("proc_reader includes no Plasma headers (standalone isolation)", () => {
     assert.doesNotMatch(
         SRC,

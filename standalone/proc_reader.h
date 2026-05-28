@@ -14,7 +14,10 @@
 // `qt_add_qml_module(... SOURCES proc_reader.cpp …)`. Available in
 // QML as `import RingMonitor.Standalone; ProcReader { id: reader }`.
 
+#include <QElapsedTimer>
+#include <QHash>
 #include <QObject>
+#include <QSet>
 #include <QString>
 #include <QStringList>
 #include <QVariantMap>
@@ -34,7 +37,13 @@ class ProcReader : public QObject
     QML_ELEMENT
 
 public:
-    explicit ProcReader(QObject *parent = nullptr) : QObject(parent) {}
+    explicit ProcReader(QObject *parent = nullptr) : QObject(parent)
+    {
+        // Monotonic clock backing the per-mount throttle in
+        // requestStatvfs(). Started here so the first request always
+        // sees an elapsed() well past the throttle window.
+        m_clock.start();
+    }
 
     // Synchronous read. Returns the file contents on success, an
     // empty string on any failure (missing file, no read permission,
@@ -69,6 +78,39 @@ public:
     // reservation as "used" and report a non-zero usage on a
     // freshly-formatted empty filesystem.
     Q_INVOKABLE QVariantMap statvfs(const QString &path) const;
+
+    // Async, non-blocking counterpart of statvfs() for the disk
+    // multi-partition rings. The synchronous statvfs() above blocks
+    // (uninterruptibly) on an unresponsive mount — a stale NFS/CIFS
+    // export, a hung autofs, a spun-down removable disk — so calling
+    // it from the 2 Hz `_sample` tick froze the GUI thread for the
+    // syscall's duration (issue #48). These two move the syscall off
+    // the render thread:
+    //
+    //   - requestStatvfs(mount) kicks a background read on a detached
+    //     worker thread and returns immediately. Idempotent: a mount
+    //     already in flight is not re-launched (so a hung mount freezes
+    //     exactly one worker, never a pile), and a mount refreshed
+    //     within kStatvfsMinIntervalMs is skipped (so re-evaluating the
+    //     QML binding every render doesn't spin the syscall). When the
+    //     read finishes the result is cached and statvfsReady(mount) is
+    //     emitted on the GUI thread.
+    //   - cachedStatvfs(mount) returns the last-good result (same
+    //     { total, free, available } shape as statvfs()), or an empty
+    //     map until the first read for that mount lands. Never blocks.
+    //
+    // The QML side calls requestStatvfs() + cachedStatvfs() from
+    // partitionValue() and bumps a tick on statvfsReady to re-render —
+    // an unresponsive mount then just holds its last-good ring value
+    // instead of freezing the whole widget.
+    //
+    // The worker thread is detached (not pooled): a QThreadPool's dtor
+    // waitForDone() would block process exit forever on a mount stuck
+    // in an uninterruptible statvfs. A detached thread is reaped by the
+    // OS at exit instead — so quitting the widget never hangs even with
+    // a dead NFS export selected.
+    Q_INVOKABLE void requestStatvfs(const QString &mount);
+    Q_INVOKABLE QVariantMap cachedStatvfs(const QString &mount) const;
 
     // Directory listing. Returns the entry names (not full paths) of
     // `path` — both subdirectories and files, excluding `.` and `..` —
@@ -108,4 +150,28 @@ public:
     // it against the real mountpoints in /proc/mounts when picking the
     // default partition. Empty string if home can't be resolved.
     Q_INVOKABLE QString canonicalHome() const;
+
+signals:
+    // Emitted on the GUI thread once an async requestStatvfs(mount)
+    // completes and its cached value has been updated.
+    void statvfsReady(const QString &mount);
+
+private:
+    // Runs on the GUI thread (posted from the worker via
+    // QMetaObject::invokeMethod): commit the cache, clear the in-flight
+    // flag, stamp the throttle clock, and emit statvfsReady.
+    void onStatvfsDone(const QString &mount, const QVariantMap &result);
+
+    // Mounts with a worker thread currently blocked in statvfs() — used
+    // to dedup requests so a hung mount can't accumulate threads.
+    QSet<QString> m_statvfsInFlight;
+    // Last-good { total, free, available } per mount.
+    QHash<QString, QVariantMap> m_statvfsCache;
+    // elapsed() ms of the last completed read per mount (throttle gate).
+    QHash<QString, qint64> m_statvfsLastDoneMs;
+    QElapsedTimer m_clock;
+    // Minimum spacing between two real reads of the same mount. Below
+    // the 500 ms poll Timer so each tick still refreshes, but high
+    // enough that a statvfsReady-driven re-render doesn't re-launch.
+    static constexpr int kStatvfsMinIntervalMs = 250;
 };

@@ -524,7 +524,7 @@ per-GPU temperature, per-GPU usage).
 | `metricTempPercent(id)` (function) | same value mapped to 0–100 via `MetricsCatalog.tempToPercent` — drives the Ring's right-half split arc |
 | `availablePartitions` (readonly property var) | `[{id, label}]` — discovered mounted filesystems for the disk multi-ring picker (Plasma: via the shared `DiskPartitions` adapter; standalone: via `/proc/mounts` + `DiskDiscovery`) |
 | `defaultPartitionIds` (readonly property var) | partition ids to show when the user has selected none — `[]` on Plasma (falls back to the `disk/all` aggregate ring); the `$HOME`-bearing filesystem on standalone |
-| `partitionValue(id)` (function) | latest 0–100 usage % for one discovered partition (Plasma: a live `disk/<uuid>/usedPercent` sensor; standalone: `statvfs` of the partition's representative mountpoint) |
+| `partitionValue(id)` (function) | latest 0–100 usage % for one discovered partition (Plasma: a live `disk/<uuid>/usedPercent` sensor; standalone: a **non-blocking** read of the last-good `statvfs` of the partition's representative mountpoint — see the async note below). Requesting an id also subscribes it to refreshes, so only the selected partitions are probed. |
 
 The disk-partition discovery on Plasma lives in a separate reusable
 adapter, `platforms/plasma/DiskPartitions.qml` (its own
@@ -561,7 +561,7 @@ The standalone build ships a parallel
 surface, backed by direct kernel reads through the `ProcReader` /
 `NvmlReader` C++ helpers instead of ksysguard: `/proc/stat` (CPU
 usage + per-core), `/proc/meminfo` (RAM + swap — `SwapTotal`/`SwapFree`,
-which covers zram on Bazzite), `statvfs(/)` (disk),
+which covers zram on Bazzite),
 `/sys/class/hwmon` + `/sys/class/thermal` (CPU temperature, via
 `CpuTempDiscovery.js`), per-filesystem `statvfs` for the disk
 multi-ring (`/proc/mounts` + `DiskDiscovery.js`, deduped by device,
@@ -570,6 +570,21 @@ the `$HOME` filesystem as the default), and NVML / `libnvidia-ml`
 the ksysguard daemon's push cadence, where the Plasma adapter relies
 on the daemon's own rate. AMD/Intel GPU (sysfs) is a follow-up. Layer detail:
 [`../contents/ui/platforms/standalone/CLAUDE.md`](../contents/ui/platforms/standalone/CLAUDE.md).
+
+The disk `statvfs` runs **off the GUI thread** (issue #48): `statvfs(3)`
+blocks uninterruptibly on an unresponsive mount (stale NFS/CIFS, hung
+autofs, spun-down USB), so `partitionValue(id)` calls the async
+`ProcReader.requestStatvfs(mount)` (background read on a detached worker
+thread) + `cachedStatvfs(mount)` (last-good, empty → 0% until the first
+read lands) rather than the synchronous `statvfs()`. On completion the
+helper emits `statvfsReady(mount)` and the backend bumps a dedicated
+`_partTick` so the disk rings re-render. Requests are deduped while in
+flight (one stuck thread per hung mount, never a pile) and throttled per
+mount; the worker is detached rather than pooled so a mount stuck in the
+syscall can't block process exit. A hung mount then just holds its
+last-good ring value while every other ring keeps updating. The Plasma
+adapter is unaffected (it reads cached ksysguard sensor values, which
+never block).
 
 Smoke-tested by `tests/metrics-backend.test.mjs` — same pattern as
 `tests/config-store.test.mjs`. CI can't run a qmltestrunner test

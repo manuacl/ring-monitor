@@ -128,17 +128,24 @@ Item {
     })
     property var defaultPartitionIds: []
 
-    // Per-partition usage %, read live so the rings track the same 2 Hz
-    // cadence as the other metrics. Reading _tick keeps the binding
-    // reactive; statvfs runs only for the ids MainContent actually asks
-    // about (the selected partitions), so an unselected spun-down disk is
-    // never probed.
+    // Per-partition usage %, read NON-BLOCKING so a stuck mount (stale
+    // NFS, hung autofs, spun-down USB) never freezes the GUI thread —
+    // issue #48. requestStatvfs kicks a background read on a worker
+    // thread (idempotent: deduped while in flight, throttled per mount),
+    // and cachedStatvfs returns the last-good result (empty → 0% until
+    // the first read lands). Reading _tick drives the periodic 500 ms
+    // refresh (each Timer tick re-evaluates this, which re-requests);
+    // _partTick makes it re-render the instant a result arrives. The
+    // request fires only for the ids MainContent actually asks about
+    // (the selected partitions), so an unselected disk is never probed.
     function partitionValue(id) {
         backend._tick;
+        backend._partTick;
         var mount = backend._mountForId[id];
         if (!mount)
             return 0;
-        var disk = reader.statvfs(mount);
+        reader.requestStatvfs(mount);
+        var disk = reader.cachedStatvfs(mount);
         return MemInfoParser.diskUsagePercent(disk.total, disk.free, disk.available);
     }
 
@@ -146,6 +153,20 @@ Item {
 
     ProcReader {
         id: reader
+    }
+
+    // Bumped when an async statvfs lands so partitionValue re-evaluates
+    // immediately (the 500 ms Timer would otherwise be the only refresh
+    // and the rings would lag a tick behind a freshly-arrived value).
+    // Kept separate from _tick so a disk-only update doesn't re-run the
+    // CPU/RAM/GPU bindings. No feedback loop: the re-request that this
+    // re-evaluation triggers is throttled away in ProcReader.
+    property int _partTick: 0
+    Connections {
+        target: reader
+        function onStatvfsReady(mount) {
+            backend._partTick++;
+        }
     }
 
     // NVIDIA GPU via NVML (dlopen'd libnvidia-ml). available:false on

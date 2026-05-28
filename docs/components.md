@@ -519,13 +519,13 @@ The standalone build ships a parallel
 `platforms/standalone/MetricsBackend.qml` exposing the same public
 surface, backed by direct kernel reads through the `ProcReader` /
 `NvmlReader` C++ helpers instead of ksysguard: `/proc/stat` (CPU
-usage + per-core), `/proc/meminfo` (RAM), `statvfs(/)` (disk),
+usage + per-core), `/proc/meminfo` (RAM + swap — `SwapTotal`/`SwapFree`,
+which covers zram on Bazzite), `statvfs(/)` (disk),
 `/sys/class/hwmon` + `/sys/class/thermal` (CPU temperature, via
 `CpuTempDiscovery.js`), and NVML / `libnvidia-ml` (NVIDIA GPU usage +
 temperature). It polls on a single `Timer` at 2 Hz (500 ms) to match
 the ksysguard daemon's push cadence, where the Plasma adapter relies
-on the daemon's own rate. AMD/Intel GPU (sysfs) and swap are
-follow-ups. Layer detail:
+on the daemon's own rate. AMD/Intel GPU (sysfs) is a follow-up. Layer detail:
 [`../contents/ui/platforms/standalone/CLAUDE.md`](../contents/ui/platforms/standalone/CLAUDE.md).
 
 Smoke-tested by `tests/metrics-backend.test.mjs` — same pattern as

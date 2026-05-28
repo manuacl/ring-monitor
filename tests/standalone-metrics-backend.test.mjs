@@ -77,6 +77,14 @@ test("standalone MetricsBackend exposes ram + disk through metricValue", () => {
     assert.match(SOURCE, /id\s*===\s*["']disk["']/, "metricValue must branch on id === 'disk'");
 });
 
+test("standalone MetricsBackend routes swap through metricValue (not hardcoded 0)", () => {
+    // SCENARIO: the swap ring read a dead 0 on a host with active zram
+    // because metricValue('swap') was hardcoded to `return 0`. Pin the
+    // branch + the SwapTotal/SwapFree sampling so it can't regress.
+    assert.match(SOURCE, /id\s*===\s*["']swap["'][\s\S]{0,40}_swapUsage/, "metricValue('swap') must return backend._swapUsage");
+    assert.match(SOURCE, /_swapUsage\s*=\s*MemInfoParser\.usagePercent\(\s*mem\.swapTotal\s*,\s*mem\.swapFree\s*\)/, "must compute swap usage from the parsed SwapTotal/SwapFree");
+});
+
 test("standalone MetricsBackend wires CPU temperature via CpuTempDiscovery", () => {
     // CPU temp has no fixed sysfs path — the backend enumerates
     // /sys/class/hwmon (+ /sys/class/thermal fallback) and delegates

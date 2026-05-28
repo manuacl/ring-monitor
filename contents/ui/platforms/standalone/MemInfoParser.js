@@ -30,8 +30,13 @@
 // extract a `Numeric.js` shared library then.
 //
 // Public surface:
-//   parseMemInfo(content)         - { total, available } in kB, or
-//                                   nulls on missing/malformed input.
+//   parseMemInfo(content)         - { total, available, swapTotal,
+//                                   swapFree } in kB, or nulls on
+//                                   missing/malformed input. swap* are
+//                                   the SwapTotal/SwapFree lines, fed to
+//                                   usagePercent for the swap ring (zram
+//                                   on Bazzite counts here — the kernel
+//                                   reports it as swap in /proc/meminfo).
 //   usagePercent(total, available) - (1 - available/total) * 100,
 //                                    clamped to [0, 100]; 0 when total
 //                                    is missing/zero. Used by the RAM
@@ -62,26 +67,32 @@ function _clampPercent(p) {
     return p;
 }
 
+var _MEMINFO_FIELDS = {
+    "MemTotal": "total",
+    "MemAvailable": "available",
+    "SwapTotal": "swapTotal",
+    "SwapFree": "swapFree"
+};
+
 function parseMemInfo(content) {
     var out = {
         "total": null,
-        "available": null
+        "available": null,
+        "swapTotal": null,
+        "swapFree": null
     };
     if (typeof content !== "string" || content.length === 0)
         return out;
     var lines = content.split("\n");
     for (var i = 0; i < lines.length; i++) {
         var line = lines[i];
-        var m = line.match(/^(MemTotal|MemAvailable):\s+(\d+)\s+kB/);
+        var m = line.match(/^(MemTotal|MemAvailable|SwapTotal|SwapFree):\s+(\d+)\s+kB/);
         if (!m)
             continue;
         var value = parseInt(m[2], 10);
         if (isNaN(value))
             continue;
-        if (m[1] === "MemTotal")
-            out.total = value;
-        else
-            out.available = value;
+        out[_MEMINFO_FIELDS[m[1]]] = value;
     }
     return out;
 }

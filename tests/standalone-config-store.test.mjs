@@ -22,18 +22,18 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms", "standalone", "ConfigStore.qml"), "utf8");
 const PLASMA_SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms", "plasma", "ConfigStore.qml"), "utf8");
 
-// Public surface — must match the Plasma adapter's tests/config-store.test.mjs
-// EXPECTED_KEYS exactly. Kept inline (not imported) so the assertion
-// fails on either drift: someone bumping the Plasma list without the
-// standalone, or vice versa.
-const EXPECTED_KEYS = [
-    "metricOrder", "enabledMetrics", "showCpuCores", "mergeCpuTemp", "mergeGpuTemp",
-    "orientation", "ringSize", "ringSpacingPercent", "windowMargin", "textOpacity", "trackOpacity", "arcOpacity",
-    "colorTheme", "colorMode", "customColorLight", "customColorDark",
-    "textColorMode", "customTextColorLight", "customTextColorDark",
-    "tempUnit",
-    "checkForUpdatesEnabled", "lastUpdateCheck", "latestKnownVersion", "acknowledgedVersion",
-];
+// Single source of truth: the config schema in contents/config/main.xml.
+// Both adapters must declare every `<entry name="X">` it lists. Deriving
+// the key set here (instead of an inline list duplicated across this
+// file and tests/config-store.test.mjs) means a new schema entry
+// auto-expands the expected set in both — the drift PR #35 hit (manual
+// edit to add the `ringSize` trio) can't recur silently.
+const MAIN_XML = readFileSync(join(__dirname, "..", "contents", "config", "main.xml"), "utf8");
+const EXPECTED_KEYS = [...MAIN_XML.matchAll(/<entry\s+name="([^"]+)"/g)].map(m => m[1]);
+
+test("schema sanity — main.xml yields a non-empty key set", () => {
+    assert.ok(EXPECTED_KEYS.length >= 20, `expected ≥20 schema keys, got ${EXPECTED_KEYS.length}`);
+});
 
 test("standalone ConfigStore declares every persisted config key", () => {
     for (const key of EXPECTED_KEYS) {

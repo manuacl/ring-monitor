@@ -19,9 +19,19 @@ import assert from "node:assert";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms", "plasma", "ConfigStore.qml"), "utf8");
 
-// Keys must match contents/config/main.xml — update both when adding a
-// new config entry.
-const EXPECTED_KEYS = ["metricOrder", "enabledMetrics", "showCpuCores", "mergeCpuTemp", "mergeGpuTemp", "orientation", "ringSize", "ringSpacingPercent", "windowMargin", "textOpacity", "trackOpacity", "arcOpacity", "colorTheme", "colorMode", "customColorLight", "customColorDark", "textColorMode", "customTextColorLight", "customTextColorDark", "tempUnit", "checkForUpdatesEnabled", "lastUpdateCheck", "latestKnownVersion", "acknowledgedVersion"];
+// Single source of truth: the config schema in contents/config/main.xml.
+// Deriving the key set from `<entry name="X">` (instead of an inline
+// hardcoded list) means adding a new schema entry automatically
+// expands the expected set — the drift PR #35 hit (had to hand-edit
+// the inline list to add the `ringSize` trio) can't recur silently.
+const MAIN_XML = readFileSync(join(__dirname, "..", "contents", "config", "main.xml"), "utf8");
+const EXPECTED_KEYS = [...MAIN_XML.matchAll(/<entry\s+name="([^"]+)"/g)].map(m => m[1]);
+
+test("schema sanity — main.xml yields a non-empty key set", () => {
+    // Guard against a regex / path regression silently emptying the
+    // list and making every key assertion below vacuously pass.
+    assert.ok(EXPECTED_KEYS.length >= 20, `expected ≥20 schema keys, got ${EXPECTED_KEYS.length}`);
+});
 
 test("ConfigStore declares every persisted config key", () => {
     for (const key of EXPECTED_KEYS) {

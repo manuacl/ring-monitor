@@ -76,6 +76,44 @@ Item {
         return Catalog.tempToPercent(metricRawTemp(id));
     }
 
+    // ── Disk partitions (multi-ring) ─────────────────────────────────
+    //
+    // Discovery + labels come from the shared DiskPartitions adapter (also
+    // used by the config dialog). defaultPartitionIds is empty on Plasma:
+    // when the user has selected nothing, the disk ring stays the aggregate
+    // disk/all gauge (MainContent's aggregate fallback) — ksysguard exposes
+    // no mountpoint, so a "$HOME partition" default isn't computable here.
+    readonly property var availablePartitions: diskPartitions.partitions.map(function (p) {
+        return {
+            "id": p.id,
+            "label": p.label
+        };
+    })
+    readonly property var defaultPartitionIds: []
+
+    // Last-good value per partition id, held across Sensor rebuilds. When the
+    // partition set changes (USB plug/unplug) the Instantiator recreates ALL
+    // disk Sensors, which read 0 until their first ksysguard sample — without
+    // this cache the rings (and the centre average) would collapse to 0% and
+    // recover. Keyed by the stable UUID, so it survives the rebuild.
+    property var _lastPartValue: ({})
+
+    function partitionValue(id) {
+        backend._diskTick;
+        for (var i = 0; i < diskPartInstantiator.count; i++) {
+            var s = diskPartInstantiator.objectAt(i);
+            if (s && s.partId === id) {
+                if (s.status === Sensors.Sensor.Ready && typeof s.value === "number" && !isNaN(s.value)) {
+                    backend._lastPartValue[id] = s.value;
+                    return s.value;
+                }
+                // Sensor not Ready yet (e.g. just rebuilt) — hold last-good.
+                return backend._lastPartValue[id] || 0;
+            }
+        }
+        return backend._lastPartValue[id] || 0;
+    }
+
     // ── Internal — id → Sensor instance lookup (universal aggregates) ──
     readonly property var sensorMap: ({
             cpu: cpuTotal,
@@ -282,5 +320,27 @@ Item {
         }
         onObjectAdded: backend._gpuUsageTick++
         onObjectRemoved: backend._gpuUsageTick++
+    }
+
+    // ── Disk partitions ──────────────────────────────────────────────
+    // Discovery (UUID + volume label per mounted filesystem) is shared with
+    // the config dialog via this adapter; here it also drives a live Sensor
+    // per partition so partitionValue(id) reads the current usedPercent.
+    DiskPartitions {
+        id: diskPartitions
+    }
+
+    property int _diskTick: 0
+    Instantiator {
+        id: diskPartInstantiator
+        model: diskPartitions.partitions
+        delegate: Sensors.Sensor {
+            required property var modelData
+            readonly property string partId: modelData.id
+            sensorId: modelData.sensorId
+            onValueChanged: backend._diskTick++
+        }
+        onObjectAdded: backend._diskTick++
+        onObjectRemoved: backend._diskTick++
     }
 }

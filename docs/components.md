@@ -116,7 +116,8 @@ A circular gauge: 270° arc starting at 135° (90° gap at the bottom).
 | `textColor` | `"#eeeeee"` | value/label color — same injection |
 | `unit` | `"%"` | string appended to the rendered value |
 | `textOpacity` / `trackOpacity` / `arcOpacity` | `1.0` / `0.15` / `1.0` | per-layer opacity |
-| `nestedValues` | `[]` | optional 0–100 array → concentric inner rings |
+| `nestedValues` | `[]` | optional 0–100 array → thin concentric rings nested *inside* the main ring (CPU cores) |
+| `equalValues` | `[]` | optional 0–100 array → equal-thickness concentric rings that *replace* the main arc, one per selected disk partition. When non-empty the main/split arcs hide and the centre shows `rawValue` (the parent passes the partition average). Distinct from `nestedValues`, which keeps the main ring. |
 | `rawValue` | `NaN` | optional override for the centre text — when finite, the ring shows `Math.round(rawValue) + unit` instead of `value + unit`. Used by temperature rings where `value=tempToPercent(°C)` drives the sweep but the user reads the raw °C / °F. |
 | `splitMode` | `false` | split the ring at the top into two half-arcs (see below) |
 | `splitValue` | `0` | percentage (0–100) for the right half — usually a `tempToPercent(°C)` mapping |
@@ -151,6 +152,32 @@ The geometry constants and helpers (`LEFT_HALF_START`,
 `RIGHT_HALF_START`, `HALF_SWEEP_ANGLE`, `leftHalfSweepFor`,
 `rightHalfSweepFor`) live in `core/RingGeometry.js` and are unit-tested
 in `tests/ring-geometry.test.mjs`.
+
+### Equal mode (disk multi-partition)
+
+When `equalValues` is non-empty the single main arc (and split halves)
+hide, and N **equal-thickness** concentric rings render in their place —
+one per selected filesystem, outermost at the main radius, each stepping
+inward by `(stroke + gap)`. Up to `DISK_COMFORT_RING_COUNT` (5) rings use
+the full `ringStroke`; past that the layout shrinks stroke + gap to keep
+the stack inside the same envelope (`RingGeometry.equalRingLayout`). The
+centre shows the partition **average** via `rawValue`.
+
+This differs from `nestedValues` (CPU cores): cores are *thin* rings
+nested inside a still-visible main ring; disk partitions are *full-stroke*
+rings that **are** the gauge. Both render through the shared
+[`ConcentricArc.qml`](#concentricarcqml) delegate.
+
+### `ConcentricArc.qml`
+
+One concentric track + active arc at a given `radius` / `stroke`, with the
+same 400 ms OutCubic value smoothing as the main ring. Extracted from
+`Ring.qml` so the two stacking modes share one renderer: the cores
+`Repeater` passes the thin `nestedStroke` + reduced opacity factors
+(`0.6` / `0.55`); the disk `Repeater` passes the full `ringStroke` + the
+default `1.0` factors. Props: `radius`, `stroke`, `value` (0–100),
+`ringColor`, `trackOpacity`, `arcOpacity`, `trackOpacityFactor`,
+`arcOpacityFactor`. Covered by `tests/qml/tst_ConcentricArc.qml`.
 
 ### Sizing
 
@@ -215,7 +242,7 @@ not just CPU. New child-bearing metrics get it for free by setting
 
 `tests/qml/tst_MetricRow.qml` pins each rule:
 
-- Label rendering per id (`CPU`, `RAM`, `SWAP`, `GPU`, `DISK`, unknown
+- Label rendering per id (`CPU`, `RAM`, `SWAP`, `GPU`, `DISKS`, unknown
   → uppercase fallback).
 - Description passthrough, default empty.
 - `_checked` mirrors `enabled`, click emits `toggled(true/false)`.
@@ -238,6 +265,7 @@ Generic vertical list with drag-to-reorder, deferred commit.
 | `rowSpacing` | gap between rows |
 | `rowContent` | `Component` for the row content; the loaded root reads `parent.rowModel` / `parent.rowIndex` (see below) |
 | `showHandle` | toggle the move icon on the left |
+| `dragKey` | drag-and-drop scope key (default `"row"`), applied to each row's `Drag.keys` and every `DropArea.keys`. **Required when one `DraggableList` is nested inside another's rows** (the disk-partition picker inside the metrics list, `dragKey: "diskPartition"`): an unkeyed `DropArea` accepts *any* drag source (Qt), so two unscoped lists cross-fire — the inner drag floats but never reorders because the outer list's `DropArea`s swallow the drop. |
 | `highlightColor` | active-row border + tint (default `"#3daee9"`) — inject via `platforms/plasma/Theme.highlightColor` |
 | `backgroundColor` | dragged-row fill (default `"#1e1e1e"`) — inject via `platforms/plasma/Theme.backgroundColor` |
 | `smallSpacing` | inner row padding (default `4`) — inject via `platforms/plasma/Theme.smallSpacing` |
@@ -417,6 +445,8 @@ future reader) consumes `configStore.X` instead of reaching into
 |---|---|---|
 | `metricOrder` | `string` | `Plasmoid.configuration.metricOrder` |
 | `enabledMetrics` | `string` | `Plasmoid.configuration.enabledMetrics` |
+| `enabledPartitions` | `string` | `Plasmoid.configuration.enabledPartitions` (checked disk partitions; empty = aggregate ring on Plasma / `$HOME` FS on standalone) |
+| `partitionOrder` | `string` | `Plasmoid.configuration.partitionOrder` (disk partition display order; first = outermost ring; empty = alphabetical) |
 | `showCpuCores` | `bool` | `Plasmoid.configuration.showCpuCores` |
 | `mergeCpuTemp` | `bool` | `Plasmoid.configuration.mergeCpuTemp` (hide `cpuTemp` ring, render it as the right half of the `cpu` ring) |
 | `mergeGpuTemp` | `bool` | `Plasmoid.configuration.mergeGpuTemp` (same for the GPU pair) |
@@ -492,6 +522,17 @@ per-GPU temperature, per-GPU usage).
 | `metricValue(id)` (function) | latest value for one of the catalog metric ids — universal ids go through `Catalog.valueFromSensorMap`, `gpu` and `gpuTemp` are dispatched to the dynamic-discovery helpers below |
 | `metricRawTemp(id)` (function) | latest raw °C reading for ids that expose a temperature sensor (`cpu` via static, `gpu` via discovery); `0` for others |
 | `metricTempPercent(id)` (function) | same value mapped to 0–100 via `MetricsCatalog.tempToPercent` — drives the Ring's right-half split arc |
+| `availablePartitions` (readonly property var) | `[{id, label}]` — discovered mounted filesystems for the disk multi-ring picker (Plasma: via the shared `DiskPartitions` adapter; standalone: via `/proc/mounts` + `DiskDiscovery`) |
+| `defaultPartitionIds` (readonly property var) | partition ids to show when the user has selected none — `[]` on Plasma (falls back to the `disk/all` aggregate ring); the `$HOME`-bearing filesystem on standalone |
+| `partitionValue(id)` (function) | latest 0–100 usage % for one discovered partition (Plasma: a live `disk/<uuid>/usedPercent` sensor; standalone: `statvfs` of the partition's representative mountpoint) |
+
+The disk-partition discovery on Plasma lives in a separate reusable
+adapter, `platforms/plasma/DiskPartitions.qml` (its own
+`SensorTreeModel` walk → `[{id, label, sensorId}]`, id = the fs UUID,
+label = the volume name), because both `MetricsBackend` **and** the
+config dialog (`configMetrics.qml`, which has no backend) need the
+partition list. The backend drives a per-partition `Sensor`
+`Instantiator` from it; the config wrapper feeds `MetricsBody.diskPartitions`.
 
 **Dynamic discovery** (the substantive change vs. the earlier
 6-core-hardcoded model): on `Component.onCompleted` and on every
@@ -522,8 +563,10 @@ surface, backed by direct kernel reads through the `ProcReader` /
 usage + per-core), `/proc/meminfo` (RAM + swap — `SwapTotal`/`SwapFree`,
 which covers zram on Bazzite), `statvfs(/)` (disk),
 `/sys/class/hwmon` + `/sys/class/thermal` (CPU temperature, via
-`CpuTempDiscovery.js`), and NVML / `libnvidia-ml` (NVIDIA GPU usage +
-temperature). It polls on a single `Timer` at 2 Hz (500 ms) to match
+`CpuTempDiscovery.js`), per-filesystem `statvfs` for the disk
+multi-ring (`/proc/mounts` + `DiskDiscovery.js`, deduped by device,
+the `$HOME` filesystem as the default), and NVML / `libnvidia-ml`
+(NVIDIA GPU usage + temperature). It polls on a single `Timer` at 2 Hz (500 ms) to match
 the ksysguard daemon's push cadence, where the Plasma adapter relies
 on the daemon's own rate. AMD/Intel GPU (sysfs) is a follow-up. Layer detail:
 [`../contents/ui/platforms/standalone/CLAUDE.md`](../contents/ui/platforms/standalone/CLAUDE.md).

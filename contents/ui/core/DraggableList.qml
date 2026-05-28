@@ -47,6 +47,17 @@ ListView {
     property Component rowContent     // user-provided content for each row
     property bool showHandle: true    // visual move icon on the left
 
+    // Drag-and-drop scope key. Each row's Drag.keys and every DropArea's
+    // keys are set to this, so a DraggableList only reacts to its OWN drags.
+    // An unkeyed DropArea "will accept events from any drag source" (Qt docs),
+    // so without scoping a NESTED DraggableList (the disk-partition picker
+    // inside the metrics list) and its parent would cross-fire — dragging an
+    // inner row floats but never reorders (the outer DropAreas swallow it).
+    // The default is therefore UNIQUE PER INSTANCE, so nesting is safe by
+    // construction; set dragKey explicitly only to deliberately make two
+    // lists share one drop scope.
+    property string dragKey: "dl-" + Math.floor(Math.random() * 0x7fffffff)
+
     // Theme tokens — injected by the parent via the platform/Theme adapter.
     // Sensible defaults match Kirigami's typical values for standalone use.
     property color highlightColor: "#3daee9"
@@ -118,6 +129,9 @@ ListView {
             Drag.hotSpot.x: width / 2
             Drag.hotSpot.y: height / 2
             Drag.source: row
+            // Scope this drag to its own list so a nested DraggableList
+            // doesn't trigger the parent list's DropAreas (and vice versa).
+            Drag.keys: [root.dragKey]
 
             // Visual "make room" shift for non-dragged rows.
             transform: Translate {
@@ -232,6 +246,11 @@ ListView {
         // See SCENARIO test in tests/qml/tst_DraggableList.qml.
         DropArea {
             anchors.fill: parent
+            // Only accept drags from this same list (see root.dragKey) —
+            // without the key an unkeyed DropArea accepts ANY drag source,
+            // so a nested list's drag would fire the outer list's DropAreas
+            // (and the outer drag would fire the inner ones).
+            keys: [root.dragKey]
             onEntered: root._dropTarget = index
             onExited: root._dropTarget = root._dragSource
         }

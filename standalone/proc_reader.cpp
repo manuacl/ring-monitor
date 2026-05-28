@@ -3,6 +3,7 @@
 #include <QDebug>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QTextStream>
 
 #include <sys/statvfs.h>
@@ -92,4 +93,63 @@ QVariantMap ProcReader::statvfs(const QString &path) const
         { QStringLiteral("free"),      static_cast<qulonglong>(s.f_bfree)  * s.f_frsize },
         { QStringLiteral("available"), static_cast<qulonglong>(s.f_bavail) * s.f_frsize },
     };
+}
+
+// udev escapes characters that are not safe in a /dev path (spaces,
+// slashes, …) as `\xNN` hex in the by-uuid / by-label symlink names.
+// Decode them back so a label like "My Disk" shows with its space
+// rather than "My\x20Disk".
+static QString decodeUdevName(const QString &name)
+{
+    QString out;
+    out.reserve(name.size());
+    for (int i = 0; i < name.size(); ++i) {
+        if (name[i] == QLatin1Char('\\') && i + 3 < name.size() && name[i + 1] == QLatin1Char('x')) {
+            bool ok = false;
+            const int code = QStringView(name).mid(i + 2, 2).toInt(&ok, 16);
+            if (ok) {
+                out.append(QChar(code));
+                i += 3;
+                continue;
+            }
+        }
+        out.append(name[i]);
+    }
+    return out;
+}
+
+QVariantMap ProcReader::blockDeviceInfo() const
+{
+    // Metadata-only, no allowlist — same rationale as statvfs(). We walk
+    // the /dev/disk symlink farm and resolve each link to its device path,
+    // building device → { uuid, label }. The by-uuid pass runs first so a
+    // device that also has a label ends up with both keys.
+    QVariantMap out;
+    const struct {
+        const char *dir;
+        const char *key;
+    } sources[] = {
+        { "/dev/disk/by-uuid", "uuid" },
+        { "/dev/disk/by-label", "label" },
+    };
+    for (const auto &src : sources) {
+        QDir dir(QString::fromLatin1(src.dir));
+        if (!dir.exists())
+            continue;
+        const QStringList names = dir.entryList(QDir::NoDotAndDotDot | QDir::AllEntries | QDir::System);
+        for (const QString &name : names) {
+            const QString device = QFileInfo(dir.absoluteFilePath(name)).canonicalFilePath();
+            if (device.isEmpty())
+                continue;
+            QVariantMap info = out.value(device).toMap();
+            info.insert(QString::fromLatin1(src.key), decodeUdevName(name));
+            out.insert(device, info);
+        }
+    }
+    return out;
+}
+
+QString ProcReader::canonicalHome() const
+{
+    return QFileInfo(QDir::homePath()).canonicalFilePath();
 }

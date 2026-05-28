@@ -28,6 +28,7 @@ Item {
             ring.rawValue = NaN;
             ring.unit = "%";
             ring.nestedValues = [];
+            ring.equalValues = [];
             ring.splitMode = false;
             ring.splitValue = 0;
             ring.splitRawValue = 0;
@@ -192,6 +193,32 @@ Item {
             tryCompare(ring, "displayValue", 42, 1000);
             tryCompare(ring, "displayRawValue", 42, 1000);
             compare(ring._valueText, "42%");
+        }
+
+        // ── Equal mode (disk multi-partition): main arc hidden, N rings ──
+        function test_equal_mode_hides_main_arc_and_renders_n_rings() {
+            ring.equalValues = [10, 20, 30];
+            verify(ring._equalMode, "equalMode must be on when equalValues is non-empty");
+            verify(!ring._fullArcVisible, "main arc must hide in equal mode");
+            verify(!ring._leftArcVisible, "split halves must stay hidden in equal mode");
+            compare(ring._equalRingCount, 3);
+        }
+
+        function test_equal_mode_center_shows_rawValue_average() {
+            // The parent passes rawValue = the partition average; the centre
+            // text must read that, not any single ring's value.
+            ring.equalValues = [52, 8, 26, 67];
+            ring.rawValue = (52 + 8 + 26 + 67) / 4;  // 38.25
+            ring.unit = "%";
+            tryCompare(ring, "displayRawValue", 38.25, 1000);
+            compare(ring._valueText, "38%");
+        }
+
+        function test_default_mode_has_no_equal_rings() {
+            // equalValues defaults to [] (reset in init()).
+            verify(!ring._equalMode, "equalMode must be off by default");
+            verify(ring._fullArcVisible, "main arc must show when not in equal mode");
+            compare(ring._equalRingCount, 0);
         }
     }
 }

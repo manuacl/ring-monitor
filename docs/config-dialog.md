@@ -6,9 +6,11 @@
 
 ```xml
 <group name="Metrics">
-    <entry name="metricOrder"    type="String"> <default>cpu,ram,swap,gpu,disk</default> </entry>
-    <entry name="enabledMetrics" type="String"> <default>cpu,ram</default> </entry>
-    <entry name="showCpuCores"   type="Bool">   <default>true</default> </entry>
+    <entry name="metricOrder"       type="String"> <default>cpu,ram,swap,gpu,disk</default> </entry>
+    <entry name="enabledMetrics"    type="String"> <default>cpu,ram</default> </entry>
+    <entry name="enabledPartitions" type="String"> <default></default> </entry>
+    <entry name="partitionOrder"    type="String"> <default></default> </entry>
+    <entry name="showCpuCores"      type="Bool">   <default>true</default> </entry>
 </group>
 <group name="Appearance">
     <entry name="orientation"          type="String"> <default>horizontal</default> </entry>
@@ -25,6 +27,20 @@
     <entry name="customTextColorDark"  type="Color">  <default>#fcfcfc</default> </entry>
 </group>
 ```
+
+`enabledPartitions` is the disk multi-ring selection (CSV of checked
+partition ids). Empty = the backend default: the `disk/all` aggregate
+ring on Plasma (ksysguard exposes no mountpoint, so a "`$HOME` partition"
+default isn't computable there), the `$HOME`-bearing filesystem on
+standalone. `partitionOrder` is the **display order** of all discovered
+partitions (CSV); first = outermost ring, last = innermost. Empty =
+alphabetical by volume label. The picker is a **`DraggableList` nested in
+the disk row** (`MetricsBody`) — drag a handle to reorder, which rewrites
+`partitionOrder`; the checkbox toggles membership in `enabledPartitions`.
+The partition list is fed by `MetricsBody.diskPartitions`, which the
+Plasma config wrapper populates from the shared `platforms/plasma/DiskPartitions.qml`
+adapter (the KCM page has no `MetricsBackend` of its own). The pair mirrors
+`metricOrder` + `enabledMetrics` exactly.
 
 For each `<entry name="X">`, Plasma exposes:
 

@@ -20,8 +20,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms", "plasma", "MetricsBackend.qml"), "utf8");
 
 // Public surface main.qml consumes.
-const PUBLIC_PROPS = ["coreValues", "loading"];
-const PUBLIC_FUNCS = ["metricValue", "metricRawTemp", "metricTempPercent"];
+const PUBLIC_PROPS = ["coreValues", "loading", "availablePartitions", "defaultPartitionIds"];
+const PUBLIC_FUNCS = ["metricValue", "metricRawTemp", "metricTempPercent", "partitionValue"];
 
 // Universal-id sensor instances — sensors whose ksysguard id is the
 // same on every machine. Multi-arity sensors (per-core CPU, per-GPU)
@@ -134,6 +134,18 @@ test("MetricsBackend imports SensorPicking and delegates the 'first ready wins' 
     assert.match(SOURCE, /import\s+["']SensorPicking\.js["']\s+as\s+SensorPicking/, "MetricsBackend.qml must import the same-dir SensorPicking module (platforms/plasma/)");
     const callCount = (SOURCE.match(/SensorPicking\.pickFirstReadyValue\s*\(/g) || []).length;
     assert.equal(callCount, 2, "expected exactly two pickFirstReadyValue call sites (_gpuTempValue, _gpuUsageValue)");
+});
+
+test("MetricsBackend wires disk partitions via the shared DiskPartitions adapter", () => {
+    // Discovery + labels come from DiskPartitions (also used by the config
+    // dialog); a per-partition Sensor Instantiator backs partitionValue(id).
+    assert.match(SOURCE, /DiskPartitions\s*{/, "must instantiate the DiskPartitions discovery adapter");
+    assert.match(SOURCE, /model:\s*diskPartitions\.partitions/, "the disk Instantiator must be driven by the discovered partition list");
+    assert.match(SOURCE, /partId:\s*modelData\.id/, "each disk Sensor delegate must expose its partition id");
+    assert.match(SOURCE, /sensorId:\s*modelData\.sensorId/, "each disk Sensor must bind the discovered usedPercent sensorId");
+    // defaultPartitionIds is empty on Plasma (aggregate fallback — no
+    // mountpoint to match $HOME against).
+    assert.match(SOURCE, /defaultPartitionIds:\s*\[\s*\]/, "Plasma defaultPartitionIds must be empty (aggregate fallback)");
 });
 
 test("loading binding watches the universal aggregates' status", () => {

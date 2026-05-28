@@ -41,6 +41,10 @@ Item {
         function init() {
             body.metricOrderCsv = "cpu,cpuTemp,ram,swap,gpu,gpuTemp,disk";
             body.enabledMetricsCsv = "cpu,ram";
+            body.enabledPartitionsCsv = "";
+            body.partitionOrderCsv = "";
+            body.diskPartitions = [];
+            body.defaultPartitionIds = [];
             body.showCpuCores = false;
             body.mergeCpuTemp = false;
             body.mergeGpuTemp = false;
@@ -106,10 +110,85 @@ Item {
 
         // ── Property surface (catches typos in the bridge spec) ──────
         function test_all_bridged_properties_present() {
-            const keys = ["metricOrderCsv", "enabledMetricsCsv", "showCpuCores", "mergeCpuTemp", "mergeGpuTemp", "tempUnit"];
+            const keys = ["metricOrderCsv", "enabledMetricsCsv", "enabledPartitionsCsv", "partitionOrderCsv", "showCpuCores", "mergeCpuTemp", "mergeGpuTemp", "tempUnit"];
             for (const k of keys) {
                 verify(k in body, "MetricsBody must expose property " + k);
             }
+        }
+
+        // ── Disk partition picker: enabledPartitionsCsv roundtrip ────
+        function test_isPartitionEnabled_reflects_csv() {
+            body.enabledPartitionsCsv = "uuid-a,uuid-c";
+            verify(body.isPartitionEnabled("uuid-a"));
+            verify(!body.isPartitionEnabled("uuid-b"));
+            verify(body.isPartitionEnabled("uuid-c"));
+        }
+
+        function test_setPartitionEnabled_toggles_csv() {
+            body.setPartitionEnabled("uuid-b", true);
+            verify(body.enabledPartitionsCsv.split(",").indexOf("uuid-b") !== -1);
+            body.setPartitionEnabled("uuid-b", false);
+            verify(body.enabledPartitionsCsv.split(",").indexOf("uuid-b") === -1);
+        }
+
+        function test_diskPartitions_property_accepts_injected_list() {
+            // The platform wrapper injects [{id,label}]; the picker renders
+            // one row each. We can't easily count delegates from here, but
+            // the property must round-trip so the binding reaches the list.
+            body.diskPartitions = [{ id: "uuid-a", label: "bazzite" }, { id: "uuid-b", label: "photos" }];
+            compare(body.diskPartitions.length, 2);
+            compare(body.diskPartitions[0].label, "bazzite");
+        }
+
+        // ── Partition order model: default alphabetical + reorder commit ──
+        function test_partition_order_model_defaults_alphabetical() {
+            body.diskPartitions = [{ id: "u-sync", label: "sync" }, { id: "u-baz", label: "bazzite" }, { id: "u-ph", label: "photos" }];
+            body.partitionOrderCsv = "";
+            wait(20);
+            compare(body._partitionOrderModel.count, 3);
+            // Alphabetical by label: bazzite, photos, sync.
+            compare(body._partitionOrderModel.get(0).partId, "u-baz");
+            compare(body._partitionOrderModel.get(1).partId, "u-ph");
+            compare(body._partitionOrderModel.get(2).partId, "u-sync");
+        }
+
+        function test_partition_order_model_respects_saved_csv() {
+            body.diskPartitions = [{ id: "u-sync", label: "sync" }, { id: "u-baz", label: "bazzite" }, { id: "u-ph", label: "photos" }];
+            body.partitionOrderCsv = "u-sync,u-baz,u-ph";
+            wait(20);
+            compare(body._partitionOrderModel.get(0).partId, "u-sync");
+            compare(body._partitionOrderModel.get(1).partId, "u-baz");
+        }
+
+        function test_empty_selection_seeds_the_default() {
+            // SCENARIO (review #5): with no partition selected, the widget
+            // renders the default ($HOME) ring — the picker must reflect it as
+            // a checked row rather than showing everything unchecked. Setting
+            // a non-empty default while the CSV is empty seeds it.
+            body.enabledPartitionsCsv = "";
+            body.diskPartitions = [{ id: "u-baz", label: "bazzite" }, { id: "u-ph", label: "photos" }];
+            body.defaultPartitionIds = ["u-baz"];
+            wait(20);
+            verify(body.isPartitionEnabled("u-baz"), "the default partition must be seeded as enabled");
+        }
+
+        function test_empty_default_does_not_seed() {
+            // Plasma default is [] (aggregate) → nothing seeded, picker stays
+            // unchecked, the disk ring stays the aggregate gauge.
+            body.enabledPartitionsCsv = "";
+            body.diskPartitions = [{ id: "u-baz", label: "bazzite" }];
+            body.defaultPartitionIds = [];
+            wait(20);
+            compare(body.enabledPartitionsCsv, "");
+        }
+
+        function test_commitPartitionOrder_writes_csv_in_model_order() {
+            body.diskPartitions = [{ id: "u-baz", label: "bazzite" }, { id: "u-ph", label: "photos" }];
+            body.partitionOrderCsv = "";
+            wait(20);
+            body.commitPartitionOrder();
+            // Model is alphabetical (bazzite, photos) → CSV reflects it.
+            compare(body.partitionOrderCsv, "u-baz,u-ph");
         }
 
         // ── Temperature unit: property → which radio is checked ─────

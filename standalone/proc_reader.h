@@ -86,4 +86,26 @@ public:
     // the right `tempN_input` through the pure `CpuTempDiscovery`
     // helpers in `core/`. Reused later by GPU discovery (`/sys/class/drm`).
     Q_INVOKABLE QStringList listDir(const QString &path) const;
+
+    // Block-device identity map for the disk multi-partition selector.
+    // Returns { "<device-path>": { "uuid": <fs-uuid>, "label": <volume
+    // label> }, … } by enumerating /dev/disk/by-uuid + /dev/disk/by-label
+    // and resolving each symlink to its device (e.g. /dev/sda3). A device
+    // with no label simply omits the "label" key. Empty map on any failure.
+    //
+    // Used by DiskDiscovery.js to give each mounted filesystem a stable id
+    // (the UUID, matching ksysguard's Plasma-side keying) and a friendly
+    // label (the volume label, e.g. "bazzite") instead of a raw mountpoint.
+    //
+    // Metadata-only (like statvfs): no read() allowlist. It enumerates the
+    // /dev/disk symlink farm — the same listing `ls -l /dev/disk/by-label`
+    // gives any user — and resolves to device paths, not file contents.
+    Q_INVOKABLE QVariantMap blockDeviceInfo() const;
+
+    // Canonical (symlink-resolved) path of the user's home directory.
+    // On rpm-ostree hosts $HOME is /home/<user>, a symlink to
+    // /var/home/<user>; DiskDiscovery needs the resolved path to match
+    // it against the real mountpoints in /proc/mounts when picking the
+    // default partition. Empty string if home can't be resolved.
+    Q_INVOKABLE QString canonicalHome() const;
 };

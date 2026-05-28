@@ -38,6 +38,10 @@ KCM.SimpleKCM {
     property var cfg_metricOrderDefault
     property var cfg_enabledMetrics
     property var cfg_enabledMetricsDefault
+    property var cfg_enabledPartitions
+    property var cfg_enabledPartitionsDefault
+    property var cfg_partitionOrder
+    property var cfg_partitionOrderDefault
     property var cfg_showCpuCores
     property var cfg_showCpuCoresDefault
     property var cfg_mergeCpuTemp
@@ -60,6 +64,15 @@ KCM.SimpleKCM {
     property var cfg_customTextColorLightDefault
     property var cfg_customTextColorDarkDefault
     property var cfg_tempUnitDefault
+    // Update-check keys (handled on the About page via UpdateChecker).
+    property var cfg_checkForUpdatesEnabled
+    property var cfg_checkForUpdatesEnabledDefault
+    property var cfg_lastUpdateCheck
+    property var cfg_lastUpdateCheckDefault
+    property var cfg_latestKnownVersion
+    property var cfg_latestKnownVersionDefault
+    property var cfg_acknowledgedVersion
+    property var cfg_acknowledgedVersionDefault
 
     // ColorPicker is platform-specific (Plasma wraps KQuickControls.ColorButton,
     // standalone wraps a plain Button + QtQuick.Dialogs.ColorDialog).

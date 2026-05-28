@@ -52,6 +52,17 @@ var DIMENSION_RULES = {
 // scaling kicks in.
 var COMFORT_RING_COUNT = 7;
 
+// Equal-thickness concentric rings (disk multi-partition mode) stay at the
+// main ring's full stroke up to this count. Past it the layout shrinks the
+// stroke + gap to keep the stack inside the same envelope — same strategy as
+// COMFORT_RING_COUNT for the thin cores rings, but fewer because each disk
+// ring is as thick as the main ring (0.055 vs 0.017 of size). Beyond
+// DISK_MAX_RING_COUNT the rings are too cramped to read, so the displayed
+// set is capped there (MainContent slices the selection) — which also keeps
+// every radius positive at the minimum ringSize (80).
+var DISK_COMFORT_RING_COUNT = 4;
+var DISK_MAX_RING_COUNT = 6;
+
 function clampPercent(p) {
     if (!isFinite(p)) return 0;
     if (p < 0) return 0;
@@ -140,6 +151,42 @@ function nestedRingLayout(ringRadius, ringStroke, preferredStroke, preferredGap,
     return { stroke: stroke, gap: gap, radii: radii };
 }
 
+// Layout for equal-thickness concentric rings (disk multi-partition mode).
+//
+// Unlike nestedRingLayout (thin rings nested INSIDE a separate main ring),
+// here the outermost ring IS at the main radius — there is no distinct
+// aggregate ring above them. Each partition is one full-stroke ring stepping
+// inward by (stroke + gap). Up to DISK_COMFORT_RING_COUNT the preferred
+// (full) stroke / gap are used; past it, stroke = gap = envelope / (2 × count)
+// so the stack always ends at the same inner radius regardless of partition
+// count (the 1px floor keeps many-partition stacks as distinct bands).
+//
+// Returns:
+//   {
+//     stroke: pixel width of each ring,
+//     gap:    pixel gap between consecutive rings,
+//     radii:  [r0, r1, ...] center radius per ring, outermost first
+//             (radii[0] === ringRadius — the main-ring position).
+//   }
+function equalRingLayout(ringRadius, preferredStroke, preferredGap, count) {
+    if (!isFinite(count) || count <= 0) return { stroke: 0, gap: 0, radii: [] };
+    var stroke, gap;
+    if (count <= DISK_COMFORT_RING_COUNT) {
+        stroke = preferredStroke;
+        gap = preferredGap;
+    } else {
+        var envelope = DISK_COMFORT_RING_COUNT * (preferredStroke + preferredGap);
+        var unit = Math.max(1, envelope / (2 * count));
+        stroke = unit;
+        gap = unit;
+    }
+    var radii = [];
+    for (var i = 0; i < count; i++) {
+        radii.push(ringRadius - i * (stroke + gap));
+    }
+    return { stroke: stroke, gap: gap, radii: radii };
+}
+
 if (typeof module !== "undefined" && module.exports) {
     module.exports = {
         BASE_START_ANGLE: BASE_START_ANGLE,
@@ -149,6 +196,8 @@ if (typeof module !== "undefined" && module.exports) {
         HALF_SWEEP_ANGLE: HALF_SWEEP_ANGLE,
         SPLIT_GAP_ANGLE: SPLIT_GAP_ANGLE,
         COMFORT_RING_COUNT: COMFORT_RING_COUNT,
+        DISK_COMFORT_RING_COUNT: DISK_COMFORT_RING_COUNT,
+        DISK_MAX_RING_COUNT: DISK_MAX_RING_COUNT,
         clampPercent: clampPercent,
         sweepForPercent: sweepForPercent,
         effectiveHalfSweep: effectiveHalfSweep,
@@ -156,5 +205,6 @@ if (typeof module !== "undefined" && module.exports) {
         rightHalfSweepFor: rightHalfSweepFor,
         dimensionsFor: dimensionsFor,
         nestedRingLayout: nestedRingLayout,
+        equalRingLayout: equalRingLayout,
     };
 }

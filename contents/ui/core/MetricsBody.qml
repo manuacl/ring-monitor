@@ -3,6 +3,7 @@ import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import "ReorderLogic.js" as Logic
 import "MetricsCatalog.js" as Catalog
+import "DiskMetrics.js" as DiskMetrics
 
 // Body of the Metrics config page. Owns the reorderable list, the
 // internal ListModel, and the per-row UI (CheckBox + drag handle +
@@ -22,10 +23,23 @@ ColumnLayout {
 
     // ── Adapter input ───────────────────────────────────────────────
     property var theme
+    // Discovered disk partitions ([{id, label}]) injected by the platform
+    // wrapper (Plasma: configMetrics via DiskPartitions; standalone:
+    // SettingsDialog via the backend). Drives the per-partition checkboxes
+    // under the disk row.
+    property var diskPartitions: []
+    // The backend's default partition selection (standalone: the $HOME-bearing
+    // filesystem; Plasma: [] = aggregate). When the user hasn't selected
+    // anything yet, the picker seeds enabledPartitions with this so the
+    // default renders as a real, checked, editable row instead of showing the
+    // widget's $HOME ring with every checkbox unchecked.
+    property var defaultPartitionIds: []
 
     // ── Bridged via aliases in the wrapper (cfg_metricOrder ↔ body.metricOrderCsv, etc.) ──
     property string metricOrderCsv: ""
     property string enabledMetricsCsv: ""
+    property string enabledPartitionsCsv: ""
+    property string partitionOrderCsv: ""
     property bool showCpuCores: false
     property bool mergeCpuTemp: false
     property bool mergeGpuTemp: false
@@ -34,6 +48,12 @@ ColumnLayout {
     // ── Internal — the displayed order is a ListModel built from metricOrderCsv ──
     ListModel {
         id: orderModel
+    }
+
+    // Parallel model for the disk partition reorder list (built from
+    // partitionOrderCsv merged with the discovered diskPartitions).
+    ListModel {
+        id: partitionOrderModel
     }
 
     // Descriptions are owned by the body so it stays self-contained.
@@ -45,7 +65,7 @@ ColumnLayout {
             swap: qsTr("Swap usage"),
             gpu: qsTr("GPU usage"),
             gpuTemp: qsTr("GPU temperature"),
-            disk: qsTr("Disk space used (all partitions)")
+            disk: qsTr("Disk space per selected partition")
         })
 
     function currentOrder() {
@@ -88,8 +108,59 @@ ColumnLayout {
             body.mergeGpuTemp = false;
     }
 
+    function isPartitionEnabled(id) {
+        return Catalog.parseCsv(body.enabledPartitionsCsv).indexOf(id) !== -1;
+    }
+
+    function setPartitionEnabled(id, on) {
+        body.enabledPartitionsCsv = Catalog.toggleEnabled(Catalog.parseCsv(body.enabledPartitionsCsv), id, on).join(",");
+    }
+
+    function currentPartitionOrder() {
+        const arr = [];
+        for (let i = 0; i < partitionOrderModel.count; i++)
+            arr.push(partitionOrderModel.get(i).partId);
+        return arr;
+    }
+
+    // Rebuild the partition reorder model: saved order first, then
+    // newly-discovered partitions appended alphabetically (the default).
+    function loadPartitionOrder() {
+        partitionOrderModel.clear();
+        const ordered = DiskMetrics.orderPartitions(body.partitionOrderCsv, body.diskPartitions || []);
+        for (let i = 0; i < ordered.length; i++) {
+            partitionOrderModel.append({
+                partId: ordered[i].id,
+                partLabel: ordered[i].label
+            });
+        }
+    }
+
+    function commitPartitionOrder() {
+        body.partitionOrderCsv = currentPartitionOrder().join(",");
+    }
+
+    // Seed the selection with the backend default when nothing is chosen yet,
+    // so the picker reflects what the widget actually renders (the default
+    // ring) as a checked, editable row. Empty selection = always the default
+    // (the disk metric shows ≥1 partition); to hide it, disable the metric.
+    function _seedDefaultIfEmpty() {
+        if (body.enabledPartitionsCsv === "" && body.defaultPartitionIds && body.defaultPartitionIds.length > 0)
+            body.enabledPartitionsCsv = body.defaultPartitionIds.join(",");
+    }
+
     onMetricOrderCsvChanged: loadOrder()
-    Component.onCompleted: loadOrder()
+    onPartitionOrderCsvChanged: loadPartitionOrder()
+    onDiskPartitionsChanged: {
+        loadPartitionOrder();
+        _seedDefaultIfEmpty();
+    }
+    onDefaultPartitionIdsChanged: _seedDefaultIfEmpty()
+    Component.onCompleted: {
+        loadOrder();
+        loadPartitionOrder();
+        _seedDefaultIfEmpty();
+    }
 
     Layout.fillWidth: true
     spacing: body.theme ? body.theme.smallSpacing : 4
@@ -140,6 +211,8 @@ ColumnLayout {
                         return cpuTempMergeToggle;
                     if (_metricId === "gpuTemp")
                         return gpuTempMergeToggle;
+                    if (_metricId === "disk")
+                        return diskPartitionsPicker;
                     return null;
                 }
             }
@@ -239,8 +312,62 @@ ColumnLayout {
         }
     }
 
+    // Reorderable list of discovered filesystems — checked partitions render
+    // as equal-thickness concentric rings inside the disk gauge, in this
+    // list's order (top = outermost ring, bottom = innermost). Default order
+    // is alphabetical by label; drag the handle to reorder. Empty selection
+    // falls back to the backend default (the $HOME filesystem on standalone;
+    // the disk/all aggregate on Plasma). A hint shows when no partitions were
+    // discovered (e.g. the config dialog ran before ksysguard populated the
+    // tree). This DraggableList is nested inside the disk row's extraContent,
+    // which is itself indented inside the metrics DraggableList — the inner
+    // drag handle sits to the right of the outer one, so the two don't fight.
+    Component {
+        id: diskPartitionsPicker
+        ColumnLayout {
+            spacing: body.theme ? body.theme.smallSpacing : 4
+            QQC2.Label {
+                visible: partitionOrderModel.count === 0
+                text: qsTr("No partitions detected.")
+                opacity: 0.7
+            }
+            DraggableList {
+                id: partitionList
+                visible: partitionOrderModel.count > 0
+                // No explicit dragKey: DraggableList auto-scopes each instance,
+                // so this nested list and the outer metrics list don't fire
+                // each other's DropAreas.
+                Layout.fillWidth: true
+                Layout.preferredHeight: implicitHeight
+                model: partitionOrderModel
+                rowHeight: body.theme ? body.theme.unit * 1.6 : 28
+                smallSpacing: body.theme ? body.theme.smallSpacing : 4
+                iconSize: body.theme ? body.theme.iconSize : 16
+                highlightColor: body.theme ? body.theme.highlightColor : "#3daee9"
+                backgroundColor: body.theme ? body.theme.backgroundColor : "#1e1e1e"
+
+                rowContent: Component {
+                    QQC2.CheckBox {
+                        readonly property string _partId: parent && parent.rowModel ? parent.rowModel.partId : ""
+                        text: parent && parent.rowModel ? parent.rowModel.partLabel : ""
+                        checked: body.isPartitionEnabled(_partId)
+                        onClicked: body.setPartitionEnabled(_partId, checked)
+                    }
+                }
+
+                onReordered: function (from, to) {
+                    // ListModel.move reorders in place (keeps partId/partLabel),
+                    // then commit serializes the new model order to the CSV.
+                    partitionOrderModel.move(from, to, 1);
+                    body.commitPartitionOrder();
+                }
+            }
+        }
+    }
+
     // ── Test hooks ──────────────────────────────────────────────────
     readonly property alias _orderModel: orderModel
+    readonly property alias _partitionOrderModel: partitionOrderModel
     readonly property alias _list: list
     readonly property alias _tempUnitAuto: tempUnitAuto
     readonly property alias _tempUnitCelsius: tempUnitCelsius

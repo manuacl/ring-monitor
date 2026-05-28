@@ -33,6 +33,10 @@ KCM.SimpleKCM {
     property var cfg_metricOrderDefault
     property var cfg_enabledMetrics
     property var cfg_enabledMetricsDefault
+    property var cfg_enabledPartitions
+    property var cfg_enabledPartitionsDefault
+    property var cfg_partitionOrder
+    property var cfg_partitionOrderDefault
     property var cfg_showCpuCores
     property var cfg_showCpuCoresDefault
     property var cfg_mergeCpuTemp

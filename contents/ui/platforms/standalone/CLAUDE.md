@@ -16,7 +16,7 @@ under "Standalone target — backend choice".
 |---|---|---|
 | `Main.qml` | Frameless transparent `Window` root + Conky-style hints (X11 / XWayland) | PR B1 (placeholder) + PR C (X11 EWMH hints in `standalone/desktop_hints.cpp`) + **PR F1 ✓ — `Core.MainContent` renders the actual rings** |
 | `SettingsOnlyRoot.qml` | Recovery-mode QML root loaded when the binary runs with `--open-settings`. Hosts only the `SettingsDialog` (no rings, no MetricsBackend). | **PR #37 follow-up ✓** |
-| `MetricsBackend.qml` | Direct reads from `/proc/stat`, `/proc/meminfo`, `statvfs(3)`, hwmon/thermal sysfs, NVML | **PR D: CPU usage (`/proc/stat`) ✓** ; **PR E: RAM (`/proc/meminfo`) + disk (`statvfs(/)`) ✓** ; **CPU temp (hwmon / thermal-zone via `CpuTempDiscovery.js`) ✓** ; **NVIDIA GPU usage + temp (NVML via `NvmlReader`) ✓** ; **swap (`/proc/meminfo` `SwapTotal`/`SwapFree`, incl. zram) ✓** ; AMD/Intel GPU (sysfs) post-MVP |
+| `MetricsBackend.qml` | Direct reads from `/proc/stat`, `/proc/meminfo`, `/proc/mounts` + `statvfs(3)`, hwmon/thermal sysfs, NVML | **PR D: CPU usage (`/proc/stat`) ✓** ; **PR E: RAM (`/proc/meminfo`) ✓** ; **CPU temp (hwmon / thermal-zone via `CpuTempDiscovery.js`) ✓** ; **NVIDIA GPU usage + temp (NVML via `NvmlReader`) ✓** ; **swap (`/proc/meminfo` `SwapTotal`/`SwapFree`, incl. zram) ✓** ; **disk: per-filesystem multi-partition rings (`/proc/mounts` + `statvfs` via `DiskDiscovery.js`, deduped by device, `$HOME` default) ✓ — replaced the broken `statvfs("/")` composefs hardcode** ; AMD/Intel GPU (sysfs) post-MVP |
 | `ConfigStore.qml` | `Qt.labs.settings` reader/writer | **PR F1 ✓ — Settings root, defaults mirror `main.xml`** ; **PR F2 ✓ — SettingsDialog drives writes through this instance** |
 | `SettingsDialog.qml` | Tabbed `Window` wrapping `core/MetricsBody` + `core/AppearanceBody` + `core/AboutBody`; opened via right-click on the widget or the update-available badge | **PR F2 ✓** |
 | `Theme.qml` | Kirigami theme tokens + Qt.styleHints light/dark | **PR F1 ✓ — mirrors the Plasma adapter byte-for-byte** |
@@ -164,41 +164,52 @@ the new prefix.
 
 `statvfs()` does NOT carry an allowlist (intentional asymmetry):
 it's a filesystem-metadata syscall, and `df -h /any/path` from the
-user's terminal returns the same numbers. If a future per-mount
-selector lands, the input still goes through `realpath(3)` on the
-QML side for display purposes (see the disk-metric section below)
-rather than via a syscall-side allowlist.
+user's terminal returns the same numbers. The disk multi-partition
+selector reads `statvfs(<mountpoint>)` for each selected filesystem.
 
-### Disk metric: known limitations of `statvfs(3)`
+`blockDeviceInfo()` and `canonicalHome()` are the same metadata-only,
+allowlist-free shape as `statvfs` (they enumerate the `/dev/disk`
+symlink farm and resolve `$HOME` — the same listing `ls -l
+/dev/disk/by-label` / `readlink ~` give any user, no file contents).
+They back the disk multi-partition discovery: `blockDeviceInfo()`
+returns `{ "/dev/sdaN": { uuid, label } }` (UUID = the stable partition
+id, label = the volume name shown in the picker), and `canonicalHome()`
+resolves `/home/<user>` → `/var/home/<user>` so `DiskDiscovery` can
+match `$HOME` against the real mountpoints for the default selection.
 
-`MetricsBackend.qml` calls `reader.statvfs(backend._diskMount)`
-(default `"/"`) and renders the result through
-`MemInfoParser.diskUsagePercent`. Two caveats inherent to `statvfs`
-itself that we explicitly accept rather than work around:
+### Disk metric: per-filesystem discovery (multi-partition ring)
 
-1. **Symlinks are followed.** `statvfs("/data")` where `/data → /mnt/big`
-   silently reports `/mnt/big`'s numbers. Users won't normally hit
-   this with the `/` default; flagged for the future per-mount
-   selector — the UI should resolve the path with `realpath(3)` and
-   display the canonical form so what's queried matches what's shown.
+The disk ring is **one equal-thickness concentric ring per selected
+mounted filesystem**, centre = their average. `MetricsBackend.qml`
+discovers filesystems from `/proc/mounts` (via `ProcReader.read`),
+deduplicates them by device through `DiskDiscovery.js`, and reads each
+selected partition's usage with `reader.statvfs(<mountpoint>)` +
+`MemInfoParser.diskUsagePercent` (df(1)'s formula). Selection persists
+as the `enabledPartitions` CSV; empty = the `$HOME`-bearing filesystem.
 
-2. **Bind mounts / btrfs subvols / overlayfs are not detected.** On
-   Bazzite (our documented target) `/` is a **composefs read-only
-   overlay** on the rpm-ostree image — `statvfs("/")` reports a tiny
-   image (~47M) that is **always ~100% full**, so the disk ring is
-   stuck near 100% and tells the user nothing. Real user storage is
-   `/var` (and `/var/home`), a separate btrfs filesystem entirely. So
-   the hardcoded `_diskMount: "/"` is *actively wrong* on every
-   rpm-ostree host, not just imprecise. (For non-overlay roots
-   `statvfs` instead reports the whole btrfs pool rather than a
-   per-subvol quota — the milder version of the same problem; same
-   for `mount --bind` setups and container/OCI overlay roots.) The
-   real fix is **per-mount selection** — the planned multi-partition
-   disk feature (one ring per mounted filesystem). If a user reports
-   "disk ring shows 100% / wrong size", the cause is here. A
-   `statfs(2)` `f_type` check (`OVERLAYFS_SUPER_MAGIC`,
-   `BTRFS_SUPER_MAGIC`, `TMPFS_MAGIC`) is how the discovery layer will
-   skip pseudo/overlay filesystems.
+Identity + labels: each partition's **id** is its fs UUID and its
+**label** is the volume label, both resolved by
+`ProcReader.blockDeviceInfo()` (walks `/dev/disk/by-uuid` +
+`/dev/disk/by-label`, readlinks to the device). This mirrors ksysguard's
+Plasma-side keying (UUID + volume name), so the two platforms label the
+same filesystem identically (e.g. "bazzite").
+
+**Why dedup by device matters (the composefs trap, now fixed).** The old
+`statvfs("/")` hardcode was *actively wrong* on every rpm-ostree host:
+on Bazzite `/` is a **composefs read-only overlay** (~47M, always
+~100% full), while real storage is the btrfs root mounted at `/var`,
+`/var/home`, `/etc`, `/sysroot`, … — **one device, five mountpoints**.
+`DiskDiscovery.parseMounts` drops the overlay (its device field isn't a
+`/dev` path, so the `/dev/` prefix test excludes composefs/tmpfs/fuse in
+one rule), and `buildPartitions` collapses the five sda3 mounts into a
+single "bazzite" partition — exactly what ksysguard shows. `squashfs` is
+additionally skipped (loop-mounted system images).
+
+Remaining `statvfs` caveats we accept: it follows symlinks and reports
+per-*filesystem* (not per-subvol/quota) numbers — `df /var/home` and
+`df /var` return the same total because they're the same btrfs volume.
+That's correct for "how full is the disk my files live on", which is the
+question the ring answers.
 
 The class lives at global scope (not in `ringmonitor::`) because
 Qt 6's QML auto-registration generates code calling

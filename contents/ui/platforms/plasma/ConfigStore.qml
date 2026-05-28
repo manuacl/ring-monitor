@@ -23,6 +23,10 @@ Item {
     // ── Metrics group (see contents/config/main.xml) ────────────────
     readonly property string metricOrder: Plasmoid.configuration.metricOrder
     readonly property string enabledMetrics: Plasmoid.configuration.enabledMetrics
+    // Selected disk partition ids (empty = aggregate disk/all ring on Plasma).
+    readonly property string enabledPartitions: Plasmoid.configuration.enabledPartitions
+    // All discovered partition ids in display order (first = outermost ring).
+    readonly property string partitionOrder: Plasmoid.configuration.partitionOrder
     readonly property bool showCpuCores: Plasmoid.configuration.showCpuCores
     readonly property bool mergeCpuTemp: Plasmoid.configuration.mergeCpuTemp
     readonly property bool mergeGpuTemp: Plasmoid.configuration.mergeGpuTemp

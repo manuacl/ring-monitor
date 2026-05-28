@@ -117,7 +117,7 @@ test('isSplitForBase: non-cpu/gpu base ids never split', () => {
 
 test('classifyDiscoveredIds: empty input → empty buckets', () => {
     const out = Catalog.classifyDiscoveredIds([]);
-    assert.deepEqual(out, { coreUsageIds: [], gpuTempIds: [], gpuUsageIds: [] });
+    assert.deepEqual(out, { coreUsageIds: [], gpuTempIds: [], gpuUsageIds: [], diskPartitionUsageIds: [] });
 });
 
 test('classifyDiscoveredIds: routes ids into the right buckets', () => {
@@ -138,6 +138,41 @@ test('classifyDiscoveredIds: routes ids into the right buckets', () => {
     assert.deepEqual(out.coreUsageIds, ["cpu/cpu0/usage", "cpu/cpu1/usage"]);
     assert.deepEqual(out.gpuTempIds, ["gpu/gpu0/temperature", "gpu/gpu1/temperature"]);
     assert.deepEqual(out.gpuUsageIds, ["gpu/gpu0/usage"]);
+    assert.deepEqual(out.diskPartitionUsageIds, []);  // disk/all is excluded; no per-fs ids here
+});
+
+test('classifyDiscoveredIds: buckets per-filesystem disk usedPercent, excludes disk/all', () => {
+    // ksysguard keys mounted filesystems by UUID and only emits usedPercent
+    // for them — physical disks (disk/sda/…) have read/write but no
+    // usedPercent. The disk/all aggregate stays a static sensor, so it must
+    // NOT land in the per-partition bucket.
+    const out = Catalog.classifyDiscoveredIds([
+        "disk/6286e04e-b217-43bf-834f-d6a054ac4376/usedPercent",
+        "disk/0af30554-3219-445a-b6f7-e02910a91469/usedPercent",
+        "disk/all/usedPercent",          // aggregate — excluded
+        "disk/sda/read",                  // physical disk — no usedPercent
+        "disk/6286e04e-b217-43bf-834f-d6a054ac4376/free"  // not usedPercent
+    ]);
+    assert.deepEqual(out.diskPartitionUsageIds, [
+        "disk/0af30554-3219-445a-b6f7-e02910a91469/usedPercent",
+        "disk/6286e04e-b217-43bf-834f-d6a054ac4376/usedPercent"
+    ]);
+});
+
+test('classifyDiscoveredIds: ignores the regex subscription node behind disk/all', () => {
+    // SCENARIO: the SensorTreeModel surfaces a regex *matcher* node —
+    // `disk/(?!all).*/usedPercent` (the "all disks except 'all'"
+    // subscription that defines the disk/all aggregate). It is NOT a real
+    // filesystem; a [^/]+ middle segment wrongly matched it and rendered a
+    // phantom "(?!all).*" checkbox in the picker. The id-char restriction
+    // ([A-Za-z0-9_-]) excludes it while keeping UUID partitions.
+    const out = Catalog.classifyDiscoveredIds([
+        "disk/(?!all).*/usedPercent",
+        "disk/6286e04e-b217-43bf-834f-d6a054ac4376/usedPercent"
+    ]);
+    assert.deepEqual(out.diskPartitionUsageIds, [
+        "disk/6286e04e-b217-43bf-834f-d6a054ac4376/usedPercent"
+    ]);
 });
 
 test('classifyDiscoveredIds: natural sort puts cpu10 after cpu9', () => {
@@ -170,7 +205,7 @@ test('classifyDiscoveredIds: ignores ids that do not match any bucket pattern', 
         "garbage",
         ""
     ]);
-    assert.deepEqual(out, { coreUsageIds: [], gpuTempIds: [], gpuUsageIds: [] });
+    assert.deepEqual(out, { coreUsageIds: [], gpuTempIds: [], gpuUsageIds: [], diskPartitionUsageIds: [] });
 });
 
 test('labelFor returns the abbreviation for known ids', () => {

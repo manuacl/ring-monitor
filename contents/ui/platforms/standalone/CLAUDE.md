@@ -16,13 +16,56 @@ under "Standalone target — backend choice".
 |---|---|---|
 | `Main.qml` | Frameless transparent `Window` root + Conky-style hints (X11 / XWayland) | PR B1 (placeholder) + PR C (X11 EWMH hints in `standalone/desktop_hints.cpp`) + **PR F1 ✓ — `Core.MainContent` renders the actual rings** |
 | `SettingsOnlyRoot.qml` | Recovery-mode QML root loaded when the binary runs with `--open-settings`. Hosts only the `SettingsDialog` (no rings, no MetricsBackend). | **PR #37 follow-up ✓** |
-| `MetricsBackend.qml` | Direct reads from `/proc/stat`, `/proc/meminfo`, `statvfs(3)` | **PR D: CPU usage (`/proc/stat`) ✓** ; **PR E: RAM (`/proc/meminfo`) + disk (`statvfs(/)`) ✓** ; GPU + temps post-MVP |
+| `MetricsBackend.qml` | Direct reads from `/proc/stat`, `/proc/meminfo`, `statvfs(3)`, hwmon/thermal sysfs | **PR D: CPU usage (`/proc/stat`) ✓** ; **PR E: RAM (`/proc/meminfo`) + disk (`statvfs(/)`) ✓** ; **CPU temp (hwmon / thermal-zone via `CpuTempDiscovery.js`) ✓** ; GPU + swap post-MVP |
 | `ConfigStore.qml` | `Qt.labs.settings` reader/writer | **PR F1 ✓ — Settings root, defaults mirror `main.xml`** ; **PR F2 ✓ — SettingsDialog drives writes through this instance** |
 | `SettingsDialog.qml` | Tabbed `Window` wrapping `core/MetricsBody` + `core/AppearanceBody` + `core/AboutBody`; opened via right-click on the widget or the update-available badge | **PR F2 ✓** |
 | `Theme.qml` | Kirigami theme tokens + Qt.styleHints light/dark | **PR F1 ✓ — mirrors the Plasma adapter byte-for-byte** |
 | `ThemedIcon.qml` | wraps `Kirigami.Icon` (same as Plasma adapter) | **PR F1 ✓ — one-liner mirror of the Plasma adapter** |
 | `ColorPicker.qml` | wraps a plain `QQC2.AbstractButton` + `QtQuick.Dialogs.ColorDialog` (the Plasma adapter wraps `KQuickControls.ColorButton`, which is not a runtime dep of the standalone build) | **PR F2 ✓** |
 | `Autostart` (C++ in `standalone/autostart.{h,cpp}`, registered via `QML_ELEMENT`) | Writes / removes `~/.config/autostart/dev.manuacl.ringmonitor.desktop` so the user can toggle "Start on login" from the Settings dialog. Plasma side uses plasmashell instead, so the toggle is hidden there (`AboutBody.autostartAvailable` gated). | **PR G ✓** |
+
+## Platform-only pure logic lives here, not in `core/`
+
+Besides the adapters, this directory holds the **standalone-only pure
+logic**: `ProcStatParser.js` (`/proc/stat` → CPU %), `MemInfoParser.js`
+(`/proc/meminfo` + disk %), `CpuTempDiscovery.js` (hwmon/thermal CPU-temp
+sensor discovery). They're pure + Node-tested like any `core/*.js`, but
+they sit here because only the standalone backend reads `/proc` + sysfs —
+keeping them in `core/` would ship them as dead weight in the `.plasmoid`
+package. (Mirror of `platforms/plasma/SensorPicking.js`.) Placement rule:
+[`../../core/CLAUDE.md`](../../core/CLAUDE.md) § "Logic in dedicated
+`.js` files".
+
+## New QML/JS files must be added to `CMakeLists.txt` `QML_FILES`
+
+The standalone binary compiles every `.qml` / `.js` into the
+`RingMonitor.Standalone` module via an **explicit** `QML_FILES` list in
+`qt_add_qml_module`. A new `core/*.js` or `core/*.qml` (or
+`platforms/standalone/*.qml`) that isn't added to that list is not in
+the module: any `import` of it fails, the QML root fails to load, and
+the binary **exits `1` with no diagnostic** (silent
+`rootObjects().isEmpty()` bail in `standalone/main.cpp`). The Plasma
+build is unaffected (it loads from the filesystem / plasmoid package),
+so this is a standalone-only trap. Guarded by
+`tests/standalone-qml-module.test.mjs`.
+
+## `qmllint` Info lines on the C++ `ProcReader` helper are benign
+
+Running `qmllint-qt6` on `MetricsBackend.qml` emits, for every
+`reader.read(...)` / `reader.statvfs(...)` / `reader.listDir(...)`
+call:
+
+```
+Info: Member "read" not found on type "ProcReader" [missing-property]
+```
+
+This is **not** a failure. `ProcReader` is a C++ type registered via
+`QML_ELEMENT`; its type metadata only exists inside the CMake build, so
+the standalone `qmllint` invocation (run without that build context)
+can't see the `Q_INVOKABLE` methods. The lines are severity `Info`, and
+**qmllint still exits 0** — the pre-commit/CI/finish-branch gates gate
+on the exit code, not the Info output. Don't try to silence or "fix"
+them.
 
 ## File-reading helper
 
@@ -373,11 +416,15 @@ compositors as a degraded-but-visible baseline.
 Same rule as everywhere in this repo, but the standalone seam is
 where it bites hardest. Every line of logic duplicated between
 `platforms/plasma/` and `platforms/standalone/` is a line that has
-to be fixed twice. When extracting something from a Plasma adapter
-for reuse here, push the pure part down into `core/*.js` first
-(example: [`SensorPicking.js`](../../core/SensorPicking.js) was
-extracted from the Plasma `MetricsBackend.qml` ahead of building
-this layer).
+to be fixed twice. When you find logic that BOTH platforms need,
+push the pure part down into `core/*.js` so it's written and tested
+once. Logic only one platform needs still goes into a pure,
+Node-tested `.js` module — it just lives beside that platform's
+adapter (e.g. [`SensorPicking.js`](../plasma/SensorPicking.js) is
+plasma-only, so it sits in `platforms/plasma/`; the `/proc` parsers
++ `CpuTempDiscovery.js` here are standalone-only). The placement
+rule: [`../../core/CLAUDE.md`](../../core/CLAUDE.md) § "Logic in
+dedicated `.js` files".
 
 The `core/` invariant (no `org.kde.*` except Kirigami) is the
 mechanised floor — but the rule is broader. Even inside what's

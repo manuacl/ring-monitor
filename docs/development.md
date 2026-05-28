@@ -54,12 +54,30 @@ cmake --build build
 ./build/ring-monitor-standalone
 ```
 
-Headless smoke test (no display required — useful from CI later):
+Headless smoke test (no display required — confirms the QML root
+loads, e.g. after relocating a module or editing `QML_FILES`):
 
 ```bash
-QT_QPA_PLATFORM=offscreen ./build/ring-monitor-standalone &
-sleep 2 && kill %1
+QT_QPA_PLATFORM=offscreen timeout 4 ./build/ring-monitor-standalone
+echo "exit=$?"
 ```
+
+Read the exit code: **124** = `timeout` killed a still-running process
+= the QML root loaded and the app stayed up (success). **1** = the app
+returned early — `rootObjects().isEmpty()`, i.e. the QML root failed to
+load (commonly a file missing from `QML_FILES`, see
+[`../contents/ui/platforms/standalone/CLAUDE.md`](../contents/ui/platforms/standalone/CLAUDE.md)).
+Note this bail is **silent** (no stderr), so the exit code is the
+signal, not the log.
+
+**Footgun when relaunching:** don't `pkill -f ring-monitor-standalone`
+from the same shell line that then launches it — `pkill -f` matches
+against full command lines and will match (and kill) your own launching
+command, so the new instance never survives (you'll see exit `144`).
+Kill the old instance by PID (`pkill` in its own separate command, or
+`kill <pid>`), then launch in a fresh command. Also respect the
+≥30 s spacing between relaunches (kwin soft-hang risk — see the
+standalone `CLAUDE.md`).
 
 What you currently see: a 320×480 frameless transparent window
 with a translucent blue rectangle. PR C added the X11 EWMH hints

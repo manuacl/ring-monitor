@@ -54,8 +54,8 @@ status=0
 shopt -s nullglob
 for f in contents/ui/*.qml contents/ui/*.js \
          contents/ui/core/*.qml contents/ui/core/*.js \
-         contents/ui/platforms/plasma/*.qml \
-         contents/ui/platforms/standalone/*.qml \
+         contents/ui/platforms/plasma/*.qml contents/ui/platforms/plasma/*.js \
+         contents/ui/platforms/standalone/*.qml contents/ui/platforms/standalone/*.js \
          standalone/*.cpp \
          tests/*.test.mjs tests/qml/*.qml; do
     lines=$(wc -l < "$f")
@@ -145,7 +145,13 @@ equivalent in the pipeline — check them here.
 **3a. Every `.js` module has its paired test file.**
 
 ```bash
-for js in contents/ui/core/*.js; do
+# Pure logic lives in core/ (shared) AND platforms/<p>/ (platform-only,
+# e.g. standalone's /proc parsers, plasma's SensorPicking) — every .js
+# in any of these needs its paired test regardless of directory.
+for js in contents/ui/core/*.js \
+          contents/ui/platforms/plasma/*.js \
+          contents/ui/platforms/standalone/*.js; do
+    [ -e "$js" ] || continue
     base=$(basename "$js" .js)
     # Convention: CamelCase.js → kebab-case.test.mjs
     # (see RingGeometry.js → ring-geometry.test.mjs)
@@ -167,8 +173,8 @@ possible (e.g. `foo ? 'a:b' : 'c'`) — re-read each match.
 grep -nE '\?[^?]*\?[^:]*:[^:]*:' \
     contents/ui/*.qml contents/ui/*.js \
     contents/ui/core/*.qml contents/ui/core/*.js \
-    contents/ui/platforms/plasma/*.qml \
-    contents/ui/platforms/standalone/*.qml \
+    contents/ui/platforms/plasma/*.qml contents/ui/platforms/plasma/*.js \
+    contents/ui/platforms/standalone/*.qml contents/ui/platforms/standalone/*.js \
     standalone/*.cpp \
     tests/*.test.mjs tests/qml/*.qml \
     2>/dev/null && echo "FAIL: possibly nested ternaries (re-read matches)"
@@ -214,7 +220,7 @@ changed=$(git diff --name-only origin/main...HEAD)
 echo "$changed"
 
 # 4a. Every modified or added .js must have its .test.mjs touched too.
-for js in $(echo "$changed" | grep '^contents/ui/\(core/\)\?.*\.js$'); do
+for js in $(echo "$changed" | grep '^contents/ui/.*\.js$'); do
     base=$(basename "$js" .js)
     kebab=$(echo "$base" | sed 's/\([a-z0-9]\)\([A-Z]\)/\1-\2/g' | tr '[:upper:]' '[:lower:]')
     test_file="tests/${kebab}.test.mjs"
@@ -247,7 +253,7 @@ done
 
 # 4c. New logic module (.js) → add a stub entry in docs/logic-modules.md
 # if missing.
-for js in $(git diff --name-only --diff-filter=A origin/main...HEAD | grep '^contents/ui/\(core/\)\?.*\.js$'); do
+for js in $(git diff --name-only --diff-filter=A origin/main...HEAD | grep '^contents/ui/.*\.js$'); do
     base=$(basename "$js" .js)
     if ! grep -q "$base" docs/logic-modules.md 2>/dev/null; then
         echo "CREATE: docs/logic-modules.md entry for $base (stub)"

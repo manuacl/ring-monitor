@@ -27,18 +27,23 @@ ring-monitor/
 │       │   ├── DraggableList.qml       — reusable drag-to-reorder ListView (uses Platform.ThemedIcon)
 │       │   ├── MetricsBody.qml         — body of the Metrics page
 │       │   ├── AppearanceBody.qml      — body of the Appearance page
-│       │   ├── ReorderLogic.js         — pure: drag math (testable)
-│       │   ├── MetricsCatalog.js       — pure: metric data + CSV helpers
-│       │   ├── RingGeometry.js         — pure: ring stroke/radius/sweep math
-│       │   └── SensorPicking.js        — pure: first-ready-wins sensor picking
-│       └── platforms/                  — host-specific adapters (one subdir per target)
+│       │   ├── ReorderLogic.js         — pure (shared): drag math (testable)
+│       │   ├── MetricsCatalog.js       — pure (shared): metric data + CSV helpers
+│       │   ├── RingGeometry.js         — pure (shared): ring stroke/radius/sweep math
+│       │   └── UpdateCheck.js          — pure (shared): version compare + check TTL
+│       └── platforms/                  — host-specific adapters + platform-only pure logic
 │           ├── plasma/                  — Plasma adapters (single home of org.kde.* imports)
 │           │   ├── Theme.qml            — re-exposes Kirigami theme tokens
 │           │   ├── ThemedIcon.qml       — wraps Kirigami.Icon
 │           │   ├── ConfigStore.qml      — re-exposes Plasmoid.configuration as typed properties
-│           │   └── MetricsBackend.qml   — wraps KSysGuard sensor instances
+│           │   ├── MetricsBackend.qml   — wraps KSysGuard sensor instances
+│           │   └── SensorPicking.js     — pure (plasma-only): first-ready-wins sensor picking
 │           └── standalone/              — standalone adapters (no Plasma deps; /proc + sysfs)
-│               └── Main.qml             — frameless transparent Window root (placeholder for now)
+│               ├── Main.qml             — frameless transparent Window root
+│               ├── MetricsBackend.qml   — polls /proc + sysfs via the ProcReader C++ helper
+│               ├── ProcStatParser.js    — pure (standalone-only): /proc/stat → CPU %
+│               ├── MemInfoParser.js     — pure (standalone-only): /proc/meminfo + disk %
+│               └── CpuTempDiscovery.js  — pure (standalone-only): hwmon/thermal CPU-temp discovery
 ├── tests/
 │   ├── reorder-logic.test.mjs
 │   ├── metrics-catalog.test.mjs

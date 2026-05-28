@@ -87,6 +87,14 @@ editing.
   `tests/qml/tst_<Name>.qml`. Use `SCENARIO:` tests to encode
   reported bugs as regression guards. Layout, naming and patterns:
   [`tests/CLAUDE.md`](tests/CLAUDE.md).
+- **Pure-logic placement follows usage, not just purity.** Shared by
+  both platforms ⇒ `core/*.js`. Used by one platform only ⇒ that
+  platform's `platforms/<p>/` dir, beside its adapter — keeping
+  platform-only logic in `core/` ships it as dead code in the other
+  artifact (the `.plasmoid` zip, or the standalone CMake module).
+  Don't default everything to `core/`. Full rule + the current split:
+  [`contents/ui/core/CLAUDE.md`](contents/ui/core/CLAUDE.md) §
+  "Logic in dedicated `.js` files".
 
 ## Design principles (SOLID, QML-adapted)
 

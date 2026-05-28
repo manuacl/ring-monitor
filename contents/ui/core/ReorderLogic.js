@@ -7,10 +7,7 @@
 //   - Node tests require it via the `module.exports` shim at the bottom.
 //
 // Keep this file dependency-free: no QML types, no DOM, no Qt globals.
-//
-// We intentionally don't use `.pragma library` because that's QML-only
-// syntax and would break the Node test runner. The functions here are
-// pure so per-import state isn't an issue.
+// No `.pragma library` (QML-only, breaks Node).
 
 function computeDropTarget(mouseY, rowStep, count) {
     if (count <= 0) return 0;

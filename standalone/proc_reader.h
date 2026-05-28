@@ -16,6 +16,7 @@
 
 #include <QObject>
 #include <QString>
+#include <QStringList>
 #include <QVariantMap>
 #include <QtQmlIntegration/QtQmlIntegration>
 
@@ -68,4 +69,21 @@ public:
     // reservation as "used" and report a non-zero usage on a
     // freshly-formatted empty filesystem.
     Q_INVOKABLE QVariantMap statvfs(const QString &path) const;
+
+    // Directory listing. Returns the entry names (not full paths) of
+    // `path` — both subdirectories and files, excluding `.` and `..` —
+    // on success; an empty list on any failure (missing directory, no
+    // permission, **or path outside the `/proc/` / `/sys/` allowlist
+    // after `QDir::cleanPath`**). Same dev-time-sanity rationale and
+    // allowlist as `read()`: the widget runs as the user, so `ls`
+    // reaches the same entries — the guard just keeps a typo'd path
+    // greppable instead of silently enumerating elsewhere.
+    //
+    // Exists for CPU-temperature discovery: the sysfs path of the CPU
+    // sensor is not fixed (the `hwmonN` numbering and which chip owns
+    // the CPU temperature both vary by machine), so the QML side
+    // enumerates `/sys/class/hwmon` + `/sys/class/thermal` and resolves
+    // the right `tempN_input` through the pure `CpuTempDiscovery`
+    // helpers in `core/`. Reused later by GPU discovery (`/sys/class/drm`).
+    Q_INVOKABLE QStringList listDir(const QString &path) const;
 };

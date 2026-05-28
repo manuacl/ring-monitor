@@ -77,6 +77,62 @@ test("standalone MetricsBackend exposes ram + disk through metricValue", () => {
     assert.match(SOURCE, /id\s*===\s*["']disk["']/, "metricValue must branch on id === 'disk'");
 });
 
+test("standalone MetricsBackend wires CPU temperature via CpuTempDiscovery", () => {
+    // CPU temp has no fixed sysfs path — the backend enumerates
+    // /sys/class/hwmon (+ /sys/class/thermal fallback) and delegates
+    // the "which entry is the CPU" decision to the pure module.
+    assert.match(SOURCE, /import\s+["']CpuTempDiscovery\.js["']\s+as\s+CpuTemp/, "must import the same-dir CpuTempDiscovery module (platforms/standalone/)");
+    assert.match(SOURCE, /reader\.listDir\s*\(/, "must enumerate sysfs via ProcReader.listDir");
+    assert.match(SOURCE, /\/sys\/class\/hwmon/, "must scan /sys/class/hwmon");
+    assert.match(SOURCE, /\/sys\/class\/thermal/, "must fall back to /sys/class/thermal");
+    assert.match(SOURCE, /CpuTemp\.pickCpuHwmonDir\s*\(/, "must pick the CPU hwmon chip via the pure helper");
+    assert.match(SOURCE, /CpuTemp\.pickCpuTempInput\s*\(/, "must pick the CPU temp input via the pure helper");
+    assert.match(SOURCE, /CpuTemp\.pickCpuThermalZone\s*\(/, "must pick the CPU thermal zone via the pure helper");
+    assert.match(SOURCE, /CpuTemp\.parseTempCelsius\s*\(/, "must parse the millidegrees reading via the pure helper");
+});
+
+test("standalone MetricsBackend exposes cpuTemp as a raw-°C metric", () => {
+    // MainContent treats cpuTemp (Catalog.isTempMetric) as raw °C from
+    // metricValue, and uses metricRawTemp('cpu') + metricTempPercent('cpu')
+    // for the merged split ring — both must be wired.
+    assert.match(SOURCE, /id\s*===\s*["']cpuTemp["']/, "metricValue must branch on id === 'cpuTemp'");
+    assert.match(SOURCE, /function\s+metricRawTemp[\s\S]*?id\s*===\s*["']cpu["'][\s\S]*?_coercedCpuTempC/, "metricRawTemp('cpu') must return the coerced °C");
+    assert.match(SOURCE, /function\s+metricTempPercent[\s\S]*?Catalog\.tempToPercent\s*\(/, "metricTempPercent must map through Catalog.tempToPercent");
+});
+
+test("standalone MetricsBackend coerces an unresolved cpuTemp to 0 (same-surface with Plasma)", () => {
+    // _cpuTempC is NaN until a sensor resolves; the public surface must
+    // return 0 then, matching the Plasma adapter (valueFromSensorMap
+    // returns 0 for an unread sensor). Otherwise a consumer doing
+    // arithmetic gets NaN on standalone but 0 on Plasma.
+    //
+    // Assert intent (the function exists, tests finiteness of _cpuTempC,
+    // and yields 0 otherwise), not the exact ternary spelling — so a
+    // harmless rewrite / qmlformat reflow doesn't red the guard.
+    const body = SOURCE.match(/function\s+_coercedCpuTempC\s*\(\s*\)\s*{([\s\S]*?)}/);
+    assert.ok(body, "must declare function _coercedCpuTempC()");
+    assert.match(body[1], /isFinite/, "_coercedCpuTempC must finiteness-check before returning");
+    assert.match(body[1], /_cpuTempC/, "_coercedCpuTempC must read _cpuTempC");
+    assert.match(body[1], /\b0\b/, "_coercedCpuTempC must yield 0 when not finite");
+    // metricValue('cpuTemp') and metricRawTemp('cpu') route through the
+    // coercer rather than returning raw _cpuTempC.
+    assert.match(SOURCE, /["']cpuTemp["'][\s\S]{0,60}_coercedCpuTempC/, "metricValue('cpuTemp') must return the coerced value");
+});
+
+test("standalone MetricsBackend re-resolves the temp path within a bounded warm-up window", () => {
+    // A hwmon driver modprobed shortly after autostart (login before the
+    // sensor modules load) must be picked up — but a machine with NO CPU
+    // temp sensor must not re-walk /sys forever. So the retry is bounded:
+    // resolve while empty AND under a max attempt count, then give up.
+    assert.match(SOURCE, /property\s+int\s+_cpuTempMaxResolveAttempts/, "must declare a bounded max-attempts property");
+    assert.match(
+        SOURCE,
+        /!\s*backend\._cpuTempPath\s*&&\s*backend\._cpuTempResolveAttempts\s*<\s*backend\._cpuTempMaxResolveAttempts/,
+        "_sample must gate the re-resolve on both an empty path AND the attempt bound",
+    );
+    assert.match(SOURCE, /_cpuTempResolveAttempts\+\+|_cpuTempResolveAttempts\s*=\s*backend\._cpuTempResolveAttempts\s*\+\s*1/, "must increment the attempt counter so the retry terminates");
+});
+
 test("standalone MetricsBackend polls on a Timer", () => {
     // Polling cadence: once per second is the contract documented in
     // platforms/standalone/CLAUDE.md. Use the interval value as the

@@ -90,6 +90,9 @@ qt_add_qml_module(ring-monitor-standalone
         contents/ui/platforms/standalone/ConfigStore.qml
         contents/ui/platforms/standalone/SettingsDialog.qml
         contents/ui/platforms/standalone/ColorPicker.qml
+        contents/ui/platforms/standalone/ProcStatParser.js
+        contents/ui/platforms/standalone/MemInfoParser.js
+        contents/ui/platforms/standalone/CpuTempDiscovery.js
         contents/ui/core/Ring.qml
         contents/ui/core/MainContent.qml
         contents/ui/core/DraggableList.qml
@@ -98,13 +101,10 @@ qt_add_qml_module(ring-monitor-standalone
         contents/ui/core/AppearanceBody.qml
         contents/ui/core/MetricsBody.qml
         contents/ui/core/UpdateChecker.qml
-        contents/ui/core/ProcStatParser.js
-        contents/ui/core/MemInfoParser.js
         contents/ui/core/MetricsCatalog.js
         contents/ui/core/ColorThemes.js
         contents/ui/core/ReorderLogic.js
         contents/ui/core/RingGeometry.js
-        contents/ui/core/SensorPicking.js
         contents/ui/core/UpdateCheck.js
 )
 

@@ -36,18 +36,32 @@ Full rationale and the file-by-file inventory:
 
 ## Logic in dedicated `.js` files, views thin
 
-Pure logic lives in `core/*.js` (dual-loadable by QML and Node — no
+Pure logic lives in dual-loadable `.js` modules (QML + Node — no
 `pragma library` so the Node-side `module.exports` shim at the bottom
-works). QML files consume them via
-`import "./X.js" as X` and act as thin views. The current modules:
+works). QML files consume them via `import "X.js" as X` and act as
+thin views.
 
-- `MetricsCatalog.js` — metric ids, labels, sensor mapping, helpers.
-- `ColorThemes.js` — theme registry + color resolution.
-- `ReorderLogic.js` — drag-and-drop array transforms.
-- `RingGeometry.js` — sweep / radius / nested-ring layout math.
+**Placement follows usage, not just purity** (the dead-code rule):
 
-Always tested: every `.js` here has a matching `tests/<kebab-case>.test.mjs`.
-See [`tests/CLAUDE.md`](../../../tests/CLAUDE.md) for the naming and
+- **Shared by both platforms → `core/`.** A module imported by a
+  `core/*.qml` view (or by both backends) belongs here. Current:
+  - `MetricsCatalog.js` — metric ids, labels, sensor mapping, helpers.
+  - `ColorThemes.js` — theme registry + color resolution.
+  - `ReorderLogic.js` — drag-and-drop array transforms.
+  - `RingGeometry.js` — sweep / radius / nested-ring layout math.
+  - `UpdateCheck.js` — update-check version compare + TTL.
+- **Used by only one platform → that platform's `../platforms/<p>/`
+  directory, beside its adapter.** Keeping platform-specific logic in
+  `core/` ships it as dead weight to the other artifact (the `.plasmoid`
+  zip, or the standalone CMake-compiled module). So:
+  - `../platforms/standalone/{ProcStatParser,MemInfoParser,CpuTempDiscovery}.js`
+    — only the standalone `MetricsBackend` reads `/proc` + sysfs.
+  - `../platforms/plasma/SensorPicking.js` — only the Plasma
+    `MetricsBackend` picks among KSysGuard sensor candidates.
+
+Always tested regardless of directory: every `.js` (here or under
+`platforms/`) has a matching `tests/<kebab-case>.test.mjs`. See
+[`tests/CLAUDE.md`](../../../tests/CLAUDE.md) for the naming and
 patterns.
 
 ## Component-side gotchas

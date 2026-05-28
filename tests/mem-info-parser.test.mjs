@@ -6,7 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 const require = createRequire(import.meta.url);
-const Parser = require("../contents/ui/core/MemInfoParser.js");
+const Parser = require("../contents/ui/platforms/standalone/MemInfoParser.js");
 
 // ── parseMemInfo ────────────────────────────────────────────────────
 

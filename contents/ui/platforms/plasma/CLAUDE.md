@@ -21,6 +21,15 @@ One file per Plasma seam. Keep each adapter **focused and surgical**:
   seam).
 - `ColorPicker.qml` wraps `org.kde.kquickcontrols.ColorButton`.
 
+This directory also hosts **Plasma-only pure logic** (not just
+adapters): `SensorPicking.js` (first-ready-wins among KSysGuard sensor
+candidates) lives here rather than in `core/` because only the Plasma
+backend consumes it — keeping it in `core/` would ship it as dead code
+in the standalone binary. Same placement rule in the other direction
+for `platforms/standalone/` (the `/proc` parsers). See
+[`../core/CLAUDE.md`](../core/CLAUDE.md) § "Logic in dedicated `.js`
+files".
+
 The contract:
 1. The adapter is the **only** place its Plasma import is allowed.
 2. The public surface (named properties / functions) is what `core/`

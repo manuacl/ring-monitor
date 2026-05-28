@@ -22,9 +22,10 @@ import "../../core/MetricsCatalog.js" as Catalog
 // adapter — same rule that drove the `SensorPicking` extraction
 // (see [feedback-maximize-shared-code] memory).
 //
-// Scope: CPU usage (aggregate + per-core), RAM, disk, and CPU
-// temperature (hwmon / thermal-zone via CpuTempDiscovery). GPU (sysfs
-// DRM + `nvidia-smi`) and swap land post-MVP.
+// Scope: CPU usage (aggregate + per-core), RAM, disk, CPU temperature
+// (hwmon / thermal-zone via CpuTempDiscovery), and NVIDIA GPU usage +
+// temperature (NVML via the NvmlReader C++ helper). AMD/Intel GPU
+// (sysfs) and swap land in a follow-up.
 
 Item {
     id: backend
@@ -63,33 +64,39 @@ Item {
             return backend._ramUsage;
         if (id === "disk")
             return backend._diskUsage;
-        // cpuTemp is a raw-°C metric (Catalog.isTempMetric): MainContent
-        // reads metricValue for the centre text and runs it through
-        // tempToPercent itself for the sweep — same contract the Plasma
-        // adapter satisfies via valueFromSensorMap(sensorMap, "cpuTemp").
+        if (id === "gpu")
+            return backend._gpuUsage;
+        // cpuTemp / gpuTemp are raw-°C metrics (Catalog.isTempMetric):
+        // MainContent reads metricValue for the centre text and runs it
+        // through tempToPercent itself for the sweep — same contract the
+        // Plasma adapter satisfies via valueFromSensorMap(sensorMap, id).
         if (id === "cpuTemp")
-            return backend._coercedCpuTempC();
-        // swap / GPU return 0 — added post-MVP.
+            return backend._coerceTemp(backend._cpuTempC);
+        if (id === "gpuTemp")
+            return backend._coerceTemp(backend._gpuTempC);
+        // swap returns 0 — added post-MVP.
         return 0;
     }
 
-    // Raw °C for the split-mode right half (cpu ring merged with its
-    // temperature). gpuTemp returns 0 until GPU support lands.
+    // Raw °C for the split-mode right half (a usage ring merged with its
+    // temperature) — cpu and gpu both supported.
     function metricRawTemp(id) {
         backend._tick;
         if (id === "cpu")
-            return backend._coercedCpuTempC();
+            return backend._coerceTemp(backend._cpuTempC);
+        if (id === "gpu")
+            return backend._coerceTemp(backend._gpuTempC);
         return 0;
     }
 
-    // _cpuTempC carries NaN internally until a sensor is resolved (and
-    // read). Coerce it to 0 at the public surface so this adapter
-    // matches the Plasma one byte-for-byte: there
-    // valueFromSensorMap(...) returns 0 for an unread/missing sensor, so
-    // a consumer doing arithmetic on the value never sees NaN on one
-    // host and 0 on the other.
-    function _coercedCpuTempC() {
-        return isFinite(backend._cpuTempC) ? backend._cpuTempC : 0;
+    // A temp property carries NaN internally until its sensor is resolved
+    // (and read). Coerce it to 0 at the public surface so this adapter
+    // matches the Plasma one byte-for-byte: there valueFromSensorMap(...)
+    // returns 0 for an unread/missing sensor, so a consumer doing
+    // arithmetic on the value never sees NaN on one host and 0 on the
+    // other. Generalised over cpuTemp/gpuTemp (any future raw-°C metric).
+    function _coerceTemp(celsius) {
+        return isFinite(celsius) ? celsius : 0;
     }
 
     function metricTempPercent(id) {
@@ -102,6 +109,12 @@ Item {
         id: reader
     }
 
+    // NVIDIA GPU via NVML (dlopen'd libnvidia-ml). available:false on
+    // non-NVIDIA hosts — AMD/Intel sysfs land in a follow-up.
+    NvmlReader {
+        id: gpuReader
+    }
+
     property var _prev: null  // {all, cores} from the previous /proc/stat sample
     property real _aggregateUsage: 0
     property var _coreUsage: []
@@ -110,7 +123,7 @@ Item {
     // Resolved lazily over a short warm-up window (the hwmonN numbering
     // + owning chip are machine-specific — see CpuTempDiscovery.js).
     // "" while unresolved; _cpuTempC then stays NaN, coerced to 0 at the
-    // public surface by _coercedCpuTempC.
+    // public surface by _coerceTemp.
     property string _cpuTempPath: ""
     property real _cpuTempC: NaN
     // Bounded retry: a hwmon driver (coretemp/k10temp/…) can be modprobed
@@ -120,6 +133,10 @@ Item {
     // hardware) must NOT re-walk /sys every second for the whole session.
     property int _cpuTempResolveAttempts: 0
     readonly property int _cpuTempMaxResolveAttempts: 30  // ~30s at the 1Hz Timer
+    // GPU (NVIDIA/NVML). _gpuUsage is a 0-100 percent; _gpuTempC is raw °C
+    // (NaN until/unless NVML reports it, coerced to 0 at the surface).
+    property real _gpuUsage: 0
+    property real _gpuTempC: NaN
 
     // Walk /sys/class/hwmon, then fall back to /sys/class/thermal, and
     // return the sysfs file to read each tick — or "" if none. All the
@@ -228,6 +245,17 @@ Item {
         }
         if (backend._cpuTempPath)
             backend._cpuTempC = CpuTemp.parseTempCelsius(reader.read(backend._cpuTempPath));
+        // ── NVML (NVIDIA GPU usage + temperature) ───────────────────
+        // NVML calls are microseconds, so this is a synchronous per-tick
+        // read on the GUI thread (the reason we chose the library over a
+        // nvidia-smi subprocess — no spawn, no frame drop). On a
+        // non-NVIDIA host sample() reports available:false and we leave
+        // _gpuUsage at 0 / _gpuTempC at NaN (→ 0 at the surface).
+        var gpu = gpuReader.sample();
+        if (gpu.available) {
+            backend._gpuUsage = gpu.usage;
+            backend._gpuTempC = gpu.tempC;
+        }
         // Bump _tick last so all readonly properties depending on it
         // re-evaluate together after every metric has its fresh value.
         backend._tick++;

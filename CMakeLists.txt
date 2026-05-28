@@ -81,6 +81,8 @@ qt_add_qml_module(ring-monitor-standalone
         standalone/autostart.h
         standalone/window_anchor.cpp
         standalone/window_anchor.h
+        standalone/nvml_reader.cpp
+        standalone/nvml_reader.h
     QML_FILES
         contents/ui/platforms/standalone/Main.qml
         contents/ui/platforms/standalone/SettingsOnlyRoot.qml
@@ -115,6 +117,10 @@ target_link_libraries(ring-monitor-standalone PRIVATE
     Qt6::Quick
     Qt6::QuickControls2
     PkgConfig::XCB
+    # dlopen/dlsym/dlclose for NvmlReader's runtime load of
+    # libnvidia-ml.so.1. ${CMAKE_DL_LIBS} is -ldl on glibc, empty on
+    # platforms where dl* live in libc — portable either way.
+    ${CMAKE_DL_LIBS}
 )
 
 # Hand the metadata.json version to the C++ side so

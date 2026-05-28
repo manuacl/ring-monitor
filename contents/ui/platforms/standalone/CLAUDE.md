@@ -16,7 +16,7 @@ under "Standalone target — backend choice".
 |---|---|---|
 | `Main.qml` | Frameless transparent `Window` root + Conky-style hints (X11 / XWayland) | PR B1 (placeholder) + PR C (X11 EWMH hints in `standalone/desktop_hints.cpp`) + **PR F1 ✓ — `Core.MainContent` renders the actual rings** |
 | `SettingsOnlyRoot.qml` | Recovery-mode QML root loaded when the binary runs with `--open-settings`. Hosts only the `SettingsDialog` (no rings, no MetricsBackend). | **PR #37 follow-up ✓** |
-| `MetricsBackend.qml` | Direct reads from `/proc/stat`, `/proc/meminfo`, `statvfs(3)`, hwmon/thermal sysfs | **PR D: CPU usage (`/proc/stat`) ✓** ; **PR E: RAM (`/proc/meminfo`) + disk (`statvfs(/)`) ✓** ; **CPU temp (hwmon / thermal-zone via `CpuTempDiscovery.js`) ✓** ; GPU + swap post-MVP |
+| `MetricsBackend.qml` | Direct reads from `/proc/stat`, `/proc/meminfo`, `statvfs(3)`, hwmon/thermal sysfs, NVML | **PR D: CPU usage (`/proc/stat`) ✓** ; **PR E: RAM (`/proc/meminfo`) + disk (`statvfs(/)`) ✓** ; **CPU temp (hwmon / thermal-zone via `CpuTempDiscovery.js`) ✓** ; **NVIDIA GPU usage + temp (NVML via `NvmlReader`) ✓** ; AMD/Intel GPU (sysfs) + swap post-MVP |
 | `ConfigStore.qml` | `Qt.labs.settings` reader/writer | **PR F1 ✓ — Settings root, defaults mirror `main.xml`** ; **PR F2 ✓ — SettingsDialog drives writes through this instance** |
 | `SettingsDialog.qml` | Tabbed `Window` wrapping `core/MetricsBody` + `core/AppearanceBody` + `core/AboutBody`; opened via right-click on the widget or the update-available badge | **PR F2 ✓** |
 | `Theme.qml` | Kirigami theme tokens + Qt.styleHints light/dark | **PR F1 ✓ — mirrors the Plasma adapter byte-for-byte** |
@@ -35,6 +35,42 @@ keeping them in `core/` would ship them as dead weight in the `.plasmoid`
 package. (Mirror of `platforms/plasma/SensorPicking.js`.) Placement rule:
 [`../../core/CLAUDE.md`](../../core/CLAUDE.md) § "Logic in dedicated
 `.js` files".
+
+## NVIDIA GPU via NVML (`dlopen`), not `nvidia-smi`
+
+`NvmlReader` (`standalone/nvml_reader.{h,cpp}`, a `QML_ELEMENT` like
+`ProcReader`) reads GPU usage + temperature from **NVML**
+(`libnvidia-ml`) — the C library `nvidia-smi` itself wraps, and what
+nvtop / btop / Conky / KDE's `ksystemstats` use. We deliberately do
+**not** shell out to `nvidia-smi`: a per-poll process spawn is ~20 ms
+(a dropped frame at 60 fps) and churns fork/exec; NVML calls are
+microseconds, so `NvmlReader.sample()` runs synchronously in the 1 Hz
+`_sample()` with no GUI-thread jank.
+
+Load-bearing details:
+
+- **`dlopen("libnvidia-ml.so.1")`** — the SONAME, which ships with the
+  driver. **Not** linked at build time and **not** the bare `.so` dev
+  symlink. So the binary builds with no NVIDIA toolkit and runs on
+  AMD/Intel boxes: `dlopen` fails → `sample()` returns
+  `available:false` → the GPU metric just stays 0. Never a hard
+  dependency. Text-guarded by `tests/nvml-reader.test.mjs`.
+- **NVML types are self-declared** in `nvml_reader.cpp` (opaque `void*`
+  handle, `{uint gpu; uint memory}` util struct, `NVML_TEMPERATURE_GPU`
+  = 0) — no `nvml.h` / CUDA header dependency. The btop/conky approach;
+  the handful of signatures + the struct layout are stable NVML ABI.
+- `nvmlInit_v2` is lazy (one-time ~150 ms driver handshake on the first
+  `sample()`), the device-0 handle is cached, `nvmlShutdown` runs in the
+  dtor. Each field (`nvmlDeviceGetUtilizationRates` /
+  `nvmlDeviceGetTemperature`) is committed independently so one
+  transient query failure doesn't drop the whole sample.
+- Links `${CMAKE_DL_LIBS}` (libdl) — see `CMakeLists.txt`.
+
+**AMD/Intel GPU is a follow-up:** AMD usage is sysfs
+(`/sys/class/drm/card*/device/gpu_busy_percent`) + amdgpu hwmon temp —
+readable through the existing `ProcReader`, no library; Intel usage
+needs i915 perf (elevated perms), so Intel would be temp-only first.
+The vendor-detection seam lands with that PR.
 
 ## New QML/JS files must be added to `CMakeLists.txt` `QML_FILES`
 

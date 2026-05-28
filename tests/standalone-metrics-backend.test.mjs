@@ -96,27 +96,41 @@ test("standalone MetricsBackend exposes cpuTemp as a raw-°C metric", () => {
     // metricValue, and uses metricRawTemp('cpu') + metricTempPercent('cpu')
     // for the merged split ring — both must be wired.
     assert.match(SOURCE, /id\s*===\s*["']cpuTemp["']/, "metricValue must branch on id === 'cpuTemp'");
-    assert.match(SOURCE, /function\s+metricRawTemp[\s\S]*?id\s*===\s*["']cpu["'][\s\S]*?_coercedCpuTempC/, "metricRawTemp('cpu') must return the coerced °C");
+    assert.match(SOURCE, /function\s+metricRawTemp[\s\S]*?id\s*===\s*["']cpu["'][\s\S]*?_coerceTemp/, "metricRawTemp('cpu') must return the coerced °C");
     assert.match(SOURCE, /function\s+metricTempPercent[\s\S]*?Catalog\.tempToPercent\s*\(/, "metricTempPercent must map through Catalog.tempToPercent");
 });
 
-test("standalone MetricsBackend coerces an unresolved cpuTemp to 0 (same-surface with Plasma)", () => {
-    // _cpuTempC is NaN until a sensor resolves; the public surface must
+test("standalone MetricsBackend coerces an unresolved temp to 0 (same-surface with Plasma)", () => {
+    // A temp sensor reads NaN until resolved; the public surface must
     // return 0 then, matching the Plasma adapter (valueFromSensorMap
     // returns 0 for an unread sensor). Otherwise a consumer doing
     // arithmetic gets NaN on standalone but 0 on Plasma.
     //
-    // Assert intent (the function exists, tests finiteness of _cpuTempC,
-    // and yields 0 otherwise), not the exact ternary spelling — so a
-    // harmless rewrite / qmlformat reflow doesn't red the guard.
-    const body = SOURCE.match(/function\s+_coercedCpuTempC\s*\(\s*\)\s*{([\s\S]*?)}/);
-    assert.ok(body, "must declare function _coercedCpuTempC()");
-    assert.match(body[1], /isFinite/, "_coercedCpuTempC must finiteness-check before returning");
-    assert.match(body[1], /_cpuTempC/, "_coercedCpuTempC must read _cpuTempC");
-    assert.match(body[1], /\b0\b/, "_coercedCpuTempC must yield 0 when not finite");
-    // metricValue('cpuTemp') and metricRawTemp('cpu') route through the
-    // coercer rather than returning raw _cpuTempC.
-    assert.match(SOURCE, /["']cpuTemp["'][\s\S]{0,60}_coercedCpuTempC/, "metricValue('cpuTemp') must return the coerced value");
+    // Assert intent (a coercer that finiteness-checks its arg and yields
+    // 0 otherwise), not the exact ternary spelling — so a harmless
+    // rewrite / qmlformat reflow doesn't red the guard.
+    const body = SOURCE.match(/function\s+_coerceTemp\s*\(\s*\w+\s*\)\s*{([\s\S]*?)}/);
+    assert.ok(body, "must declare function _coerceTemp(celsius)");
+    assert.match(body[1], /isFinite/, "_coerceTemp must finiteness-check before returning");
+    assert.match(body[1], /\b0\b/, "_coerceTemp must yield 0 when not finite");
+    // The cpuTemp / gpuTemp metric branches route through the coercer
+    // rather than returning the raw NaN-bearing property.
+    assert.match(SOURCE, /["']cpuTemp["'][\s\S]{0,60}_coerceTemp/, "metricValue('cpuTemp') must return the coerced value");
+    assert.match(SOURCE, /["']gpuTemp["'][\s\S]{0,60}_coerceTemp/, "metricValue('gpuTemp') must return the coerced value");
+});
+
+test("standalone MetricsBackend wires NVIDIA GPU usage + temperature via NvmlReader", () => {
+    // GPU comes from the NVML C++ helper (dlopen'd libnvidia-ml), not a
+    // subprocess. The adapter instantiates it, samples each tick, and
+    // only commits values when the sample is available (non-NVIDIA hosts
+    // report available:false → metrics stay 0).
+    assert.match(SOURCE, /NvmlReader\s*{/, "must instantiate the NvmlReader QML element");
+    assert.match(SOURCE, /import\s+RingMonitor\.Standalone/, "must import RingMonitor.Standalone (where NvmlReader is registered)");
+    assert.match(SOURCE, /\.sample\s*\(\s*\)/, "must call NvmlReader.sample()");
+    assert.match(SOURCE, /\.available\b/, "must gate on the sample's available flag");
+    assert.match(SOURCE, /id\s*===\s*["']gpu["'][\s\S]*?_gpuUsage/, "metricValue('gpu') must return GPU usage");
+    assert.match(SOURCE, /id\s*===\s*["']gpuTemp["']/, "metricValue must branch on id === 'gpuTemp'");
+    assert.match(SOURCE, /function\s+metricRawTemp[\s\S]*?id\s*===\s*["']gpu["'][\s\S]*?_coerceTemp/, "metricRawTemp('gpu') must return the coerced GPU °C");
 });
 
 test("standalone MetricsBackend re-resolves the temp path within a bounded warm-up window", () => {

@@ -1,0 +1,67 @@
+#pragma once
+
+// QML-callable NVIDIA GPU reader for the standalone build, backed by
+// NVML (the NVIDIA Management Library, libnvidia-ml) — the same C
+// library `nvidia-smi` itself wraps, and what nvtop / btop / Conky /
+// KDE's ksystemstats use. We DON'T shell out to `nvidia-smi`: a per-poll
+// process spawn is ~20ms (a dropped frame at 60fps) and churns
+// fork/exec; NVML calls are microseconds and run synchronously in the
+// 1Hz sampler with no GUI-thread jank.
+//
+// The library is loaded with `dlopen("libnvidia-ml.so.1")` at runtime
+// (the SONAME, always shipped with the driver — not the dev `.so`
+// symlink), so there is:
+//   - no build-time dependency on the CUDA/NVML headers (the handful of
+//     NVML symbols + types are self-declared in nvml_reader.cpp, the
+//     btop/conky approach), and
+//   - no hard link against libnvidia-ml: on an AMD/Intel-only box where
+//     the library is absent, `dlopen` simply fails and `sample()`
+//     reports `available:false` instead of the binary failing to start.
+//
+// Registered to QML via `QML_ELEMENT` (picked up by
+// `qt_add_qml_module(... SOURCES nvml_reader.cpp …)`), exactly like
+// `ProcReader`. Available in QML as
+// `import RingMonitor.Standalone; NvmlReader { id: gpu }`.
+
+#include <QObject>
+#include <QVariantMap>
+#include <QtQmlIntegration/QtQmlIntegration>
+
+// Global scope (not in `ringmonitor::`) for the same reason as
+// `ProcReader`: Qt's `QML_ELEMENT` auto-registration emits
+// `qmlRegisterTypesAndRevisions<NvmlReader>(…)` without
+// namespace-qualifying the type. See proc_reader.h for the full
+// rationale.
+class NvmlReader : public QObject
+{
+    Q_OBJECT
+    QML_ELEMENT
+
+public:
+    explicit NvmlReader(QObject *parent = nullptr) : QObject(parent) {}
+    ~NvmlReader() override;
+
+    // One GPU sample for device 0. Returns:
+    //   { "available": bool, "usage": int (0-100 %), "tempC": int (°C) }
+    // `available` is false (and usage/tempC 0) when NVML can't be loaded
+    // or initialised (no NVIDIA driver / library, or a query failed) —
+    // callers treat that exactly like a sensor that isn't present. NVML
+    // is lazily initialised on the first call (one-time ~150ms driver
+    // handshake) and the device handle is cached; subsequent calls are
+    // microsecond-cheap, safe to invoke from the GUI thread each tick.
+    Q_INVOKABLE QVariantMap sample();
+
+private:
+    bool ensureInit();   // dlopen + dlsym + nvmlInit, once; returns _ready
+
+    void *_lib = nullptr;      // dlopen handle for libnvidia-ml.so.1
+    void *_device = nullptr;   // cached nvmlDevice_t for index 0
+    bool _tried = false;       // init attempted (success or failure)
+    bool _ready = false;       // NVML loaded + initialised + device handle ok
+
+    // Resolved NVML entry points (typed in the .cpp to keep NVML's
+    // self-declared typedefs out of the header).
+    void *_fnShutdown = nullptr;
+    void *_fnGetUtil = nullptr;
+    void *_fnGetTemp = nullptr;
+};

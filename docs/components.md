@@ -242,7 +242,7 @@ not just CPU. New child-bearing metrics get it for free by setting
 
 `tests/qml/tst_MetricRow.qml` pins each rule:
 
-- Label rendering per id (`CPU`, `RAM`, `SWAP`, `GPU`, `DISK`, unknown
+- Label rendering per id (`CPU`, `RAM`, `SWAP`, `GPU`, `DISKS`, unknown
   → uppercase fallback).
 - Description passthrough, default empty.
 - `_checked` mirrors `enabled`, click emits `toggled(true/false)`.
@@ -265,6 +265,7 @@ Generic vertical list with drag-to-reorder, deferred commit.
 | `rowSpacing` | gap between rows |
 | `rowContent` | `Component` for the row content; the loaded root reads `parent.rowModel` / `parent.rowIndex` (see below) |
 | `showHandle` | toggle the move icon on the left |
+| `dragKey` | drag-and-drop scope key (default `"row"`), applied to each row's `Drag.keys` and every `DropArea.keys`. **Required when one `DraggableList` is nested inside another's rows** (the disk-partition picker inside the metrics list, `dragKey: "diskPartition"`): an unkeyed `DropArea` accepts *any* drag source (Qt), so two unscoped lists cross-fire — the inner drag floats but never reorders because the outer list's `DropArea`s swallow the drop. |
 | `highlightColor` | active-row border + tint (default `"#3daee9"`) — inject via `platforms/plasma/Theme.highlightColor` |
 | `backgroundColor` | dragged-row fill (default `"#1e1e1e"`) — inject via `platforms/plasma/Theme.backgroundColor` |
 | `smallSpacing` | inner row padding (default `4`) — inject via `platforms/plasma/Theme.smallSpacing` |
@@ -444,6 +445,8 @@ future reader) consumes `configStore.X` instead of reaching into
 |---|---|---|
 | `metricOrder` | `string` | `Plasmoid.configuration.metricOrder` |
 | `enabledMetrics` | `string` | `Plasmoid.configuration.enabledMetrics` |
+| `enabledPartitions` | `string` | `Plasmoid.configuration.enabledPartitions` (checked disk partitions; empty = aggregate ring on Plasma / `$HOME` FS on standalone) |
+| `partitionOrder` | `string` | `Plasmoid.configuration.partitionOrder` (disk partition display order; first = outermost ring; empty = alphabetical) |
 | `showCpuCores` | `bool` | `Plasmoid.configuration.showCpuCores` |
 | `mergeCpuTemp` | `bool` | `Plasmoid.configuration.mergeCpuTemp` (hide `cpuTemp` ring, render it as the right half of the `cpu` ring) |
 | `mergeGpuTemp` | `bool` | `Plasmoid.configuration.mergeGpuTemp` (same for the GPU pair) |

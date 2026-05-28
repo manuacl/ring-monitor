@@ -183,16 +183,22 @@ itself that we explicitly accept rather than work around:
    display the canonical form so what's queried matches what's shown.
 
 2. **Bind mounts / btrfs subvols / overlayfs are not detected.** On
-   Bazzite (our documented target) `/` is a btrfs subvol on an
-   rpm-ostree composed tree; `statvfs` reports "size of the whole
-   btrfs pool", not the per-subvol quota a user might expect. Same
-   story for overlay roots (containers, OCI bundles) and `mount
-   --bind` setups. Long-term fix is `statfs(2)` (note: different
-   syscall) checking `f_type` to detect `BTRFS_SUPER_MAGIC`,
-   `OVERLAYFS_SUPER_MAGIC`, `TMPFS_MAGIC`, and either warning or
-   exposing a per-mount selector — out of scope for the MVP. If a
-   user reports "disk ring shows wrong size on my btrfs", the cause
-   is here.
+   Bazzite (our documented target) `/` is a **composefs read-only
+   overlay** on the rpm-ostree image — `statvfs("/")` reports a tiny
+   image (~47M) that is **always ~100% full**, so the disk ring is
+   stuck near 100% and tells the user nothing. Real user storage is
+   `/var` (and `/var/home`), a separate btrfs filesystem entirely. So
+   the hardcoded `_diskMount: "/"` is *actively wrong* on every
+   rpm-ostree host, not just imprecise. (For non-overlay roots
+   `statvfs` instead reports the whole btrfs pool rather than a
+   per-subvol quota — the milder version of the same problem; same
+   for `mount --bind` setups and container/OCI overlay roots.) The
+   real fix is **per-mount selection** — the planned multi-partition
+   disk feature (one ring per mounted filesystem). If a user reports
+   "disk ring shows 100% / wrong size", the cause is here. A
+   `statfs(2)` `f_type` check (`OVERLAYFS_SUPER_MAGIC`,
+   `BTRFS_SUPER_MAGIC`, `TMPFS_MAGIC`) is how the discovery layer will
+   skip pseudo/overlay filesystems.
 
 The class lives at global scope (not in `ringmonitor::`) because
 Qt 6's QML auto-registration generates code calling

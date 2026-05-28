@@ -515,10 +515,18 @@ tick as a dependency so they re-evaluate on every tick — yielding
 the same animation pipeline as the previous static-binding model
 without the hardcoded count assumption.
 
-A standalone build will ship a parallel `MetricsBackend.qml` backed
-by `/proc` reads (e.g. `/proc/stat` for CPU, `/proc/meminfo` for
-RAM) or by `psutil` via a PyQt6 process, exposing the same public
-surface.
+The standalone build ships a parallel
+`platforms/standalone/MetricsBackend.qml` exposing the same public
+surface, backed by direct kernel reads through the `ProcReader` /
+`NvmlReader` C++ helpers instead of ksysguard: `/proc/stat` (CPU
+usage + per-core), `/proc/meminfo` (RAM), `statvfs(/)` (disk),
+`/sys/class/hwmon` + `/sys/class/thermal` (CPU temperature, via
+`CpuTempDiscovery.js`), and NVML / `libnvidia-ml` (NVIDIA GPU usage +
+temperature). It polls on a single `Timer` at 2 Hz (500 ms) to match
+the ksysguard daemon's push cadence, where the Plasma adapter relies
+on the daemon's own rate. AMD/Intel GPU (sysfs) and swap are
+follow-ups. Layer detail:
+[`../contents/ui/platforms/standalone/CLAUDE.md`](../contents/ui/platforms/standalone/CLAUDE.md).
 
 Smoke-tested by `tests/metrics-backend.test.mjs` — same pattern as
 `tests/config-store.test.mjs`. CI can't run a qmltestrunner test

@@ -6,7 +6,7 @@
 // KDE's ksystemstats use. We DON'T shell out to `nvidia-smi`: a per-poll
 // process spawn is ~20ms (a dropped frame at 60fps) and churns
 // fork/exec; NVML calls are microseconds and run synchronously in the
-// 1Hz sampler with no GUI-thread jank.
+// 2 Hz sampler with no GUI-thread jank.
 //
 // The library is loaded with `dlopen("libnvidia-ml.so.1")` at runtime
 // (the SONAME, always shipped with the driver — not the dev `.so`
@@ -43,21 +43,33 @@ public:
 
     // One GPU sample for device 0. Returns:
     //   { "available": bool, "usage": int (0-100 %), "tempC": int (°C) }
-    // `available` is false (and usage/tempC 0) when NVML can't be loaded
-    // or initialised (no NVIDIA driver / library, or a query failed) —
-    // callers treat that exactly like a sensor that isn't present. NVML
-    // is lazily initialised on the first call (one-time ~150ms driver
-    // handshake) and the device handle is cached; subsequent calls are
-    // microsecond-cheap, safe to invoke from the GUI thread each tick.
+    // `available` is false when NVML can't be loaded or initialised (no
+    // NVIDIA driver / library) — callers treat that like a sensor that
+    // isn't present. When available, `usage` / `tempC` are present only
+    // for the fields whose NVML query succeeded this tick: a transient
+    // per-field failure OMITS that key (rather than reporting 0), so the
+    // caller keeps its last-good value instead of glitching to 0.
+    // NVML is lazily initialised (one-time ~150ms driver handshake) and
+    // the device handle is cached; subsequent calls are microsecond-cheap,
+    // safe to invoke from the GUI thread each tick. The first-call
+    // handshake is a one-time GUI-thread stall during warm-up — accepted
+    // deliberately over the lifetime/sync complexity of an off-thread init
+    // for a single ~150ms hitch that overlaps the startup sweep.
     Q_INVOKABLE QVariantMap sample();
 
 private:
-    bool ensureInit();   // dlopen + dlsym + nvmlInit, once; returns _ready
+    bool ensureInit();   // dlopen + dlsym + nvmlInit; returns _ready
 
     void *_lib = nullptr;      // dlopen handle for libnvidia-ml.so.1
     void *_device = nullptr;   // cached nvmlDevice_t for index 0
-    bool _tried = false;       // init attempted (success or failure)
     bool _ready = false;       // NVML loaded + initialised + device handle ok
+    // Bounded init retry. The nvidia driver / libnvidia-ml can land a few
+    // seconds AFTER the widget autostarts at login (same late-modprobe
+    // race the CPU-temp re-resolve in MetricsBackend handles). ensureInit
+    // re-attempts for _kMaxInitAttempts ticks, then gives up so a
+    // non-NVIDIA host doesn't dlopen every tick for the whole session.
+    int _initAttempts = 0;
+    static constexpr int kMaxInitAttempts = 60;  // ~30s at the 2 Hz Timer
 
     // Resolved NVML entry points (typed in the .cpp to keep NVML's
     // self-declared typedefs out of the header).

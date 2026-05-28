@@ -96,7 +96,9 @@ test("standalone MetricsBackend exposes cpuTemp as a raw-°C metric", () => {
     // metricValue, and uses metricRawTemp('cpu') + metricTempPercent('cpu')
     // for the merged split ring — both must be wired.
     assert.match(SOURCE, /id\s*===\s*["']cpuTemp["']/, "metricValue must branch on id === 'cpuTemp'");
-    assert.match(SOURCE, /function\s+metricRawTemp[\s\S]*?id\s*===\s*["']cpu["'][\s\S]*?_coerceTemp/, "metricRawTemp('cpu') must return the coerced °C");
+    // Pin the actual argument, not just proximity of the _coerceTemp token:
+    // a regression like _coerceTemp(0) or a wrong property must red the guard.
+    assert.match(SOURCE, /function\s+metricRawTemp[\s\S]*?id\s*===\s*["']cpu["'][\s\S]*?_coerceTemp\(\s*backend\._cpuTempC\s*\)/, "metricRawTemp('cpu') must coerce backend._cpuTempC");
     assert.match(SOURCE, /function\s+metricTempPercent[\s\S]*?Catalog\.tempToPercent\s*\(/, "metricTempPercent must map through Catalog.tempToPercent");
 });
 
@@ -113,10 +115,12 @@ test("standalone MetricsBackend coerces an unresolved temp to 0 (same-surface wi
     assert.ok(body, "must declare function _coerceTemp(celsius)");
     assert.match(body[1], /isFinite/, "_coerceTemp must finiteness-check before returning");
     assert.match(body[1], /\b0\b/, "_coerceTemp must yield 0 when not finite");
-    // The cpuTemp / gpuTemp metric branches route through the coercer
-    // rather than returning the raw NaN-bearing property.
-    assert.match(SOURCE, /["']cpuTemp["'][\s\S]{0,60}_coerceTemp/, "metricValue('cpuTemp') must return the coerced value");
-    assert.match(SOURCE, /["']gpuTemp["'][\s\S]{0,60}_coerceTemp/, "metricValue('gpuTemp') must return the coerced value");
+    // The cpuTemp / gpuTemp metric branches route through the coercer with
+    // their OWN backing property as the argument — pin the property, not
+    // just the _coerceTemp token's proximity, so _coerceTemp(0) or a
+    // copy-paste using the wrong property reds the guard.
+    assert.match(SOURCE, /["']cpuTemp["'][\s\S]{0,60}_coerceTemp\(\s*backend\._cpuTempC\s*\)/, "metricValue('cpuTemp') must coerce backend._cpuTempC");
+    assert.match(SOURCE, /["']gpuTemp["'][\s\S]{0,60}_coerceTemp\(\s*backend\._gpuTempC\s*\)/, "metricValue('gpuTemp') must coerce backend._gpuTempC");
 });
 
 test("standalone MetricsBackend wires NVIDIA GPU usage + temperature via NvmlReader", () => {
@@ -130,7 +134,7 @@ test("standalone MetricsBackend wires NVIDIA GPU usage + temperature via NvmlRea
     assert.match(SOURCE, /\.available\b/, "must gate on the sample's available flag");
     assert.match(SOURCE, /id\s*===\s*["']gpu["'][\s\S]*?_gpuUsage/, "metricValue('gpu') must return GPU usage");
     assert.match(SOURCE, /id\s*===\s*["']gpuTemp["']/, "metricValue must branch on id === 'gpuTemp'");
-    assert.match(SOURCE, /function\s+metricRawTemp[\s\S]*?id\s*===\s*["']gpu["'][\s\S]*?_coerceTemp/, "metricRawTemp('gpu') must return the coerced GPU °C");
+    assert.match(SOURCE, /function\s+metricRawTemp[\s\S]*?id\s*===\s*["']gpu["'][\s\S]*?_coerceTemp\(\s*backend\._gpuTempC\s*\)/, "metricRawTemp('gpu') must coerce backend._gpuTempC");
 });
 
 test("standalone MetricsBackend re-resolves the temp path within a bounded warm-up window", () => {

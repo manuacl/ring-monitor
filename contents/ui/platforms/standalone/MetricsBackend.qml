@@ -252,10 +252,16 @@ Item {
         // nvidia-smi subprocess — no spawn, no frame drop). On a
         // non-NVIDIA host sample() reports available:false and we leave
         // _gpuUsage at 0 / _gpuTempC at NaN (→ 0 at the surface).
+        // sample() OMITS a field whose NVML query failed this tick, so we
+        // commit only the keys that are present — a transient failure then
+        // keeps the last-good value (or the NaN temp sentinel) instead of
+        // snapping the ring to 0.
         var gpu = gpuReader.sample();
         if (gpu.available) {
-            backend._gpuUsage = gpu.usage;
-            backend._gpuTempC = gpu.tempC;
+            if (gpu.usage !== undefined)
+                backend._gpuUsage = gpu.usage;
+            if (gpu.tempC !== undefined)
+                backend._gpuTempC = gpu.tempC;
         }
         // Bump _tick last so all readonly properties depending on it
         // re-evaluate together after every metric has its fresh value.

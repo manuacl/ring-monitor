@@ -32,17 +32,26 @@ typedef nvmlReturn_t (*fn_temp_t)(nvmlDevice_t, int, unsigned int *);    // nvml
 
 bool NvmlReader::ensureInit()
 {
-    if (_tried)
-        return _ready;
-    _tried = true;
+    if (_ready)
+        return true;
+    // Bounded retry (see header): the driver / libnvidia-ml can load a few
+    // seconds after autostart, so re-attempt for kMaxInitAttempts ticks,
+    // then latch off (a non-NVIDIA host must NOT dlopen every tick for the
+    // whole session). qWarning only on the FINAL attempt — so a permanently
+    // GPU-less host logs exactly once after the window, and a late-loading
+    // driver that eventually succeeds logs nothing.
+    if (_initAttempts >= kMaxInitAttempts)
+        return false;
+    const bool lastAttempt = (++_initAttempts >= kMaxInitAttempts);
 
     // SONAME, not the dev ".so" symlink — ".so.1" ships with the driver.
     // Absent on non-NVIDIA hosts → dlopen fails → GPU reports unavailable
     // (the binary still runs; this is not a hard dependency).
     _lib = dlopen("libnvidia-ml.so.1", RTLD_NOW | RTLD_LOCAL);
     if (!_lib) {
-        qWarning() << "NvmlReader: libnvidia-ml.so.1 not loadable — GPU "
-                      "metrics unavailable (expected on non-NVIDIA hosts)";
+        if (lastAttempt)
+            qWarning() << "NvmlReader: libnvidia-ml.so.1 not loadable — GPU "
+                          "metrics unavailable (expected on non-NVIDIA hosts)";
         return false;
     }
 
@@ -53,14 +62,16 @@ bool NvmlReader::ensureInit()
     _fnGetTemp = dlsym(_lib, "nvmlDeviceGetTemperature");
 
     if (!init || !handle || !_fnGetUtil || !_fnGetTemp) {
-        qWarning() << "NvmlReader: required NVML symbols missing — GPU metrics unavailable";
+        if (lastAttempt)
+            qWarning() << "NvmlReader: required NVML symbols missing — GPU metrics unavailable";
         dlclose(_lib);
         _lib = nullptr;
         return false;
     }
 
     if (init() != kNvmlSuccess) {
-        qWarning() << "NvmlReader: nvmlInit failed — GPU metrics unavailable";
+        if (lastAttempt)
+            qWarning() << "NvmlReader: nvmlInit failed — GPU metrics unavailable";
         dlclose(_lib);
         _lib = nullptr;
         return false;
@@ -68,7 +79,8 @@ bool NvmlReader::ensureInit()
 
     nvmlDevice_t dev = nullptr;
     if (handle(0, &dev) != kNvmlSuccess || !dev) {
-        qWarning() << "NvmlReader: no NVML device 0 — GPU metrics unavailable";
+        if (lastAttempt)
+            qWarning() << "NvmlReader: no NVML device 0 — GPU metrics unavailable";
         if (_fnShutdown)
             reinterpret_cast<fn_shutdown_t>(_fnShutdown)();
         dlclose(_lib);
@@ -85,17 +97,17 @@ QVariantMap NvmlReader::sample()
 {
     QVariantMap out{
         { QStringLiteral("available"), false },
-        { QStringLiteral("usage"), 0 },
-        { QStringLiteral("tempC"), 0 },
     };
     if (!ensureInit())
         return out;
 
     out[QStringLiteral("available")] = true;
 
-    // Each field independently — a transient query failure on one leaves
-    // the other intact (and 0 for the failed one) rather than dropping
-    // the whole sample.
+    // Each field is committed ONLY on a successful query, and its key is
+    // OMITTED otherwise — so a transient per-field failure leaves the
+    // caller's last-good value untouched rather than overwriting it with
+    // 0 (a one-tick ring glitch), and an unread temperature stays the
+    // caller's NaN sentinel instead of a real-looking 0 °C.
     nvmlUtilization_t util{ 0, 0 };
     if (reinterpret_cast<fn_util_t>(_fnGetUtil)(_device, &util) == kNvmlSuccess)
         out[QStringLiteral("usage")] = static_cast<int>(util.gpu);

@@ -22,7 +22,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms", "standalone", "MetricsBackend.qml"), "utf8");
 
 // Same public surface as platforms/plasma/MetricsBackend.qml.
-const PUBLIC_PROPS = ["coreValues", "loading", "availablePartitions", "defaultPartitionIds"];
+const PUBLIC_PROPS = ["coreValues", "loading", "availableMetrics", "availablePartitions", "defaultPartitionIds"];
 const PUBLIC_FUNCS = ["metricValue", "metricRawTemp", "metricTempPercent", "partitionValue"];
 
 test("standalone MetricsBackend exposes the public properties main.qml depends on", () => {
@@ -190,6 +190,21 @@ test("standalone MetricsBackend re-resolves the temp path within a bounded warm-
         "_sample must gate the re-resolve on both an empty path AND the attempt bound",
     );
     assert.match(SOURCE, /_cpuTempResolveAttempts\+\+|_cpuTempResolveAttempts\s*=\s*backend\._cpuTempResolveAttempts\s*\+\s*1/, "must increment the attempt counter so the retry terminates");
+});
+
+test("standalone MetricsBackend exposes availableMetrics gating swap + gpu on their data source", () => {
+    // Same-surface with the Plasma adapter (availableMetrics in PUBLIC_PROPS
+    // above). cpu/ram/disk are always present; cpuTemp once the sysfs path
+    // resolves; swap only when SwapTotal > 0 (swapless host hides it); gpu /
+    // gpuTemp only when NVML reported available (AMD/Intel-only host hides
+    // them). The flags are sampled each tick, so availableMetrics reads
+    // _tick to re-evaluate as the warm-up resolves late sources.
+    assert.match(SOURCE, /property\s+var\s+availableMetrics\s*:/, "must declare readonly property var availableMetrics");
+    assert.match(SOURCE, /_swapAvailable\s*=\s*mem\.swapTotal\s*>\s*0/, "must set _swapAvailable from mem.swapTotal > 0");
+    assert.match(SOURCE, /_gpuAvailable\s*=\s*gpu\.available/, "must set _gpuAvailable from the NVML sample's available flag");
+    assert.match(SOURCE, /backend\._cpuTempPath[\s\S]*?push\("cpuTemp"\)/, 'availableMetrics must gate "cpuTemp" on _cpuTempPath resolving');
+    assert.match(SOURCE, /backend\._swapAvailable[\s\S]*?push\("swap"\)/, 'availableMetrics must gate "swap" on _swapAvailable');
+    assert.match(SOURCE, /backend\._gpuAvailable[\s\S]*?push\("gpu"\)[\s\S]*?push\("gpuTemp"\)/, 'availableMetrics must gate "gpu"/"gpuTemp" on _gpuAvailable');
 });
 
 test("standalone MetricsBackend polls on a Timer", () => {

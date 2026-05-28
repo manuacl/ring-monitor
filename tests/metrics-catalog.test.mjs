@@ -271,6 +271,51 @@ test('filterByOrder: empty enabled → []', () => {
     assert.deepEqual(Catalog.filterByOrder([], Catalog.METRIC_IDS), []);
 });
 
+// ── filterByAvailable: drop enabled-but-unavailable metrics ───────────
+//
+// The backend's availableMetrics list says which metrics have a live data
+// source. filterByAvailable keeps only those, in the enabled order, so a
+// GPU ring on a non-NVIDIA box / swap on a swapless host stops rendering a
+// dead 0% ring.
+
+test('filterByAvailable: keeps only available ids, in the enabled order', () => {
+    assert.deepEqual(
+        Catalog.filterByAvailable(['cpu', 'gpu', 'ram', 'swap'], ['cpu', 'ram', 'disk']),
+        ['cpu', 'ram']
+    );
+});
+
+test('filterByAvailable: preserves the enabled order, not the available order', () => {
+    assert.deepEqual(
+        Catalog.filterByAvailable(['gpu', 'cpu', 'ram'], ['cpu', 'ram', 'gpu']),
+        ['gpu', 'cpu', 'ram']
+    );
+});
+
+test('filterByAvailable: everything available → enabled list returned untouched (copy)', () => {
+    const input = ['cpu', 'ram'];
+    const out = Catalog.filterByAvailable(input, ['cpu', 'ram', 'gpu']);
+    assert.deepEqual(out, input);
+    assert.notEqual(out, input, 'must return a fresh array, not the input reference');
+});
+
+test('filterByAvailable: nothing available → empty list', () => {
+    assert.deepEqual(Catalog.filterByAvailable(['cpu', 'gpu'], []), []);
+});
+
+test('filterByAvailable: null/undefined available → pass-through copy (availability unknown)', () => {
+    // Backend hasn't reported availability yet (warm-up) or predates the
+    // surface — show the configured rings rather than blanking the widget.
+    const input = ['cpu', 'gpu', 'swap'];
+    assert.deepEqual(Catalog.filterByAvailable(input, null), input);
+    assert.deepEqual(Catalog.filterByAvailable(input, undefined), input);
+    assert.notEqual(Catalog.filterByAvailable(input, null), input, 'must return a fresh array');
+});
+
+test('filterByAvailable: empty enabled → []', () => {
+    assert.deepEqual(Catalog.filterByAvailable([], ['cpu', 'ram']), []);
+});
+
 test('toggleEnabled: enabling an id not yet present appends it', () => {
     assert.deepEqual(Catalog.toggleEnabled(['cpu', 'ram'], 'gpu', true),
                      ['cpu', 'ram', 'gpu']);

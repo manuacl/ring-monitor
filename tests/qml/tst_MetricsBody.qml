@@ -49,6 +49,7 @@ Item {
             body.mergeCpuTemp = false;
             body.mergeGpuTemp = false;
             body.tempUnit = "auto";
+            body.availableMetrics = null;
             wait(20);
         }
 
@@ -116,6 +117,27 @@ Item {
             }
         }
 
+        // ── Availability: isMetricAvailable drives the row grey-out ──
+        function test_isMetricAvailable_null_means_all_available() {
+            // Default: backend hasn't reported (or host predates the surface)
+            // → every metric is enable-able.
+            body.availableMetrics = null;
+            verify(body.isMetricAvailable("gpu"));
+            verify(body.isMetricAvailable("swap"));
+        }
+
+        function test_isMetricAvailable_reflects_injected_list() {
+            body.availableMetrics = ["cpu", "ram", "disk"];
+            verify(body.isMetricAvailable("cpu"));
+            verify(!body.isMetricAvailable("gpu"), "gpu not in the list → unavailable");
+            verify(!body.isMetricAvailable("swap"), "swap not in the list → unavailable");
+        }
+
+        function test_isMetricAvailable_empty_list_means_none() {
+            body.availableMetrics = [];
+            verify(!body.isMetricAvailable("cpu"));
+        }
+
         // ── Disk partition picker: enabledPartitionsCsv roundtrip ────
         function test_isPartitionEnabled_reflects_csv() {
             body.enabledPartitionsCsv = "uuid-a,uuid-c";
@@ -135,14 +157,36 @@ Item {
             // The platform wrapper injects [{id,label}]; the picker renders
             // one row each. We can't easily count delegates from here, but
             // the property must round-trip so the binding reaches the list.
-            body.diskPartitions = [{ id: "uuid-a", label: "bazzite" }, { id: "uuid-b", label: "photos" }];
+            body.diskPartitions = [
+                {
+                    id: "uuid-a",
+                    label: "bazzite"
+                },
+                {
+                    id: "uuid-b",
+                    label: "photos"
+                }
+            ];
             compare(body.diskPartitions.length, 2);
             compare(body.diskPartitions[0].label, "bazzite");
         }
 
         // ── Partition order model: default alphabetical + reorder commit ──
         function test_partition_order_model_defaults_alphabetical() {
-            body.diskPartitions = [{ id: "u-sync", label: "sync" }, { id: "u-baz", label: "bazzite" }, { id: "u-ph", label: "photos" }];
+            body.diskPartitions = [
+                {
+                    id: "u-sync",
+                    label: "sync"
+                },
+                {
+                    id: "u-baz",
+                    label: "bazzite"
+                },
+                {
+                    id: "u-ph",
+                    label: "photos"
+                }
+            ];
             body.partitionOrderCsv = "";
             wait(20);
             compare(body._partitionOrderModel.count, 3);
@@ -153,7 +197,20 @@ Item {
         }
 
         function test_partition_order_model_respects_saved_csv() {
-            body.diskPartitions = [{ id: "u-sync", label: "sync" }, { id: "u-baz", label: "bazzite" }, { id: "u-ph", label: "photos" }];
+            body.diskPartitions = [
+                {
+                    id: "u-sync",
+                    label: "sync"
+                },
+                {
+                    id: "u-baz",
+                    label: "bazzite"
+                },
+                {
+                    id: "u-ph",
+                    label: "photos"
+                }
+            ];
             body.partitionOrderCsv = "u-sync,u-baz,u-ph";
             wait(20);
             compare(body._partitionOrderModel.get(0).partId, "u-sync");
@@ -166,7 +223,16 @@ Item {
             // a checked row rather than showing everything unchecked. Setting
             // a non-empty default while the CSV is empty seeds it.
             body.enabledPartitionsCsv = "";
-            body.diskPartitions = [{ id: "u-baz", label: "bazzite" }, { id: "u-ph", label: "photos" }];
+            body.diskPartitions = [
+                {
+                    id: "u-baz",
+                    label: "bazzite"
+                },
+                {
+                    id: "u-ph",
+                    label: "photos"
+                }
+            ];
             body.defaultPartitionIds = ["u-baz"];
             wait(20);
             verify(body.isPartitionEnabled("u-baz"), "the default partition must be seeded as enabled");
@@ -176,14 +242,28 @@ Item {
             // Plasma default is [] (aggregate) → nothing seeded, picker stays
             // unchecked, the disk ring stays the aggregate gauge.
             body.enabledPartitionsCsv = "";
-            body.diskPartitions = [{ id: "u-baz", label: "bazzite" }];
+            body.diskPartitions = [
+                {
+                    id: "u-baz",
+                    label: "bazzite"
+                }
+            ];
             body.defaultPartitionIds = [];
             wait(20);
             compare(body.enabledPartitionsCsv, "");
         }
 
         function test_commitPartitionOrder_writes_csv_in_model_order() {
-            body.diskPartitions = [{ id: "u-baz", label: "bazzite" }, { id: "u-ph", label: "photos" }];
+            body.diskPartitions = [
+                {
+                    id: "u-baz",
+                    label: "bazzite"
+                },
+                {
+                    id: "u-ph",
+                    label: "photos"
+                }
+            ];
             body.partitionOrderCsv = "";
             wait(20);
             body.commitPartitionOrder();

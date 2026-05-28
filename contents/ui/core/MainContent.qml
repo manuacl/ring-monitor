@@ -39,7 +39,16 @@ GridLayout {
     // sides are enabled (a merge with nothing to merge into stays a
     // standalone temperature ring).
     readonly property var _rawEnabledList: Catalog.filterByOrder(Catalog.parseCsv(content.configStore.enabledMetrics), Catalog.parseCsv(content.configStore.metricOrder))
-    readonly property var enabledList: Catalog.applyMergedTempMode(_rawEnabledList, content.configStore.mergeCpuTemp, content.configStore.mergeGpuTemp)
+    // Drop metrics with no live data source (GPU on a non-NVIDIA box, swap
+    // on a swapless host, an unresolved CPU-temp sensor) — but only once
+    // `loading` is false. During warm-up the backend hasn't resolved every
+    // sensor yet, so keep showing the full configured strip (the 100%
+    // "warming up" sweep) and let the unavailable rings drop on settle.
+    // Runs BEFORE applyMergedTempMode so split-mode never engages on an
+    // unavailable temperature metric (a gpu+gpuTemp merge with no GPU temp
+    // would otherwise render a split ring whose right half is dead).
+    readonly property var _availableEnabledList: content.metrics.loading ? content._rawEnabledList : Catalog.filterByAvailable(content._rawEnabledList, content.metrics.availableMetrics)
+    readonly property var enabledList: Catalog.applyMergedTempMode(content._availableEnabledList, content.configStore.mergeCpuTemp, content.configStore.mergeGpuTemp)
     readonly property bool vertical: content.configStore.orientation === "vertical"
     readonly property int count: Math.max(1, content.enabledList.length)
 
@@ -131,7 +140,7 @@ GridLayout {
             //      the right half (split mode), triggered by the
             //      merge* config when both sides are enabled.
             readonly property bool _isTemp: Catalog.isTempMetric(modelData)
-            readonly property bool _splitOn: Catalog.isSplitForBase(modelData, content._rawEnabledList, content.configStore.mergeCpuTemp, content.configStore.mergeGpuTemp)
+            readonly property bool _splitOn: Catalog.isSplitForBase(modelData, content._availableEnabledList, content.configStore.mergeCpuTemp, content.configStore.mergeGpuTemp)
             // Disk multi-partition: one equal-thickness ring per selected
             // filesystem, centre = their average. Empty when not the disk
             // ring or when nothing resolved (→ aggregate single ring via the

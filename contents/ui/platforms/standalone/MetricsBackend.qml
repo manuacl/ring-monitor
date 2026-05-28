@@ -61,6 +61,31 @@ Item {
     // ever becomes a UX complaint.
     readonly property bool loading: backend._prev === null
 
+    // Which catalog metrics have a live data source on this host. cpu / ram
+    // / disk are always present (/proc + a discovered filesystem); cpuTemp
+    // appears once the hwmon/thermal path resolves; swap only when the
+    // kernel reports a non-zero SwapTotal (swapless host → hidden); gpu /
+    // gpuTemp only when NVML reported available. Mirrors the Plasma
+    // adapter's availableMetrics surface so MainContent + the picker behave
+    // identically on either host. Reads _tick so it re-evaluates as the
+    // warm-up resolves the late-arriving sources (cpuTemp, gpu).
+    readonly property var availableMetrics: {
+        backend._tick;
+        var out = [];
+        out.push("cpu");
+        if (backend._cpuTempPath)
+            out.push("cpuTemp");
+        out.push("ram");
+        if (backend._swapAvailable)
+            out.push("swap");
+        if (backend._gpuAvailable) {
+            out.push("gpu");
+            out.push("gpuTemp");
+        }
+        out.push("disk");
+        return out;
+    }
+
     function metricValue(id) {
         backend._tick;
         if (id === "cpu")
@@ -180,6 +205,10 @@ Item {
     property var _coreUsage: []
     property real _ramUsage: 0
     property real _swapUsage: 0
+    // Whether the kernel reports any swap (SwapTotal > 0). zram (Bazzite's
+    // default) counts, so this is true on a typical desktop; false only on
+    // a genuinely swapless host, where availableMetrics then drops "swap".
+    property bool _swapAvailable: false
     // Discovered filesystems (rebuilt only when /proc/mounts changes).
     // _partitions: [{id, label, mountpoint, device}]; _mountForId maps a
     // partition id to its representative mountpoint for the live statvfs.
@@ -204,6 +233,10 @@ Item {
     // (NaN until/unless NVML reports it, coerced to 0 at the surface).
     property real _gpuUsage: 0
     property real _gpuTempC: NaN
+    // Whether NVML reported a usable GPU this session (dlopen succeeded +
+    // device handle resolved). false on AMD/Intel-only hosts → availableMetrics
+    // drops "gpu" / "gpuTemp" so MainContent and the picker hide them.
+    property bool _gpuAvailable: false
 
     // Walk /sys/class/hwmon, then fall back to /sys/class/thermal, and
     // return the sysfs file to read each tick — or "" if none. All the
@@ -314,6 +347,7 @@ Item {
         // is non-zero on a typical desktop; 0 only on a genuinely
         // swapless host (usagePercent returns 0 when swapTotal is 0).
         backend._swapUsage = MemInfoParser.usagePercent(mem.swapTotal, mem.swapFree);
+        backend._swapAvailable = mem.swapTotal > 0;
         // ── disk partitions ─────────────────────────────────────────
         // Refresh the discovered filesystem list when mounts change; the
         // per-partition usage % itself is read live in partitionValue(id)
@@ -344,6 +378,7 @@ Item {
         // keeps the last-good value (or the NaN temp sentinel) instead of
         // snapping the ring to 0.
         var gpu = gpuReader.sample();
+        backend._gpuAvailable = gpu.available;
         if (gpu.available) {
             if (gpu.usage !== undefined)
                 backend._gpuUsage = gpu.usage;

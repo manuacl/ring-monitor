@@ -95,6 +95,27 @@ function filterByOrder(ids, order) {
     return out;
 }
 
+// Order-preserving intersection of `enabledIds` with `availableIds` —
+// drops any enabled metric the backend isn't currently reporting a data
+// source for (GPU on a non-NVIDIA box, swap on a swapless host, an
+// unresolved CPU-temp sensor). Keeps the `enabledIds` order so the strip
+// layout is unchanged for the surviving rings.
+//
+// `availableIds` null/undefined means "availability unknown" (the backend
+// hasn't reported yet, or a host that predates the availableMetrics
+// surface): pass `enabledIds` through untouched so the warm-up keeps
+// showing the configured rings instead of blanking the widget.
+function filterByAvailable(enabledIds, availableIds) {
+    if (!availableIds) return enabledIds.slice();
+    var set = {};
+    for (var i = 0; i < availableIds.length; i++) set[availableIds[i]] = true;
+    var out = [];
+    for (var j = 0; j < enabledIds.length; j++) {
+        if (set[enabledIds[j]]) out.push(enabledIds[j]);
+    }
+    return out;
+}
+
 // Append any catalog metric id missing from `currentIds`, preserving
 // the existing order. Used in MetricsBody.loadOrder so that a release
 // introducing a new metric (e.g. cpuTemp / gpuTemp in 0.4) auto-shows
@@ -284,6 +305,7 @@ if (typeof module !== "undefined" && module.exports) {
         MEASUREMENT_IMPERIAL_UK: MEASUREMENT_IMPERIAL_UK,
         parseCsv: parseCsv,
         filterByOrder: filterByOrder,
+        filterByAvailable: filterByAvailable,
         labelFor: labelFor,
         sensorIdFor: sensorIdFor,
         tempSensorIdFor: tempSensorIdFor,

@@ -168,6 +168,9 @@ Window {
         configStore: configStoreAdapter
         theme: themeAdapter
         updateChecker: updateCheckerAdapter
+        // Live availability from the running backend so the metrics picker
+        // greys out metrics with no data source (no GPU, no swap, …).
+        availableMetrics: metricsAdapter.availableMetrics
     }
 
     // ── Right-click context menu ────────────────────────────────────

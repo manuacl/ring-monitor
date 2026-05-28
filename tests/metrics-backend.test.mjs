@@ -20,7 +20,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms", "plasma", "MetricsBackend.qml"), "utf8");
 
 // Public surface main.qml consumes.
-const PUBLIC_PROPS = ["coreValues", "loading", "availablePartitions", "defaultPartitionIds"];
+const PUBLIC_PROPS = ["coreValues", "loading", "availableMetrics", "availablePartitions", "defaultPartitionIds"];
 const PUBLIC_FUNCS = ["metricValue", "metricRawTemp", "metricTempPercent", "partitionValue"];
 
 // Universal-id sensor instances — sensors whose ksysguard id is the
@@ -146,6 +146,21 @@ test("MetricsBackend wires disk partitions via the shared DiskPartitions adapter
     // defaultPartitionIds is empty on Plasma (aggregate fallback — no
     // mountpoint to match $HOME against).
     assert.match(SOURCE, /defaultPartitionIds:\s*\[\s*\]/, "Plasma defaultPartitionIds must be empty (aggregate fallback)");
+});
+
+test("availableMetrics gates each metric on its Sensor reaching Ready", () => {
+    // A metric whose Sensor never reaches Ready (no such sensor on the
+    // host) must be omitted so MainContent drops the dead 0% ring and the
+    // picker greys the row. cpu/cpuTemp/ram/swap/disk gate on their static
+    // sensor status; gpu/gpuTemp on the discovered-instantiator readiness
+    // helpers (mirroring _gpuUsageValue / _gpuTempValue).
+    assert.match(SOURCE, /property\s+var\s+availableMetrics\s*:/, "must declare readonly property var availableMetrics");
+    assert.match(SOURCE, /cpuTotal\.status\s*===\s*Sensors\.Sensor\.Ready[\s\S]*?push\("cpu"\)/, 'availableMetrics must push "cpu" when cpuTotal is Ready');
+    assert.match(SOURCE, /swapSensor\.status\s*===\s*Sensors\.Sensor\.Ready[\s\S]*?push\("swap"\)/, 'availableMetrics must gate "swap" on swapSensor being Ready');
+    assert.match(SOURCE, /function\s+_gpuUsageReady\s*\(/, "must declare _gpuUsageReady() helper");
+    assert.match(SOURCE, /function\s+_gpuTempReady\s*\(/, "must declare _gpuTempReady() helper");
+    assert.match(SOURCE, /_gpuUsageReady\(\)[\s\S]*?push\("gpu"\)/, 'availableMetrics must push "gpu" via _gpuUsageReady()');
+    assert.match(SOURCE, /_gpuTempReady\(\)[\s\S]*?push\("gpuTemp"\)/, 'availableMetrics must push "gpuTemp" via _gpuTempReady()');
 });
 
 test("loading binding watches the universal aggregates' status", () => {

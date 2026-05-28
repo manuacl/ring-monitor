@@ -23,6 +23,11 @@ ColumnLayout {
 
     // ── Adapter input ───────────────────────────────────────────────
     property var theme
+    // Which metric ids the backend currently has a live data source for
+    // ([...]) injected by the platform wrapper. null = availability unknown
+    // (the picker then treats every metric as enable-able). An id absent
+    // from a non-null list renders its row greyed out + annotated.
+    property var availableMetrics: null
     // Discovered disk partitions ([{id, label}]) injected by the platform
     // wrapper (Plasma: configMetrics via DiskPartitions; standalone:
     // SettingsDialog via the backend). Drives the per-partition checkboxes
@@ -95,6 +100,12 @@ ColumnLayout {
 
     function isEnabled(id) {
         return Catalog.parseCsv(body.enabledMetricsCsv).indexOf(id) !== -1;
+    }
+
+    // Availability unknown (null) → every metric is enable-able. Otherwise
+    // a metric is available only if the backend lists it.
+    function isMetricAvailable(id) {
+        return !body.availableMetrics || body.availableMetrics.indexOf(id) !== -1;
     }
 
     function setEnabled(id, on) {
@@ -192,6 +203,7 @@ ColumnLayout {
 
                 metricId: _metricId
                 enabled: body.isEnabled(_metricId)
+                available: body.isMetricAvailable(_metricId)
                 description: body.metricDescriptions[_metricId] || ""
                 onToggled: on => body.setEnabled(_metricId, on)
 

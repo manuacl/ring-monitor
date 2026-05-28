@@ -58,6 +58,58 @@ Item {
 
     readonly property bool loading: cpuTotal.status !== Sensors.Sensor.Ready || ramSensor.status !== Sensors.Sensor.Ready
 
+    // Which catalog metrics have a live data source right now — a metric
+    // whose Sensor hasn't reached Ready (no such sensor on this host, or
+    // still resolving) is omitted. MainContent drops the dead 0% ring and
+    // the config picker greys the row out. Re-evaluates on each universal
+    // sensor's status (Sensor.status carries a NOTIFY) and on the gpu ticks
+    // bumped by the per-GPU Instantiators' status changes. Order follows
+    // Catalog.METRIC_IDS for readability; the consumer (filterByAvailable)
+    // keeps the user's order, not this one.
+    readonly property var availableMetrics: {
+        backend._gpuUsageTick;
+        backend._gpuTempTick;
+        var out = [];
+        if (cpuTotal.status === Sensors.Sensor.Ready)
+            out.push("cpu");
+        if (cpuTempSensor.status === Sensors.Sensor.Ready)
+            out.push("cpuTemp");
+        if (ramSensor.status === Sensors.Sensor.Ready)
+            out.push("ram");
+        if (swapSensor.status === Sensors.Sensor.Ready)
+            out.push("swap");
+        if (backend._gpuUsageReady())
+            out.push("gpu");
+        if (backend._gpuTempReady())
+            out.push("gpuTemp");
+        if (diskSensor.status === Sensors.Sensor.Ready)
+            out.push("disk");
+        return out;
+    }
+
+    // GPU readiness mirrors _gpuUsageValue / _gpuTempValue: usage is ready
+    // when the gpu/all aggregate OR any discovered per-GPU usage Sensor is
+    // Ready; temperature when any discovered per-GPU temp Sensor is Ready.
+    function _gpuUsageReady() {
+        if (gpuAllSensor.status === Sensors.Sensor.Ready)
+            return true;
+        for (var i = 0; i < gpuUsageInstantiator.count; i++) {
+            var s = gpuUsageInstantiator.objectAt(i);
+            if (s && s.status === Sensors.Sensor.Ready)
+                return true;
+        }
+        return false;
+    }
+
+    function _gpuTempReady() {
+        for (var i = 0; i < gpuTempInstantiator.count; i++) {
+            var s = gpuTempInstantiator.objectAt(i);
+            if (s && s.status === Sensors.Sensor.Ready)
+                return true;
+        }
+        return false;
+    }
+
     function metricValue(id) {
         if (id === "gpu")
             return backend._gpuUsageValue;

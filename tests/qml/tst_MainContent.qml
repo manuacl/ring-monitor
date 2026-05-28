@@ -51,9 +51,19 @@ Item {
         id: metricsStub
         property bool loading: false
         property var coreValues: []
-        function metricValue(_id) { return 0; }
-        function metricTempPercent(_id) { return 0; }
-        function metricRawTemp(_id) { return 0; }
+        // null = availability unknown → MainContent shows the full configured
+        // strip (filterByAvailable passes through). Individual tests set a
+        // concrete list to exercise the drop-unavailable path.
+        property var availableMetrics: null
+        function metricValue(_id) {
+            return 0;
+        }
+        function metricTempPercent(_id) {
+            return 0;
+        }
+        function metricRawTemp(_id) {
+            return 0;
+        }
     }
 
     QtObject {
@@ -82,6 +92,10 @@ Item {
             configStub.metricOrder = "cpu,ram,gpu,disk";
             configStub.ringSize = 180;
             configStub.ringSpacingPercent = 7;
+            metricsStub.loading = false;
+            metricsStub.availableMetrics = null;
+            configStub.mergeCpuTemp = false;
+            configStub.mergeGpuTemp = false;
         }
 
         // QQuickLayout reflows its implicit dimensions on a deferred
@@ -153,6 +167,51 @@ Item {
             configStub.ringSpacingPercent = 10;  // → 30px spacing
             // 2*300 + 1*30 = 630
             tryCompare(content, "implicitWidth", 630);
+        }
+
+        // ── Availability filtering ──────────────────────────────────
+        //
+        // enabledList drops any enabled metric the backend doesn't report
+        // in availableMetrics (GPU on a non-NVIDIA box, etc.), so the dead
+        // 0% ring never renders.
+
+        function test_unavailable_metric_dropped_from_enabledList() {
+            configStub.enabledMetrics = "cpu,ram,gpu,disk";
+            configStub.metricOrder = "cpu,ram,gpu,disk";
+            // No gpu in the backend's available set → gpu ring drops.
+            metricsStub.availableMetrics = ["cpu", "ram", "disk"];
+            tryCompare(content, "count", 3);
+            compare(content.enabledList, ["cpu", "ram", "disk"]);
+        }
+
+        function test_availability_filter_preserves_user_order() {
+            configStub.enabledMetrics = "gpu,cpu,ram";
+            configStub.metricOrder = "gpu,cpu,ram";
+            metricsStub.availableMetrics = ["cpu", "ram", "gpu"];
+            tryCompare(content, "count", 3);
+            // Enabled order, not availableMetrics order.
+            compare(content.enabledList, ["gpu", "cpu", "ram"]);
+        }
+
+        function test_warmup_keeps_full_strip_even_if_unavailable() {
+            // During loading the backend hasn't resolved sensors yet — show
+            // the configured strip (warming-up sweep) rather than blanking
+            // rings that will become available a tick later.
+            configStub.enabledMetrics = "cpu,ram,gpu,disk";
+            configStub.metricOrder = "cpu,ram,gpu,disk";
+            metricsStub.availableMetrics = ["cpu"];
+            metricsStub.loading = true;
+            tryCompare(content, "count", 4);
+        }
+
+        function test_unknown_availability_shows_full_strip() {
+            // availableMetrics null (host predates the surface / not reported)
+            // → filterByAvailable passes through, nothing dropped.
+            configStub.enabledMetrics = "cpu,ram,gpu";
+            configStub.metricOrder = "cpu,ram,gpu";
+            metricsStub.availableMetrics = null;
+            tryCompare(content, "count", 3);
+            compare(content.enabledList, ["cpu", "ram", "gpu"]);
         }
     }
 }

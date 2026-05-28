@@ -66,6 +66,15 @@ test("SettingsDialog instantiates the three core bodies", () => {
     assert.match(SOURCE, /Core\.AboutBody\s*{/, "must instantiate Core.AboutBody");
 });
 
+test("SettingsDialog forwards backend availableMetrics into the picker", () => {
+    // The dialog has no backend of its own; Main.qml injects the running
+    // backend's availableMetrics so MetricsBody can grey out metrics with
+    // no data source. Without this wire the picker would show every metric
+    // as enable-able even on a host where the data source is missing.
+    assert.match(SOURCE, /property\s+var\s+availableMetrics/, "must declare an availableMetrics input");
+    assert.match(SOURCE, /availableMetrics\s*:\s*dialog\.availableMetrics/, "MetricsBody.availableMetrics must be bound to the injected dialog.availableMetrics");
+});
+
 test("SettingsDialog opts in to AppearanceBody.windowMarginVisible", () => {
     // The shared AppearanceBody hides the Screen margin slider by
     // default — only the standalone Window consumes the property.

@@ -77,6 +77,36 @@ test("standalone MetricsBackend exposes ram + disk through metricValue", () => {
     assert.match(SOURCE, /id\s*===\s*["']disk["']/, "metricValue must branch on id === 'disk'");
 });
 
+test("standalone MetricsBackend wires CPU temperature via CpuTempDiscovery", () => {
+    // CPU temp has no fixed sysfs path — the backend enumerates
+    // /sys/class/hwmon (+ /sys/class/thermal fallback) and delegates
+    // the "which entry is the CPU" decision to the pure module.
+    assert.match(SOURCE, /import\s+["']CpuTempDiscovery\.js["']\s+as\s+CpuTemp/, "must import the same-dir CpuTempDiscovery module (platforms/standalone/)");
+    assert.match(SOURCE, /reader\.listDir\s*\(/, "must enumerate sysfs via ProcReader.listDir");
+    assert.match(SOURCE, /\/sys\/class\/hwmon/, "must scan /sys/class/hwmon");
+    assert.match(SOURCE, /\/sys\/class\/thermal/, "must fall back to /sys/class/thermal");
+    assert.match(SOURCE, /CpuTemp\.pickCpuHwmonDir\s*\(/, "must pick the CPU hwmon chip via the pure helper");
+    assert.match(SOURCE, /CpuTemp\.pickCpuTempInput\s*\(/, "must pick the CPU temp input via the pure helper");
+    assert.match(SOURCE, /CpuTemp\.pickCpuThermalZone\s*\(/, "must pick the CPU thermal zone via the pure helper");
+    assert.match(SOURCE, /CpuTemp\.parseTempCelsius\s*\(/, "must parse the millidegrees reading via the pure helper");
+});
+
+test("standalone MetricsBackend exposes cpuTemp as a raw-°C metric", () => {
+    // MainContent treats cpuTemp (Catalog.isTempMetric) as raw °C from
+    // metricValue, and uses metricRawTemp('cpu') + metricTempPercent('cpu')
+    // for the merged split ring — both must be wired.
+    assert.match(SOURCE, /id\s*===\s*["']cpuTemp["']/, "metricValue must branch on id === 'cpuTemp'");
+    assert.match(SOURCE, /function\s+metricRawTemp[\s\S]*?id\s*===\s*["']cpu["'][\s\S]*?_cpuTempC/, "metricRawTemp('cpu') must return the sampled °C");
+    assert.match(SOURCE, /function\s+metricTempPercent[\s\S]*?Catalog\.tempToPercent\s*\(/, "metricTempPercent must map through Catalog.tempToPercent");
+});
+
+test("standalone MetricsBackend resolves the temp path once at startup", () => {
+    // Resolution walks the filesystem; doing it per-tick would re-stat
+    // every hwmon every second. onCompleted resolves once, _sample only
+    // reads the cached path.
+    assert.match(SOURCE, /Component\.onCompleted:\s*[\s\S]*?_resolveCpuTempPath\s*\(/, "must resolve the CPU temp path in Component.onCompleted");
+});
+
 test("standalone MetricsBackend polls on a Timer", () => {
     // Polling cadence: once per second is the contract documented in
     // platforms/standalone/CLAUDE.md. Use the interval value as the

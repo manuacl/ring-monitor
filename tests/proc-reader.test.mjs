@@ -76,6 +76,34 @@ test("ProcReader::read allowlist applies to cleanPath-normalised input", () => {
     );
 });
 
+test("ProcReader::listDir shares the read() /proc-/sys allowlist", () => {
+    // listDir is the directory-listing companion used for hwmon /
+    // thermal CPU-temp discovery. It must carry the same cleanPath +
+    // prefix guard as read() — otherwise it becomes an arbitrary
+    // directory-enumeration primitive reachable from every QML leaf.
+    assert.match(
+        SRC,
+        /QStringList ProcReader::listDir[\s\S]*?QDir::cleanPath\s*\(\s*path\s*\)/,
+        "listDir must run its argument through QDir::cleanPath before the allowlist",
+    );
+    assert.match(
+        SRC,
+        /QStringList ProcReader::listDir[\s\S]*?cleaned\.startsWith\(\s*QStringLiteral\(\s*"\/proc\/"\s*\)\s*\)[\s\S]*?cleaned\.startsWith\(\s*QStringLiteral\(\s*"\/sys\/"\s*\)\s*\)[\s\S]*?return \{\};/,
+        "listDir must refuse (return {}) paths outside the /proc-/sys allowlist",
+    );
+    assert.match(
+        SRC,
+        /qWarning\(\)[\s\S]*?listDir refused[\s\S]*?allowlist/,
+        "listDir must qWarning when refusing a path outside the allowlist",
+    );
+    // Excludes . and .. so callers don't have to filter them out.
+    assert.match(
+        SRC,
+        /entryList\([^)]*QDir::NoDotAndDotDot/,
+        "listDir must pass QDir::NoDotAndDotDot to entryList",
+    );
+});
+
 test("ProcReader::read includes <QDir> for cleanPath", () => {
     // QDir::cleanPath lives in <QDir>; without the include the file
     // would fail to compile.

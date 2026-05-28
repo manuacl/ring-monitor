@@ -43,6 +43,29 @@ QString ProcReader::read(const QString &path) const
     return stream.readAll();
 }
 
+QStringList ProcReader::listDir(const QString &path) const
+{
+    // Same allowlist + cleanPath rationale as read() above — this is a
+    // dev-time sanity check, not a privilege boundary (the widget runs
+    // as the user; `ls /sys/...` reaches the same entries). Refusing a
+    // path outside /proc//sys keeps a QML typo greppable in the journal.
+    const QString cleaned = QDir::cleanPath(path);
+    if (!cleaned.startsWith(QStringLiteral("/proc/")) &&
+        !cleaned.startsWith(QStringLiteral("/sys/"))) {
+        qWarning() << "ProcReader::listDir refused path outside /proc/ or "
+                      "/sys/ allowlist (after cleanPath):"
+                   << path;
+        return {};
+    }
+    QDir dir(cleaned);
+    if (!dir.exists())
+        return {};
+    // AllEntries follows symlinks (the hwmonN / thermal_zoneN entries
+    // under /sys/class/* are symlinks into the device tree), so they
+    // surface as dirs; the tempN_input files surface as files.
+    return dir.entryList(QDir::AllEntries | QDir::NoDotAndDotDot);
+}
+
 QVariantMap ProcReader::statvfs(const QString &path) const
 {
     // No allowlist on this side: `statvfs(3)` is a filesystem-metadata

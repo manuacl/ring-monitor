@@ -127,10 +127,11 @@ test("MetricsBackend imports SensorPicking and delegates the 'first ready wins' 
     // The two dynamic getters (_gpuTempValue, _gpuUsageValue) used to
     // duplicate a `for (i) { if (s.status === Ready) return s.value }`
     // block. The picking algorithm is now SensorPicking.pickFirstReadyValue
-    // in core/ — testable in Node, and reusable by the future
-    // standalone backend. The QML side just maps each Sensor to a
+    // — a plasma-only pure module living beside this adapter in
+    // platforms/plasma/ (not core/: only the Plasma backend uses it),
+    // testable in Node. The QML side just maps each Sensor to a
     // {ready, value} pair and passes the list down.
-    assert.match(SOURCE, /import\s+["']\.\.\/\.\.\/core\/SensorPicking\.js["']\s+as\s+SensorPicking/, "MetricsBackend.qml must import the core SensorPicking module");
+    assert.match(SOURCE, /import\s+["']SensorPicking\.js["']\s+as\s+SensorPicking/, "MetricsBackend.qml must import the same-dir SensorPicking module (platforms/plasma/)");
     const callCount = (SOURCE.match(/SensorPicking\.pickFirstReadyValue\s*\(/g) || []).length;
     assert.equal(callCount, 2, "expected exactly two pickFirstReadyValue call sites (_gpuTempValue, _gpuUsageValue)");
 });

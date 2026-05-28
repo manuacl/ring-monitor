@@ -1,6 +1,18 @@
 # Logic modules
 
-All `.js` files under `contents/ui/core/` follow the same shape:
+The pure-logic `.js` modules live in one of two places, by usage:
+
+- **`contents/ui/core/`** — shared by both platforms (`MetricsCatalog`,
+  `ColorThemes`, `ReorderLogic`, `RingGeometry`, `UpdateCheck`).
+- **`contents/ui/platforms/<p>/`** — used by only one platform, kept
+  beside that platform's adapter so it isn't shipped as dead code to
+  the other artifact: `platforms/standalone/` holds `ProcStatParser`,
+  `MemInfoParser`, `CpuTempDiscovery`; `platforms/plasma/` holds
+  `SensorPicking`. See the placement rule in
+  [`../contents/ui/core/CLAUDE.md`](../contents/ui/core/CLAUDE.md)
+  § "Logic in dedicated `.js` files".
+
+All of them — wherever they live — follow the same shape:
 
 ```js
 // Pure functions and constants here.
@@ -184,3 +196,46 @@ capacity, then hands each into the matching helper.
 | `diskUsagePercent(total, free, available)` | df(1)'s "Use%" formula: `(total - free) / (total - free + available)`, clamped to `[0, 100]`. Returns `0` on missing / non-numeric inputs. Treats root-reserved blocks (~5 % on ext4) as "size invisible to the user" — without this, a freshly-formatted empty ext4 would report 5 % used. Wired to the **disk** path in `standalone/MetricsBackend.qml`. |
 
 Covered by `tests/mem-info-parser.test.mjs`.
+
+## `CpuTempDiscovery.js`
+
+Vendor-agnostic CPU-temperature sensor discovery for the standalone
+build. On Plasma, KDE's `ksystemstats` already does this walk behind
+the `cpu/all/averageTemperature` sensor; this module is the in-house
+equivalent so the standalone backend finds the CPU temperature on any
+machine without a KDE dependency.
+
+The CPU temperature has no fixed sysfs path: `hwmonN` numbering is
+allocation-order, and which chip owns the CPU sensor depends on the
+vendor (Intel `coretemp`, AMD `k10temp` / `zenpower`, ARM
+`cpu_thermal`, …). So `standalone/MetricsBackend.qml` enumerates the
+sysfs trees via `ProcReader.listDir` + `read`, and these **pure**
+functions decide which entry is the CPU — same I/O-in-adapter,
+decisions-in-`core/` split as `ProcStatParser` / `MemInfoParser`.
+
+Two sources, tried in order by the backend: hwmon first (it carries
+per-sensor labels), then `/sys/class/thermal` as a fallback (CPU temp
+on many ARM SBCs / VMs lives only in the thermal framework).
+
+| Function | Purpose |
+|---|---|
+| `parseTempCelsius(raw)` | Millidegrees-C sysfs reading → °C. Empty / non-numeric (a refused or missing `read`) → `NaN`, which `MetricsCatalog.tempToPercent` / `convertTemp` already render as an unavailable `0`. |
+| `pickCpuHwmonDir(entries)` | From `[{ dir, name }]` (each hwmon's `name` file), the `dir` of the highest-priority CPU chip in `CPU_HWMON_NAMES`, or `""`. Vendor-specific drivers outrank the generic `acpitz` fallback. |
+| `pickCpuTempInput(sensors)` | From `[{ input, label }]` within one chip, the best `tempN_input` — prefers the package/die label (`Package id 0`, `Tctl`, `Tdie`) over per-core / per-CCD, breaks ties by lowest index. `""` when the chip has no temp input. |
+| `pickCpuThermalZone(zones)` | Fallback path: from `[{ dir, type }]`, the `dir` of the best CPU `thermal_zoneN` in `CPU_THERMAL_ZONE_TYPES` (`x86_pkg_temp`, `cpu-thermal`, …), or `""`. |
+| `isTempInput` / `tempIndexFromInput` | `tempN_input` matcher + index extractor used by the pickers. |
+
+Covered by `tests/cpu-temp-discovery.test.mjs` (includes a real-layout
+scenario: `coretemp` / `Package id 0` chosen over nvme / chipset / wmi
+/ battery hwmons).
+
+> New shared `core/*.{js,qml}` **and** `platforms/standalone/*.{js,qml}`
+> files must be added to the `QML_FILES` list in `CMakeLists.txt` — the
+> standalone build compiles each one into the `RingMonitor.Standalone`
+> QML module explicitly. A file missing from that list isn't in the
+> module, so any `import` of it fails and the QML root silently fails to
+> load (the binary exits `1` with no diagnostic). Conversely,
+> `platforms/plasma/*` must NOT be listed (it would be dead code in the
+> standalone binary). The Plasma build is unaffected (it loads from the
+> filesystem / plasmoid package). Both directions are guarded by
+> `tests/standalone-qml-module.test.mjs`.

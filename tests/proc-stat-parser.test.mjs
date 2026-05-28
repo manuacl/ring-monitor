@@ -2,16 +2,16 @@
 //
 // Run:  node --test tests/proc-stat-parser.test.mjs
 //
-// Implementation: contents/ui/core/ProcStatParser.js. Dual-loaded by
-// QML (standalone MetricsBackend) and Node via the module.exports
-// shim at the bottom.
+// Implementation: contents/ui/platforms/standalone/ProcStatParser.js.
+// Dual-loaded by QML (standalone MetricsBackend) and Node via the
+// module.exports shim at the bottom.
 
 import { createRequire } from "node:module";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
 const require = createRequire(import.meta.url);
-const Parser = require("../contents/ui/core/ProcStatParser.js");
+const Parser = require("../contents/ui/platforms/standalone/ProcStatParser.js");
 
 // ── parseProcStat ───────────────────────────────────────────────────
 

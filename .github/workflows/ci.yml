@@ -30,8 +30,8 @@ jobs:
           shopt -s nullglob
           for f in contents/ui/*.qml contents/ui/*.js \
                    contents/ui/core/*.qml contents/ui/core/*.js \
-                   contents/ui/platforms/plasma/*.qml \
-                   contents/ui/platforms/standalone/*.qml \
+                   contents/ui/platforms/plasma/*.qml contents/ui/platforms/plasma/*.js \
+                   contents/ui/platforms/standalone/*.qml contents/ui/platforms/standalone/*.js \
                    standalone/*.cpp \
                    tests/*.test.mjs tests/qml/*.qml; do
             lines=$(wc -l < "$f")

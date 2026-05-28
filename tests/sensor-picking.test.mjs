@@ -2,15 +2,15 @@
 //
 // Run:  node --test tests/sensor-picking.test.mjs
 //
-// Implementation: contents/ui/core/SensorPicking.js. Dual-loaded by
-// QML and Node via the module.exports shim at the bottom.
+// Implementation: contents/ui/platforms/plasma/SensorPicking.js.
+// Dual-loaded by QML and Node via the module.exports shim at the bottom.
 
 import { createRequire } from "node:module";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
 const require = createRequire(import.meta.url);
-const SensorPicking = require("../contents/ui/core/SensorPicking.js");
+const SensorPicking = require("../contents/ui/platforms/plasma/SensorPicking.js");
 
 test("pickFirstReadyValue returns 0 on null input", () => {
     assert.equal(SensorPicking.pickFirstReadyValue(null), 0);

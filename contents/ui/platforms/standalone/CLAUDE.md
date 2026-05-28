@@ -16,13 +16,38 @@ under "Standalone target — backend choice".
 |---|---|---|
 | `Main.qml` | Frameless transparent `Window` root + Conky-style hints (X11 / XWayland) | PR B1 (placeholder) + PR C (X11 EWMH hints in `standalone/desktop_hints.cpp`) + **PR F1 ✓ — `Core.MainContent` renders the actual rings** |
 | `SettingsOnlyRoot.qml` | Recovery-mode QML root loaded when the binary runs with `--open-settings`. Hosts only the `SettingsDialog` (no rings, no MetricsBackend). | **PR #37 follow-up ✓** |
-| `MetricsBackend.qml` | Direct reads from `/proc/stat`, `/proc/meminfo`, `statvfs(3)` | **PR D: CPU usage (`/proc/stat`) ✓** ; **PR E: RAM (`/proc/meminfo`) + disk (`statvfs(/)`) ✓** ; GPU + temps post-MVP |
+| `MetricsBackend.qml` | Direct reads from `/proc/stat`, `/proc/meminfo`, `statvfs(3)`, hwmon/thermal sysfs | **PR D: CPU usage (`/proc/stat`) ✓** ; **PR E: RAM (`/proc/meminfo`) + disk (`statvfs(/)`) ✓** ; **CPU temp (hwmon / thermal-zone via `core/CpuTempDiscovery.js`) ✓** ; GPU + swap post-MVP |
 | `ConfigStore.qml` | `Qt.labs.settings` reader/writer | **PR F1 ✓ — Settings root, defaults mirror `main.xml`** ; **PR F2 ✓ — SettingsDialog drives writes through this instance** |
 | `SettingsDialog.qml` | Tabbed `Window` wrapping `core/MetricsBody` + `core/AppearanceBody` + `core/AboutBody`; opened via right-click on the widget or the update-available badge | **PR F2 ✓** |
 | `Theme.qml` | Kirigami theme tokens + Qt.styleHints light/dark | **PR F1 ✓ — mirrors the Plasma adapter byte-for-byte** |
 | `ThemedIcon.qml` | wraps `Kirigami.Icon` (same as Plasma adapter) | **PR F1 ✓ — one-liner mirror of the Plasma adapter** |
 | `ColorPicker.qml` | wraps a plain `QQC2.AbstractButton` + `QtQuick.Dialogs.ColorDialog` (the Plasma adapter wraps `KQuickControls.ColorButton`, which is not a runtime dep of the standalone build) | **PR F2 ✓** |
 | `Autostart` (C++ in `standalone/autostart.{h,cpp}`, registered via `QML_ELEMENT`) | Writes / removes `~/.config/autostart/dev.manuacl.ringmonitor.desktop` so the user can toggle "Start on login" from the Settings dialog. Plasma side uses plasmashell instead, so the toggle is hidden there (`AboutBody.autostartAvailable` gated). | **PR G ✓** |
+
+## Platform-only pure logic lives here, not in `core/`
+
+Besides the adapters, this directory holds the **standalone-only pure
+logic**: `ProcStatParser.js` (`/proc/stat` → CPU %), `MemInfoParser.js`
+(`/proc/meminfo` + disk %), `CpuTempDiscovery.js` (hwmon/thermal CPU-temp
+sensor discovery). They're pure + Node-tested like any `core/*.js`, but
+they sit here because only the standalone backend reads `/proc` + sysfs —
+keeping them in `core/` would ship them as dead weight in the `.plasmoid`
+package. (Mirror of `platforms/plasma/SensorPicking.js`.) Placement rule:
+[`../../core/CLAUDE.md`](../../core/CLAUDE.md) § "Logic in dedicated
+`.js` files".
+
+## New QML/JS files must be added to `CMakeLists.txt` `QML_FILES`
+
+The standalone binary compiles every `.qml` / `.js` into the
+`RingMonitor.Standalone` module via an **explicit** `QML_FILES` list in
+`qt_add_qml_module`. A new `core/*.js` or `core/*.qml` (or
+`platforms/standalone/*.qml`) that isn't added to that list is not in
+the module: any `import` of it fails, the QML root fails to load, and
+the binary **exits `1` with no diagnostic** (silent
+`rootObjects().isEmpty()` bail in `standalone/main.cpp`). The Plasma
+build is unaffected (it loads from the filesystem / plasmoid package),
+so this is a standalone-only trap. Guarded by
+`tests/standalone-qml-module.test.mjs`.
 
 ## File-reading helper
 

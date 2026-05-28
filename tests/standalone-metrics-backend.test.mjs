@@ -96,15 +96,27 @@ test("standalone MetricsBackend exposes cpuTemp as a raw-°C metric", () => {
     // metricValue, and uses metricRawTemp('cpu') + metricTempPercent('cpu')
     // for the merged split ring — both must be wired.
     assert.match(SOURCE, /id\s*===\s*["']cpuTemp["']/, "metricValue must branch on id === 'cpuTemp'");
-    assert.match(SOURCE, /function\s+metricRawTemp[\s\S]*?id\s*===\s*["']cpu["'][\s\S]*?_cpuTempC/, "metricRawTemp('cpu') must return the sampled °C");
+    assert.match(SOURCE, /function\s+metricRawTemp[\s\S]*?id\s*===\s*["']cpu["'][\s\S]*?_coercedCpuTempC/, "metricRawTemp('cpu') must return the coerced °C");
     assert.match(SOURCE, /function\s+metricTempPercent[\s\S]*?Catalog\.tempToPercent\s*\(/, "metricTempPercent must map through Catalog.tempToPercent");
 });
 
-test("standalone MetricsBackend resolves the temp path once at startup", () => {
-    // Resolution walks the filesystem; doing it per-tick would re-stat
-    // every hwmon every second. onCompleted resolves once, _sample only
-    // reads the cached path.
+test("standalone MetricsBackend coerces an unresolved cpuTemp to 0 (same-surface with Plasma)", () => {
+    // _cpuTempC is NaN until a sensor resolves; the public surface must
+    // return 0 then, matching the Plasma adapter (valueFromSensorMap
+    // returns 0 for an unread sensor). Otherwise a consumer doing
+    // arithmetic gets NaN on standalone but 0 on Plasma.
+    assert.match(SOURCE, /function\s+_coercedCpuTempC\s*\(\s*\)\s*{[\s\S]*?isFinite\s*\(\s*backend\._cpuTempC\s*\)\s*\?\s*backend\._cpuTempC\s*:\s*0/, "_coercedCpuTempC must return isFinite(_cpuTempC) ? _cpuTempC : 0");
+    assert.match(SOURCE, /id\s*===\s*["']cpuTemp["']\s*\)?\s*\n?\s*return\s+backend\._coercedCpuTempC/, "metricValue('cpuTemp') must return the coerced value, not raw _cpuTempC");
+});
+
+test("standalone MetricsBackend re-resolves the temp path when a driver loads late", () => {
+    // Resolved in onCompleted, BUT also retried in _sample while still
+    // empty — a hwmon driver modprobed after autostart (login before
+    // sensor modules load) must be picked up instead of leaving the ring
+    // stuck at 0 for the whole session. The retry is a no-op once
+    // resolved (single string check, no sysfs walk).
     assert.match(SOURCE, /Component\.onCompleted:\s*[\s\S]*?_resolveCpuTempPath\s*\(/, "must resolve the CPU temp path in Component.onCompleted");
+    assert.match(SOURCE, /if\s*\(\s*!\s*backend\._cpuTempPath\s*\)\s*\n?\s*backend\._cpuTempPath\s*=\s*backend\._resolveCpuTempPath\s*\(/, "_sample must re-resolve _cpuTempPath while it is still empty");
 });
 
 test("standalone MetricsBackend polls on a Timer", () => {

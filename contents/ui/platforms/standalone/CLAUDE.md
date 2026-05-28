@@ -16,7 +16,7 @@ under "Standalone target — backend choice".
 |---|---|---|
 | `Main.qml` | Frameless transparent `Window` root + Conky-style hints (X11 / XWayland) | PR B1 (placeholder) + PR C (X11 EWMH hints in `standalone/desktop_hints.cpp`) + **PR F1 ✓ — `Core.MainContent` renders the actual rings** |
 | `SettingsOnlyRoot.qml` | Recovery-mode QML root loaded when the binary runs with `--open-settings`. Hosts only the `SettingsDialog` (no rings, no MetricsBackend). | **PR #37 follow-up ✓** |
-| `MetricsBackend.qml` | Direct reads from `/proc/stat`, `/proc/meminfo`, `statvfs(3)`, hwmon/thermal sysfs | **PR D: CPU usage (`/proc/stat`) ✓** ; **PR E: RAM (`/proc/meminfo`) + disk (`statvfs(/)`) ✓** ; **CPU temp (hwmon / thermal-zone via `core/CpuTempDiscovery.js`) ✓** ; GPU + swap post-MVP |
+| `MetricsBackend.qml` | Direct reads from `/proc/stat`, `/proc/meminfo`, `statvfs(3)`, hwmon/thermal sysfs | **PR D: CPU usage (`/proc/stat`) ✓** ; **PR E: RAM (`/proc/meminfo`) + disk (`statvfs(/)`) ✓** ; **CPU temp (hwmon / thermal-zone via `CpuTempDiscovery.js`) ✓** ; GPU + swap post-MVP |
 | `ConfigStore.qml` | `Qt.labs.settings` reader/writer | **PR F1 ✓ — Settings root, defaults mirror `main.xml`** ; **PR F2 ✓ — SettingsDialog drives writes through this instance** |
 | `SettingsDialog.qml` | Tabbed `Window` wrapping `core/MetricsBody` + `core/AppearanceBody` + `core/AboutBody`; opened via right-click on the widget or the update-available badge | **PR F2 ✓** |
 | `Theme.qml` | Kirigami theme tokens + Qt.styleHints light/dark | **PR F1 ✓ — mirrors the Plasma adapter byte-for-byte** |
@@ -416,11 +416,15 @@ compositors as a degraded-but-visible baseline.
 Same rule as everywhere in this repo, but the standalone seam is
 where it bites hardest. Every line of logic duplicated between
 `platforms/plasma/` and `platforms/standalone/` is a line that has
-to be fixed twice. When extracting something from a Plasma adapter
-for reuse here, push the pure part down into `core/*.js` first
-(example: [`SensorPicking.js`](../../core/SensorPicking.js) was
-extracted from the Plasma `MetricsBackend.qml` ahead of building
-this layer).
+to be fixed twice. When you find logic that BOTH platforms need,
+push the pure part down into `core/*.js` so it's written and tested
+once. Logic only one platform needs still goes into a pure,
+Node-tested `.js` module — it just lives beside that platform's
+adapter (e.g. [`SensorPicking.js`](../plasma/SensorPicking.js) is
+plasma-only, so it sits in `platforms/plasma/`; the `/proc` parsers
++ `CpuTempDiscovery.js` here are standalone-only). The placement
+rule: [`../../core/CLAUDE.md`](../../core/CLAUDE.md) § "Logic in
+dedicated `.js` files".
 
 The `core/` invariant (no `org.kde.*` except Kirigami) is the
 mechanised floor — but the rule is broader. Even inside what's

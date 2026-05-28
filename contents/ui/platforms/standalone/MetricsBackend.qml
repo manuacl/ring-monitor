@@ -68,7 +68,7 @@ Item {
         // tempToPercent itself for the sweep — same contract the Plasma
         // adapter satisfies via valueFromSensorMap(sensorMap, "cpuTemp").
         if (id === "cpuTemp")
-            return backend._cpuTempC;
+            return backend._coercedCpuTempC();
         // swap / GPU return 0 — added post-MVP.
         return 0;
     }
@@ -78,8 +78,18 @@ Item {
     function metricRawTemp(id) {
         backend._tick;
         if (id === "cpu")
-            return backend._cpuTempC;
+            return backend._coercedCpuTempC();
         return 0;
+    }
+
+    // _cpuTempC carries NaN internally until a sensor is resolved (and
+    // read). Coerce it to 0 at the public surface so this adapter
+    // matches the Plasma one byte-for-byte: there
+    // valueFromSensorMap(...) returns 0 for an unread/missing sensor, so
+    // a consumer doing arithmetic on the value never sees NaN on one
+    // host and 0 on the other.
+    function _coercedCpuTempC() {
+        return isFinite(backend._cpuTempC) ? backend._cpuTempC : 0;
     }
 
     function metricTempPercent(id) {
@@ -198,7 +208,14 @@ Item {
         var disk = reader.statvfs(backend._diskMount);
         backend._diskUsage = MemInfoParser.diskUsagePercent(disk.total, disk.free, disk.available);
         // ── hwmon / thermal (CPU temperature) ───────────────────────
-        // Path resolved once at startup; a point-in-time read each tick.
+        // Re-resolve while still unresolved: the hwmon driver
+        // (coretemp / k10temp / …) can be modprobed AFTER the widget
+        // starts — common when it autostarts at login before the sensor
+        // modules load. Without the retry the temp ring would stay stuck
+        // at 0 for the whole session. Once resolved, the guard is a
+        // single string check (no sysfs walk) per tick.
+        if (!backend._cpuTempPath)
+            backend._cpuTempPath = backend._resolveCpuTempPath();
         if (backend._cpuTempPath)
             backend._cpuTempC = CpuTemp.parseTempCelsius(reader.read(backend._cpuTempPath));
         // Bump _tick last so all readonly properties depending on it
@@ -209,7 +226,8 @@ Item {
     // Resolve the CPU-temperature sysfs path before the first sample.
     // onCompleted runs synchronously during construction, ahead of the
     // Timer's queued triggeredOnStart fire, so _cpuTempPath is set by
-    // the time _sample() first reads it.
+    // the time _sample() first reads it. If nothing resolves here (no
+    // driver loaded yet), _sample() keeps retrying until one appears.
     Component.onCompleted: backend._cpuTempPath = backend._resolveCpuTempPath()
 
     Timer {

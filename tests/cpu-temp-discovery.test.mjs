@@ -57,9 +57,8 @@ test("pickCpuHwmonDir prefers a CPU chip over unrelated chips", () => {
     assert.equal(pickCpuHwmonDir(entries), "hwmon4");
 });
 
-test("pickCpuHwmonDir picks vendor-specific chips ahead of acpitz", () => {
-    // acpitz exists on most boards but is the least accurate (whole-
-    // chassis); a real CPU driver must win when both are present.
+test("pickCpuHwmonDir ignores acpitz (thermal-zone fallback owns it)", () => {
+    // A real CPU driver must win over acpitz.
     assert.equal(pickCpuHwmonDir([
         { dir: "hwmon0", name: "acpitz" },
         { dir: "hwmon1", name: "k10temp" },
@@ -68,8 +67,12 @@ test("pickCpuHwmonDir picks vendor-specific chips ahead of acpitz", () => {
         { dir: "hwmon0", name: "acpitz" },
         { dir: "hwmon1", name: "zenpower" },
     ]), "hwmon1");
-    // acpitz alone is still accepted as a last resort.
-    assert.equal(pickCpuHwmonDir([{ dir: "hwmon0", name: "acpitz" }]), "hwmon0");
+    // acpitz is NOT a hwmon CPU chip: an acpitz-only hwmon set yields ""
+    // so the backend falls through to the thermal-zone path (where
+    // acpitz is accepted, but only after the real CPU zones). Without
+    // this, acpitz-in-hwmon would short-circuit a better x86_pkg_temp
+    // thermal zone on a machine exposing both.
+    assert.equal(pickCpuHwmonDir([{ dir: "hwmon0", name: "acpitz" }]), "");
 });
 
 test("pickCpuHwmonDir returns '' when no CPU chip is present", () => {
@@ -130,11 +133,13 @@ test("pickCpuThermalZone matches CPU zone types, prefers x86_pkg_temp", () => {
     ]), "");
 });
 
-test("priority lists are non-empty and CPU drivers outrank the acpitz fallback", () => {
-    // Guard against an accidental reordering that would demote real CPU
-    // drivers below the generic ACPI fallback.
+test("priority lists are non-empty, and acpitz is thermal-zone-only", () => {
     assert.ok(CPU_HWMON_NAMES.length >= 6);
-    assert.ok(CPU_HWMON_NAMES.indexOf("coretemp") < CPU_HWMON_NAMES.indexOf("acpitz"));
-    assert.ok(CPU_HWMON_NAMES.indexOf("k10temp") < CPU_HWMON_NAMES.indexOf("acpitz"));
+    // acpitz must NOT be a hwmon CPU chip — it would otherwise
+    // short-circuit the thermal-zone fallback (see pickCpuHwmonDir test).
+    assert.equal(CPU_HWMON_NAMES.indexOf("acpitz"), -1, "acpitz must not be in CPU_HWMON_NAMES");
+    // In the thermal-zone list acpitz is the LAST resort, after real
+    // CPU zones like x86_pkg_temp.
+    assert.ok(CPU_THERMAL_ZONE_TYPES.indexOf("acpitz") >= 0, "acpitz must remain the thermal-zone fallback");
     assert.ok(CPU_THERMAL_ZONE_TYPES.indexOf("x86_pkg_temp") < CPU_THERMAL_ZONE_TYPES.indexOf("acpitz"));
 });

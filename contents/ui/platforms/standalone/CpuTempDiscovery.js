@@ -35,8 +35,14 @@ var CPU_HWMON_NAMES = [
     "fam15h_power",  // AMD family 15h
     "cpu_thermal",   // ARM SoC (devicetree thermal exposed as hwmon)
     "soc_thermal",   // ARM SoC
-    "acpitz",        // generic ACPI thermal zone — often whole-board and
-                     // least accurate, so it sits last as a fallback
+    // NOTE: acpitz is deliberately NOT in the hwmon list. It's a generic
+    // ACPI thermal zone (often whole-board, least accurate) that almost
+    // always ALSO surfaces under /sys/class/thermal as type "acpitz".
+    // Listing it here would let it short-circuit the hwmon path and stop
+    // the thermal-zone fallback from ever reaching a better CPU zone
+    // (e.g. "x86_pkg_temp") on a machine that exposes both. So acpitz
+    // lives only in CPU_THERMAL_ZONE_TYPES below — the last resort, after
+    // the real CPU zones.
 ];
 
 // thermal_zone `type` values for the CPU, priority order. Only consulted

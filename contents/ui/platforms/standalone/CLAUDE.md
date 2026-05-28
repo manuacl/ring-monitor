@@ -99,6 +99,17 @@ build is unaffected (it loads from the filesystem / plasmoid package),
 so this is a standalone-only trap. Guarded by
 `tests/standalone-qml-module.test.mjs`.
 
+A **C++ helper carrying `QML_ELEMENT`** (like `ProcReader` /
+`NvmlReader`) is the `SOURCES` counterpart of the same rule: add its
+`.cpp` + `.h` to `qt_add_qml_module(... SOURCES ...)`, **and** any
+library it needs to `target_link_libraries` (e.g. `${CMAKE_DL_LIBS}`
+for `NvmlReader`'s `dlopen`). Omit it and the type is never registered
+— a QML file instantiating it (`NvmlReader { }`) fails to load with
+the same silent `exit 1`, even though the `.cpp` itself compiles
+without error. (This bit us once when a commit's `CMakeLists.txt`
+edit was lost: the helper built in isolation but the QML element was
+undefined at load time.)
+
 ## `qmllint` Info lines on the C++ `ProcReader` helper are benign
 
 Running `qmllint-qt6` on `MetricsBackend.qml` emits, for every
@@ -291,6 +302,29 @@ have blocked the GUI thread of the recovery process. Loading a
 separate root is shorter, doesn't waste syscalls, and the
 priority-driven quit is robust to future programmatic-hide
 features.
+
+### Window type: click-through vs hide-on-desktop-click are a forced trade-off
+
+On X11 / XWayland the two window types we can set trade one bug for
+the other — **neither is fully correct**:
+
+- `_NET_WM_WINDOW_TYPE_DESKTOP` (current): clicks pass **through** to
+  the wallpaper, BUT clicking the desktop raises Plasma's own desktop
+  containment over our window → the widget vanishes behind the
+  wallpaper.
+- `_NET_WM_WINDOW_TYPE_NORMAL` + `_NET_WM_STATE_BELOW`: **survives**
+  the desktop click (stays visible), BUT it's a managed window that
+  captures clicks over its area → the desktop underneath is no longer
+  clickable (icon selection, containment menu).
+
+The only path that gives **both** (visible on a desktop click AND
+click pass-through) is the wlr-layer-shell `background` layer — it
+doesn't participate in window restacking and isn't a normal input
+target. That's PR C2 in
+[`docs/plasma-isolation/plan.md`](../../../../docs/plasma-isolation/plan.md).
+Don't keep flip-flopping DESKTOP ↔ NORMAL to "fix" one symptom; they
+are known-equivalent stopgaps. Full live-test notes in the
+`project-standalone-window-type-desktop-click` memory.
 
 ### Initial `_anchor()` must be deferred via `Qt.callLater`
 

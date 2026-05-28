@@ -169,8 +169,11 @@ Window {
         theme: themeAdapter
         updateChecker: updateCheckerAdapter
         // Live availability from the running backend so the metrics picker
-        // greys out metrics with no data source (no GPU, no swap, …).
-        availableMetrics: metricsAdapter.availableMetrics
+        // greys out metrics with no data source (no GPU, no swap, …). `null`
+        // while loading (= unknown → everything enable-able) so a dialog
+        // opened during the first sample doesn't transiently grey rows that
+        // are about to resolve; mirrors MainContent's warm-up gate.
+        availableMetrics: metricsAdapter.loading ? null : metricsAdapter.availableMetrics
     }
 
     // ── Right-click context menu ────────────────────────────────────

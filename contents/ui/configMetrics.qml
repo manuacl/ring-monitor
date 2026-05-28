@@ -96,6 +96,13 @@ KCM.SimpleKCM {
         id: body
         theme: themeAdapter
         diskPartitions: metricsAdapter.availablePartitions
-        availableMetrics: metricsAdapter.availableMetrics
+        // While the freshly-instantiated backend is still warming up, its
+        // Sensors haven't reached Ready so availableMetrics is a partial /
+        // empty (non-null) list — passing that straight through would grey
+        // out and disable every row until ksysguard resolves. Feed `null`
+        // (= availability unknown → everything enable-able) until loading
+        // clears, mirroring MainContent's warm-up gate. Once resolved, the
+        // reactive binding lets late sensors un-grey their rows.
+        availableMetrics: metricsAdapter.loading ? null : metricsAdapter.availableMetrics
     }
 }

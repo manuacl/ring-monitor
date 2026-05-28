@@ -130,6 +130,24 @@ for the same reason. A `null` `availableMetrics` (host predates the
 surface, or hasn't reported) makes `filterByAvailable` a pass-through, so
 nothing is hidden.
 
+**Known warm-up skew (accepted tradeoff).** The gate uses `metrics.loading`,
+which clears as soon as the *aggregate* sensors are ready (Plasma: cpu +
+ram; standalone: the first `/proc/stat` sample). A metric whose own source
+resolves slightly later — a per-GPU sensor reaching `Ready` a tick after
+cpu/ram on Plasma, or the standalone CPU-temp hwmon path that resolves over
+a bounded retry window — is briefly absent from `availableMetrics` at the
+moment the gate clears, so its ring can drop then re-appear a tick or two
+later (a short startup reflow). This is deliberate: `availableMetrics`
+reports a metric only when there's *real* data behind it (`Sensor.Ready` /
+a resolved path), and there is no clean signal that distinguishes
+"still resolving" from "genuinely absent" — a non-existent ksysguard
+sensor also sits in a non-`Ready` state indefinitely. Widening the gate to
+"show until proven absent" would keep dead rings visible on hosts that lack
+the metric, which is the exact problem this feature fixes. The sub-second
+startup reflow is the lesser evil; per-partition disk values already hold
+last-good across rebuilds via `_lastPartValue`, so the disk ring doesn't
+flicker to 0 during it.
+
 ## `Ring.qml`
 
 A circular gauge: 270° arc starting at 135° (90° gap at the bottom).
@@ -243,7 +261,7 @@ One row of the metrics list:
 |---|---|
 | `metricId` | the id (`"cpu"`, `"ram"`, …) — looked up in `MetricsCatalog.labelFor()` for the checkbox text |
 | `enabled` | whether this metric is selected; drives the checkbox state + the row's dimmed/disabled look |
-| `available` | whether the host has a live data source for this metric (default `true`). A **separate axis** from `enabled`: when `false` the checkbox goes non-interactive, the description dims, and a "not detected" annotation appears — so the user can't enable a metric that would render a dead 0% ring, while seeing why. Fed by `MetricsBody.isMetricAvailable(id)`, which reads the backend's `availableMetrics`. |
+| `available` | whether the host has a live data source for this metric (default `true`). A **separate axis** from `enabled`: when `false` the description dims and a "not detected" annotation appears. The checkbox is frozen only when the metric is **both unavailable and unchecked** (enabling it would render a dead 0% ring); an already-enabled metric that loses its source stays toggle-able so the stale selection can be unchecked. Fed by `MetricsBody.isMetricAvailable(id)`, which reads the backend's `availableMetrics`. |
 | `description` | secondary label to the right of the checkbox |
 | `extraContent` | optional `Component` rendered indented below the main row (e.g. CPU's "show cores" toggle) |
 | `unit` | layout unit (default `18`) — injected by the parent via `platforms/plasma/Theme.unit` |
@@ -270,13 +288,16 @@ not just CPU. New child-bearing metrics get it for free by setting
 ### Availability is a separate axis from enabled
 
 `available` (default `true`) is independent of `enabled`/checked. The
-checkbox binds `enabled: row.available` (not the row's `enabled`), so it
-stays interactive whenever the metric has a data source — regardless of
-whether the metric is currently checked. When `available === false` the
-description dims to `0.3` (via the `_descriptionOpacity` helper, which
-avoids a nested ternary across the two axes) and the `_unavailableLabel`
-("not detected") shows. A metric can flip back to available at runtime
-(a late-modprobed sensor), re-enabling the row with no extra wiring.
+checkbox binds `enabled: row.available || row.enabled` — interactive
+whenever the metric has a data source OR is already checked. So it stays
+toggle-able for an available metric (enable/disable freely) and for a
+checked-but-now-unavailable one (uncheck a stale selection); only a metric
+that is both unavailable and unchecked is frozen, since enabling it would
+render a dead 0% ring. When `available === false` the description dims to
+`0.3` (via the `_descriptionOpacity` helper, which avoids a nested ternary
+across the two axes) and the `_unavailableLabel` ("not detected") shows. A
+metric can flip back to available at runtime (a late-modprobed sensor),
+re-enabling the row with no extra wiring.
 
 ### Tests
 

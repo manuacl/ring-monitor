@@ -64,27 +64,28 @@ Item {
     // Which catalog metrics have a live data source on this host. cpu / ram
     // / disk are always present (/proc + a discovered filesystem); cpuTemp
     // appears once the hwmon/thermal path resolves; swap only when the
-    // kernel reports a non-zero SwapTotal (swapless host → hidden); gpu /
-    // gpuTemp only when NVML reported available. Mirrors the Plasma
-    // adapter's availableMetrics surface so MainContent + the picker behave
-    // identically on either host. Reads _tick so it re-evaluates as the
-    // warm-up resolves the late-arriving sources (cpuTemp, gpu).
-    readonly property var availableMetrics: {
-        backend._tick;
-        var out = [];
-        out.push("cpu");
-        if (backend._cpuTempPath)
-            out.push("cpuTemp");
-        out.push("ram");
-        if (backend._swapAvailable)
-            out.push("swap");
-        if (backend._gpuAvailable) {
-            out.push("gpu");
-            out.push("gpuTemp");
-        }
-        out.push("disk");
-        return out;
-    }
+    // kernel reports a non-zero SwapTotal (swapless host → hidden); gpu only
+    // when NVML reported a usable device, and gpuTemp additionally requires
+    // a finite temperature reading (an NVIDIA device whose temp query keeps
+    // failing keeps _gpuTempC at NaN → no dead 0°C ring; matches the Plasma
+    // adapter's separate _gpuUsageReady/_gpuTempReady gating). Mirrors the
+    // Plasma availableMetrics surface so MainContent + the picker behave
+    // identically on either host.
+    //
+    // The binding depends only on the capability properties below — NOT on
+    // _tick. _cpuTempPath / _swapAvailable / _gpuAvailable / _gpuTempC each
+    // carry their own NOTIFY, so it re-evaluates exactly when a capability
+    // flips, not on every 500 ms poll (which would hand MainContent a fresh
+    // array identity each tick and rebuild the whole ring strip at 2 Hz).
+    readonly property var availableMetrics: Catalog.availableMetricsFrom({
+        "cpu": true,
+        "cpuTemp": backend._cpuTempPath !== "",
+        "ram": true,
+        "swap": backend._swapAvailable,
+        "gpu": backend._gpuAvailable,
+        "gpuTemp": backend._gpuAvailable && isFinite(backend._gpuTempC),
+        "disk": true
+    })
 
     function metricValue(id) {
         backend._tick;

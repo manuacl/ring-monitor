@@ -316,6 +316,46 @@ test('filterByAvailable: empty enabled → []', () => {
     assert.deepEqual(Catalog.filterByAvailable([], ['cpu', 'ram']), []);
 });
 
+// ── availableMetricsFrom: build the list from a capability map ────────
+//
+// Both backend adapters pass a { id: boolean } readiness map; the helper
+// emits the truthy ids in canonical METRIC_IDS order. Centralising the
+// order here means adding a metric to METRIC_IDS is the only edit needed.
+
+test('availableMetricsFrom: emits truthy ids in canonical METRIC_IDS order', () => {
+    // Flags given out of order → output still canonical.
+    assert.deepEqual(
+        Catalog.availableMetricsFrom({ disk: true, cpu: true, ram: true }),
+        ['cpu', 'ram', 'disk']
+    );
+});
+
+test('availableMetricsFrom: drops falsy flags (false / undefined / missing)', () => {
+    assert.deepEqual(
+        Catalog.availableMetricsFrom({ cpu: true, cpuTemp: false, ram: true, gpu: undefined }),
+        ['cpu', 'ram']
+    );
+});
+
+test('availableMetricsFrom: full host → the whole catalog in order', () => {
+    const all = {};
+    for (const id of Catalog.METRIC_IDS) all[id] = true;
+    assert.deepEqual(Catalog.availableMetricsFrom(all), Catalog.METRIC_IDS);
+});
+
+test('availableMetricsFrom: ignores ids that are not in the catalog', () => {
+    assert.deepEqual(
+        Catalog.availableMetricsFrom({ cpu: true, bogus: true }),
+        ['cpu']
+    );
+});
+
+test('availableMetricsFrom: empty / null flags → []', () => {
+    assert.deepEqual(Catalog.availableMetricsFrom({}), []);
+    assert.deepEqual(Catalog.availableMetricsFrom(null), []);
+    assert.deepEqual(Catalog.availableMetricsFrom(undefined), []);
+});
+
 test('toggleEnabled: enabling an id not yet present appends it', () => {
     assert.deepEqual(Catalog.toggleEnabled(['cpu', 'ram'], 'gpu', true),
                      ['cpu', 'ram', 'gpu']);

@@ -134,10 +134,21 @@ Item {
             compare(row.available, true);
             compare(row._checkBox.enabled, true);
         }
-        function test_unavailable_disables_checkbox() {
+        function test_unavailable_and_unchecked_disables_checkbox() {
             row.metricId = "gpu";
+            row.enabled = false;
             row.available = false;
-            compare(row._checkBox.enabled, false, "an unavailable metric's checkbox must be non-interactive");
+            compare(row._checkBox.enabled, false, "an unavailable + unchecked metric's checkbox must be non-interactive");
+        }
+        function test_unavailable_but_checked_stays_interactive() {
+            // SCENARIO (review #3): a metric the user had enabled then lost
+            // its data source (GPU card removed) must remain toggle-able so
+            // the stale selection can be cleaned up — only unavailable AND
+            // unchecked is frozen.
+            row.metricId = "gpu";
+            row.enabled = true;
+            row.available = false;
+            compare(row._checkBox.enabled, true, "a checked-but-unavailable metric must stay toggle-able so it can be unchecked");
         }
         function test_available_axis_independent_of_enabled() {
             // Available + unchecked → checkbox still interactive (can enable).

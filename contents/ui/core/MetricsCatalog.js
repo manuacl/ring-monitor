@@ -116,6 +116,24 @@ function filterByAvailable(enabledIds, availableIds) {
     return out;
 }
 
+// Build the availableMetrics list from a `{ id: boolean }` capability
+// map, in canonical METRIC_IDS order. Both backend adapters pass their
+// own per-metric readiness flags through this so the "which order do we
+// list them in" decision lives in ONE place (the catalog) rather than
+// being hand-duplicated in each adapter — adding a metric to METRIC_IDS
+// then only needs a flag entry, not an extra push() in two files. The
+// order here is canonical, not the user's; filterByAvailable re-imposes
+// the user's order downstream. Ids in `flags` that aren't catalog ids
+// are ignored.
+function availableMetricsFrom(flags) {
+    var out = [];
+    for (var i = 0; i < METRIC_IDS.length; i++) {
+        var id = METRIC_IDS[i];
+        if (flags && flags[id]) out.push(id);
+    }
+    return out;
+}
+
 // Append any catalog metric id missing from `currentIds`, preserving
 // the existing order. Used in MetricsBody.loadOrder so that a release
 // introducing a new metric (e.g. cpuTemp / gpuTemp in 0.4) auto-shows
@@ -306,6 +324,7 @@ if (typeof module !== "undefined" && module.exports) {
         parseCsv: parseCsv,
         filterByOrder: filterByOrder,
         filterByAvailable: filterByAvailable,
+        availableMetricsFrom: availableMetricsFrom,
         labelFor: labelFor,
         sensorIdFor: sensorIdFor,
         tempSensorIdFor: tempSensorIdFor,

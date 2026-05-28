@@ -67,24 +67,22 @@ Item {
     // Catalog.METRIC_IDS for readability; the consumer (filterByAvailable)
     // keeps the user's order, not this one.
     readonly property var availableMetrics: {
+        // Reading the gpu ticks first makes the binding re-evaluate when a
+        // per-GPU Instantiator's status changes (the readiness helpers walk
+        // those instances, which QML can't otherwise track). The universal
+        // sensors' status reads below are tracked directly (Sensor.status
+        // carries a NOTIFY).
         backend._gpuUsageTick;
         backend._gpuTempTick;
-        var out = [];
-        if (cpuTotal.status === Sensors.Sensor.Ready)
-            out.push("cpu");
-        if (cpuTempSensor.status === Sensors.Sensor.Ready)
-            out.push("cpuTemp");
-        if (ramSensor.status === Sensors.Sensor.Ready)
-            out.push("ram");
-        if (swapSensor.status === Sensors.Sensor.Ready)
-            out.push("swap");
-        if (backend._gpuUsageReady())
-            out.push("gpu");
-        if (backend._gpuTempReady())
-            out.push("gpuTemp");
-        if (diskSensor.status === Sensors.Sensor.Ready)
-            out.push("disk");
-        return out;
+        return Catalog.availableMetricsFrom({
+            "cpu": cpuTotal.status === Sensors.Sensor.Ready,
+            "cpuTemp": cpuTempSensor.status === Sensors.Sensor.Ready,
+            "ram": ramSensor.status === Sensors.Sensor.Ready,
+            "swap": swapSensor.status === Sensors.Sensor.Ready,
+            "gpu": backend._gpuUsageReady(),
+            "gpuTemp": backend._gpuTempReady(),
+            "disk": diskSensor.status === Sensors.Sensor.Ready
+        });
     }
 
     // GPU readiness mirrors _gpuUsageValue / _gpuTempValue: usage is ready

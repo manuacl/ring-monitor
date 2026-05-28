@@ -27,11 +27,12 @@ import "MetricsCatalog.js" as Catalog
 // Availability is a SEPARATE axis from enabled/checked. `available` is
 // false when the backend reports no live data source for this metric
 // (GPU on a non-NVIDIA box, swap on a swapless host, an unresolved
-// CPU-temp sensor). An unavailable row dims, annotates itself ("not
-// detected"), and makes the checkbox non-interactive so the user can't
-// enable a metric that would render a dead 0% ring — while still seeing
-// why. It can flip back to available at runtime (a late-modprobed
-// sensor), at which point the row re-enables.
+// CPU-temp sensor). An unavailable row dims and annotates itself ("not
+// detected"). The checkbox is frozen only when the metric is BOTH
+// unavailable AND not enabled — enabling it would render a dead 0% ring.
+// An already-enabled metric that loses its source stays toggle-able so
+// the user can uncheck the stale selection. Availability can flip back
+// at runtime (a late-modprobed sensor), re-enabling the row.
 //
 // No coupling to the page or the DraggableList scaffolding; this lets
 // us instantiate it directly in `tests/qml/tst_MetricRow.qml`.
@@ -84,11 +85,13 @@ Item {
                 id: checkBox
                 text: Catalog.labelFor(row.metricId)
                 checked: row.enabled
-                // Decoupled from the row's enabled (checked) state: the box
-                // stays interactive whenever the metric is available so the
-                // user can toggle it on or off, but goes non-interactive
-                // when there's no data source behind it.
-                enabled: row.available
+                // Interactive when the metric is available (so the user can
+                // toggle it) OR already enabled (so a metric that was checked
+                // and then lost its data source — GPU card removed — can still
+                // be unchecked to clean up the config). Only a metric that is
+                // BOTH unavailable AND not enabled is frozen, since enabling
+                // it would just render a dead 0% ring.
+                enabled: row.available || row.enabled
                 onClicked: row.toggled(checked)
                 Layout.minimumWidth: row.unit * 5
             }

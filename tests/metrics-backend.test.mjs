@@ -151,16 +151,20 @@ test("MetricsBackend wires disk partitions via the shared DiskPartitions adapter
 test("availableMetrics gates each metric on its Sensor reaching Ready", () => {
     // A metric whose Sensor never reaches Ready (no such sensor on the
     // host) must be omitted so MainContent drops the dead 0% ring and the
-    // picker greys the row. cpu/cpuTemp/ram/swap/disk gate on their static
-    // sensor status; gpu/gpuTemp on the discovered-instantiator readiness
-    // helpers (mirroring _gpuUsageValue / _gpuTempValue).
+    // picker greys the row. The list is built through the shared
+    // Catalog.availableMetricsFrom helper from a per-metric readiness map:
+    // cpu/cpuTemp/ram/swap/disk gate on their static sensor status;
+    // gpu/gpuTemp on the discovered-instantiator readiness helpers
+    // (mirroring _gpuUsageValue / _gpuTempValue).
     assert.match(SOURCE, /property\s+var\s+availableMetrics\s*:/, "must declare readonly property var availableMetrics");
-    assert.match(SOURCE, /cpuTotal\.status\s*===\s*Sensors\.Sensor\.Ready[\s\S]*?push\("cpu"\)/, 'availableMetrics must push "cpu" when cpuTotal is Ready');
-    assert.match(SOURCE, /swapSensor\.status\s*===\s*Sensors\.Sensor\.Ready[\s\S]*?push\("swap"\)/, 'availableMetrics must gate "swap" on swapSensor being Ready');
+    assert.match(SOURCE, /Catalog\.availableMetricsFrom\s*\(/, "availableMetrics must build the list via the shared Catalog.availableMetricsFrom helper");
+    assert.match(SOURCE, /"cpu":\s*cpuTotal\.status\s*===\s*Sensors\.Sensor\.Ready/, 'availableMetrics map must gate "cpu" on cpuTotal Ready');
+    assert.match(SOURCE, /"swap":\s*swapSensor\.status\s*===\s*Sensors\.Sensor\.Ready/, 'availableMetrics map must gate "swap" on swapSensor Ready');
+    assert.match(SOURCE, /"disk":\s*diskSensor\.status\s*===\s*Sensors\.Sensor\.Ready/, 'availableMetrics map must gate "disk" on diskSensor Ready');
     assert.match(SOURCE, /function\s+_gpuUsageReady\s*\(/, "must declare _gpuUsageReady() helper");
     assert.match(SOURCE, /function\s+_gpuTempReady\s*\(/, "must declare _gpuTempReady() helper");
-    assert.match(SOURCE, /_gpuUsageReady\(\)[\s\S]*?push\("gpu"\)/, 'availableMetrics must push "gpu" via _gpuUsageReady()');
-    assert.match(SOURCE, /_gpuTempReady\(\)[\s\S]*?push\("gpuTemp"\)/, 'availableMetrics must push "gpuTemp" via _gpuTempReady()');
+    assert.match(SOURCE, /"gpu":\s*backend\._gpuUsageReady\(\)/, 'availableMetrics map must gate "gpu" via _gpuUsageReady()');
+    assert.match(SOURCE, /"gpuTemp":\s*backend\._gpuTempReady\(\)/, 'availableMetrics map must gate "gpuTemp" via _gpuTempReady()');
 });
 
 test("loading binding watches the universal aggregates' status", () => {

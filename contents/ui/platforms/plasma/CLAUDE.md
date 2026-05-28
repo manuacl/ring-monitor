@@ -17,6 +17,13 @@ One file per Plasma seam. Keep each adapter **focused and surgical**:
 - `MetricsBackend.qml` wraps `org.kde.ksysguard.sensors` — universal
   aggregates as static `Sensors.Sensor` instances, multi-arity sensors
   via `SensorTreeModel` + `Instantiator`.
+- `DiskPartitions.qml` — a focused `SensorTreeModel` walk that returns
+  `[{id, label, sensorId}]` for the mounted filesystems
+  (`disk/<uuid>/usedPercent`, id = UUID, label = volume name from the
+  parent node's `Qt.DisplayRole`). Reused by **both** `MetricsBackend`
+  (drives a per-partition `Sensor` `Instantiator`) and `configMetrics.qml`
+  (feeds the partition checkboxes — the KCM page has no backend of its
+  own).
 - `ThemedIcon.qml` wraps `Kirigami.Icon` (one-liner, just for the import
   seam).
 - `ColorPicker.qml` wraps `org.kde.kquickcontrols.ColorButton`.
@@ -65,8 +72,19 @@ The contract:
   hardcoding per-machine sensor ids (e.g. `gpu/gpu1/temperature` works
   on the dev rig but breaks on a `gpu/gpu0/…` machine). The pure
   classifier `Catalog.classifyDiscoveredIds` filters the flat id list
-  into per-bucket arrays (cores, gpu temp, gpu usage) — testable in
-  Node without Plasma.
+  into per-bucket arrays (cores, gpu temp, gpu usage, disk partitions) —
+  testable in Node without Plasma.
+- **Disk sensors are keyed per-filesystem by UUID, not by mountpoint.**
+  ksystemstats exposes `disk/<uuid>/usedPercent` (+ `/free`, `/total`,
+  `/name`, …) for each *mounted filesystem*, labelled by the volume name
+  on the parent `disk/<uuid>` node. It already deduplicates a multi-mount
+  filesystem (a btrfs root mounted at `/`, `/var`, `/home`) into one entry
+  and already drops pseudo/overlay mounts (composefs `/`). Physical disks
+  (`disk/sda`, `disk/nvme0n1`) carry throughput (`/read`, `/write`) but
+  **no `/usedPercent`** — so `classifyDiscoveredIds` keys the partition
+  bucket on the `usedPercent` leaf (excluding the `disk/all` aggregate).
+  The mountpoint is **not** exposed as a sensor, which is why the disk
+  multi-ring default can't match `$HOME` on Plasma (→ aggregate fallback).
 
 ## Live light/dark scheme detection: `Qt.styleHints`, not Kirigami
 

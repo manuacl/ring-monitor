@@ -111,7 +111,8 @@ All the size/stroke/sweep math from `Ring.qml`.
 | `clampPercent(p)` | clamp to `[0, 100]`, NaN → 0 |
 | `sweepForPercent(p)` | percent → sweep angle in degrees |
 | `dimensionsFor(size)` | `{ ringStroke, ringRadius, nestedStroke, nestedGap, labelPx, valuePx }` |
-| `nestedRadius(ringRadius, ringStroke, nestedStroke, nestedGap, index)` | radius for the Nth concentric ring |
+| `nestedRingLayout(ringRadius, ringStroke, preferredStroke, preferredGap, count)` | `{stroke, gap, radii}` for the thin CPU-cores rings nested *inside* the main ring (shrinks past `COMFORT_RING_COUNT` = 7) |
+| `equalRingLayout(ringRadius, preferredStroke, preferredGap, count)` | `{stroke, gap, radii}` for the **equal-thickness** disk partition rings that *replace* the main ring — outermost at `ringRadius`, shrinks past `DISK_COMFORT_RING_COUNT` = 5. `radii[0] === ringRadius`. |
 
 Why extract this? The earlier inline ternary chain in `Ring.qml`
 (`Math.max(4, Math.round(size * 0.055))` repeated five times) is the
@@ -231,6 +232,42 @@ on many ARM SBCs / VMs lives only in the thermal framework).
 Covered by `tests/cpu-temp-discovery.test.mjs` (includes a real-layout
 scenario: `coretemp` / `Package id 0` chosen over nvme / chipset / wmi
 / battery hwmons).
+
+## `DiskDiscovery.js`
+
+Standalone-only filesystem discovery for the disk multi-partition ring
+(in `platforms/standalone/`, beside the adapter — only the standalone
+backend reads `/proc/mounts`). The QML side feeds three raw inputs from
+`ProcReader` (`/proc/mounts`, `blockDeviceInfo()`, `canonicalHome()`)
+and these pure functions turn them into the partition list + default
+selection. Mirrors what ksysguard does on Plasma: one entry per
+**filesystem** (deduped by device), keyed by UUID, labelled by volume
+name.
+
+| Function | Purpose |
+|---|---|
+| `parseMounts(content)` | `/proc/mounts` → `[{device, mountpoint, fstype}]` for real block-device filesystems only. The `device.startsWith("/dev/")` test drops composefs/overlay/tmpfs/fuse in one rule (their device field isn't a `/dev` path); `squashfs` is additionally skipped (loop-mounted system images). Un-escapes octal `\040`-style mountpoints. |
+| `buildPartitions(mounts, blockInfo)` | Dedup by device → `[{id, label, mountpoint, device}]`. `id` = fs UUID (falls back to the device path), `label` = volume label (falls back to the device basename), `mountpoint` = the shortest mount of that device (any works for `statvfs` — same filesystem). Collapses the 5 mounts of an rpm-ostree btrfs root into one entry. |
+| `defaultSelection(mounts, partitions, canonicalHome)` | `[id]` of the filesystem bearing `$HOME` — the longest mountpoint that is a prefix of the resolved home path (e.g. `/var/home` over `/var` over `/`). `[]` when home can't be matched. |
+
+Covered by `tests/disk-discovery.test.mjs` (real Bazzite `/proc/mounts`
+SCENARIO: sda3 mounted 5× → one "bazzite" partition; composefs / tmpfs /
+fuse dropped; `$HOME=/home/manu` → `/var/home` → sda3).
+
+## `DiskMetrics.js`
+
+Shared (`core/`) view-side helpers for the disk multi-partition ring —
+the per-partition discovery + value reads are platform-specific, but
+these two computations are identical on both hosts.
+
+| Function | Purpose |
+|---|---|
+| `averagePercent(values)` | Mean of a 0–100 array (the centre readout for the multi-ring disk). `0` on empty or any non-finite member — never propagates NaN into the centre text. |
+| `selectPartitions(availableIds, csvIds)` | Intersection of the CSV selection with the partitions on offer, preserving `availableIds` order. Fed the *ordered* id list (see `orderPartitions`) so the selected rings come out in display order. Drops stale ids (an unplugged disk). |
+| `orderPartitions(savedOrderCsv, available)` | Order the discovered partitions for the reorderable picker + ring nesting: ids in the saved CSV first (that order), then newly-discovered ones appended alphabetically by label; stale saved ids dropped. Empty saved order → fully alphabetical (the default). First = outermost ring. Mirror of `MetricsCatalog.mergeWithCatalog` for the dynamic partition set. |
+| `sortByLabel(partitions)` | Alphabetical (case-insensitive) sort by label, ties broken by id. The default ordering used by `orderPartitions` for the un-saved tail. |
+
+Covered by `tests/disk-metrics.test.mjs`.
 
 > New shared `core/*.{js,qml}` **and** `platforms/standalone/*.{js,qml}`
 > files must be added to the `QML_FILES` list in `CMakeLists.txt` — the

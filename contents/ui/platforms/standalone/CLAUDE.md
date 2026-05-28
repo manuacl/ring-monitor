@@ -49,6 +49,24 @@ build is unaffected (it loads from the filesystem / plasmoid package),
 so this is a standalone-only trap. Guarded by
 `tests/standalone-qml-module.test.mjs`.
 
+## `qmllint` Info lines on the C++ `ProcReader` helper are benign
+
+Running `qmllint-qt6` on `MetricsBackend.qml` emits, for every
+`reader.read(...)` / `reader.statvfs(...)` / `reader.listDir(...)`
+call:
+
+```
+Info: Member "read" not found on type "ProcReader" [missing-property]
+```
+
+This is **not** a failure. `ProcReader` is a C++ type registered via
+`QML_ELEMENT`; its type metadata only exists inside the CMake build, so
+the standalone `qmllint` invocation (run without that build context)
+can't see the `Q_INVOKABLE` methods. The lines are severity `Info`, and
+**qmllint still exits 0** — the pre-commit/CI/finish-branch gates gate
+on the exit code, not the Info output. Don't try to silence or "fix"
+them.
+
 ## File-reading helper
 
 QML's `XMLHttpRequest` with `file://` is restricted in Qt 6.5+ —

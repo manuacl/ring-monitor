@@ -28,6 +28,12 @@ ColumnLayout {
     // SettingsDialog via the backend). Drives the per-partition checkboxes
     // under the disk row.
     property var diskPartitions: []
+    // The backend's default partition selection (standalone: the $HOME-bearing
+    // filesystem; Plasma: [] = aggregate). When the user hasn't selected
+    // anything yet, the picker seeds enabledPartitions with this so the
+    // default renders as a real, checked, editable row instead of showing the
+    // widget's $HOME ring with every checkbox unchecked.
+    property var defaultPartitionIds: []
 
     // ── Bridged via aliases in the wrapper (cfg_metricOrder ↔ body.metricOrderCsv, etc.) ──
     property string metricOrderCsv: ""
@@ -134,12 +140,26 @@ ColumnLayout {
         body.partitionOrderCsv = currentPartitionOrder().join(",");
     }
 
+    // Seed the selection with the backend default when nothing is chosen yet,
+    // so the picker reflects what the widget actually renders (the default
+    // ring) as a checked, editable row. Empty selection = always the default
+    // (the disk metric shows ≥1 partition); to hide it, disable the metric.
+    function _seedDefaultIfEmpty() {
+        if (body.enabledPartitionsCsv === "" && body.defaultPartitionIds && body.defaultPartitionIds.length > 0)
+            body.enabledPartitionsCsv = body.defaultPartitionIds.join(",");
+    }
+
     onMetricOrderCsvChanged: loadOrder()
     onPartitionOrderCsvChanged: loadPartitionOrder()
-    onDiskPartitionsChanged: loadPartitionOrder()
+    onDiskPartitionsChanged: {
+        loadPartitionOrder();
+        _seedDefaultIfEmpty();
+    }
+    onDefaultPartitionIdsChanged: _seedDefaultIfEmpty()
     Component.onCompleted: {
         loadOrder();
         loadPartitionOrder();
+        _seedDefaultIfEmpty();
     }
 
     Layout.fillWidth: true
@@ -314,10 +334,9 @@ ColumnLayout {
             DraggableList {
                 id: partitionList
                 visible: partitionOrderModel.count > 0
-                // Distinct drag scope so this nested list and the outer
-                // metrics list (dragKey "row") don't fire each other's
-                // DropAreas — the cause of "drag floats but nothing reorders".
-                dragKey: "diskPartition"
+                // No explicit dragKey: DraggableList auto-scopes each instance,
+                // so this nested list and the outer metrics list don't fire
+                // each other's DropAreas.
                 Layout.fillWidth: true
                 Layout.preferredHeight: implicitHeight
                 model: partitionOrderModel
@@ -337,18 +356,9 @@ ColumnLayout {
                 }
 
                 onReordered: function (from, to) {
-                    const next = Logic.applyMove(body.currentPartitionOrder(), from, to);
-                    const labelById = {};
-                    const parts = body.diskPartitions || [];
-                    for (let i = 0; i < parts.length; i++)
-                        labelById[parts[i].id] = parts[i].label;
-                    partitionOrderModel.clear();
-                    for (let j = 0; j < next.length; j++) {
-                        partitionOrderModel.append({
-                            partId: next[j],
-                            partLabel: labelById[next[j]] || next[j]
-                        });
-                    }
+                    // ListModel.move reorders in place (keeps partId/partLabel),
+                    // then commit serializes the new model order to the CSV.
+                    partitionOrderModel.move(from, to, 1);
                     body.commitPartitionOrder();
                 }
             }

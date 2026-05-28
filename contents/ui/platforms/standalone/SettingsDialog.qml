@@ -93,6 +93,9 @@ Window {
         id: partitionReader
     }
     property var _diskPartitions: []
+    // The $HOME-bearing filesystem — the default the picker seeds when the
+    // user hasn't chosen any partition (mirrors the backend's defaultPartitionIds).
+    property var _defaultPartitionIds: []
     function _refreshDiskPartitions() {
         var mounts = DiskDiscovery.parseMounts(partitionReader.read("/proc/mounts"));
         var parts = DiskDiscovery.buildPartitions(mounts, partitionReader.blockDeviceInfo());
@@ -103,6 +106,7 @@ Window {
                 "label": parts[i].label
             });
         dialog._diskPartitions = out;
+        dialog._defaultPartitionIds = DiskDiscovery.defaultSelection(mounts, parts, partitionReader.canonicalHome());
     }
 
     // ColorPicker injected into AppearanceBody as a Component — the
@@ -169,6 +173,7 @@ Window {
                     id: metricsBody
                     theme: dialog.theme
                     diskPartitions: dialog._diskPartitions
+                    defaultPartitionIds: dialog._defaultPartitionIds
                     width: metricsScroll.availableWidth
                 }
             }

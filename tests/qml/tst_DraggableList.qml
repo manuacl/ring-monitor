@@ -61,6 +61,14 @@ Item {
         }
     }
 
+    // Second instance (invisible, off the mouse path) used only to assert
+    // each DraggableList auto-scopes to a distinct dragKey.
+    Ui.DraggableList {
+        id: keyedList
+        model: testModel
+        visible: false
+    }
+
     SignalSpy {
         id: reorderedSpy
         target: list
@@ -87,14 +95,15 @@ Item {
             compare(root.capturedIndices[2], 2);
         }
 
-        // The drag scope key (Drag.keys / DropArea.keys). Defaults to "row"
-        // for standalone lists; a nested list (e.g. the disk-partition picker
-        // inside the metrics list) must override it to a distinct value so
-        // the two lists don't fire each other's DropAreas. Guards against the
-        // property being dropped — without keys, nested lists cross-talk and
-        // the inner drag floats but never reorders (DropAreas never fire).
-        function test_dragKey_defaults_to_row() {
-            compare(list.dragKey, "row");
+        // The drag scope key (Drag.keys / DropArea.keys) defaults to a
+        // UNIQUE-per-instance value so nesting is safe by construction: a
+        // nested list and its parent never fire each other's DropAreas
+        // without anyone having to set a key. Guards against the auto-scope
+        // default being dropped back to a shared literal (which reintroduces
+        // the cross-talk: inner drag floats but never reorders).
+        function test_dragKey_is_unique_per_instance() {
+            verify(list.dragKey.length > 0, "dragKey must default to a non-empty key");
+            verify(list.dragKey !== keyedList.dragKey, "two DraggableList instances must get distinct auto-scoped keys");
         }
     }
 

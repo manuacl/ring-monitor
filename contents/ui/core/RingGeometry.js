@@ -56,8 +56,12 @@ var COMFORT_RING_COUNT = 7;
 // main ring's full stroke up to this count. Past it the layout shrinks the
 // stroke + gap to keep the stack inside the same envelope — same strategy as
 // COMFORT_RING_COUNT for the thin cores rings, but fewer because each disk
-// ring is as thick as the main ring (0.055 vs 0.017 of size).
-var DISK_COMFORT_RING_COUNT = 5;
+// ring is as thick as the main ring (0.055 vs 0.017 of size). Beyond
+// DISK_MAX_RING_COUNT the rings are too cramped to read, so the displayed
+// set is capped there (MainContent slices the selection) — which also keeps
+// every radius positive at the minimum ringSize (80).
+var DISK_COMFORT_RING_COUNT = 4;
+var DISK_MAX_RING_COUNT = 6;
 
 function clampPercent(p) {
     if (!isFinite(p)) return 0;
@@ -193,6 +197,7 @@ if (typeof module !== "undefined" && module.exports) {
         SPLIT_GAP_ANGLE: SPLIT_GAP_ANGLE,
         COMFORT_RING_COUNT: COMFORT_RING_COUNT,
         DISK_COMFORT_RING_COUNT: DISK_COMFORT_RING_COUNT,
+        DISK_MAX_RING_COUNT: DISK_MAX_RING_COUNT,
         clampPercent: clampPercent,
         sweepForPercent: sweepForPercent,
         effectiveHalfSweep: effectiveHalfSweep,

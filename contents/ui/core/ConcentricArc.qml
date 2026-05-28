@@ -49,8 +49,8 @@ Item {
             PathAngleArc {
                 centerX: track.width / 2
                 centerY: track.height / 2
-                radiusX: arc.radius
-                radiusY: arc.radius
+                radiusX: Math.max(0, arc.radius)
+                radiusY: Math.max(0, arc.radius)
                 startAngle: Geom.BASE_START_ANGLE
                 sweepAngle: Geom.BASE_SWEEP_ANGLE
             }
@@ -71,8 +71,8 @@ Item {
             PathAngleArc {
                 centerX: active.width / 2
                 centerY: active.height / 2
-                radiusX: arc.radius
-                radiusY: arc.radius
+                radiusX: Math.max(0, arc.radius)
+                radiusY: Math.max(0, arc.radius)
                 startAngle: Geom.BASE_START_ANGLE
                 sweepAngle: Geom.sweepForPercent(arc.dv)
             }

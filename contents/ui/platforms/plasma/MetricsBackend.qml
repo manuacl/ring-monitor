@@ -91,14 +91,27 @@ Item {
     })
     readonly property var defaultPartitionIds: []
 
+    // Last-good value per partition id, held across Sensor rebuilds. When the
+    // partition set changes (USB plug/unplug) the Instantiator recreates ALL
+    // disk Sensors, which read 0 until their first ksysguard sample — without
+    // this cache the rings (and the centre average) would collapse to 0% and
+    // recover. Keyed by the stable UUID, so it survives the rebuild.
+    property var _lastPartValue: ({})
+
     function partitionValue(id) {
         backend._diskTick;
         for (var i = 0; i < diskPartInstantiator.count; i++) {
             var s = diskPartInstantiator.objectAt(i);
-            if (s && s.partId === id)
-                return s.value || 0;
+            if (s && s.partId === id) {
+                if (s.status === Sensors.Sensor.Ready && typeof s.value === "number" && !isNaN(s.value)) {
+                    backend._lastPartValue[id] = s.value;
+                    return s.value;
+                }
+                // Sensor not Ready yet (e.g. just rebuilt) — hold last-good.
+                return backend._lastPartValue[id] || 0;
+            }
         }
-        return 0;
+        return backend._lastPartValue[id] || 0;
     }
 
     // ── Internal — id → Sensor instance lookup (universal aggregates) ──

@@ -33,30 +33,10 @@ test("averagePercent: any non-finite member → 0 (no NaN sweep)", () => {
     assert.equal(Disk.averagePercent([50, undefined]), 0);
 });
 
-// ── selectPartitions ────────────────────────────────────────────────
-
-test("selectPartitions: keeps only discovered ids, in discovery order", () => {
-    // The CSV order is ignored — discovery order wins (so the rings stay
-    // stable regardless of the order the user clicked the checkboxes).
-    const available = ["uuid-a", "uuid-b", "uuid-c"];
-    assert.deepEqual(Disk.selectPartitions(available, ["uuid-c", "uuid-a"]), ["uuid-a", "uuid-c"]);
-});
-
-test("selectPartitions: drops stale csv ids no longer present", () => {
-    // SCENARIO: a USB disk that was selected is now unplugged — its id
-    // must vanish from the displayed set rather than render a dead ring.
-    assert.deepEqual(Disk.selectPartitions(["uuid-a"], ["uuid-a", "uuid-gone"]), ["uuid-a"]);
-});
-
-test("selectPartitions: empty csv → empty (caller falls back to platform default)", () => {
-    assert.deepEqual(Disk.selectPartitions(["uuid-a", "uuid-b"], []), []);
-    assert.deepEqual(Disk.selectPartitions(["uuid-a"], null), []);
-});
-
-test("selectPartitions: empty available → empty", () => {
-    assert.deepEqual(Disk.selectPartitions([], ["uuid-a"]), []);
-    assert.deepEqual(Disk.selectPartitions(null, ["uuid-a"]), []);
-});
+// NOTE: selecting the enabled subset in display order is done with
+// MetricsCatalog.filterByOrder(enabledCsvIds, orderedIds) — covered in
+// tests/metrics-catalog.test.mjs. The old DiskMetrics.selectPartitions was
+// a duplicate of filterByOrder (args swapped) and has been removed.
 
 // ── sortByLabel ──────────────────────────────────────────────────────
 

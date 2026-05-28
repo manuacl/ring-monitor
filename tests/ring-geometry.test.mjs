@@ -204,8 +204,9 @@ test('left/rightHalfSweepFor: non-finite input → 0 (clamped via clampPercent)'
 
 // ── equalRingLayout (disk multi-partition mode) ───────────────────────
 
-test('DISK_COMFORT_RING_COUNT is exposed and equals 5', () => {
-    assert.equal(Geom.DISK_COMFORT_RING_COUNT, 5);
+test('DISK_COMFORT_RING_COUNT is 4, DISK_MAX_RING_COUNT is 6', () => {
+    assert.equal(Geom.DISK_COMFORT_RING_COUNT, 4);
+    assert.equal(Geom.DISK_MAX_RING_COUNT, 6);
 });
 
 test('equalRingLayout: count=0 returns empty layout', () => {
@@ -229,24 +230,27 @@ test('equalRingLayout: low count uses preferred (full) stroke + gap, steps inwar
     assert.deepEqual(out.radii, [90, 76, 62]);
 });
 
-test('equalRingLayout: 5 partitions still preferred (last comfortable count)', () => {
-    const out = Geom.equalRingLayout(90, 10, 4, 5);
+test('equalRingLayout: 4 partitions still preferred (last comfortable count)', () => {
+    const out = Geom.equalRingLayout(90, 10, 4, 4);
     assert.equal(out.stroke, 10);
     assert.equal(out.gap, 4);
-    assert.equal(out.radii.length, 5);
+    assert.equal(out.radii.length, 4);
 });
 
-test('equalRingLayout: 6+ partitions shrink to fit the 5-ring envelope', () => {
+test('equalRingLayout: 5-6 partitions shrink to fit the 4-ring envelope', () => {
     const out = Geom.equalRingLayout(90, 10, 4, 6);
-    // envelope = 5*(10+4)=70; unit = 70/(2*6)=5.833…; stroke=gap=unit
+    // envelope = 4*(10+4)=56; unit = 56/(2*6)=4.67; stroke=gap=unit
     assert.ok(out.stroke < 10, `expected shrink below 10, got ${out.stroke}`);
     assert.equal(out.stroke, out.gap);
     assert.equal(out.radii.length, 6);
     assert.equal(out.radii[0], 90);  // outermost still pinned to the main radius
 });
 
-test('equalRingLayout: high count floors stroke at 1px', () => {
-    const out = Geom.equalRingLayout(90, 10, 4, 100);
-    assert.equal(out.stroke, 1);
-    assert.equal(out.gap, 1);
+test('equalRingLayout: at the 6-ring cap + min ringSize, innermost radius stays positive', () => {
+    // SCENARIO (review #4): regression guard for negative inner radii. At the
+    // minimum ringSize (80 → ringRadius ~36), the displayed set is capped at
+    // DISK_MAX_RING_COUNT (6); the innermost ring radius must stay > 0 so it
+    // isn't passed as a negative to PathAngleArc.
+    const out = Geom.equalRingLayout(36, 4, 2, Geom.DISK_MAX_RING_COUNT);
+    assert.ok(out.radii[out.radii.length - 1] > 0, `innermost radius must be >0, got ${out.radii[out.radii.length - 1]}`);
 });

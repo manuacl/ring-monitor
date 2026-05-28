@@ -48,14 +48,15 @@ ListView {
     property bool showHandle: true    // visual move icon on the left
 
     // Drag-and-drop scope key. Each row's Drag.keys and every DropArea's
-    // keys are set to this, so a DraggableList only reacts to its OWN
-    // drags. Required when one DraggableList is NESTED inside another's
-    // rows (the disk-partition picker inside the metrics list): an unkeyed
-    // DropArea "will accept events from any drag source" (Qt docs), so the
-    // two lists would otherwise cross-fire — dragging an inner row would
-    // trigger the outer list's DropAreas and vice versa. Give each nested
-    // instance a distinct key. Default "row" keeps standalone lists working.
-    property string dragKey: "row"
+    // keys are set to this, so a DraggableList only reacts to its OWN drags.
+    // An unkeyed DropArea "will accept events from any drag source" (Qt docs),
+    // so without scoping a NESTED DraggableList (the disk-partition picker
+    // inside the metrics list) and its parent would cross-fire — dragging an
+    // inner row floats but never reorders (the outer DropAreas swallow it).
+    // The default is therefore UNIQUE PER INSTANCE, so nesting is safe by
+    // construction; set dragKey explicitly only to deliberately make two
+    // lists share one drop scope.
+    property string dragKey: "dl-" + Math.floor(Math.random() * 0x7fffffff)
 
     // Theme tokens — injected by the parent via the platform/Theme adapter.
     // Sensible defaults match Kirigami's typical values for standalone use.

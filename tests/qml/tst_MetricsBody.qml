@@ -44,6 +44,7 @@ Item {
             body.enabledPartitionsCsv = "";
             body.partitionOrderCsv = "";
             body.diskPartitions = [];
+            body.defaultPartitionIds = [];
             body.showCpuCores = false;
             body.mergeCpuTemp = false;
             body.mergeGpuTemp = false;
@@ -157,6 +158,28 @@ Item {
             wait(20);
             compare(body._partitionOrderModel.get(0).partId, "u-sync");
             compare(body._partitionOrderModel.get(1).partId, "u-baz");
+        }
+
+        function test_empty_selection_seeds_the_default() {
+            // SCENARIO (review #5): with no partition selected, the widget
+            // renders the default ($HOME) ring — the picker must reflect it as
+            // a checked row rather than showing everything unchecked. Setting
+            // a non-empty default while the CSV is empty seeds it.
+            body.enabledPartitionsCsv = "";
+            body.diskPartitions = [{ id: "u-baz", label: "bazzite" }, { id: "u-ph", label: "photos" }];
+            body.defaultPartitionIds = ["u-baz"];
+            wait(20);
+            verify(body.isPartitionEnabled("u-baz"), "the default partition must be seeded as enabled");
+        }
+
+        function test_empty_default_does_not_seed() {
+            // Plasma default is [] (aggregate) → nothing seeded, picker stays
+            // unchecked, the disk ring stays the aggregate gauge.
+            body.enabledPartitionsCsv = "";
+            body.diskPartitions = [{ id: "u-baz", label: "bazzite" }];
+            body.defaultPartitionIds = [];
+            wait(20);
+            compare(body.enabledPartitionsCsv, "");
         }
 
         function test_commitPartitionOrder_writes_csv_in_model_order() {

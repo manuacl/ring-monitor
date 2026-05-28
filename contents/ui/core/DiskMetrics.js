@@ -13,14 +13,15 @@
 //   averagePercent(values)              - mean of a 0-100 array, 0 on empty
 //                                         or any non-finite member (the centre
 //                                         readout for the multi-ring disk).
-//   selectPartitions(availableIds, csvIds)
-//                                       - intersection of a persisted CSV
-//                                         selection with the partitions the
-//                                         backend actually discovered,
-//                                         preserving discovery order. Mirrors
-//                                         MetricsCatalog.filterByOrder but
-//                                         keyed the other way (available is
-//                                         the order, csv is the membership).
+//   sortByLabel(partitions)             - alphabetical (case-insensitive) by
+//                                         label; the default picker order.
+//   orderPartitions(savedOrderCsv, available)
+//                                       - saved order first, then newly-
+//                                         discovered appended alphabetically.
+//
+// Selecting the enabled subset in display order is done with the existing
+// MetricsCatalog.filterByOrder(enabledCsvIds, orderedIds) — no disk-specific
+// helper (it was a duplicate of filterByOrder with the args swapped).
 
 function averagePercent(values) {
     if (!values || values.length === 0)
@@ -89,24 +90,9 @@ function orderPartitions(savedOrderCsv, available) {
     return out.concat(sortByLabel(rest));
 }
 
-function selectPartitions(availableIds, csvIds) {
-    if (!availableIds || availableIds.length === 0)
-        return [];
-    var wanted = {};
-    for (var i = 0; i < (csvIds ? csvIds.length : 0); i++)
-        wanted[csvIds[i]] = true;
-    var out = [];
-    for (var j = 0; j < availableIds.length; j++) {
-        if (wanted[availableIds[j]])
-            out.push(availableIds[j]);
-    }
-    return out;
-}
-
 if (typeof module !== "undefined" && module.exports) {
     module.exports = {
         averagePercent: averagePercent,
-        selectPartitions: selectPartitions,
         sortByLabel: sortByLabel,
         orderPartitions: orderPartitions,
     };

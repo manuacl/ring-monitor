@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import "MetricsCatalog.js" as Catalog
 import "ColorThemes.js" as ColorThemes
 import "DiskMetrics.js" as DiskMetrics
+import "RingGeometry.js" as Geom
 
 // Body of the plasmoid's fullRepresentation. Renders the active rings
 // in a horizontal or vertical strip based on configStore.orientation.
@@ -69,10 +70,14 @@ GridLayout {
         return p.id;
     })
     readonly property var _diskSelectedIds: {
-        var sel = DiskMetrics.selectPartitions(content._orderedPartitionIds, Catalog.parseCsv(content.configStore.enabledPartitions));
+        // Enabled ∩ ordered (filterByOrder keeps the display order). Empty
+        // selection → the platform default ($HOME FS / aggregate). Capped at
+        // DISK_MAX_RING_COUNT so the concentric stack stays readable and every
+        // radius stays positive at the minimum ringSize.
+        var sel = Catalog.filterByOrder(Catalog.parseCsv(content.configStore.enabledPartitions), content._orderedPartitionIds);
         if (sel.length === 0)
-            return content.metrics.defaultPartitionIds || [];
-        return sel;
+            sel = content.metrics.defaultPartitionIds || [];
+        return sel.slice(0, Geom.DISK_MAX_RING_COUNT);
     }
 
     columns: vertical ? 1 : count
@@ -180,7 +185,18 @@ GridLayout {
             // For usage rings: value is the % directly. For temperature
             // rings: value drives the sweep so it must be the mapped
             // percent; the actual °C goes into rawValue below.
-            value: content.metrics.loading ? 100 : (_isTemp ? Catalog.tempToPercent(_rawTempC) : content.metrics.metricValue(modelData))
+            // In disk equal mode the main arc is hidden, so `value` is never
+            // rendered — skip metricValue("disk") to avoid an extra (on
+            // standalone, blocking statvfs) read whose result is unused.
+            value: {
+                if (content.metrics.loading)
+                    return 100;
+                if (_isDisk && _diskValues.length > 0)
+                    return 0;
+                if (_isTemp)
+                    return Catalog.tempToPercent(_rawTempC);
+                return content.metrics.metricValue(modelData);
+            }
             // Centre text: disk equal mode shows the partition average; temp
             // rings show the °C/°F reading; everything else falls back to
             // `value` (NaN sentinel). During loading rawValue stays NaN so

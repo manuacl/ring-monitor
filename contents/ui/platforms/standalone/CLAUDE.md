@@ -16,7 +16,7 @@ under "Standalone target — backend choice".
 |---|---|---|
 | `Main.qml` | Frameless transparent `Window` root + Conky-style hints (X11 / XWayland) | PR B1 (placeholder) + PR C (X11 EWMH hints in `standalone/desktop_hints.cpp`) + **PR F1 ✓ — `Core.MainContent` renders the actual rings** |
 | `SettingsOnlyRoot.qml` | Recovery-mode QML root loaded when the binary runs with `--open-settings`. Hosts only the `SettingsDialog` (no rings, no MetricsBackend). | **PR #37 follow-up ✓** |
-| `MetricsBackend.qml` | Direct reads from `/proc/stat`, `/proc/meminfo`, `statvfs(3)`, hwmon/thermal sysfs | **PR D: CPU usage (`/proc/stat`) ✓** ; **PR E: RAM (`/proc/meminfo`) + disk (`statvfs(/)`) ✓** ; **CPU temp (hwmon / thermal-zone via `CpuTempDiscovery.js`) ✓** ; GPU + swap post-MVP |
+| `MetricsBackend.qml` | Direct reads from `/proc/stat`, `/proc/meminfo`, `statvfs(3)`, hwmon/thermal sysfs, NVML | **PR D: CPU usage (`/proc/stat`) ✓** ; **PR E: RAM (`/proc/meminfo`) + disk (`statvfs(/)`) ✓** ; **CPU temp (hwmon / thermal-zone via `CpuTempDiscovery.js`) ✓** ; **NVIDIA GPU usage + temp (NVML via `NvmlReader`) ✓** ; AMD/Intel GPU (sysfs) + swap post-MVP |
 | `ConfigStore.qml` | `Qt.labs.settings` reader/writer | **PR F1 ✓ — Settings root, defaults mirror `main.xml`** ; **PR F2 ✓ — SettingsDialog drives writes through this instance** |
 | `SettingsDialog.qml` | Tabbed `Window` wrapping `core/MetricsBody` + `core/AppearanceBody` + `core/AboutBody`; opened via right-click on the widget or the update-available badge | **PR F2 ✓** |
 | `Theme.qml` | Kirigami theme tokens + Qt.styleHints light/dark | **PR F1 ✓ — mirrors the Plasma adapter byte-for-byte** |
@@ -36,6 +36,56 @@ package. (Mirror of `platforms/plasma/SensorPicking.js`.) Placement rule:
 [`../../core/CLAUDE.md`](../../core/CLAUDE.md) § "Logic in dedicated
 `.js` files".
 
+## NVIDIA GPU via NVML (`dlopen`), not `nvidia-smi`
+
+`NvmlReader` (`standalone/nvml_reader.{h,cpp}`, a `QML_ELEMENT` like
+`ProcReader`) reads GPU usage + temperature from **NVML**
+(`libnvidia-ml`) — the C library `nvidia-smi` itself wraps, and what
+nvtop / btop / Conky / KDE's `ksystemstats` use. We deliberately do
+**not** shell out to `nvidia-smi`: a per-poll process spawn is ~20 ms
+(a dropped frame at 60 fps) and churns fork/exec; NVML calls are
+microseconds, so `NvmlReader.sample()` runs synchronously in the 2 Hz
+`_sample()` with no GUI-thread jank.
+
+Load-bearing details:
+
+- **`dlopen("libnvidia-ml.so.1")`** — the SONAME, which ships with the
+  driver. **Not** linked at build time and **not** the bare `.so` dev
+  symlink. So the binary builds with no NVIDIA toolkit and runs on
+  AMD/Intel boxes: `dlopen` fails → `sample()` returns
+  `available:false` → the GPU metric just stays 0. Never a hard
+  dependency. Text-guarded by `tests/nvml-reader.test.mjs`.
+- **NVML types are self-declared** in `nvml_reader.cpp` (opaque `void*`
+  handle, `{uint gpu; uint memory}` util struct, `NVML_TEMPERATURE_GPU`
+  = 0) — no `nvml.h` / CUDA header dependency. The btop/conky approach;
+  the handful of signatures + the struct layout are stable NVML ABI.
+- `nvmlInit_v2` is lazy (one-time ~150 ms driver handshake on the first
+  `sample()`), the device-0 handle is cached, `nvmlShutdown` runs in the
+  dtor. Each field (`nvmlDeviceGetUtilizationRates` /
+  `nvmlDeviceGetTemperature`) is committed independently so one
+  transient query failure doesn't drop the whole sample.
+- Links `${CMAKE_DL_LIBS}` (libdl) — see `CMakeLists.txt`.
+
+**AMD/Intel GPU is a follow-up:** AMD usage is sysfs
+(`/sys/class/drm/card*/device/gpu_busy_percent`) + amdgpu hwmon temp —
+readable through the existing `ProcReader`, no library; Intel usage
+needs i915 perf (elevated perms), so Intel would be temp-only first.
+The vendor-detection seam lands with that PR.
+
+## Poll cadence: 500 ms (2 Hz), matching Plasma
+
+The `_sample()` `Timer` runs at **500 ms**, not 1 Hz. The Plasma
+adapter doesn't set a rate — its `Sensors.Sensor` instances are pushed
+by the ksysguard daemon, which polls at ~500 ms (measured on the dev
+box with a `qml-qt6` probe subscribing to `cpu/all/usage`: steady
+499–501 ms). A 1 Hz Timer here made the standalone rings step in
+visibly coarser jumps than the Plasma widget for the same hardware.
+500 ms also sits just above `core/Ring.qml`'s 400 ms value animation,
+so each sweep finishes before the next sample — going below ~400 ms
+would overlap easings. The `/proc/stat` CPU delta window shrinks to
+0.5 s to match. Pinned by `tests/standalone-metrics-backend.test.mjs`
+("polls on a Timer" → `interval: 500`).
+
 ## New QML/JS files must be added to `CMakeLists.txt` `QML_FILES`
 
 The standalone binary compiles every `.qml` / `.js` into the
@@ -48,6 +98,17 @@ the binary **exits `1` with no diagnostic** (silent
 build is unaffected (it loads from the filesystem / plasmoid package),
 so this is a standalone-only trap. Guarded by
 `tests/standalone-qml-module.test.mjs`.
+
+A **C++ helper carrying `QML_ELEMENT`** (like `ProcReader` /
+`NvmlReader`) is the `SOURCES` counterpart of the same rule: add its
+`.cpp` + `.h` to `qt_add_qml_module(... SOURCES ...)`, **and** any
+library it needs to `target_link_libraries` (e.g. `${CMAKE_DL_LIBS}`
+for `NvmlReader`'s `dlopen`). Omit it and the type is never registered
+— a QML file instantiating it (`NvmlReader { }`) fails to load with
+the same silent `exit 1`, even though the `.cpp` itself compiles
+without error. (This bit us once when a commit's `CMakeLists.txt`
+edit was lost: the helper built in isolation but the QML element was
+undefined at load time.)
 
 ## `qmllint` Info lines on the C++ `ProcReader` helper are benign
 
@@ -241,6 +302,29 @@ have blocked the GUI thread of the recovery process. Loading a
 separate root is shorter, doesn't waste syscalls, and the
 priority-driven quit is robust to future programmatic-hide
 features.
+
+### Window type: click-through vs hide-on-desktop-click are a forced trade-off
+
+On X11 / XWayland the two window types we can set trade one bug for
+the other — **neither is fully correct**:
+
+- `_NET_WM_WINDOW_TYPE_DESKTOP` (current): clicks pass **through** to
+  the wallpaper, BUT clicking the desktop raises Plasma's own desktop
+  containment over our window → the widget vanishes behind the
+  wallpaper.
+- `_NET_WM_WINDOW_TYPE_NORMAL` + `_NET_WM_STATE_BELOW`: **survives**
+  the desktop click (stays visible), BUT it's a managed window that
+  captures clicks over its area → the desktop underneath is no longer
+  clickable (icon selection, containment menu).
+
+The only path that gives **both** (visible on a desktop click AND
+click pass-through) is the wlr-layer-shell `background` layer — it
+doesn't participate in window restacking and isn't a normal input
+target. That's PR C2 in
+[`docs/plasma-isolation/plan.md`](../../../../docs/plasma-isolation/plan.md).
+Don't keep flip-flopping DESKTOP ↔ NORMAL to "fix" one symptom; they
+are known-equivalent stopgaps. Full live-test notes in the
+`project-standalone-window-type-desktop-click` memory.
 
 ### Initial `_anchor()` must be deferred via `Qt.callLater`
 

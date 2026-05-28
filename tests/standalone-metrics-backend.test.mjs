@@ -67,16 +67,38 @@ test("standalone MetricsBackend wires disk multi-partition discovery", () => {
     assert.doesNotMatch(SOURCE, /_diskMount/, "the hardcoded composefs '/' mount must be gone");
 });
 
-test("standalone MetricsBackend reads per-partition usage via statvfs + df formula", () => {
-    // partitionValue(id) statvfs's the selected partition's representative
-    // mountpoint and applies df(1)'s formula (not the naive usagePercent,
-    // which counts the ext4 5% root reservation as used).
+test("standalone MetricsBackend reads per-partition usage via async statvfs + df formula", () => {
+    // partitionValue(id) must NOT call the synchronous reader.statvfs() —
+    // that blocks the GUI thread on an unresponsive mount (stale NFS, hung
+    // autofs, spun-down USB), issue #48. Instead it kicks a background
+    // refresh (requestStatvfs) and reads the last-good cache (cachedStatvfs),
+    // applying df(1)'s formula (not the naive usagePercent, which counts the
+    // ext4 5% root reservation as used).
     assert.match(SOURCE, /function\s+partitionValue\s*\(/, "must declare partitionValue(id)");
-    assert.match(SOURCE, /reader\.statvfs\s*\(/, "partitionValue must call ProcReader.statvfs(...)");
+    // Anchor on the real definition (indented `function … {`), not the
+    // surface-doc comment line that also says "function partitionValue(id)".
+    const partFn = SOURCE.match(/\n {4}function\s+partitionValue\s*\([^)]*\)\s*{[\s\S]*?\n {4}}/);
+    assert.ok(partFn, "must find the partitionValue body");
+    assert.doesNotMatch(partFn[0], /reader\.statvfs\s*\(/, "partitionValue must NOT call the blocking reader.statvfs() (would freeze the GUI on a hung mount)");
+    assert.match(partFn[0], /reader\.requestStatvfs\s*\(/, "partitionValue must kick a background refresh via reader.requestStatvfs(...)");
+    assert.match(partFn[0], /reader\.cachedStatvfs\s*\(/, "partitionValue must read the last-good value via reader.cachedStatvfs(...)");
     assert.match(
-        SOURCE,
+        partFn[0],
         /MemInfoParser\.diskUsagePercent\s*\(\s*disk\.total\s*,\s*disk\.free\s*,\s*disk\.available\s*\)/,
         "per-partition percent must use diskUsagePercent(total, free, available) so it matches `df`",
+    );
+});
+
+test("standalone MetricsBackend re-renders disk rings when an async statvfs lands", () => {
+    // Without a tick bump on statvfsReady the rings would only refresh on
+    // the 500 ms Timer, lagging a freshly-arrived value by up to a tick.
+    // A dedicated _partTick (not the shared _tick) keeps a disk-only update
+    // from re-running the CPU/RAM/GPU bindings.
+    assert.match(SOURCE, /property\s+int\s+_partTick/, "must declare a _partTick counter for async statvfs re-render");
+    assert.match(
+        SOURCE,
+        /onStatvfsReady\s*\([^)]*\)\s*{[\s\S]*?_partTick\+\+/,
+        "must bump _partTick from a reader.statvfsReady handler",
     );
 });
 

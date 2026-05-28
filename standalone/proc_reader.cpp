@@ -1,12 +1,16 @@
 #include "proc_reader.h"
 
+#include <QCoreApplication>
 #include <QDebug>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QPointer>
 #include <QTextStream>
 
 #include <sys/statvfs.h>
+
+#include <thread>
 
 QString ProcReader::read(const QString &path) const
 {
@@ -67,17 +71,19 @@ QStringList ProcReader::listDir(const QString &path) const
     return dir.entryList(QDir::AllEntries | QDir::NoDotAndDotDot);
 }
 
-QVariantMap ProcReader::statvfs(const QString &path) const
+// The blocking syscall, factored out as a free function so the async
+// worker thread can call it without dereferencing the (possibly
+// destroyed) ProcReader. It touches no member state, so it's safe to
+// run off the GUI thread.
+//
+// No allowlist on this side: `statvfs(3)` is a filesystem-metadata
+// probe (size / free / available) and `df -h /any/path` from the
+// user's terminal returns the same numbers. The asymmetry with
+// `read()` is intentional — `read()` has an allowlist to keep
+// the documented "only /proc and /sys" contract honest, not as a
+// security boundary.
+static QVariantMap statvfsBytes(const QString &path)
 {
-    // No allowlist on this side: `statvfs(3)` is a filesystem-metadata
-    // probe (size / free / available) and `df -h /any/path` from the
-    // user's terminal returns the same numbers. The asymmetry with
-    // `read()` is intentional — `read()` has an allowlist to keep
-    // the documented "only /proc and /sys" contract honest, not as a
-    // security boundary. If a future per-mount selector lands, the
-    // input still goes through `realpath(3)` on the QML side for
-    // display purposes (see standalone/CLAUDE.md "Disk metric")
-    // rather than via a syscall-side allowlist.
     struct ::statvfs s;
     if (::statvfs(path.toLocal8Bit().constData(), &s) != 0)
         return {};
@@ -93,6 +99,65 @@ QVariantMap ProcReader::statvfs(const QString &path) const
         { QStringLiteral("free"),      static_cast<qulonglong>(s.f_bfree)  * s.f_frsize },
         { QStringLiteral("available"), static_cast<qulonglong>(s.f_bavail) * s.f_frsize },
     };
+}
+
+QVariantMap ProcReader::statvfs(const QString &path) const
+{
+    return statvfsBytes(path);
+}
+
+void ProcReader::requestStatvfs(const QString &mount)
+{
+    if (mount.isEmpty() || m_statvfsInFlight.contains(mount))
+        return; // dedup: a worker is already (or still) reading this mount
+
+    const qint64 now = m_clock.elapsed();
+    const auto last = m_statvfsLastDoneMs.constFind(mount);
+    if (last != m_statvfsLastDoneMs.constEnd() && now - last.value() < kStatvfsMinIntervalMs)
+        return; // throttle: refreshed too recently to bother re-reading
+
+    m_statvfsInFlight.insert(mount);
+
+    // Detached worker: blocks in statvfs() off the GUI thread, then hops
+    // the result back via the event loop. The QPointer guards the rare
+    // case of ProcReader being torn down before the queued call runs
+    // (checked on the GUI thread, where the object also lives — no data
+    // race). The result is delivered through the live QCoreApplication
+    // instance: re-read it inside the worker and bail if it's gone, so a
+    // worker that finishes mid-shutdown (qApp already destroyed) drops the
+    // result instead of dereferencing a null context.
+    QPointer<ProcReader> self(this);
+    try {
+        std::thread([self, mount]() {
+            const QVariantMap result = statvfsBytes(mount);
+            QCoreApplication *app = QCoreApplication::instance();
+            if (!app)
+                return; // app tearing down — process is exiting, drop the result
+            QMetaObject::invokeMethod(app, [self, mount, result]() {
+                if (self)
+                    self->onStatvfsDone(mount, result);
+            });
+        }).detach();
+    } catch (const std::system_error &) {
+        // Thread creation failed (resource/FD exhaustion). Clear the
+        // in-flight flag so the mount is retried next tick rather than
+        // stuck forever, and never let the exception unwind into the QML
+        // binding evaluation that called this Q_INVOKABLE.
+        m_statvfsInFlight.remove(mount);
+    }
+}
+
+void ProcReader::onStatvfsDone(const QString &mount, const QVariantMap &result)
+{
+    m_statvfsInFlight.remove(mount);
+    m_statvfsCache.insert(mount, result);
+    m_statvfsLastDoneMs.insert(mount, m_clock.elapsed());
+    emit statvfsReady(mount);
+}
+
+QVariantMap ProcReader::cachedStatvfs(const QString &mount) const
+{
+    return m_statvfsCache.value(mount);
 }
 
 // udev escapes characters that are not safe in a /dev path (spaces,

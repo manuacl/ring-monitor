@@ -165,7 +165,10 @@ the new prefix.
 `statvfs()` does NOT carry an allowlist (intentional asymmetry):
 it's a filesystem-metadata syscall, and `df -h /any/path` from the
 user's terminal returns the same numbers. The disk multi-partition
-selector reads `statvfs(<mountpoint>)` for each selected filesystem.
+selector reads each selected filesystem via the **async** pair
+(`requestStatvfs` / `cachedStatvfs` — see "Disk metric" below), not the
+synchronous `statvfs()`, so an unresponsive mount can't freeze the GUI
+thread.
 
 `blockDeviceInfo()` and `canonicalHome()` are the same metadata-only,
 allowlist-free shape as `statvfs` (they enumerate the `/dev/disk`
@@ -183,9 +186,11 @@ The disk ring is **one equal-thickness concentric ring per selected
 mounted filesystem**, centre = their average. `MetricsBackend.qml`
 discovers filesystems from `/proc/mounts` (via `ProcReader.read`),
 deduplicates them by device through `DiskDiscovery.js`, and reads each
-selected partition's usage with `reader.statvfs(<mountpoint>)` +
-`MemInfoParser.diskUsagePercent` (df(1)'s formula). Selection persists
-as the `enabledPartitions` CSV; empty = the `$HOME`-bearing filesystem.
+selected partition's usage **off the GUI thread** via the async
+`reader.requestStatvfs(<mountpoint>)` / `reader.cachedStatvfs(...)` pair
+(see "`statvfs` runs off the GUI thread" below) + `MemInfoParser.diskUsagePercent`
+(df(1)'s formula). Selection persists as the `enabledPartitions` CSV;
+empty = the `$HOME`-bearing filesystem.
 
 Identity + labels: each partition's **id** is its fs UUID and its
 **label** is the volume label, both resolved by
@@ -210,6 +215,31 @@ per-*filesystem* (not per-subvol/quota) numbers — `df /var/home` and
 `df /var` return the same total because they're the same btrfs volume.
 That's correct for "how full is the disk my files live on", which is the
 question the ring answers.
+
+**`statvfs` runs off the GUI thread (issue #48).** `statvfs(3)` blocks
+uninterruptibly on an unresponsive mount (stale NFS/CIFS, hung autofs,
+spun-down USB), so `partitionValue(id)` must NOT call the synchronous
+`reader.statvfs()` — it would freeze the whole widget for the syscall's
+duration. Instead it calls the async pair on `ProcReader`:
+`requestStatvfs(mount)` kicks a background read on a **detached worker
+thread** and `cachedStatvfs(mount)` returns the last-good value (empty →
+0% until the first read lands). On completion the helper emits
+`statvfsReady(mount)`; `MetricsBackend` bumps a dedicated `_partTick` so
+the binding re-renders. A stuck mount then just holds its last-good ring
+value while every other ring keeps updating. Three invariants make it
+safe:
+- **Detached, not pooled.** A `QThreadPool` dtor's `waitForDone()` would
+  block *process exit* forever on a mount stuck in `statvfs`; a detached
+  thread is reaped by the OS at exit instead, so quitting never hangs.
+- **In-flight dedup** (`m_statvfsInFlight`): a mount already being read
+  isn't re-launched, so a hung mount freezes exactly one thread, never a
+  pile.
+- **Throttle** (`kStatvfsMinIntervalMs`, below the 500 ms poll): keeps
+  re-evaluating the QML binding every render from spinning the syscall,
+  and breaks the `statvfsReady → _partTick → re-request` loop.
+
+The local-disk common case is unaffected: `statvfs` on `/dev/sd*` /
+`nvme*` returns in microseconds, so the worker finishes within a tick.
 
 The class lives at global scope (not in `ringmonitor::`) because
 Qt 6's QML auto-registration generates code calling

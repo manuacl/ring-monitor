@@ -186,8 +186,9 @@ GridLayout {
             // rings: value drives the sweep so it must be the mapped
             // percent; the actual °C goes into rawValue below.
             // In disk equal mode the main arc is hidden, so `value` is never
-            // rendered — skip metricValue("disk") to avoid an extra (on
-            // standalone, blocking statvfs) read whose result is unused.
+            // rendered — skip metricValue("disk") to avoid an extra read whose
+            // result is unused (on standalone it would kick an async statvfs
+            // request for the home partition that nothing displays).
             value: {
                 if (content.metrics.loading)
                     return 100;

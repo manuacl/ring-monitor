@@ -4,6 +4,48 @@ All notable user-facing changes to Ring Monitor. Internal refactors,
 test additions, and tooling updates are intentionally omitted — the
 git history covers those.
 
+## [0.5.3] — 2026-05-28
+
+Consolidates the 0.5.1 → 0.5.3 work into one release. Two themes: a
+brand-new **standalone Linux build**, and a **hardening + polish
+pass** on both hosts.
+
+### Added
+
+- **Standalone build — run Ring Monitor without Plasma.** A native
+  Linux binary renders the same rings as a Conky-style, always-on-the-
+  wallpaper widget, with no Plasma shell required. Metrics come
+  straight from `/proc` and `/sys`; settings live in the same dialog
+  as the Plasma version.
+  - CPU (aggregate + per-core), RAM, and disk gauges.
+  - Right-click settings, a **start-on-login** toggle, window
+    size / ring-spacing / screen-margin controls, and top-right
+    screen-edge anchoring.
+  - Always-on-bottom, sticky, and skip-taskbar/pager behaviour on
+    X11 & XWayland.
+  - An `--open-settings` recovery flag to reach the settings dialog
+    if your compositor swallows the right-click on a desktop-type
+    window.
+
+### Fixed
+
+- **Rings now fill the widget on the Plasma desktop.** The
+  ring-spacing setting used to silently eat into the fixed widget
+  frame (the rings shrank to make room for the gap); that space is
+  reclaimed and the rings render edge-to-edge.
+- **Disk usage matches `df`** (standalone): the filesystem's
+  reserved blocks are excluded, so a freshly-formatted ext4 root no
+  longer reports ~5% used.
+- **Settings dialog placement** (standalone): the dialog opens
+  centered on the monitor it's actually shown on (not always the
+  primary) in multi-display setups, and keeps the spot you dragged
+  it to across re-opens.
+- **Correct version** in the About tab and `--version` — the
+  standalone binary previously reported a stale number.
+- More reliable window hinting on X11 / XWayland, with a clear log
+  warning instead of a silently un-styled floating window when
+  XWayland is missing.
+
 ## [0.5.0] — 2026-05-25
 
 ### Added
@@ -101,6 +143,7 @@ No user-visible changes.
 First public release. Plasma 6 widget rendering CPU, RAM, swap,
 GPU, and disk usage as circular ring gauges with rounded caps.
 
+[0.5.3]: https://github.com/manuacl/ring-monitor/releases/tag/v0.5.3
 [0.5.0]: https://github.com/manuacl/ring-monitor/releases/tag/v0.5.0
 [0.4.0]: https://github.com/manuacl/ring-monitor/releases/tag/v0.4.0
 [0.3.0]: https://github.com/manuacl/ring-monitor/releases/tag/v0.3.0

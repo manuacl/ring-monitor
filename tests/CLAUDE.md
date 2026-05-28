@@ -67,6 +67,28 @@ than a runtime test but catches the same class of bug (typo in a
 property name → silent undefined binding in production) without
 needing the Plasma runtime.
 
+### Drift-catchers derive their expected set, never hardcode it
+
+A text-guard that asserts "the standalone adapter declares the same
+keys as the Plasma adapter" (or "ConfigStore declares every schema
+key") must build its expected set **from the source of truth at test
+time**, not from an inline list copied into the test. The inline
+list is itself a thing that drifts — PR #35 had to hand-edit the
+hardcoded `EXPECTED_KEYS` to add the `ringSize` trio, which means a
+contributor who forgets that edit gets a green test against a stale
+list.
+
+Canonical derivations in use:
+- Config keys ← `contents/config/main.xml`'s `<entry name="X">` set
+  (`config-store.test.mjs`, `standalone-config-store.test.mjs`).
+- Theme adapter surface ← the Plasma `Theme.qml`'s public
+  (non-`_`-prefixed) `readonly property` declarations
+  (`standalone-theme.test.mjs`), asserted both directions.
+
+Always pair the derivation with a sanity assertion (e.g. "≥20 keys
+found") so a regex/path regression that empties the set fails loudly
+instead of making every downstream assertion vacuously pass.
+
 ## Where the runner / CI bits live
 
 - `tests/run-all.sh` — local convenience: Node tests → QML tests,

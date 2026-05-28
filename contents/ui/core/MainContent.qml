@@ -47,6 +47,14 @@ GridLayout {
     // every ring uses the same unit.
     readonly property string _tempMode: Catalog.resolveTempMode(content.configStore.tempUnit, Qt.locale().measurementSystem)
 
+    // Effective light/dark, resolved once at this layer from the
+    // user's colorMode (auto/light/dark) against the live theme.
+    // Both the ring-color and text-color bindings on every delegate
+    // need it; computing it here means one `effectiveIsDark` call per
+    // theme/mode change instead of 2×N (N = ring count) — and the
+    // two delegate bindings below stay readable.
+    readonly property bool _isDark: ColorThemes.effectiveIsDark(content.configStore.colorMode, content.theme.isDarkMode)
+
     columns: vertical ? 1 : count
     // Spacing between rings is configurable as a percentage of
     // ringSize (default 7% — evaluates to 12px at the default
@@ -145,8 +153,8 @@ GridLayout {
             splitValue: content.metrics.loading ? 100 : (_splitOn ? content.metrics.metricTempPercent(modelData) : 0)
             splitRawValue: !content.metrics.loading && _splitOn && _tempInfo ? _tempInfo.value : 0
             splitUnit: _splitOn && _tempInfo ? _tempInfo.unit : ""
-            ringColor: ColorThemes.resolveColor(content.configStore.colorTheme, ColorThemes.effectiveIsDark(content.configStore.colorMode, content.theme.isDarkMode), content.theme.highlightColor, content.configStore.customColorLight, content.configStore.customColorDark)
-            textColor: ColorThemes.resolveTextColor(content.configStore.textColorMode, ColorThemes.effectiveIsDark(content.configStore.colorMode, content.theme.isDarkMode), content.theme.textColor, content.configStore.customTextColorLight, content.configStore.customTextColorDark)
+            ringColor: ColorThemes.resolveColor(content.configStore.colorTheme, content._isDark, content.theme.highlightColor, content.configStore.customColorLight, content.configStore.customColorDark)
+            textColor: ColorThemes.resolveTextColor(content.configStore.textColorMode, content._isDark, content.theme.textColor, content.configStore.customTextColorLight, content.configStore.customTextColorDark)
             textOpacity: content.configStore.textOpacity
             trackOpacity: content.configStore.trackOpacity
             arcOpacity: content.configStore.arcOpacity

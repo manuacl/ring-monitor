@@ -56,12 +56,11 @@ Settings {
     property string latestKnownVersion: ""
     property string acknowledgedVersion: ""
 
-    // Local widget version. Reads QGuiApplication::applicationVersion
-    // which standalone/main.cpp sets at startup. Keep this in sync
-    // with metadata.json's KPlugin.Version on every release — the
-    // release pipeline (PR H) will automate it; today it's manual.
-    // TODO(PR H): wire applicationVersion to metadata.json via CMake
-    // so this drift can't happen.
+    // Local widget version. Reads QGuiApplication::applicationVersion,
+    // which standalone/main.cpp sets from the `RING_MONITOR_VERSION`
+    // compile definition that CMake parses out of metadata.json's
+    // KPlugin.Version — the single source of truth the release
+    // pipeline bumps. No manual sync, no drift.
     readonly property string localVersion: Qt.application.version
 
     // Mirror the Plasma adapter's writer functions for the update

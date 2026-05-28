@@ -27,6 +27,26 @@ KDE Store upload (manual)
 - No `bump:*` label on the merged PR → `version.yml` exits cleanly, no
   tag, no release. Useful for tooling-only PRs.
 
+**`metadata.json` `KPlugin.Version` is the single source of truth.**
+`version.yml` bumps only that file. The standalone build does NOT
+hardcode the version anywhere: `CMakeLists.txt` parses
+`KPlugin.Version` out of `metadata.json` at configure time and feeds
+it to both `project(VERSION …)` and the `RING_MONITOR_VERSION`
+compile definition, which `standalone/main.cpp` passes to
+`setApplicationVersion()` (→ `Qt.application.version` → the
+standalone About tab's `localVersion`). Never reintroduce a literal
+version string in `CMakeLists.txt` or `main.cpp` — it will drift
+behind the pipeline (it did, sitting at `0.5.0` while the store/tags
+moved on).
+
+**Cadence: bump only at milestones.** Intermediate PRs (cleanup,
+fix, refactor) ship with no `bump:*` label. Each bump cuts a GitHub
+release ahead of the *manually-uploaded* KDE Store, and the widget's
+update badge points users at the store — so a stream of intermediate
+bumps leaves store users staring at a perpetual "update available"
+that dead-ends on a store with nothing newer. Bump when you're ready
+to also upload the store in the same pass.
+
 The `bump:*` label is applied at PR-creation time by the
 `bump-label` skill (auto-picked from commit subjects). Override with
 `gh pr edit <n> --remove-label bump:X --add-label bump:Y` if needed.

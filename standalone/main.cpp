@@ -23,6 +23,14 @@
 #include <QString>
 #include <QWindow>
 
+// Injected by CMake from metadata.json (KPlugin.Version) — the
+// single source of truth the release pipeline bumps. The fallback
+// only fires for a non-CMake build (none exists today); the
+// `-dev` suffix makes such a build self-identify.
+#ifndef RING_MONITOR_VERSION
+#define RING_MONITOR_VERSION "0.0.0-dev"
+#endif
+
 int main(int argc, char *argv[])
 {
     // Argv parse before QGuiApplication: --open-settings switches
@@ -74,7 +82,7 @@ int main(int argc, char *argv[])
     // (~/.config/dev.manuacl/ring-monitor.conf).
     QGuiApplication::setOrganizationName("dev.manuacl");
     QGuiApplication::setApplicationName("ring-monitor");
-    QGuiApplication::setApplicationVersion(QStringLiteral("0.5.0"));
+    QGuiApplication::setApplicationVersion(QStringLiteral(RING_MONITOR_VERSION));
 
     QQmlApplicationEngine engine;
     // Recovery mode loads a minimal QML root that only hosts the

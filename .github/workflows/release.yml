@@ -70,10 +70,20 @@ jobs:
         env:
           ARTIFACT: ${{ steps.meta.outputs.artifact }}
         run: |
+          # The .plasmoid ships the Plasma widget only. Exclude:
+          #  - contents/ui/platforms/standalone/ — the standalone-build
+          #    QML adapters the Plasma host never loads (main.qml imports
+          #    platforms/plasma + core). Shipping them is dead weight and
+          #    leaks the standalone implementation to KDE Store users.
+          #  - per-layer CLAUDE.md — dev docs nested under contents/ that
+          #    would otherwise ride along (the root-level dev-artifact
+          #    check in the smoke-test below doesn't catch nested ones).
           zip -r "$ARTIFACT" \
               metadata.json \
               contents \
-              LICENSE
+              LICENSE \
+              -x 'contents/ui/platforms/standalone/*' \
+              -x '*/CLAUDE.md'
           ls -lh "$ARTIFACT"
 
       - name: Smoke-test the package structure
@@ -98,13 +108,28 @@ jobs:
             exit 1
           fi
 
-          # Catch accidental inclusions of dev artifacts.
+          # Catch accidental inclusions of dev artifacts (root-level).
           for forbidden in .git .github .claude tests docs .githooks; do
             if [ -e "$tmpdir/$forbidden" ]; then
               echo "::error::dev artifact leaked into package: $forbidden"
               exit 1
             fi
           done
+
+          # The package is the Plasma widget only — the standalone-build
+          # QML adapters and the per-layer CLAUDE.md dev docs must NOT
+          # ride along (excluded in the zip step above; these assertions
+          # stop a future zip-step change from silently re-leaking them).
+          if [ -d "$tmpdir/contents/ui/platforms/standalone" ]; then
+            echo "::error::standalone adapter dir leaked into the Plasma package"
+            exit 1
+          fi
+          leaked_md=$(find "$tmpdir" -name CLAUDE.md)
+          if [ -n "$leaked_md" ]; then
+            echo "::error::CLAUDE.md dev doc leaked into the package:"
+            echo "$leaked_md"
+            exit 1
+          fi
 
           echo "Package OK ($(du -h "$ARTIFACT" | cut -f1))"
 

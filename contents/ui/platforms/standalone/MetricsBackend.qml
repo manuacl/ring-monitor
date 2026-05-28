@@ -23,10 +23,10 @@ import "../../core/MetricsCatalog.js" as Catalog
 // adapter — same rule that drove the `SensorPicking` extraction
 // (see [feedback-maximize-shared-code] memory).
 //
-// Scope: CPU usage (aggregate + per-core), RAM, disk, CPU temperature
-// (hwmon / thermal-zone via CpuTempDiscovery), and NVIDIA GPU usage +
-// temperature (NVML via the NvmlReader C++ helper). AMD/Intel GPU
-// (sysfs) and swap land in a follow-up.
+// Scope: CPU usage (aggregate + per-core), RAM, swap, disk, CPU
+// temperature (hwmon / thermal-zone via CpuTempDiscovery), and NVIDIA
+// GPU usage + temperature (NVML via the NvmlReader C++ helper).
+// AMD/Intel GPU (sysfs) lands in a follow-up.
 
 Item {
     id: backend
@@ -67,6 +67,8 @@ Item {
             return backend._diskUsage;
         if (id === "gpu")
             return backend._gpuUsage;
+        if (id === "swap")
+            return backend._swapUsage;
         // cpuTemp / gpuTemp are raw-°C metrics (Catalog.isTempMetric):
         // MainContent reads metricValue for the centre text and runs it
         // through tempToPercent itself for the sweep — same contract the
@@ -75,7 +77,6 @@ Item {
             return backend._coerceTemp(backend._cpuTempC);
         if (id === "gpuTemp")
             return backend._coerceTemp(backend._gpuTempC);
-        // swap returns 0 — added post-MVP.
         return 0;
     }
 
@@ -120,6 +121,7 @@ Item {
     property real _aggregateUsage: 0
     property var _coreUsage: []
     property real _ramUsage: 0
+    property real _swapUsage: 0
     property real _diskUsage: 0
     // Resolved lazily over a short warm-up window (the hwmonN numbering
     // + owning chip are machine-specific — see CpuTempDiscovery.js).
@@ -226,6 +228,11 @@ Item {
         var memRaw = reader.read("/proc/meminfo");
         var mem = MemInfoParser.parseMemInfo(memRaw);
         backend._ramUsage = MemInfoParser.usagePercent(mem.total, mem.available);
+        // Swap usage shares the RAM formula: used = total - free. zram
+        // (Bazzite's default) is reported as swap by the kernel, so this
+        // is non-zero on a typical desktop; 0 only on a genuinely
+        // swapless host (usagePercent returns 0 when swapTotal is 0).
+        backend._swapUsage = MemInfoParser.usagePercent(mem.swapTotal, mem.swapFree);
         // ── statvfs(/) (disk) ───────────────────────────────────────
         // diskUsagePercent uses df(1)'s formula (excludes root-reserved
         // blocks from "size") so the ring matches `df -h /` output.

@@ -10,10 +10,12 @@ const Parser = require("../contents/ui/platforms/standalone/MemInfoParser.js");
 
 // ── parseMemInfo ────────────────────────────────────────────────────
 
+const NULLS = { total: null, available: null, swapTotal: null, swapFree: null };
+
 test("parseMemInfo returns nulls on null / undefined / empty input", () => {
-    assert.deepEqual(Parser.parseMemInfo(null), { total: null, available: null });
-    assert.deepEqual(Parser.parseMemInfo(undefined), { total: null, available: null });
-    assert.deepEqual(Parser.parseMemInfo(""), { total: null, available: null });
+    assert.deepEqual(Parser.parseMemInfo(null), NULLS);
+    assert.deepEqual(Parser.parseMemInfo(undefined), NULLS);
+    assert.deepEqual(Parser.parseMemInfo(""), NULLS);
 });
 
 test("parseMemInfo extracts MemTotal and MemAvailable in kB", () => {
@@ -22,36 +24,55 @@ test("parseMemInfo extracts MemTotal and MemAvailable in kB", () => {
         "MemFree:         2121540 kB\n" +
         "MemAvailable:    9029768 kB\n" +
         "Buffers:           97012 kB\n";
-    assert.deepEqual(Parser.parseMemInfo(sample), { total: 16275216, available: 9029768 });
+    assert.deepEqual(Parser.parseMemInfo(sample),
+        { total: 16275216, available: 9029768, swapTotal: null, swapFree: null });
 });
 
-test("parseMemInfo ignores other lines (Buffers, Cached, SwapTotal, …)", () => {
+test("parseMemInfo extracts SwapTotal and SwapFree (incl. zram)", () => {
+    // Real Bazzite zram sample: 7.8 GiB swap, ~2 GiB used → ~26%.
+    const sample =
+        "MemTotal:       16275216 kB\n" +
+        "MemAvailable:    9029768 kB\n" +
+        "SwapCached:         4832 kB\n" +
+        "SwapTotal:       8137212 kB\n" +
+        "SwapFree:        6026436 kB\n";
+    assert.deepEqual(Parser.parseMemInfo(sample),
+        { total: 16275216, available: 9029768, swapTotal: 8137212, swapFree: 6026436 });
+});
+
+test("parseMemInfo ignores unrelated lines (Buffers, Cached, SwapCached)", () => {
+    // SwapCached must NOT be mistaken for SwapTotal/SwapFree — the
+    // anchored regex only matches the four exact field names.
     const sample =
         "Buffers:           97012 kB\n" +
         "MemTotal:        8388608 kB\n" +
         "Cached:          1234567 kB\n" +
         "MemAvailable:    4194304 kB\n" +
-        "SwapTotal:       2097152 kB\n";
-    assert.deepEqual(Parser.parseMemInfo(sample), { total: 8388608, available: 4194304 });
+        "SwapCached:         4832 kB\n";
+    assert.deepEqual(Parser.parseMemInfo(sample),
+        { total: 8388608, available: 4194304, swapTotal: null, swapFree: null });
 });
 
 test("parseMemInfo ignores MemTotal-lookalikes (e.g. MemTotalSomething)", () => {
     // Regex is anchored at line start with a colon — a hypothetical
     // future field that starts with "MemTotal" must not match.
     const sample = "MemTotalSomething: 999 kB\nMemTotal: 100 kB\nMemAvailable: 50 kB\n";
-    assert.deepEqual(Parser.parseMemInfo(sample), { total: 100, available: 50 });
+    assert.deepEqual(Parser.parseMemInfo(sample),
+        { total: 100, available: 50, swapTotal: null, swapFree: null });
 });
 
 test("parseMemInfo: missing MemAvailable leaves the field null", () => {
     // Synthetic input (real /proc/meminfo always has it on kernel >= 3.14)
     // — the parser must not invent a value or fall back to MemFree.
     const sample = "MemTotal: 100 kB\nMemFree: 50 kB\n";
-    assert.deepEqual(Parser.parseMemInfo(sample), { total: 100, available: null });
+    assert.deepEqual(Parser.parseMemInfo(sample),
+        { total: 100, available: null, swapTotal: null, swapFree: null });
 });
 
 test("parseMemInfo: malformed number is skipped, not coerced to 0", () => {
     const sample = "MemTotal: abc kB\nMemAvailable: 50 kB\n";
-    assert.deepEqual(Parser.parseMemInfo(sample), { total: null, available: 50 });
+    assert.deepEqual(Parser.parseMemInfo(sample),
+        { total: null, available: 50, swapTotal: null, swapFree: null });
 });
 
 // ── usagePercent ────────────────────────────────────────────────────
@@ -84,6 +105,21 @@ test("usagePercent: returns 0 when available is null / NaN / undefined", () => {
     assert.equal(Parser.usagePercent(100, null), 0);
     assert.equal(Parser.usagePercent(100, NaN), 0);
     assert.equal(Parser.usagePercent(100, undefined), 0);
+});
+
+test("usagePercent: swap usage reuses the RAM formula (zram ~26%)", () => {
+    // SCENARIO: standalone swap ring read 0 on a host with active zram
+    // (the metricValue("swap") path was hardcoded to 0). Swap usage is
+    // (SwapTotal - SwapFree) / SwapTotal — exactly usagePercent with
+    // available = SwapFree. Real Bazzite sample: 8137212 / 6026436.
+    const pct = Parser.usagePercent(8137212, 6026436);
+    assert.ok(Math.abs(pct - 25.94) < 0.1, `expected ~26%, got ${pct}`);
+});
+
+test("usagePercent: swapless host (SwapTotal 0) reports 0, not NaN", () => {
+    // A genuinely swapless machine has SwapTotal: 0 kB; the swap ring
+    // must read a clean 0 rather than a NaN sweep.
+    assert.equal(Parser.usagePercent(0, 0), 0);
 });
 
 test("usagePercent: unit-agnostic — same answer for kB or bytes", () => {

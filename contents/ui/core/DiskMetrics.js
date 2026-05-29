@@ -18,13 +18,16 @@
 //   orderPartitions(savedOrderCsv, available)
 //                                       - saved order first, then newly-
 //                                         discovered appended alphabetically.
-//   resolveDiskRingIds(manualIds, removableMounts, optOutIds, defaultIds, maxCount)
+//   resolveDiskRingIds(manualIds, removableMounts, optOutIds, defaultIds,
+//                      maxCount, mountedIds)
 //                                       - the final ordered set of disk rings to
-//                                         draw: the manual selection unioned with
-//                                         the currently-mounted removable media
-//                                         (auto-show), minus user opt-outs,
-//                                         falling back to defaultIds when empty,
-//                                         capped at maxCount.
+//                                         draw: the manual selection (gated on
+//                                         the live mountedIds set so an unmounted
+//                                         partition's ring self-heals away)
+//                                         unioned with the currently-mounted
+//                                         removable media (auto-show), minus user
+//                                         opt-outs, falling back to defaultIds
+//                                         when empty, capped at maxCount.
 //   stalePartitions(enabledCsv, orderCsv, discovered, labelCacheJson)
 //                                       - configured ids no longer present
 //                                         (unplugged), each {id, label}.
@@ -130,22 +133,37 @@ function orderPartitions(savedOrderCsv, available) {
 //
 // removableMounts is the live mounted-removable set ([{id, label}], id = the
 // UUID) the platform's MountInfo discovers; optOutIds are UUIDs the user hid
-// despite being mounted (a Phase 3 override — empty until that lands). Driving
-// the removable members off the live mount set (not ksysguard) is what makes the
-// ring self-heal on unplug: see contents/ui/platforms/plasma/MountInfo.qml and
-// issue #58.
-function resolveDiskRingIds(manualIds, removableMounts, optOutIds, defaultIds, maxCount) {
+// despite being mounted (a Phase 3 override — empty until that lands).
+//
+// mountedIds is the live set of ALL currently-mounted UUIDs (fixed + removable,
+// from lsblk). When supplied (non-empty), a MANUAL id absent from it is dropped:
+// that is the #58 self-heal — a configured partition that has been unmounted
+// (a removable unplugged) loses its ring whether it was hand-checked or
+// auto-checked, while a fixed disk (always mounted) is unaffected. ksysguard's
+// own partition list can't drive this because it FREEZES on unmount (still lists
+// the gone UUID) — only the live lsblk set reflects reality. An empty/absent
+// mountedIds means "no live mount data" (a real system always has a root mount,
+// so empty ⇒ the poll hasn't returned yet) or a platform without mount tracking
+// (standalone today) → don't gate, so fixed-disk rings aren't hidden during the
+// startup poll window. See contents/ui/platforms/plasma/MountInfo.qml and #58.
+function resolveDiskRingIds(manualIds, removableMounts, optOutIds, defaultIds, maxCount, mountedIds) {
     manualIds = manualIds || [];
     removableMounts = removableMounts || [];
     var optOut = {};
     var optList = optOutIds || [];
     for (var o = 0; o < optList.length; o++)
         optOut[optList[o]] = true;
+    var mounted = null;
+    if (mountedIds && mountedIds.length > 0) {
+        mounted = {};
+        for (var k = 0; k < mountedIds.length; k++)
+            mounted[mountedIds[k]] = true;
+    }
     var seen = {};
     var out = [];
     for (var i = 0; i < manualIds.length; i++) {
         var mid = manualIds[i];
-        if (mid && !seen[mid]) {
+        if (mid && !seen[mid] && (mounted === null || mounted[mid])) {
             seen[mid] = true;
             out.push(mid);
         }

@@ -78,11 +78,14 @@ GridLayout {
     // (auto-show), minus opt-outs, falling back to the platform default when
     // empty ($HOME FS on standalone, [] = aggregate on Plasma), capped at
     // DISK_MAX_RING_COUNT so the concentric stack stays readable and every radius
-    // stays positive at the minimum ringSize. `metrics.removablePartitions`
-    // exists only on Plasma — the `|| []` keeps standalone rendering exactly as
-    // before until Phase 4 ports it. The opt-out list is `[]` until Phase 3 wires
-    // its config key. See DiskMetrics.resolveDiskRingIds + issue #58.
-    readonly property var _diskSelectedIds: DiskMetrics.resolveDiskRingIds(content._manualPartitionIds, content.metrics.removablePartitions || [], [], content.metrics.defaultPartitionIds || [], Geom.DISK_MAX_RING_COUNT)
+    // stays positive at the minimum ringSize. The manual ids are gated on
+    // `metrics.mountedPartitionIds` (the live lsblk set) so an unmounted
+    // partition's ring self-heals away even though ksysguard's tree freezes on
+    // unmount (#58). `metrics.removablePartitions` / `mountedPartitionIds` exist
+    // only on Plasma — the `|| []` (and undefined mountedIds) keep standalone
+    // rendering exactly as before until Phase 4 ports them. The opt-out list is
+    // `[]` until Phase 3 wires its config key. See DiskMetrics.resolveDiskRingIds.
+    readonly property var _diskSelectedIds: DiskMetrics.resolveDiskRingIds(content._manualPartitionIds, content.metrics.removablePartitions || [], [], content.metrics.defaultPartitionIds || [], Geom.DISK_MAX_RING_COUNT, content.metrics.mountedPartitionIds)
 
     columns: vertical ? 1 : count
     // Spacing between rings is configurable as a percentage of

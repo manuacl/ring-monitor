@@ -295,3 +295,43 @@ test("resolveDiskRingIds: omitted maxCount returns the full union (no cap)", () 
     const out = Disk.resolveDiskRingIds([], removable, [], []);
     assert.equal(out.length, 7);
 });
+
+// ── mountedIds gate (the #58 self-heal) ─────────────────────────────
+// A manual id absent from the live mounted set is dropped; fixed disks
+// (always mounted) survive. Empty/undefined mountedIds means "no data" → no gate.
+
+test("resolveDiskRingIds: a manual id NOT in the live mounted set is dropped (self-heal)", () => {
+    // SCENARIO #58: a manually-checked USB key is unplugged. ksysguard's tree
+    // still lists its frozen UUID, but lsblk (mountedIds) does not — the ring
+    // must disappear.
+    const out = Disk.resolveDiskRingIds(["samsung", "photos", "usb-bios"], [], [], [], MAX,
+        ["samsung", "photos", "bazzite"]);
+    assert.deepEqual(out, ["samsung", "photos"]);
+});
+
+test("resolveDiskRingIds: manual ids present in the mounted set are all kept", () => {
+    const out = Disk.resolveDiskRingIds(["samsung", "sync", "photos"], [], [], [], MAX,
+        ["samsung", "sync", "photos", "bazzite", "boot"]);
+    assert.deepEqual(out, ["samsung", "sync", "photos"]);
+});
+
+test("resolveDiskRingIds: empty mountedIds does NOT gate (startup poll window)", () => {
+    // Before the first lsblk poll returns mountedIds is [] — a real system
+    // always has a root mount, so empty means 'no data', not 'nothing mounted'.
+    // Gating then would wrongly blank every fixed-disk ring for a frame.
+    const out = Disk.resolveDiskRingIds(["a", "b"], [], [], [], MAX, []);
+    assert.deepEqual(out, ["a", "b"]);
+});
+
+test("resolveDiskRingIds: undefined mountedIds does NOT gate (standalone, no mount tracking)", () => {
+    const out = Disk.resolveDiskRingIds(["a", "b"], [], [], [], MAX, undefined);
+    assert.deepEqual(out, ["a", "b"]);
+});
+
+test("resolveDiskRingIds: mounted gate drops a manual id but keeps the auto-shown removable", () => {
+    // The unplugged manual key 'old-usb' is gone from mountedIds; a freshly
+    // mounted removable 'new-usb' is in both removableMounts and mountedIds.
+    const out = Disk.resolveDiskRingIds(["home", "old-usb"], [{ id: "new-usb" }], [], [], MAX,
+        ["home", "new-usb"]);
+    assert.deepEqual(out, ["home", "new-usb"]);
+});

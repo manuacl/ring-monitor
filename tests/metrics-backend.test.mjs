@@ -20,7 +20,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms", "plasma", "MetricsBackend.qml"), "utf8");
 
 // Public surface main.qml consumes.
-const PUBLIC_PROPS = ["coreValues", "loading", "availableMetrics", "availablePartitions", "defaultPartitionIds", "removablePartitions", "removableTrackingActive"];
+const PUBLIC_PROPS = ["coreValues", "loading", "availableMetrics", "availablePartitions", "defaultPartitionIds", "removablePartitions", "removableTrackingActive", "mountedPartitionIds"];
 const PUBLIC_FUNCS = ["metricValue", "metricRawTemp", "metricTempPercent", "partitionValue"];
 
 // Universal-id sensor instances — sensors whose ksysguard id is the
@@ -166,6 +166,13 @@ test("MetricsBackend exposes a live removable-mount set gated by removableTracki
     assert.match(SOURCE, /property\s+var\s+removablePartitions\s*:/, "must declare removablePartitions");
     assert.match(SOURCE, /mountInfo\.mounted/, "removablePartitions must derive from mountInfo.mounted");
     assert.match(SOURCE, /\.removable\b/, "removablePartitions must filter on the removable flag");
+});
+
+test("MetricsBackend exposes mountedPartitionIds for the #58 live-mount self-heal gate", () => {
+    // MainContent gates the manual disk selection on this live lsblk set so an
+    // unmounted partition's ring disappears even though ksysguard's tree freezes.
+    assert.match(SOURCE, /property\s+var\s+mountedPartitionIds\s*:/, "must declare mountedPartitionIds");
+    assert.match(SOURCE, /mountedPartitionIds[\s\S]{0,200}mountInfo\.mounted/, "mountedPartitionIds must derive from mountInfo.mounted (the live set)");
 });
 
 test("availableMetrics gates each metric on its Sensor reaching Ready", () => {

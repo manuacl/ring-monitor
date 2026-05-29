@@ -712,6 +712,39 @@ that loads `org.kde.ksysguard.sensors`; the Node test inspects the
 QML source and asserts the public surface + every catalog sensor +
 the 6 per-core sensors are declared.
 
+### `MountInfo.qml`
+
+Plasma adapter for the live set of mounted filesystems **with removable
+classification** — the data ksysguard does not provide (it exposes only
+the volume label + `usedPercent` per UUID, no mountpoint, no removable
+flag). It runs `lsblk -P -o UUID,MOUNTPOINT,LABEL` through
+`org.kde.plasma.plasma5support`'s `DataSource` (engine `"executable"`),
+parses it with [`MountInfo.js`](logic-modules.md#mountinfojs)'s
+`parseLsblkPairs`, and tags each row with
+`DiskMetrics.isRemovableMount(mountpoint)`.
+
+| Member | Description |
+|---|---|
+| `mounted` (readonly property var) | `[{uuid, label, mountpoint, removable}]`, one per mounted filesystem with a UUID. `uuid` is ksysguard's `disk/<uuid>` key, so a consumer joins this onto the per-partition sensors to know which are removable / currently mounted. |
+| `pollMs` (property int) | re-scan cadence (default 2000) — the unplug-detection latency. |
+
+Reading mount state ourselves is also what makes removable rings
+**self-heal on unplug** (issue #58): the long-lived ksysguard
+`SensorTreeModel` freezes on unmount (no `rowsRemoved`, status stays
+`Ready`, a re-walk still lists the gone UUID), but re-running `lsblk`
+always reflects reality. Why a subprocess and not a file read: QML
+`XMLHttpRequest` on `file:///proc/...` is blocked in plasmashell and
+there is no `org.kde.solid` QML import on the target, so the executable
+engine is the remaining native path. The command is **bare** (`lsblk`,
+no hardcoded directory) — the engine runs it with the session `PATH`, so
+pinning an absolute path would only hurt portability (the no-absolute-path
+rule); a missing `lsblk` just leaves `mounted` empty (fixed disks, driven
+by ksysguard, are unaffected).
+
+Text-guarded by `tests/mount-info.test.mjs` (alongside the pure
+`parseLsblkPairs` tests) — same reason as the other Plasma adapters: its
+plasma5support import keeps it out of `qmltestrunner`.
+
 ## Update-notification flow
 
 A widget-side check against GitHub Releases drives a subtle "new

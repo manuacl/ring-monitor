@@ -183,3 +183,33 @@ test("sortByLabel: ties broken by id; tolerates empty/missing", () => {
     ]);
     assert.deepEqual(out.map((p) => p.id), ["a", "b"]);
 });
+
+// ── isRemovableMount ────────────────────────────────────────────────
+
+test("isRemovableMount: /run/media/<user>/… → removable", () => {
+    assert.equal(Disk.isRemovableMount("/run/media/manu/BIOS"), true);
+    assert.equal(Disk.isRemovableMount("/run/media/manu/My Backup"), true);
+});
+
+test("isRemovableMount: legacy /media/<user>/… → removable", () => {
+    assert.equal(Disk.isRemovableMount("/media/manu/usbkey"), true);
+});
+
+test("isRemovableMount: fixed-disk mountpoints → not removable", () => {
+    assert.equal(Disk.isRemovableMount("/"), false);
+    assert.equal(Disk.isRemovableMount("/boot"), false);
+    assert.equal(Disk.isRemovableMount("/var/home"), false);
+    assert.equal(Disk.isRemovableMount("/var/mnt/photos"), false);
+});
+
+test("isRemovableMount: a path merely containing /media is not a prefix match", () => {
+    assert.equal(Disk.isRemovableMount("/var/media/library"), false);
+    assert.equal(Disk.isRemovableMount("/home/manu/run/media/x"), false);
+});
+
+test("isRemovableMount: empty / non-string → false", () => {
+    assert.equal(Disk.isRemovableMount(""), false);
+    assert.equal(Disk.isRemovableMount(null), false);
+    assert.equal(Disk.isRemovableMount(undefined), false);
+    assert.equal(Disk.isRemovableMount(42), false);
+});

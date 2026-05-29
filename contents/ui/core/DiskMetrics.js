@@ -24,10 +24,26 @@
 //   parseLabelCache / serializeLabelCache / mergeLabelCache
 //                                       - the UUID→label cache backing the
 //                                         friendly name on stale rows.
+//   isRemovableMount(mountpoint)        - true when a filesystem's mountpoint
+//                                         marks it as user-plugged removable
+//                                         media (auto-show / auto-check).
 //
 // Selecting the enabled subset in display order is done with the existing
 // MetricsCatalog.filterByOrder(enabledCsvIds, orderedIds) — no disk-specific
 // helper (it was a duplicate of filterByOrder with the args swapped).
+
+// KDE's udisks2 auto-mounts a user-plugged removable filesystem under
+// /run/media/<user>/ (older / non-KDE setups use /media/<user>/); fixed disks
+// mount under /, /boot, /var, /home, … So the mountpoint prefix is the
+// portable "did the user just plug this in?" signal. It's the only such signal
+// available on Plasma — ksysguard exposes no removable flag — and the
+// standalone /proc/mounts path sees the same mountpoints, so both platforms
+// classify identically through this one helper.
+function isRemovableMount(mountpoint) {
+    if (typeof mountpoint !== "string" || mountpoint.length === 0)
+        return false;
+    return mountpoint.indexOf("/run/media/") === 0 || mountpoint.indexOf("/media/") === 0;
+}
 
 function averagePercent(values) {
     if (!values || values.length === 0)
@@ -196,5 +212,6 @@ if (typeof module !== "undefined" && module.exports) {
         parseLabelCache: parseLabelCache,
         serializeLabelCache: serializeLabelCache,
         mergeLabelCache: mergeLabelCache,
+        isRemovableMount: isRemovableMount,
     };
 }

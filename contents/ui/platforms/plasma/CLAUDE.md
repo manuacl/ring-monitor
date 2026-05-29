@@ -85,6 +85,14 @@ The contract:
   bucket on the `usedPercent` leaf (excluding the `disk/all` aggregate).
   The mountpoint is **not** exposed as a sensor, which is why the disk
   multi-ring default can't match `$HOME` on Plasma (→ aggregate fallback).
+- **lsblk emits vfat/FAT UUIDs UPPERCASE; ksysguard keys them lowercase.**
+  `lsblk -o UUID` prints a FAT volume serial as `6F45-2B2F`, but the
+  `disk/<uuid>` sensor id — and the persisted `enabledPartitions` /
+  `partitionLabels` — is lowercase `6f45-2b2f`. Normalize lsblk UUIDs to
+  lowercase before joining the live mount set onto the sensors (done at the
+  parse boundary in `MountInfo.js`); skipping it renders a USB key's ring at
+  0% (no matching sensor) and makes the live-mount self-heal gate drop it.
+  ext4/btrfs UUIDs are already lowercase. (Cost a live-debug iteration, #58.)
 - **A long-lived `SensorTreeModel` does NOT signal an unmount.** When a
   filesystem unmounts (USB unplug), the model fires no `rowsRemoved` /
   `modelReset` / `layoutChanged`, the per-partition `Sensor.status` stays

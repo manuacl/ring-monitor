@@ -272,11 +272,12 @@ Item {
         }
 
         // ── Stale (unplugged) partitions (#49) ──────────────────────
-        function test_stale_list_suppressed_while_loading() {
-            // availableMetrics === null is the wrappers' "still loading" proxy;
-            // surfacing stale rows then would let the user trash a partition
-            // that's merely not-yet-discovered (the trash action is destructive).
-            body.availableMetrics = null;
+        function test_stale_list_suppressed_until_partitions_settle() {
+            // Discovery populates incrementally; a not-yet-enumerated partition
+            // must NOT surface as stale (the trash action is destructive). Stale
+            // rows appear only after diskPartitions has settled for
+            // _partitionSettleMs.
+            body._partitionSettleMs = 30;
             body.diskPartitions = [
                 {
                     id: "u-baz",
@@ -284,16 +285,20 @@ Item {
                 }
             ];
             body.enabledPartitionsCsv = "u-baz,u-usb";
-            wait(20);
-            compare(body.stalePartitionList.length, 0);
+            // Right after the diskPartitions change the debounce is pending.
+            compare(body.stalePartitionList.length, 0, "no stale rows while discovery is still settling");
+            wait(80);
+            compare(body.stalePartitionList.length, 1, "u-usb surfaces once settled");
+            compare(body.stalePartitionList[0].id, "u-usb");
         }
 
         function test_stale_list_suppressed_when_no_partitions_discovered() {
-            // Empty diskPartitions = discovery hasn't run; can't conclude stale.
-            body.availableMetrics = ["disk"];
+            // Empty diskPartitions = discovery hasn't run; can't conclude stale
+            // even after the debounce fires.
+            body._partitionSettleMs = 30;
             body.diskPartitions = [];
             body.enabledPartitionsCsv = "u-baz,u-usb";
-            wait(20);
+            wait(80);
             compare(body.stalePartitionList.length, 0);
         }
 
@@ -301,7 +306,7 @@ Item {
             // SCENARIO (#49): u-usb is selected and discovered (label cached),
             // then unplugged → it must surface as a stale row keeping the
             // friendly name, not vanish silently.
-            body.availableMetrics = ["disk"];
+            body._partitionSettleMs = 30;
             body.enabledPartitionsCsv = "u-usb,u-baz";
             body.diskPartitions = [
                 {
@@ -313,8 +318,8 @@ Item {
                     label: "bazzite"
                 }
             ];
-            wait(20);
-            // Both discovered → nothing stale yet.
+            wait(80);
+            // Both discovered → nothing stale.
             compare(body.stalePartitionList.length, 0);
 
             // Unplug u-usb.
@@ -324,14 +329,14 @@ Item {
                     label: "bazzite"
                 }
             ];
-            wait(20);
+            wait(80);
             compare(body.stalePartitionList.length, 1);
             compare(body.stalePartitionList[0].id, "u-usb");
             compare(body.stalePartitionList[0].label, "backups", "stale row keeps the last-known label from the cache");
         }
 
         function test_removeStalePartition_clears_csvs_and_cache() {
-            body.availableMetrics = ["disk"];
+            body._partitionSettleMs = 30;
             body.enabledPartitionsCsv = "u-usb,u-baz";
             body.partitionOrderCsv = "u-usb,u-baz";
             body.diskPartitions = [
@@ -344,14 +349,14 @@ Item {
                     label: "bazzite"
                 }
             ];
-            wait(20);
+            wait(80);
             body.diskPartitions = [
                 {
                     id: "u-baz",
                     label: "bazzite"
                 }
             ];
-            wait(20);
+            wait(80);
             verify(body.stalePartitionList.length === 1, "u-usb must be stale before removal");
 
             body.removeStalePartition("u-usb");
@@ -360,6 +365,22 @@ Item {
             verify(body.partitionOrderCsv.split(",").indexOf("u-usb") === -1, "removed from partitionOrder");
             compare(body.stalePartitionList.length, 0, "no longer surfaced after removal");
             verify(JSON.parse(body.partitionLabelsJson || "{}")["u-usb"] === undefined, "label cache entry pruned");
+        }
+
+        function test_label_cache_not_written_on_open_for_empty_default() {
+            // _refreshLabelCache must treat "" and "{}" as equal so merely
+            // opening the dialog (no user action) doesn't dirty partitionLabels.
+            body.partitionLabelsJson = "";
+            body.enabledPartitionsCsv = "";
+            body.partitionOrderCsv = "";
+            body.diskPartitions = [
+                {
+                    id: "u-baz",
+                    label: "bazzite"
+                }
+            ];
+            wait(20);
+            compare(body.partitionLabelsJson, "", "empty cache must stay \"\" — no spurious config write");
         }
 
         // ── Temperature unit: property → which radio is checked ─────

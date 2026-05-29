@@ -154,14 +154,27 @@ ColumnLayout {
         body.partitionOrderCsv = currentPartitionOrder().join(",");
     }
 
+    // Discovery on Plasma populates incrementally (DiskPartitions._refresh runs
+    // on every SensorTreeModel rowsInserted), so a non-empty diskPartitions does
+    // NOT mean discovery is complete — a still-to-be-enumerated partition would
+    // transiently look stale. The trash action is destructive, so we only treat
+    // discovery as trustworthy once diskPartitions has stopped changing for
+    // _partitionSettleMs. partitionSettleTimer flips _partitionsSettled.
+    property int _partitionSettleMs: 500
+    property bool _partitionsSettled: false
+
+    Timer {
+        id: partitionSettleTimer
+        interval: body._partitionSettleMs
+        onTriggered: body._partitionsSettled = true
+    }
+
     // Configured partitions that are no longer discovered (unplugged disk).
-    // Gated to avoid a destructive false-positive: availableMetrics === null
-    // means the backend is still loading (the wrappers gate it that way), and
-    // an empty diskPartitions means discovery hasn't run — in both states every
-    // enabled id would look stale and the user could trash a partition that is
-    // merely not-yet-discovered. Only surface stale rows once discovery settled.
+    // Empty until discovery has settled (see above) or nothing is discovered
+    // yet — otherwise the user could trash a partition that's merely not-yet-
+    // enumerated during the warm-up insert storm.
     readonly property var stalePartitionList: {
-        if (body.availableMetrics === null || !body.diskPartitions || body.diskPartitions.length === 0)
+        if (!body._partitionsSettled || !body.diskPartitions || body.diskPartitions.length === 0)
             return [];
         return DiskMetrics.stalePartitions(body.enabledPartitionsCsv, body.partitionOrderCsv, body.diskPartitions, body.partitionLabelsJson);
     }
@@ -169,12 +182,18 @@ ColumnLayout {
     // The set of ids whose label is worth caching: everything currently
     // selected or ordered (so an unplugged one keeps its friendly name).
     function _referencedPartitionIds() {
-        const ids = Catalog.parseCsv(body.enabledPartitionsCsv).concat(Catalog.parseCsv(body.partitionOrderCsv));
-        return ids;
+        return Catalog.parseCsv(body.enabledPartitionsCsv).concat(Catalog.parseCsv(body.partitionOrderCsv));
     }
 
     function _refreshLabelCache() {
-        body.partitionLabelsJson = DiskMetrics.mergeLabelCache(body.partitionLabelsJson, body.diskPartitions || [], body._referencedPartitionIds());
+        const next = DiskMetrics.mergeLabelCache(body.partitionLabelsJson, body.diskPartitions || [], body._referencedPartitionIds());
+        // Don't write unless the cache actually changed, and treat the unset
+        // default "" as equal to an empty "{}" — otherwise merely opening the
+        // dialog (or any checkbox toggle) would dirty the KCM page / queue a
+        // standalone QSettings write for a no-op.
+        if (next === body.partitionLabelsJson || (next === "{}" && body.partitionLabelsJson === ""))
+            return;
+        body.partitionLabelsJson = next;
     }
 
     // Trash action on a stale row: drop the id from the selection, the order,
@@ -197,6 +216,10 @@ ColumnLayout {
     onMetricOrderCsvChanged: loadOrder()
     onPartitionOrderCsvChanged: loadPartitionOrder()
     onDiskPartitionsChanged: {
+        // Discovery moved — restart the settle debounce so stale rows don't
+        // surface mid-enumeration (see _partitionsSettled).
+        body._partitionsSettled = false;
+        partitionSettleTimer.restart();
         loadPartitionOrder();
         _seedDefaultIfEmpty();
         _refreshLabelCache();
@@ -208,6 +231,9 @@ ColumnLayout {
         loadPartitionOrder();
         _seedDefaultIfEmpty();
         _refreshLabelCache();
+        // Kick the settle debounce in case diskPartitions was assigned before
+        // this handler wired up (so onDiskPartitionsChanged didn't fire).
+        partitionSettleTimer.restart();
     }
 
     Layout.fillWidth: true
@@ -393,11 +419,15 @@ ColumnLayout {
                 backgroundColor: body.theme ? body.theme.backgroundColor : "#1e1e1e"
 
                 rowContent: Component {
-                    QQC2.CheckBox {
+                    PartitionRow {
                         readonly property string _partId: parent && parent.rowModel ? parent.rowModel.partId : ""
-                        text: parent && parent.rowModel ? parent.rowModel.partLabel : ""
+                        partLabel: parent && parent.rowModel ? parent.rowModel.partLabel : ""
+                        available: true
                         checked: body.isPartitionEnabled(_partId)
-                        onClicked: body.setPartitionEnabled(_partId, checked)
+                        onToggled: on => body.setPartitionEnabled(_partId, on)
+                        unit: body.theme.unit
+                        smallSpacing: body.theme.smallSpacing
+                        iconSize: body.theme.iconSize
                     }
                 }
 
@@ -413,42 +443,19 @@ ColumnLayout {
             // (unplugged). Greyed, non-draggable, each with a trash button that
             // clears it from the selection + order + label cache. Rendered below
             // the draggable list so the ring-nesting order stays untouched.
+            // Same PartitionRow component as the draggable rows, in its
+            // !available variant.
             Repeater {
                 model: body.stalePartitionList
-                delegate: RowLayout {
-                    id: staleRow
+                delegate: PartitionRow {
                     required property var modelData
                     Layout.fillWidth: true
-                    spacing: body.theme ? body.theme.smallSpacing : 4
-
-                    QQC2.Label {
-                        text: staleRow.modelData.label
-                        opacity: 0.4
-                        font.italic: true
-                        elide: Text.ElideRight
-                        Layout.fillWidth: true
-                        Layout.leftMargin: (body.theme ? body.theme.iconSize : 16) + 12
-
-                        HoverHandler {
-                            id: staleHover
-                        }
-                        QQC2.ToolTip.text: qsTr("This filesystem is no longer connected — remove it from the selection.")
-                        QQC2.ToolTip.visible: staleHover.hovered
-                        QQC2.ToolTip.delay: 500
-                    }
-                    QQC2.Label {
-                        text: qsTr("not connected")
-                        opacity: 0.5
-                        font.italic: true
-                    }
-                    QQC2.ToolButton {
-                        icon.name: "edit-delete-remove"
-                        flat: true
-                        onClicked: body.removeStalePartition(staleRow.modelData.id)
-                        QQC2.ToolTip.text: qsTr("Remove this disconnected filesystem")
-                        QQC2.ToolTip.visible: hovered
-                        QQC2.ToolTip.delay: 500
-                    }
+                    partLabel: modelData.label
+                    available: false
+                    onRemoveRequested: body.removeStalePartition(modelData.id)
+                    unit: body.theme.unit
+                    smallSpacing: body.theme.smallSpacing
+                    iconSize: body.theme.iconSize
                 }
             }
         }

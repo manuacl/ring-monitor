@@ -96,6 +96,8 @@ function orderPartitions(savedOrderCsv, available) {
     return out.concat(sortByLabel(rest));
 }
 
+// Mirrors MetricsCatalog.parseCsv — duplicated rather than imported because
+// the dual-load (no-pragma) .js modules can't import each other.
 function _csvIds(csv) {
     return String(csv || "").split(",").filter(function (x) {
         return x;

@@ -168,6 +168,10 @@ Window {
         configStore: configStoreAdapter
         theme: themeAdapter
         updateChecker: updateCheckerAdapter
+        // Live availability so the picker greys metrics with no data source;
+        // `null` while loading (= unknown → all enable-able) so a dialog opened
+        // mid-warm-up doesn't grey rows about to resolve.
+        availableMetrics: metricsAdapter.loading ? null : metricsAdapter.availableMetrics
     }
 
     // ── Right-click context menu ────────────────────────────────────

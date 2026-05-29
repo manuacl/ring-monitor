@@ -35,7 +35,7 @@ test('isTempMetric: exactly cpuTemp and gpuTemp are temperature metrics', () => 
 // ── mergeWithCatalog ──────────────────────────────────────────────────
 
 test('mergeWithCatalog: appends missing catalog ids to a user CSV', () => {
-    // Pre-0.4 user with cpu+ram+gpu order, no temp metrics yet.
+    // Pre-0.4 user: cpu+ram+gpu order, no temp metrics yet.
     const result = Catalog.mergeWithCatalog(['cpu', 'ram', 'gpu']);
     assert.deepEqual(result, ['cpu', 'ram', 'gpu', 'cpuTemp', 'swap', 'gpuTemp', 'disk']);
 });
@@ -51,7 +51,6 @@ test('mergeWithCatalog: empty input returns the full canonical order', () => {
 
 test('mergeWithCatalog: does not duplicate ids the user already has', () => {
     const out = Catalog.mergeWithCatalog(['cpuTemp', 'cpu']);
-    // No "cpuTemp" repeated — order preserved with the rest appended.
     const count = out.filter(x => x === 'cpuTemp').length;
     assert.equal(count, 1);
 });
@@ -108,12 +107,8 @@ test('isSplitForBase: non-cpu/gpu base ids never split', () => {
 });
 
 // ── classifyDiscoveredIds: filter + natural sort ──────────────────────
-//
-// SensorTreeModel walk dumps a flat list of every sensor id on the
-// machine. This pure helper buckets the per-core / per-gpu variants
-// the backend needs to know about. Single-id metrics (cpu/all/usage,
-// disk/all/usedPercent, …) stay in METRIC_SENSOR_IDS and are not
-// covered here.
+// Buckets the per-core / per-gpu variants out of a flat SensorTreeModel id
+// dump. Single-id metrics (cpu/all/usage, …) stay in METRIC_SENSOR_IDS.
 
 test('classifyDiscoveredIds: empty input → empty buckets', () => {
     const out = Catalog.classifyDiscoveredIds([]);
@@ -142,10 +137,9 @@ test('classifyDiscoveredIds: routes ids into the right buckets', () => {
 });
 
 test('classifyDiscoveredIds: buckets per-filesystem disk usedPercent, excludes disk/all', () => {
-    // ksysguard keys mounted filesystems by UUID and only emits usedPercent
-    // for them — physical disks (disk/sda/…) have read/write but no
-    // usedPercent. The disk/all aggregate stays a static sensor, so it must
-    // NOT land in the per-partition bucket.
+    // ksysguard keys mounted filesystems by UUID, emitting usedPercent only
+    // for them (physical disks have read/write, no usedPercent). The disk/all
+    // aggregate stays a static sensor → must NOT land in the per-partition bucket.
     const out = Catalog.classifyDiscoveredIds([
         "disk/6286e04e-b217-43bf-834f-d6a054ac4376/usedPercent",
         "disk/0af30554-3219-445a-b6f7-e02910a91469/usedPercent",
@@ -160,11 +154,9 @@ test('classifyDiscoveredIds: buckets per-filesystem disk usedPercent, excludes d
 });
 
 test('classifyDiscoveredIds: ignores the regex subscription node behind disk/all', () => {
-    // SCENARIO: the SensorTreeModel surfaces a regex *matcher* node —
-    // `disk/(?!all).*/usedPercent` (the "all disks except 'all'"
-    // subscription that defines the disk/all aggregate). It is NOT a real
-    // filesystem; a [^/]+ middle segment wrongly matched it and rendered a
-    // phantom "(?!all).*" checkbox in the picker. The id-char restriction
+    // SCENARIO: the SensorTreeModel surfaces the regex *matcher* node behind
+    // disk/all — `disk/(?!all).*/usedPercent`, not a real filesystem. A [^/]+
+    // middle segment matched it → phantom checkbox; the id-char restriction
     // ([A-Za-z0-9_-]) excludes it while keeping UUID partitions.
     const out = Catalog.classifyDiscoveredIds([
         "disk/(?!all).*/usedPercent",
@@ -271,6 +263,82 @@ test('filterByOrder: empty enabled → []', () => {
     assert.deepEqual(Catalog.filterByOrder([], Catalog.METRIC_IDS), []);
 });
 
+// ── filterByAvailable: keep only available ids, in the enabled order ──
+// (drops a GPU ring on a non-NVIDIA box / swap on a swapless host, etc.)
+
+test('filterByAvailable: keeps only available ids, in the enabled order', () => {
+    assert.deepEqual(
+        Catalog.filterByAvailable(['cpu', 'gpu', 'ram', 'swap'], ['cpu', 'ram', 'disk']),
+        ['cpu', 'ram']
+    );
+});
+
+test('filterByAvailable: preserves the enabled order, not the available order', () => {
+    assert.deepEqual(
+        Catalog.filterByAvailable(['gpu', 'cpu', 'ram'], ['cpu', 'ram', 'gpu']),
+        ['gpu', 'cpu', 'ram']
+    );
+});
+
+test('filterByAvailable: everything available → enabled list returned untouched (copy)', () => {
+    const input = ['cpu', 'ram'];
+    const out = Catalog.filterByAvailable(input, ['cpu', 'ram', 'gpu']);
+    assert.deepEqual(out, input);
+    assert.notEqual(out, input, 'must return a fresh array, not the input reference');
+});
+
+test('filterByAvailable: nothing available → empty list', () => {
+    assert.deepEqual(Catalog.filterByAvailable(['cpu', 'gpu'], []), []);
+});
+
+test('filterByAvailable: null/undefined available → pass-through copy (availability unknown)', () => {
+    // Warm-up / pre-surface host: show configured rings, don't blank the widget.
+    const input = ['cpu', 'gpu', 'swap'];
+    assert.deepEqual(Catalog.filterByAvailable(input, null), input);
+    assert.deepEqual(Catalog.filterByAvailable(input, undefined), input);
+    assert.notEqual(Catalog.filterByAvailable(input, null), input, 'must return a fresh array');
+});
+
+test('filterByAvailable: empty enabled → []', () => {
+    assert.deepEqual(Catalog.filterByAvailable([], ['cpu', 'ram']), []);
+});
+
+// ── availableMetricsFrom: emit truthy ids of a {id:bool} map in METRIC_IDS order ──
+
+test('availableMetricsFrom: emits truthy ids in canonical METRIC_IDS order', () => {
+    // Flags given out of order → output still canonical.
+    assert.deepEqual(
+        Catalog.availableMetricsFrom({ disk: true, cpu: true, ram: true }),
+        ['cpu', 'ram', 'disk']
+    );
+});
+
+test('availableMetricsFrom: drops falsy flags (false / undefined / missing)', () => {
+    assert.deepEqual(
+        Catalog.availableMetricsFrom({ cpu: true, cpuTemp: false, ram: true, gpu: undefined }),
+        ['cpu', 'ram']
+    );
+});
+
+test('availableMetricsFrom: full host → the whole catalog in order', () => {
+    const all = {};
+    for (const id of Catalog.METRIC_IDS) all[id] = true;
+    assert.deepEqual(Catalog.availableMetricsFrom(all), Catalog.METRIC_IDS);
+});
+
+test('availableMetricsFrom: ignores ids that are not in the catalog', () => {
+    assert.deepEqual(
+        Catalog.availableMetricsFrom({ cpu: true, bogus: true }),
+        ['cpu']
+    );
+});
+
+test('availableMetricsFrom: empty / null flags → []', () => {
+    assert.deepEqual(Catalog.availableMetricsFrom({}), []);
+    assert.deepEqual(Catalog.availableMetricsFrom(null), []);
+    assert.deepEqual(Catalog.availableMetricsFrom(undefined), []);
+});
+
 test('toggleEnabled: enabling an id not yet present appends it', () => {
     assert.deepEqual(Catalog.toggleEnabled(['cpu', 'ram'], 'gpu', true),
                      ['cpu', 'ram', 'gpu']);
@@ -300,10 +368,8 @@ test('toggleEnabled: does not mutate the input', () => {
 });
 
 // ── valueFromSensorMap — read sensor value defensively ──────────────────
-//
-// `Sensors.Sensor.value` is undefined until the first sample lands, can be
-// NaN on bad sensor IDs, and the whole sensorMap could be null in tests.
-// The function is the single chokepoint for that defence.
+// `Sensor.value` is undefined pre-first-sample, NaN on a bad id, and the
+// map itself may be null in tests — this is the single chokepoint for that.
 
 test('valueFromSensorMap: returns sensor value for a known id', () => {
     const map = { cpu: { value: 42 }, ram: { value: 17 } };
@@ -337,9 +403,8 @@ test('valueFromSensorMap: preserves 0 as a valid sensor reading', () => {
 });
 
 // ── Temperature sensors + °C → % mapping ────────────────────────────────
-//
-// Two metrics get an optional temperature half-arc: cpu (averaged across
-// cores) and gpu (per-GPU, ksysguard doesn't expose a `gpu/all` aggregate).
+// Optional temperature half-arc for cpu (core-averaged) and gpu (per-GPU —
+// ksysguard exposes no `gpu/all` aggregate).
 
 test('tempSensorIdFor: known ids return their ksysguard temperature sensor', () => {
     assert.equal(Catalog.tempSensorIdFor('cpu'), 'cpu/all/averageTemperature');
@@ -385,10 +450,8 @@ test('tempToPercent: degenerate range (max <= min) → 0', () => {
 });
 
 // ── Display unit resolution + °C → °F conversion ────────────────────────
-//
-// Internally the sensor stays in Celsius (so tempToPercent and the
-// 30-90°C range remain meaningful). Only the *displayed* number gets
-// converted, at the last hop in MainContent.
+// Sensor stays in Celsius (tempToPercent + the 30-90°C range stay
+// meaningful); only the *displayed* number converts, last hop in MainContent.
 
 test('MEASUREMENT_* constants match Qt QLocale.MeasurementSystem enum', () => {
     assert.equal(Catalog.MEASUREMENT_METRIC, 0);

@@ -39,7 +39,12 @@ GridLayout {
     // sides are enabled (a merge with nothing to merge into stays a
     // standalone temperature ring).
     readonly property var _rawEnabledList: Catalog.filterByOrder(Catalog.parseCsv(content.configStore.enabledMetrics), Catalog.parseCsv(content.configStore.metricOrder))
-    readonly property var enabledList: Catalog.applyMergedTempMode(_rawEnabledList, content.configStore.mergeCpuTemp, content.configStore.mergeGpuTemp)
+    // Drop metrics with no live data source, but only after warm-up
+    // (`loading` keeps the full strip during the 100% sweep), and BEFORE
+    // applyMergedTempMode so split-mode never engages on an unavailable temp
+    // metric. Full derivation chain: docs/components.md § MainContent.
+    readonly property var _availableEnabledList: content.metrics.loading ? content._rawEnabledList : Catalog.filterByAvailable(content._rawEnabledList, content.metrics.availableMetrics)
+    readonly property var enabledList: Catalog.applyMergedTempMode(content._availableEnabledList, content.configStore.mergeCpuTemp, content.configStore.mergeGpuTemp)
     readonly property bool vertical: content.configStore.orientation === "vertical"
     readonly property int count: Math.max(1, content.enabledList.length)
 
@@ -131,7 +136,7 @@ GridLayout {
             //      the right half (split mode), triggered by the
             //      merge* config when both sides are enabled.
             readonly property bool _isTemp: Catalog.isTempMetric(modelData)
-            readonly property bool _splitOn: Catalog.isSplitForBase(modelData, content._rawEnabledList, content.configStore.mergeCpuTemp, content.configStore.mergeGpuTemp)
+            readonly property bool _splitOn: Catalog.isSplitForBase(modelData, content._availableEnabledList, content.configStore.mergeCpuTemp, content.configStore.mergeGpuTemp)
             // Disk multi-partition: one equal-thickness ring per selected
             // filesystem, centre = their average. Empty when not the disk
             // ring or when nothing resolved (→ aggregate single ring via the

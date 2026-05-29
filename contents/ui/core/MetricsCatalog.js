@@ -95,6 +95,45 @@ function filterByOrder(ids, order) {
     return out;
 }
 
+// Order-preserving intersection of `enabledIds` with `availableIds` —
+// drops any enabled metric the backend isn't currently reporting a data
+// source for (GPU on a non-NVIDIA box, swap on a swapless host, an
+// unresolved CPU-temp sensor). Keeps the `enabledIds` order so the strip
+// layout is unchanged for the surviving rings.
+//
+// `availableIds` null/undefined means "availability unknown" (the backend
+// hasn't reported yet, or a host that predates the availableMetrics
+// surface): pass `enabledIds` through untouched so the warm-up keeps
+// showing the configured rings instead of blanking the widget.
+function filterByAvailable(enabledIds, availableIds) {
+    if (!availableIds) return enabledIds.slice();
+    var set = {};
+    for (var i = 0; i < availableIds.length; i++) set[availableIds[i]] = true;
+    var out = [];
+    for (var j = 0; j < enabledIds.length; j++) {
+        if (set[enabledIds[j]]) out.push(enabledIds[j]);
+    }
+    return out;
+}
+
+// Build the availableMetrics list from a `{ id: boolean }` capability
+// map, in canonical METRIC_IDS order. Both backend adapters pass their
+// own per-metric readiness flags through this so the "which order do we
+// list them in" decision lives in ONE place (the catalog) rather than
+// being hand-duplicated in each adapter — adding a metric to METRIC_IDS
+// then only needs a flag entry, not an extra push() in two files. The
+// order here is canonical, not the user's; filterByAvailable re-imposes
+// the user's order downstream. Ids in `flags` that aren't catalog ids
+// are ignored.
+function availableMetricsFrom(flags) {
+    var out = [];
+    for (var i = 0; i < METRIC_IDS.length; i++) {
+        var id = METRIC_IDS[i];
+        if (flags && flags[id]) out.push(id);
+    }
+    return out;
+}
+
 // Append any catalog metric id missing from `currentIds`, preserving
 // the existing order. Used in MetricsBody.loadOrder so that a release
 // introducing a new metric (e.g. cpuTemp / gpuTemp in 0.4) auto-shows
@@ -284,6 +323,8 @@ if (typeof module !== "undefined" && module.exports) {
         MEASUREMENT_IMPERIAL_UK: MEASUREMENT_IMPERIAL_UK,
         parseCsv: parseCsv,
         filterByOrder: filterByOrder,
+        filterByAvailable: filterByAvailable,
+        availableMetricsFrom: availableMetricsFrom,
         labelFor: labelFor,
         sensorIdFor: sensorIdFor,
         tempSensorIdFor: tempSensorIdFor,

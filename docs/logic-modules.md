@@ -63,6 +63,7 @@ Static catalog + CSV helpers for the metric system.
 | `METRIC_SENSOR_IDS` | id → ksysguard sensor id |
 | `parseCsv(str)` | tolerant CSV split, drops empty segments |
 | `filterByOrder(ids, order)` | keep only `ids`, sorted by `order` |
+| `filterByAvailable(enabledIds, availableIds)` | order-preserving intersection — drop enabled ids absent from `availableIds`; `null`/`undefined` passes through (availability unknown) |
 | `labelFor(id)` | label or uppercase fallback |
 | `sensorIdFor(id)` | sensor id or `""` |
 | `toggleEnabled(ids, id, on)` | new array with `id` added or removed |

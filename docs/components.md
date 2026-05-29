@@ -31,6 +31,13 @@ For the Metrics page, `MetricsBody` additionally owns:
 - `isEnabled(id)` / `setEnabled(id, on)` for the CSV-encoded
   enabled-list manipulation (delegates to `MetricsCatalog`)
 - the i18n `metricDescriptions` dictionary
+- an `availableMetrics` input (the backend's live capability list,
+  `null` = unknown → everything enable-able) and `isMetricAvailable(id)`,
+  which drives each `MetricRow.available` to grey out metrics with no
+  data source. The Plasma wrapper sources it from a `MetricsBackend`
+  instantiated inside `configMetrics.qml` (the KCM page has no live
+  backend of its own); the standalone `SettingsDialog` takes it injected
+  from `Main.qml`'s running backend.
 
 **No Plasma writes happen inside the body** — the body only ever
 writes to its own properties; the alias propagates the change to
@@ -101,6 +108,45 @@ window size with the same formula on the `Window` side and uses
 in the implicit-dimensions formula would not surface there — it only
 hits the Plasma fullRepresentation path. Regression-guarded by
 `tests/qml/tst_MainContent.qml`.
+
+### The enabled-list derivation chain
+
+`MainContent` derives the rendered ring list in three ordered steps so
+the strip self-adapts to the host's real capabilities:
+
+1. `_rawEnabledList` — `(enabledMetrics ∩ metricOrder)` in display order.
+2. `_availableEnabledList` — `_rawEnabledList` filtered through
+   `Catalog.filterByAvailable(..., metrics.availableMetrics)`, but **only
+   once `metrics.loading` is false**. During warm-up the backend hasn't
+   resolved every sensor, so the full configured strip keeps showing
+   (with the 100% "warming up" sweep); on settle the metrics with no data
+   source drop out. This runs **before** step 3 so split-mode never
+   engages on an unavailable temperature metric.
+3. `enabledList` — `_availableEnabledList` through `applyMergedTempMode`,
+   which folds `cpuTemp`/`gpuTemp` into their base ring when merged.
+
+The per-ring `_splitOn` reads `_availableEnabledList` (not the raw list)
+for the same reason. A `null` `availableMetrics` (host predates the
+surface, or hasn't reported) makes `filterByAvailable` a pass-through, so
+nothing is hidden.
+
+**Known warm-up skew (accepted tradeoff).** The gate uses `metrics.loading`,
+which clears as soon as the *aggregate* sensors are ready (Plasma: cpu +
+ram; standalone: the first `/proc/stat` sample). A metric whose own source
+resolves slightly later — a per-GPU sensor reaching `Ready` a tick after
+cpu/ram on Plasma, or the standalone CPU-temp hwmon path that resolves over
+a bounded retry window — is briefly absent from `availableMetrics` at the
+moment the gate clears, so its ring can drop then re-appear a tick or two
+later (a short startup reflow). This is deliberate: `availableMetrics`
+reports a metric only when there's *real* data behind it (`Sensor.Ready` /
+a resolved path), and there is no clean signal that distinguishes
+"still resolving" from "genuinely absent" — a non-existent ksysguard
+sensor also sits in a non-`Ready` state indefinitely. Widening the gate to
+"show until proven absent" would keep dead rings visible on hosts that lack
+the metric, which is the exact problem this feature fixes. The sub-second
+startup reflow is the lesser evil; per-partition disk values already hold
+last-good across rebuilds via `_lastPartValue`, so the disk ring doesn't
+flicker to 0 during it.
 
 ## `Ring.qml`
 
@@ -215,6 +261,7 @@ One row of the metrics list:
 |---|---|
 | `metricId` | the id (`"cpu"`, `"ram"`, …) — looked up in `MetricsCatalog.labelFor()` for the checkbox text |
 | `enabled` | whether this metric is selected; drives the checkbox state + the row's dimmed/disabled look |
+| `available` | whether the host has a live data source for this metric (default `true`). A **separate axis** from `enabled`: when `false` the description dims and a "not detected" annotation appears. The checkbox is frozen only when the metric is **both unavailable and unchecked** (enabling it would render a dead 0% ring); an already-enabled metric that loses its source stays toggle-able so the stale selection can be unchecked. Fed by `MetricsBody.isMetricAvailable(id)`, which reads the backend's `availableMetrics`. |
 | `description` | secondary label to the right of the checkbox |
 | `extraContent` | optional `Component` rendered indented below the main row (e.g. CPU's "show cores" toggle) |
 | `unit` | layout unit (default `18`) — injected by the parent via `platforms/plasma/Theme.unit` |
@@ -237,6 +284,20 @@ When `enabled === false`:
 This convention applies to **all** rows that may carry `extraContent`,
 not just CPU. New child-bearing metrics get it for free by setting
 `extraContent`.
+
+### Availability is a separate axis from enabled
+
+`available` (default `true`) is independent of `enabled`/checked. The
+checkbox binds `enabled: row.available || row.enabled` — interactive
+whenever the metric has a data source OR is already checked. So it stays
+toggle-able for an available metric (enable/disable freely) and for a
+checked-but-now-unavailable one (uncheck a stale selection); only a metric
+that is both unavailable and unchecked is frozen, since enabling it would
+render a dead 0% ring. When `available === false` the description dims to
+`0.3` (via the `_descriptionOpacity` helper, which avoids a nested ternary
+across the two axes) and the `_unavailableLabel` ("not detected") shows. A
+metric can flip back to available at runtime (a late-modprobed sensor),
+re-enabling the row with no extra wiring.
 
 ### Tests
 
@@ -519,6 +580,7 @@ per-GPU temperature, per-GPU usage).
 |---|---|
 | `coreValues` (readonly property var) | array of per-core CPU usage values — length matches the discovered `cpu/cpu*/usage` count, with `\|\| 0` fallback for not-yet-ready sensors |
 | `loading` (readonly property bool) | `true` until the universal aggregates (`cpuTotal`, `ramSensor`) have reached `Sensor.Ready` — drives the 100%-fill "warming up" animation in `MainContent` |
+| `availableMetrics` (readonly property var) | catalog ids that currently have a live data source. Plasma: each metric whose `Sensor.status === Ready` (gpu/gpuTemp via the `_gpuUsageReady()` / `_gpuTempReady()` instantiator walks). Standalone: cpu/ram/disk always, cpuTemp once `_cpuTempPath` resolves, swap iff `SwapTotal > 0`, gpu/gpuTemp iff NVML reported available. Consumed by `MainContent` (drop dead rings) and `MetricsBody` (grey out the picker rows). |
 | `metricValue(id)` (function) | latest value for one of the catalog metric ids — universal ids go through `Catalog.valueFromSensorMap`, `gpu` and `gpuTemp` are dispatched to the dynamic-discovery helpers below |
 | `metricRawTemp(id)` (function) | latest raw °C reading for ids that expose a temperature sensor (`cpu` via static, `gpu` via discovery); `0` for others |
 | `metricTempPercent(id)` (function) | same value mapped to 0–100 via `MetricsCatalog.tempToPercent` — drives the Ring's right-half split arc |
@@ -529,10 +591,15 @@ per-GPU temperature, per-GPU usage).
 The disk-partition discovery on Plasma lives in a separate reusable
 adapter, `platforms/plasma/DiskPartitions.qml` (its own
 `SensorTreeModel` walk → `[{id, label, sensorId}]`, id = the fs UUID,
-label = the volume name), because both `MetricsBackend` **and** the
-config dialog (`configMetrics.qml`, which has no backend) need the
-partition list. The backend drives a per-partition `Sensor`
-`Instantiator` from it; the config wrapper feeds `MetricsBody.diskPartitions`.
+label = the volume name), which `MetricsBackend` instantiates to drive
+a per-partition `Sensor` `Instantiator`. The config dialog
+(`configMetrics.qml`) instantiates a **whole `MetricsBackend`** of its
+own — the KCM page runs in a separate context from the live widget, so
+it can't read the running one — and feeds `MetricsBody.diskPartitions`
+from `backend.availablePartitions` and `MetricsBody.availableMetrics`
+from `backend.availableMetrics`. (The Plasma backend has no `Timer`; its
+`Sensor`s are pushed by ksysguard, so this extra instance is a cheap,
+short-lived probe for the duration of the config dialog.)
 
 **Dynamic discovery** (the substantive change vs. the earlier
 6-core-hardcoded model): on `Component.onCompleted` and on every

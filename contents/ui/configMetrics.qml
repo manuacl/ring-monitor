@@ -81,16 +81,20 @@ KCM.SimpleKCM {
         id: themeAdapter
     }
 
-    // Live disk partition discovery for the picker. The KCM config page has
-    // no MetricsBackend, so it instantiates its own DiskPartitions adapter
-    // (the same one the backend uses) to enumerate mounted filesystems.
-    Platform.DiskPartitions {
-        id: diskPartitionsAdapter
+    // The KCM page can't read the running widget's backend, so it runs its
+    // own as the partition + availability source for the picker (no Timer on
+    // the Plasma backend → cheap probe). See docs/components.md § MetricsBackend.
+    Platform.MetricsBackend {
+        id: metricsAdapter
     }
 
     Core.MetricsBody {
         id: body
         theme: themeAdapter
-        diskPartitions: diskPartitionsAdapter.partitions
+        diskPartitions: metricsAdapter.availablePartitions
+        // `null` (= unknown → all enable-able) during warm-up, else the real
+        // list — without the gate the freshly-spun-up backend would grey every
+        // row until its Sensors resolve. Mirrors MainContent's loading gate.
+        availableMetrics: metricsAdapter.loading ? null : metricsAdapter.availableMetrics
     }
 }

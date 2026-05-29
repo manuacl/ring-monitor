@@ -35,6 +35,10 @@ Window {
     property var configStore
     property var theme
     property var updateChecker
+    // The running backend's availableMetrics — injected (not re-probed)
+    // because Main.qml's MetricsBackend keeps sampling while the dialog is
+    // open, so the picker greys/un-greys rows live as sources resolve.
+    property var availableMetrics: null
 
     title: qsTr("ring-monitor settings")
     width: 640
@@ -176,6 +180,7 @@ Window {
                     theme: dialog.theme
                     diskPartitions: dialog._diskPartitions
                     defaultPartitionIds: dialog._defaultPartitionIds
+                    availableMetrics: dialog.availableMetrics
                     width: metricsScroll.availableWidth
                 }
             }

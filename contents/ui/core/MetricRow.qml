@@ -24,6 +24,10 @@ import "MetricsCatalog.js" as Catalog
 //     disabled by Qt's theme. Don't render an "enabled" sub-option for
 //     a row whose master toggle is off.
 //
+// `available` is a separate axis from enabled/checked — full rules
+// (greying, the frozen-only-when-unavailable-AND-unchecked checkbox) in
+// docs/components.md § MetricRow.
+//
 // No coupling to the page or the DraggableList scaffolding; this lets
 // us instantiate it directly in `tests/qml/tst_MetricRow.qml`.
 
@@ -33,8 +37,18 @@ Item {
     // ── Inputs ──────────────────────────────────────────────────────
     property string metricId: ""
     property bool enabled: false
+    // Live data source on this host. Defaults true so a parent that doesn't
+    // track availability shows every row as enable-able.
+    property bool available: true
     property string description: ""
     property Component extraContent: null
+
+    // Extracted to dodge a nested ternary across the enabled/available axes.
+    readonly property real _descriptionOpacity: {
+        if (!row.available)
+            return 0.3;
+        return row.enabled ? 0.55 : 0.3;
+    }
 
     // Theme tokens — injected by the parent via the platforms/plasma/Theme adapter.
     // Sensible defaults match Kirigami's typical values.
@@ -62,6 +76,9 @@ Item {
                 id: checkBox
                 text: Catalog.labelFor(row.metricId)
                 checked: row.enabled
+                // Frozen only when BOTH unavailable and unchecked; an enabled
+                // metric stays toggle-able so a stale selection can be cleared.
+                enabled: row.available || row.enabled
                 onClicked: row.toggled(checked)
                 Layout.minimumWidth: row.unit * 5
             }
@@ -69,12 +86,17 @@ Item {
             QQC2.Label {
                 id: descriptionLabel
                 text: row.description
-                // Dimmed further when the metric is disabled — the row reads
-                // as inactive, but the checkbox keeps full contrast so the
-                // user can clearly see / re-enable it.
-                opacity: row.enabled ? 0.55 : 0.3
+                opacity: row._descriptionOpacity
                 Layout.fillWidth: true
                 elide: Text.ElideRight
+            }
+
+            QQC2.Label {
+                id: unavailableLabel
+                visible: !row.available
+                text: qsTr("not detected")
+                opacity: 0.5
+                font.italic: true
             }
         }
 
@@ -101,5 +123,6 @@ Item {
     readonly property alias _checked: checkBox.checked
     readonly property alias _checkBox: checkBox
     readonly property alias _descriptionLabel: descriptionLabel
+    readonly property alias _unavailableLabel: unavailableLabel
     readonly property alias _extraLoader: extraLoader
 }

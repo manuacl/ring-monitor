@@ -58,6 +58,49 @@ Item {
 
     readonly property bool loading: cpuTotal.status !== Sensors.Sensor.Ready || ramSensor.status !== Sensors.Sensor.Ready
 
+    // Catalog ids whose Sensor has reached Ready (see docs/components.md
+    // § MetricsBackend for how the consumers use it).
+    readonly property var availableMetrics: {
+        // Read the gpu ticks first so the binding re-evaluates when a per-GPU
+        // Instantiator's status changes — the readiness helpers walk those
+        // instances, which QML can't track otherwise. The universal sensors'
+        // .status reads below are tracked directly (Sensor.status has NOTIFY).
+        backend._gpuUsageTick;
+        backend._gpuTempTick;
+        return Catalog.availableMetricsFrom({
+            "cpu": cpuTotal.status === Sensors.Sensor.Ready,
+            "cpuTemp": cpuTempSensor.status === Sensors.Sensor.Ready,
+            "ram": ramSensor.status === Sensors.Sensor.Ready,
+            "swap": swapSensor.status === Sensors.Sensor.Ready,
+            "gpu": backend._gpuUsageReady(),
+            "gpuTemp": backend._gpuTempReady(),
+            "disk": diskSensor.status === Sensors.Sensor.Ready
+        });
+    }
+
+    // GPU readiness mirrors _gpuUsageValue / _gpuTempValue: usage is ready
+    // when the gpu/all aggregate OR any discovered per-GPU usage Sensor is
+    // Ready; temperature when any discovered per-GPU temp Sensor is Ready.
+    function _gpuUsageReady() {
+        if (gpuAllSensor.status === Sensors.Sensor.Ready)
+            return true;
+        for (var i = 0; i < gpuUsageInstantiator.count; i++) {
+            var s = gpuUsageInstantiator.objectAt(i);
+            if (s && s.status === Sensors.Sensor.Ready)
+                return true;
+        }
+        return false;
+    }
+
+    function _gpuTempReady() {
+        for (var i = 0; i < gpuTempInstantiator.count; i++) {
+            var s = gpuTempInstantiator.objectAt(i);
+            if (s && s.status === Sensors.Sensor.Ready)
+                return true;
+        }
+        return false;
+    }
+
     function metricValue(id) {
         if (id === "gpu")
             return backend._gpuUsageValue;

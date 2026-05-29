@@ -22,7 +22,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms", "standalone", "MetricsBackend.qml"), "utf8");
 
 // Same public surface as platforms/plasma/MetricsBackend.qml.
-const PUBLIC_PROPS = ["coreValues", "loading", "availablePartitions", "defaultPartitionIds"];
+const PUBLIC_PROPS = ["coreValues", "loading", "availableMetrics", "availablePartitions", "defaultPartitionIds"];
 const PUBLIC_FUNCS = ["metricValue", "metricRawTemp", "metricTempPercent", "partitionValue"];
 
 test("standalone MetricsBackend exposes the public properties main.qml depends on", () => {
@@ -190,6 +190,37 @@ test("standalone MetricsBackend re-resolves the temp path within a bounded warm-
         "_sample must gate the re-resolve on both an empty path AND the attempt bound",
     );
     assert.match(SOURCE, /_cpuTempResolveAttempts\+\+|_cpuTempResolveAttempts\s*=\s*backend\._cpuTempResolveAttempts\s*\+\s*1/, "must increment the attempt counter so the retry terminates");
+});
+
+test("standalone MetricsBackend exposes availableMetrics gating swap + gpu on their data source", () => {
+    // Same-surface with the Plasma adapter (availableMetrics in PUBLIC_PROPS
+    // above). The list is built through the shared Catalog.availableMetricsFrom
+    // helper from a per-metric flag map: cpu/ram/disk always; cpuTemp once the
+    // sysfs path resolves; swap only when SwapTotal > 0 (swapless host hides
+    // it); gpu only when NVML reported a device, and gpuTemp additionally
+    // requires a finite reading (matches the Plasma adapter's separate
+    // usage/temp gating — no dead 0°C ring when the temp query keeps failing).
+    assert.match(SOURCE, /property\s+var\s+availableMetrics\s*:/, "must declare readonly property var availableMetrics");
+    assert.match(SOURCE, /Catalog\.availableMetricsFrom\s*\(/, "availableMetrics must build the list via the shared Catalog.availableMetricsFrom helper");
+    assert.match(SOURCE, /_swapAvailable\s*=\s*mem\.swapTotal\s*>\s*0/, "must set _swapAvailable from mem.swapTotal > 0");
+    assert.match(SOURCE, /_gpuAvailable\s*=\s*gpu\.available/, "must set _gpuAvailable from the NVML sample's available flag");
+    assert.match(SOURCE, /"cpuTemp":\s*backend\._cpuTempPath\s*!==\s*""/, 'availableMetrics map must gate "cpuTemp" on _cpuTempPath resolving');
+    assert.match(SOURCE, /"swap":\s*backend\._swapAvailable/, 'availableMetrics map must gate "swap" on _swapAvailable');
+    assert.match(SOURCE, /"gpu":\s*backend\._gpuAvailable/, 'availableMetrics map must gate "gpu" on _gpuAvailable');
+    assert.match(SOURCE, /"gpuTemp":\s*backend\._gpuAvailable\s*&&\s*isFinite\(\s*backend\._gpuTempC\s*\)/, 'availableMetrics map must gate "gpuTemp" on _gpuAvailable AND a finite _gpuTempC');
+});
+
+test("standalone availableMetrics binding does not depend on _tick (no per-poll churn)", () => {
+    // SCENARIO (review #1): an earlier version read `backend._tick;` inside
+    // the availableMetrics binding, so it re-evaluated every 500 ms and
+    // returned a fresh array identity each tick — which churned
+    // MainContent's enabledList → Repeater.model and rebuilt every Ring
+    // delegate at 2 Hz (animation reset, statvfs re-kick). The binding must
+    // depend only on the capability properties (each carries its own NOTIFY),
+    // not on the periodic tick.
+    const binding = SOURCE.match(/readonly\s+property\s+var\s+availableMetrics\s*:\s*Catalog\.availableMetricsFrom\s*\(\{[\s\S]*?\}\)/);
+    assert.ok(binding, "must find the availableMetrics binding");
+    assert.doesNotMatch(binding[0], /backend\._tick/, "availableMetrics must NOT read backend._tick (would rebuild the ring strip every poll)");
 });
 
 test("standalone MetricsBackend polls on a Timer", () => {

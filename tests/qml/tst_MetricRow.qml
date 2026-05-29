@@ -32,6 +32,7 @@ Item {
             // Reset for each test.
             row.metricId = "";
             row.enabled = false;
+            row.available = true;
             row.description = "";
             toggleSpy.clear();
         }
@@ -121,6 +122,56 @@ Item {
             const enabledOpacity = row._checkBox.opacity;
             row.enabled = false;
             compare(row._checkBox.opacity, enabledOpacity, "checkbox opacity must not change with enabled state");
+        }
+
+        // ── Availability (separate axis from enabled/checked) ──────
+        // An unavailable metric (no data source on this host) makes the
+        // checkbox non-interactive, dims the description, and shows the
+        // "not detected" annotation — while a checked-but-unavailable
+        // metric still reads as checked.
+        function test_available_default_true_keeps_checkbox_interactive() {
+            row.metricId = "cpu";
+            compare(row.available, true);
+            compare(row._checkBox.enabled, true);
+        }
+        function test_unavailable_and_unchecked_disables_checkbox() {
+            row.metricId = "gpu";
+            row.enabled = false;
+            row.available = false;
+            compare(row._checkBox.enabled, false, "an unavailable + unchecked metric's checkbox must be non-interactive");
+        }
+        function test_unavailable_but_checked_stays_interactive() {
+            // SCENARIO (review #3): a metric the user had enabled then lost
+            // its data source (GPU card removed) must remain toggle-able so
+            // the stale selection can be cleaned up — only unavailable AND
+            // unchecked is frozen.
+            row.metricId = "gpu";
+            row.enabled = true;
+            row.available = false;
+            compare(row._checkBox.enabled, true, "a checked-but-unavailable metric must stay toggle-able so it can be unchecked");
+        }
+        function test_available_axis_independent_of_enabled() {
+            // Available + unchecked → checkbox still interactive (can enable).
+            row.metricId = "cpu";
+            row.enabled = false;
+            row.available = true;
+            compare(row._checkBox.enabled, true);
+        }
+        function test_unavailable_shows_annotation() {
+            row.metricId = "gpu";
+            row.available = true;
+            compare(row._unavailableLabel.visible, false);
+            row.available = false;
+            compare(row._unavailableLabel.visible, true, "the 'not detected' annotation must show when unavailable");
+        }
+        function test_unavailable_dims_description() {
+            row.metricId = "gpu";
+            row.description = "GPU usage";
+            row.enabled = true;
+            row.available = true;
+            const availOpacity = row._descriptionLabel.opacity;
+            row.available = false;
+            verify(row._descriptionLabel.opacity < availOpacity, "description must dim when the metric is unavailable, " + "available=" + availOpacity + " unavailable=" + row._descriptionLabel.opacity);
         }
 
         // ── Extra content (optional sub-row under the main row) ────

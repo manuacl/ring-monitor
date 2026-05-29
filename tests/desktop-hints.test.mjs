@@ -80,6 +80,34 @@ test("state list includes _NET_WM_STATE_BELOW explicitly", () => {
     );
 });
 
+test("SCENARIO desktop-click vanish: window type is NORMAL, not DESKTOP", () => {
+    // The widget used to set `_NET_WM_WINDOW_TYPE_DESKTOP`, which put it
+    // in plasmashell's own containment layer: a left-click on the
+    // desktop raised the opaque wallpaper containment over it and the
+    // widget vanished (process alive, window occluded — not a crash).
+    // `NORMAL` + the `BELOW` state pins it one layer above the
+    // wallpaper, surviving a desktop click on every EWMH stacking WM we
+    // target (KWin, mutter, xfwm4). The type must still be REPLACEd (not
+    // omitted) to clear the `_KDE_NET_WM_WINDOW_TYPE_OVERRIDE` that
+    // `Qt::FramelessWindowHint` sets, which would otherwise leave the
+    // window override-redirect / partially unmanaged.
+    assert.match(
+        SRC,
+        /internAtom\([^)]*"_NET_WM_WINDOW_TYPE_NORMAL"/,
+        "must intern _NET_WM_WINDOW_TYPE_NORMAL",
+    );
+    assert.match(
+        SRC,
+        /xcb_change_property\([^)]*net_wm_window_type[\s\S]*?window_type_normal/,
+        "must REPLACE _NET_WM_WINDOW_TYPE with the NORMAL atom (clears the OVERRIDE side-effect of FramelessWindowHint)",
+    );
+    assert.doesNotMatch(
+        SRC,
+        /_NET_WM_WINDOW_TYPE_DESKTOP/,
+        "must NOT use _NET_WM_WINDOW_TYPE_DESKTOP — it collides with plasmashell's containment and vanishes on desktop-click",
+    );
+});
+
 test("forceXWaylandUnderWayland probes for Xwayland before forcing xcb", () => {
     // Regression guard for the earlier 🟠 fix (PR #27 → fixed in PR #35):
     // on Plasma-Wayland with `xorg-x11-server-Xwayland` removed,

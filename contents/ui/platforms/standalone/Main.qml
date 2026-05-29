@@ -80,10 +80,10 @@ Window {
     }
     // Defer the first anchor so `applyDesktopWindowHints` (called
     // from main.cpp right after `engine.loadFromModule` returns) has
-    // a chance to swap the window-type to `_NET_WM_WINDOW_TYPE_DESKTOP`
+    // a chance to swap the window-type to `_NET_WM_WINDOW_TYPE_NORMAL`
     // BEFORE we issue the first setGeometry. The synchronous order is:
     //   1. engine.loadFromModule → Component.onCompleted fires
-    //   2. applyDesktopWindowHints(window) sets DESKTOP type
+    //   2. applyDesktopWindowHints(window) sets the NORMAL type
     //   3. app.exec() — event loop starts, Qt.callLater fires
     // Calling `_anchor()` directly in step 1 issued the first
     // configure-request against Qt's default frameless override-redirect

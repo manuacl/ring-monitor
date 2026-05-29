@@ -34,7 +34,7 @@ const SRC = readFileSync(
 
 test("main.cpp parses --open-settings (and --settings alias) from argv", () => {
     // Review finding 🟠 PR #32: a CLI recovery flag so users locked
-    // out of right-click on DESKTOP-typed windows can still reach
+    // out of right-click on the wallpaper-layer window can still reach
     // the settings dialog.
     assert.match(
         SRC,
@@ -74,9 +74,9 @@ test("main.cpp loads SettingsOnlyRoot in recovery mode, Main otherwise", () => {
 });
 
 test("settings-only mode skips EWMH hints and XWayland forcing", () => {
-    // The settings dialog is a normal floating window — applying
-    // _NET_WM_WINDOW_TYPE_DESKTOP / BELOW to it would hide the
-    // recovery UI behind the wallpaper, defeating the whole point.
+    // The settings dialog is a normal floating window — applying the
+    // BELOW state (with skip-taskbar / skip-pager) to it would push the
+    // recovery UI behind other windows, defeating the whole point.
     // Same for QT_QPA_PLATFORM=xcb force: the settings dialog
     // doesn't need X11.
     assert.match(

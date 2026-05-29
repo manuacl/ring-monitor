@@ -5,9 +5,9 @@ import "../../core" as Core
 // Recovery-mode QML root — loaded by `standalone/main.cpp` when the
 // binary is launched with `--open-settings` (alias `--settings`).
 // The flag is the user-facing recovery path for compositors that
-// swallow right-click on `_NET_WM_WINDOW_TYPE_DESKTOP` windows; see
-// `standalone/CLAUDE.md` § "_NET_WM_WINDOW_TYPE_DESKTOP can swallow
-// right-click on some compositors".
+// swallow right-click on the wallpaper-layer widget window; see
+// `standalone/CLAUDE.md` § "Window type is `_NET_WM_WINDOW_TYPE_NORMAL`
+// + `_NET_WM_STATE_BELOW`".
 //
 // Why a separate root rather than a flag through `Main.qml`: the
 // rings widget shouldn't be constructed invisibly just to be torn

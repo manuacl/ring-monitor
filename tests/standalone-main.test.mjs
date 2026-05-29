@@ -11,8 +11,9 @@
 //
 //   1. The initial `_anchor()` call MUST be deferred via
 //      `Qt.callLater` so it lands after `applyDesktopWindowHints`
-//      has swapped the window-type to DESKTOP. A direct call hits
-//      the gravity-shift scenario WindowAnchor exists to avoid.
+//      has swapped the window-type to NORMAL (+ BELOW). A direct
+//      call hits the gravity-shift scenario WindowAnchor exists to
+//      avoid.
 //   2. Geometry re-anchor on Screen.width / Screen.height change
 //      (resolution swap, primary-monitor change). Without this,
 //      the existing _target* signals stay silent at default

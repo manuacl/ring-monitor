@@ -38,6 +38,30 @@ For the Metrics page, `MetricsBody` additionally owns:
   instantiated inside `configMetrics.qml` (the KCM page has no live
   backend of its own); the standalone `SettingsDialog` takes it injected
   from `Main.qml`'s running backend.
+- the disk-partition picker's **stale-row handling** (issue #49): a
+  partition the user selected then unplugged keeps its UUID in
+  `enabledPartitions` / `partitionOrder` but is no longer discovered.
+  `stalePartitionList` (via `DiskMetrics.stalePartitions`) surfaces those
+  as greyed, non-draggable `PartitionRow`s (its `!available` variant)
+  **below** the draggable picker — each with a "not connected" tag and a
+  trash button wired to `removeStalePartition`, which clears the id from both
+  CSVs and the label cache. The friendly name comes from `partitionLabelsJson`,
+  a UUID→label cache maintained by `_refreshLabelCache` (persisted via the
+  `partitionLabels` config key) so a disconnected partition shows its
+  last-known label instead of a raw UUID. `_refreshLabelCache` skips the write
+  when the cache is unchanged (and treats the unset `""` as equal to `"{}"`) so
+  merely opening the dialog or toggling a checkbox doesn't dirty the config.
+  **Destructive-action gate:** discovery on Plasma populates incrementally
+  (`DiskPartitions._refresh` per `rowsInserted`), so a non-empty
+  `diskPartitions` does not mean discovery is complete. `stalePartitionList`
+  returns empty unless `partitionsReady` (a wrapper-injected boolean) is true —
+  otherwise a not-yet-enumerated partition would flash as stale with a live
+  trash button. The Plasma wrapper drives `partitionsReady` from
+  `DiskPartitions.ready` (debounced in the adapter, where the incremental-
+  population quirk lives); the standalone dialog discovers synchronously and
+  passes `true`. Keeping the debounce in the adapter rather than this portable
+  view means standalone pays no settle latency, and `availableMetrics` (a
+  per-metric readiness signal) isn't misused as a partition-discovery proxy.
 
 **No Plasma writes happen inside the body** — the body only ever
 writes to its own properties; the alias propagates the change to
@@ -313,6 +337,33 @@ re-enabling the row with no extra wiring.
 - Disabled master → `extraLoader.enabled === false` → child CheckBox
   inherits `enabled === false`. Enabled master → child interactive.
 
+## `PartitionRow.qml`
+
+One row of the disk-partition picker, with an `available` axis mirroring
+`MetricRow`'s. Kept as its own component (not folded into `MetricRow`) because
+a partition is **label-driven** (a free-form volume name, not a catalog metric
+id) and its unavailable state is a *remove action*, not a frozen checkbox —
+bolting that onto `MetricRow` would break its ISP.
+
+### Public API
+
+| Property / signal | Description |
+|---|---|
+| `partLabel` | the volume label to render (or the cached last-known label / UUID for a stale row) |
+| `available` | `true` → a toggle `CheckBox`; `false` → the greyed "not connected" stale variant |
+| `checked` | checkbox state (available variant only) |
+| `unit` / `smallSpacing` / `iconSize` | theme tokens injected by the parent |
+| `toggled(bool on)` | emitted on checkbox click (available variant) |
+| `removeRequested()` | emitted on the trash button (stale variant) |
+
+Used by `MetricsBody` in both the draggable picker (the `DraggableList`
+`rowContent`, `available: true`) and the stale-row `Repeater`
+(`available: false`). The parent owns the partition id and wires the signals to
+`setPartitionEnabled` / `removeStalePartition` (DIP: the leaf takes a label and
+emits, never reaches for the id or the config). Test hooks: `_checkBox`,
+`_staleLabel`, `_unavailableLabel`, `_removeButton`. Covered by
+`tests/qml/tst_PartitionRow.qml`.
+
 ## `DraggableList.qml`
 
 Generic vertical list with drag-to-reorder, deferred commit.
@@ -508,6 +559,7 @@ future reader) consumes `configStore.X` instead of reaching into
 | `enabledMetrics` | `string` | `Plasmoid.configuration.enabledMetrics` |
 | `enabledPartitions` | `string` | `Plasmoid.configuration.enabledPartitions` (checked disk partitions; empty = aggregate ring on Plasma / `$HOME` FS on standalone) |
 | `partitionOrder` | `string` | `Plasmoid.configuration.partitionOrder` (disk partition display order; first = outermost ring; empty = alphabetical) |
+| `partitionLabels` | `string` | `Plasmoid.configuration.partitionLabels` (JSON UUID→label cache for the disconnected-partition stale rows; empty = `{}`) |
 | `showCpuCores` | `bool` | `Plasmoid.configuration.showCpuCores` |
 | `mergeCpuTemp` | `bool` | `Plasmoid.configuration.mergeCpuTemp` (hide `cpuTemp` ring, render it as the right half of the `cpu` ring) |
 | `mergeGpuTemp` | `bool` | `Plasmoid.configuration.mergeGpuTemp` (same for the GPU pair) |
@@ -585,6 +637,7 @@ per-GPU temperature, per-GPU usage).
 | `metricRawTemp(id)` (function) | latest raw °C reading for ids that expose a temperature sensor (`cpu` via static, `gpu` via discovery); `0` for others |
 | `metricTempPercent(id)` (function) | same value mapped to 0–100 via `MetricsCatalog.tempToPercent` — drives the Ring's right-half split arc |
 | `availablePartitions` (readonly property var) | `[{id, label}]` — discovered mounted filesystems for the disk multi-ring picker (Plasma: via the shared `DiskPartitions` adapter; standalone: via `/proc/mounts` + `DiskDiscovery`) |
+| `partitionsReady` (readonly property bool) | Plasma only: forwards `DiskPartitions.ready` — false until the incremental `SensorTreeModel` walk settles. The config picker gates its destructive stale-row removal on it (issue #49). |
 | `defaultPartitionIds` (readonly property var) | partition ids to show when the user has selected none — `[]` on Plasma (falls back to the `disk/all` aggregate ring); the `$HOME`-bearing filesystem on standalone |
 | `partitionValue(id)` (function) | latest 0–100 usage % for one discovered partition (Plasma: a live `disk/<uuid>/usedPercent` sensor; standalone: a **non-blocking** read of the last-good `statvfs` of the partition's representative mountpoint — see the async note below). Requesting an id also subscribes it to refreshes, so only the selected partitions are probed. |
 

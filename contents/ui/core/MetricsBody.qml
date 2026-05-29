@@ -43,6 +43,11 @@ ColumnLayout {
     property string enabledMetricsCsv: ""
     property string enabledPartitionsCsv: ""
     property string partitionOrderCsv: ""
+    // UUID→label JSON cache so a disconnected partition shows its last-known
+    // volume name on the stale row instead of a bare UUID (the system stops
+    // exposing the label once the filesystem is gone). Maintained by
+    // _refreshLabelCache; see DiskMetrics.mergeLabelCache.
+    property string partitionLabelsJson: ""
     property bool showCpuCores: false
     property bool mergeCpuTemp: false
     property bool mergeGpuTemp: false
@@ -149,6 +154,50 @@ ColumnLayout {
         body.partitionOrderCsv = currentPartitionOrder().join(",");
     }
 
+    // Whether partition discovery has settled, injected by the platform wrapper.
+    // Plasma populates diskPartitions incrementally (per SensorTreeModel
+    // rowsInserted), so a non-empty list does NOT mean discovery is complete —
+    // surfacing a not-yet-enumerated partition as stale would offer a destructive
+    // trash button on a partition that's actually present. The Plasma wrapper
+    // drives this from DiskPartitions.ready (debounced there); the standalone
+    // dialog discovers synchronously and passes true. Default false → no stale
+    // rows until a wrapper confirms readiness.
+    property bool partitionsReady: false
+
+    // Configured partitions that are no longer discovered (unplugged disk).
+    // Empty until discovery is ready (see partitionsReady) or nothing is
+    // discovered yet.
+    readonly property var stalePartitionList: {
+        if (!body.partitionsReady || !body.diskPartitions || body.diskPartitions.length === 0)
+            return [];
+        return DiskMetrics.stalePartitions(body.enabledPartitionsCsv, body.partitionOrderCsv, body.diskPartitions, body.partitionLabelsJson);
+    }
+
+    // The set of ids whose label is worth caching: everything currently
+    // selected or ordered (so an unplugged one keeps its friendly name).
+    function _referencedPartitionIds() {
+        return Catalog.parseCsv(body.enabledPartitionsCsv).concat(Catalog.parseCsv(body.partitionOrderCsv));
+    }
+
+    function _refreshLabelCache() {
+        const next = DiskMetrics.mergeLabelCache(body.partitionLabelsJson, body.diskPartitions || [], body._referencedPartitionIds());
+        // Don't write unless the cache actually changed, and treat the unset
+        // default "" as equal to an empty "{}" — otherwise merely opening the
+        // dialog (or any checkbox toggle) would dirty the KCM page / queue a
+        // standalone QSettings write for a no-op.
+        if (next === body.partitionLabelsJson || (next === "{}" && body.partitionLabelsJson === ""))
+            return;
+        body.partitionLabelsJson = next;
+    }
+
+    // Trash action on a stale row: drop the id from the selection, the order,
+    // and the label cache so it stops lingering in the persisted config.
+    function removeStalePartition(id) {
+        body.enabledPartitionsCsv = Catalog.toggleEnabled(Catalog.parseCsv(body.enabledPartitionsCsv), id, false).join(",");
+        body.partitionOrderCsv = Catalog.toggleEnabled(Catalog.parseCsv(body.partitionOrderCsv), id, false).join(",");
+        _refreshLabelCache();
+    }
+
     // Seed the selection with the backend default when nothing is chosen yet,
     // so the picker reflects what the widget actually renders (the default
     // ring) as a checked, editable row. Empty selection = always the default
@@ -163,12 +212,15 @@ ColumnLayout {
     onDiskPartitionsChanged: {
         loadPartitionOrder();
         _seedDefaultIfEmpty();
+        _refreshLabelCache();
     }
+    onEnabledPartitionsCsvChanged: _refreshLabelCache()
     onDefaultPartitionIdsChanged: _seedDefaultIfEmpty()
     Component.onCompleted: {
         loadOrder();
         loadPartitionOrder();
         _seedDefaultIfEmpty();
+        _refreshLabelCache();
     }
 
     Layout.fillWidth: true
@@ -354,11 +406,14 @@ ColumnLayout {
                 backgroundColor: body.theme ? body.theme.backgroundColor : "#1e1e1e"
 
                 rowContent: Component {
-                    QQC2.CheckBox {
+                    PartitionRow {
                         readonly property string _partId: parent && parent.rowModel ? parent.rowModel.partId : ""
-                        text: parent && parent.rowModel ? parent.rowModel.partLabel : ""
+                        partLabel: parent && parent.rowModel ? parent.rowModel.partLabel : ""
+                        available: true
                         checked: body.isPartitionEnabled(_partId)
-                        onClicked: body.setPartitionEnabled(_partId, checked)
+                        onToggled: on => body.setPartitionEnabled(_partId, on)
+                        smallSpacing: body.theme.smallSpacing
+                        iconSize: body.theme.iconSize
                     }
                 }
 
@@ -367,6 +422,25 @@ ColumnLayout {
                     // then commit serializes the new model order to the CSV.
                     partitionOrderModel.move(from, to, 1);
                     body.commitPartitionOrder();
+                }
+            }
+
+            // Stale rows: partitions still in the config but no longer present
+            // (unplugged). Greyed, non-draggable, each with a trash button that
+            // clears it from the selection + order + label cache. Rendered below
+            // the draggable list so the ring-nesting order stays untouched.
+            // Same PartitionRow component as the draggable rows, in its
+            // !available variant.
+            Repeater {
+                model: body.stalePartitionList
+                delegate: PartitionRow {
+                    required property var modelData
+                    Layout.fillWidth: true
+                    partLabel: modelData.label
+                    available: false
+                    onRemoveRequested: body.removeStalePartition(modelData.id)
+                    smallSpacing: body.theme.smallSpacing
+                    iconSize: body.theme.iconSize
                 }
             }
         }

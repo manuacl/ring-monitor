@@ -22,6 +22,7 @@ KCM.SimpleKCM {
     property alias cfg_enabledMetrics: body.enabledMetricsCsv
     property alias cfg_enabledPartitions: body.enabledPartitionsCsv
     property alias cfg_partitionOrder: body.partitionOrderCsv
+    property alias cfg_partitionLabels: body.partitionLabelsJson
     property alias cfg_showCpuCores: body.showCpuCores
     property alias cfg_mergeCpuTemp: body.mergeCpuTemp
     property alias cfg_mergeGpuTemp: body.mergeGpuTemp
@@ -62,6 +63,7 @@ KCM.SimpleKCM {
     property var cfg_enabledMetricsDefault
     property var cfg_enabledPartitionsDefault
     property var cfg_partitionOrderDefault
+    property var cfg_partitionLabelsDefault
     property var cfg_showCpuCoresDefault
     property var cfg_mergeCpuTempDefault
     property var cfg_mergeGpuTempDefault
@@ -92,6 +94,9 @@ KCM.SimpleKCM {
         id: body
         theme: themeAdapter
         diskPartitions: metricsAdapter.availablePartitions
+        // Gate the destructive stale-row removal on the adapter's debounced
+        // discovery signal — the SensorTreeModel walk populates incrementally.
+        partitionsReady: metricsAdapter.partitionsReady
         // `null` (= unknown → all enable-able) during warm-up, else the real
         // list — without the gate the freshly-spun-up backend would grey every
         // row until its Sensors resolve. Mirrors MainContent's loading gate.

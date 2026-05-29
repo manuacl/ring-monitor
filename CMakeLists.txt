@@ -101,6 +101,7 @@ qt_add_qml_module(ring-monitor-standalone
         contents/ui/core/MainContent.qml
         contents/ui/core/DraggableList.qml
         contents/ui/core/MetricRow.qml
+        contents/ui/core/PartitionRow.qml
         contents/ui/core/AboutBody.qml
         contents/ui/core/AppearanceBody.qml
         contents/ui/core/MetricsBody.qml

@@ -18,6 +18,12 @@
 //   orderPartitions(savedOrderCsv, available)
 //                                       - saved order first, then newly-
 //                                         discovered appended alphabetically.
+//   stalePartitions(enabledCsv, orderCsv, discovered, labelCacheJson)
+//                                       - configured ids no longer present
+//                                         (unplugged), each {id, label}.
+//   parseLabelCache / serializeLabelCache / mergeLabelCache
+//                                       - the UUID→label cache backing the
+//                                         friendly name on stale rows.
 //
 // Selecting the enabled subset in display order is done with the existing
 // MetricsCatalog.filterByOrder(enabledCsvIds, orderedIds) — no disk-specific
@@ -90,10 +96,105 @@ function orderPartitions(savedOrderCsv, available) {
     return out.concat(sortByLabel(rest));
 }
 
+// Mirrors MetricsCatalog.parseCsv — duplicated rather than imported because
+// the dual-load (no-pragma) .js modules can't import each other.
+function _csvIds(csv) {
+    return String(csv || "").split(",").filter(function (x) {
+        return x;
+    });
+}
+
+// Configured partition ids that are no longer discovered — the filesystem was
+// unplugged or the disk swapped, yet its UUID lingers in enabledPartitions /
+// partitionOrder. Returned in a stable order (order CSV first, then enabled-
+// only ids), deduped. The label comes from the last-known-label cache, falling
+// back to the bare UUID when never cached. These render as the greyed,
+// removable "no longer connected" rows in the picker; the draggable list
+// (orderPartitions) still excludes them — ring rendering is unaffected.
+function stalePartitions(enabledCsv, orderCsv, discovered, labelCacheJson) {
+    discovered = discovered || [];
+    var present = {};
+    for (var i = 0; i < discovered.length; i++)
+        present[discovered[i].id] = true;
+    var cache = parseLabelCache(labelCacheJson);
+    var seen = {};
+    var out = [];
+    var sources = [orderCsv, enabledCsv];
+    for (var s = 0; s < sources.length; s++) {
+        var ids = _csvIds(sources[s]);
+        for (var j = 0; j < ids.length; j++) {
+            var id = ids[j];
+            if (!present[id] && !seen[id]) {
+                seen[id] = true;
+                out.push({
+                    id: id,
+                    label: cache[id] || id
+                });
+            }
+        }
+    }
+    return out;
+}
+
+// Parse the persisted UUID→label cache. Tolerates empty / malformed JSON (a
+// hand-edited config or a partial write) by returning {} rather than throwing.
+function parseLabelCache(json) {
+    if (!json)
+        return {};
+    try {
+        var obj = JSON.parse(json);
+        return (obj && typeof obj === "object" && !Array.isArray(obj)) ? obj : {};
+    } catch (e) {
+        return {};
+    }
+}
+
+// Serialize with sorted keys so an unchanged cache always produces the SAME
+// string — assigning it back to the bridged property is then a no-op and
+// doesn't trigger a spurious config write on every discovery pass.
+function serializeLabelCache(obj) {
+    obj = obj || {};
+    var keys = Object.keys(obj).sort();
+    var ordered = {};
+    for (var i = 0; i < keys.length; i++)
+        ordered[keys[i]] = obj[keys[i]];
+    return JSON.stringify(ordered);
+}
+
+// Rebuild the label cache, bounded to the referenced ids (enabled ∪ order):
+// take the fresh discovered label when present, else preserve the last-known
+// label (so an unplugged partition keeps its friendly name), else omit. Ids no
+// longer referenced are dropped so the cache can't grow without bound.
+function mergeLabelCache(prevJson, discovered, referencedIds) {
+    discovered = discovered || [];
+    referencedIds = referencedIds || [];
+    var prev = parseLabelCache(prevJson);
+    var labelOf = {};
+    for (var i = 0; i < discovered.length; i++)
+        labelOf[discovered[i].id] = discovered[i].label;
+    var out = {};
+    var done = {};
+    for (var j = 0; j < referencedIds.length; j++) {
+        var id = referencedIds[j];
+        if (done[id])
+            continue;
+        done[id] = true;
+        if (labelOf.hasOwnProperty(id))
+            out[id] = labelOf[id];
+        else if (prev.hasOwnProperty(id))
+            out[id] = prev[id];
+    }
+    return serializeLabelCache(out);
+}
+
 if (typeof module !== "undefined" && module.exports) {
     module.exports = {
         averagePercent: averagePercent,
         sortByLabel: sortByLabel,
         orderPartitions: orderPartitions,
+        stalePartitions: stalePartitions,
+        parseLabelCache: parseLabelCache,
+        serializeLabelCache: serializeLabelCache,
+        mergeLabelCache: mergeLabelCache,
     };
 }

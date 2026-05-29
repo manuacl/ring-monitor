@@ -271,6 +271,111 @@ Item {
             compare(body.partitionOrderCsv, "u-baz,u-ph");
         }
 
+        // ── Stale (unplugged) partitions (#49) ──────────────────────
+        // partitionsReady is the wrapper-injected "discovery settled" gate
+        // (DiskPartitions.ready on Plasma, always true on standalone).
+        function test_stale_list_suppressed_until_ready() {
+            // Until the wrapper confirms discovery settled, a not-yet-enumerated
+            // partition must NOT surface as stale (the trash action is destructive).
+            body.partitionsReady = false;
+            body.diskPartitions = [
+                {
+                    id: "u-baz",
+                    label: "bazzite"
+                }
+            ];
+            body.enabledPartitionsCsv = "u-baz,u-usb";
+            compare(body.stalePartitionList.length, 0, "no stale rows while discovery is not ready");
+            body.partitionsReady = true;
+            compare(body.stalePartitionList.length, 1, "u-usb surfaces once ready");
+            compare(body.stalePartitionList[0].id, "u-usb");
+        }
+
+        function test_stale_list_suppressed_when_no_partitions_discovered() {
+            // Empty diskPartitions = nothing discovered; can't conclude stale
+            // even when ready.
+            body.partitionsReady = true;
+            body.diskPartitions = [];
+            body.enabledPartitionsCsv = "u-baz,u-usb";
+            compare(body.stalePartitionList.length, 0);
+        }
+
+        function test_unplugged_enabled_partition_surfaces_with_cached_label() {
+            // SCENARIO (#49): u-usb is selected and discovered (label cached),
+            // then unplugged → it must surface as a stale row keeping the
+            // friendly name, not vanish silently.
+            body.partitionsReady = true;
+            body.enabledPartitionsCsv = "u-usb,u-baz";
+            body.diskPartitions = [
+                {
+                    id: "u-usb",
+                    label: "backups"
+                },
+                {
+                    id: "u-baz",
+                    label: "bazzite"
+                }
+            ];
+            // Both discovered → nothing stale.
+            compare(body.stalePartitionList.length, 0);
+
+            // Unplug u-usb.
+            body.diskPartitions = [
+                {
+                    id: "u-baz",
+                    label: "bazzite"
+                }
+            ];
+            compare(body.stalePartitionList.length, 1);
+            compare(body.stalePartitionList[0].id, "u-usb");
+            compare(body.stalePartitionList[0].label, "backups", "stale row keeps the last-known label from the cache");
+        }
+
+        function test_removeStalePartition_clears_csvs_and_cache() {
+            body.partitionsReady = true;
+            body.enabledPartitionsCsv = "u-usb,u-baz";
+            body.partitionOrderCsv = "u-usb,u-baz";
+            body.diskPartitions = [
+                {
+                    id: "u-usb",
+                    label: "backups"
+                },
+                {
+                    id: "u-baz",
+                    label: "bazzite"
+                }
+            ];
+            body.diskPartitions = [
+                {
+                    id: "u-baz",
+                    label: "bazzite"
+                }
+            ];
+            verify(body.stalePartitionList.length === 1, "u-usb must be stale before removal");
+
+            body.removeStalePartition("u-usb");
+            verify(body.enabledPartitionsCsv.split(",").indexOf("u-usb") === -1, "removed from enabledPartitions");
+            verify(body.partitionOrderCsv.split(",").indexOf("u-usb") === -1, "removed from partitionOrder");
+            compare(body.stalePartitionList.length, 0, "no longer surfaced after removal");
+            verify(JSON.parse(body.partitionLabelsJson || "{}")["u-usb"] === undefined, "label cache entry pruned");
+        }
+
+        function test_label_cache_not_written_on_open_for_empty_default() {
+            // _refreshLabelCache must treat "" and "{}" as equal so merely
+            // opening the dialog (no user action) doesn't dirty partitionLabels.
+            body.partitionLabelsJson = "";
+            body.enabledPartitionsCsv = "";
+            body.partitionOrderCsv = "";
+            body.diskPartitions = [
+                {
+                    id: "u-baz",
+                    label: "bazzite"
+                }
+            ];
+            wait(20);
+            compare(body.partitionLabelsJson, "", "empty cache must stay \"\" — no spurious config write");
+        }
+
         // ── Temperature unit: property → which radio is checked ─────
         function test_tempUnit_default_is_auto_and_drives_radio() {
             // Make sure the row is visible (only shown when at least

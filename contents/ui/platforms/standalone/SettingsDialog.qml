@@ -181,6 +181,10 @@ Window {
                     diskPartitions: dialog._diskPartitions
                     defaultPartitionIds: dialog._defaultPartitionIds
                     availableMetrics: dialog.availableMetrics
+                    // Standalone discovery (_refreshDiskPartitions) is synchronous
+                    // and complete in one shot — no incremental enumeration, so
+                    // discovery is trustworthy immediately (no debounce needed).
+                    partitionsReady: true
                     width: metricsScroll.availableWidth
                 }
             }
@@ -249,7 +253,7 @@ Window {
     // standalone-settings-dialog.test.mjs text guard for that).
     readonly property var _bridgeMap: [
         // MetricsBody
-        [metricsBody, "metricOrderCsv", "metricOrder"], [metricsBody, "enabledMetricsCsv", "enabledMetrics"], [metricsBody, "enabledPartitionsCsv", "enabledPartitions"], [metricsBody, "partitionOrderCsv", "partitionOrder"], [metricsBody, "showCpuCores", "showCpuCores"], [metricsBody, "mergeCpuTemp", "mergeCpuTemp"], [metricsBody, "mergeGpuTemp", "mergeGpuTemp"], [metricsBody, "tempUnit", "tempUnit"],
+        [metricsBody, "metricOrderCsv", "metricOrder"], [metricsBody, "enabledMetricsCsv", "enabledMetrics"], [metricsBody, "enabledPartitionsCsv", "enabledPartitions"], [metricsBody, "partitionOrderCsv", "partitionOrder"], [metricsBody, "partitionLabelsJson", "partitionLabels"], [metricsBody, "showCpuCores", "showCpuCores"], [metricsBody, "mergeCpuTemp", "mergeCpuTemp"], [metricsBody, "mergeGpuTemp", "mergeGpuTemp"], [metricsBody, "tempUnit", "tempUnit"],
         // AppearanceBody
         [appearanceBody, "orientation", "orientation"], [appearanceBody, "ringSize", "ringSize"], [appearanceBody, "ringSpacingPercent", "ringSpacingPercent"], [appearanceBody, "windowMargin", "windowMargin"], [appearanceBody, "textOpacity", "textOpacity"], [appearanceBody, "trackOpacity", "trackOpacity"], [appearanceBody, "arcOpacity", "arcOpacity"], [appearanceBody, "colorTheme", "colorTheme"], [appearanceBody, "colorMode", "colorMode"], [appearanceBody, "customColorLight", "customColorLight"], [appearanceBody, "customColorDark", "customColorDark"], [appearanceBody, "textColorMode", "textColorMode"], [appearanceBody, "customTextColorLight", "customTextColorLight"], [appearanceBody, "customTextColorDark", "customTextColorDark"]]
 

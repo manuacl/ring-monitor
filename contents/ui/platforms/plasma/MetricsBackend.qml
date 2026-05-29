@@ -132,6 +132,9 @@ Item {
             "label": p.label
         };
     })
+    // False until DiskPartitions' incremental tree walk has settled — the
+    // config picker gates its destructive stale-row removal on this.
+    readonly property bool partitionsReady: diskPartitions.ready
     readonly property var defaultPartitionIds: []
 
     // Last-good value per partition id, held across Sensor rebuilds. When the

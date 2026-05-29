@@ -41,6 +41,17 @@ test("DiskPartitions refreshes on tree structural changes", () => {
     assert.match(SOURCE, /onModelReset/, "must refresh on modelReset");
 });
 
+test("DiskPartitions exposes a debounced `ready` settle signal", () => {
+    // The tree populates incrementally (one rowsInserted per subsystem), so a
+    // mid-enumeration snapshot would make a not-yet-walked partition look
+    // absent. `ready` only trips once the tree goes quiet for settleMs, gating
+    // the config picker's destructive stale-row removal (issue #49 review).
+    assert.match(SOURCE, /readonly\s+property\s+bool\s+ready/, "must expose a readonly bool `ready`");
+    assert.match(SOURCE, /Timer\s*{/, "must use a Timer to debounce the settle");
+    assert.match(SOURCE, /settleTimer\.restart\(\)/, "_refresh must restart the settle timer on each tree change");
+    assert.match(SOURCE, /onTriggered:\s*disk\._ready\s*=\s*true/, "the timer must latch _ready true when the tree goes quiet");
+});
+
 test("DiskPartitions imports no path to a sibling platforms dir (isolation)", () => {
     // It lives in platforms/plasma/ and may import core/ helpers, but must
     // not reach into platforms/standalone.

@@ -41,7 +41,7 @@ void forceXWaylandUnderWayland()
         qWarning(
             "ring-monitor: Xwayland not found on $PATH — staying on "
             "native Wayland. The Conky-style EWMH hints "
-            "(_NET_WM_WINDOW_TYPE_DESKTOP, _NET_WM_STATE_BELOW, "
+            "(_NET_WM_WINDOW_TYPE_NORMAL, _NET_WM_STATE_BELOW, "
             "STICKY, SKIP_TASKBAR, SKIP_PAGER) require X11 and will "
             "no-op. Install the Xwayland package for the full "
             "wallpaper-layer behaviour.");
@@ -102,7 +102,7 @@ void applyDesktopWindowHints(QWindow *window)
         qWarning(
             "ring-monitor: X11 native interface unavailable — running "
             "on native Wayland (or a non-X11 platform). EWMH hints "
-            "(_NET_WM_WINDOW_TYPE_DESKTOP, _NET_WM_STATE_BELOW, "
+            "(_NET_WM_WINDOW_TYPE_NORMAL, _NET_WM_STATE_BELOW, "
             "STICKY, SKIP_TASKBAR, SKIP_PAGER) will not be set; the "
             "window will appear as a normal floating Qt window.");
         return;
@@ -125,31 +125,41 @@ void applyDesktopWindowHints(QWindow *window)
     const xcb_atom_t state_below = internAtom(conn, "_NET_WM_STATE_BELOW");
     const xcb_atom_t net_wm_window_type =
         internAtom(conn, "_NET_WM_WINDOW_TYPE");
-    const xcb_atom_t window_type_desktop =
-        internAtom(conn, "_NET_WM_WINDOW_TYPE_DESKTOP");
+    const xcb_atom_t window_type_normal =
+        internAtom(conn, "_NET_WM_WINDOW_TYPE_NORMAL");
 
     if (net_wm_state == XCB_ATOM_NONE || state_sticky == XCB_ATOM_NONE ||
         state_skip_taskbar == XCB_ATOM_NONE ||
         state_skip_pager == XCB_ATOM_NONE || state_below == XCB_ATOM_NONE ||
         net_wm_window_type == XCB_ATOM_NONE ||
-        window_type_desktop == XCB_ATOM_NONE)
+        window_type_normal == XCB_ATOM_NONE)
         return;
 
     // Qt sets `_KDE_NET_WM_WINDOW_TYPE_OVERRIDE` as a side effect of
     // `Qt::FramelessWindowHint`. KWin then treats the window as
     // override-redirect — partially unmanaged — which strips standard
-    // window-management behaviour. Replace the type with DESKTOP so
-    // KWin handles it as wallpaper-layer content: skips the focus /
-    // placement heuristic that gravity-shifts windows on resize (the
-    // root cause behind our slider-driven repositioning glitch — see
-    // QTBUG-57608 + the `setGeometry()` helper in `window_anchor.h`)
-    // and aligns us with the Conky / xfce4-panel convention for
-    // "lives on the wallpaper" widgets. The WM reads this property
-    // during MapRequest — works pre-map (which is when this function
-    // runs from `main.cpp`, ahead of `app.exec()`).
+    // window-management behaviour (notably honouring `_NET_WM_STATE`).
+    // We must REPLACE the type to clear that override; the value we set
+    // is NORMAL, paired with the BELOW state below to pin us just above
+    // the wallpaper.
+    //
+    // SCENARIO: why NORMAL and not DESKTOP. DESKTOP put the window in
+    // plasmashell's *own* containment layer, where it collided with the
+    // wallpaper containment: a left-click on the desktop raised the
+    // opaque wallpaper over us and the widget vanished (process alive,
+    // window occluded — not a crash). NORMAL + BELOW lives one layer
+    // above the wallpaper, so it survives a desktop click on every EWMH
+    // stacking WM we target (KWin, mutter, xfwm4). Trade-off: DESKTOP
+    // also made KWin skip the focus/placement gravity heuristic that
+    // shifts a window on resize (QTBUG-57608); under NORMAL that path is
+    // back in play, but the slider-driven repositioning is already
+    // compensated atomically by `window_anchor.h`'s `setGeometry()`, so
+    // it stays masked. The WM reads this property during MapRequest —
+    // works pre-map (when this runs from `main.cpp`, ahead of
+    // `app.exec()`).
     xcb_change_property(conn, XCB_PROP_MODE_REPLACE, winid,
                         net_wm_window_type, XCB_ATOM_ATOM, 32, 1,
-                        &window_type_desktop);
+                        &window_type_normal);
 
     // _NET_WM_STATE: declared as a PROPERTY before the window maps,
     // not via a ClientMessage. EWMH §"_NET_WM_STATE" assigns the

@@ -288,7 +288,7 @@ Per-compositor implementation:
 
 | Compositor | Mechanism |
 |---|---|
-| **X11** (Xorg or XWayland-only sessions) | `_NET_WM_WINDOW_TYPE_DESKTOP` + EWMH hints `sticky + below + skip_taskbar + skip_pager + undecorated` |
+| **X11** (Xorg or XWayland-only sessions) | `_NET_WM_WINDOW_TYPE_NORMAL` + EWMH hints `sticky + below + skip_taskbar + skip_pager + undecorated` |
 | **KWin-Wayland** (KDE Plasma) | `wlr-layer-shell-unstable-v1`, `layer: background`, anchor + margin |
 | **sway / Hyprland / wlroots-Wayland** | Same as KWin (`wlr-layer-shell` is the wlroots-native protocol) |
 | **mutter (GNOME-Wayland)** | **No native path.** Force XWayland (`QT_QPA_PLATFORM=xcb` injected by our binary) + Conky-style hints: `own_window_type=normal` equivalent + `sticky,below,skip_taskbar,skip_pager,undecorated`. Best-effort: known glitches (raise/hide on desktop click, Activities mode breaks ordering) — same trade-off Conky's users accept. |

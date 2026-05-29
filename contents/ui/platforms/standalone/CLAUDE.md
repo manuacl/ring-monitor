@@ -288,32 +288,39 @@ Yes"**. App-side, the fix is the native layer-shell path: a
 wlr-layer-shell "background" layer surface never participates in
 any switcher by design. That's covered by PR C2.
 
-### `_NET_WM_WINDOW_TYPE_DESKTOP` can swallow right-click on some compositors
+### Window type is `_NET_WM_WINDOW_TYPE_NORMAL` + `_NET_WM_STATE_BELOW`
 
-`applyDesktopWindowHints` rewrites the window type to `DESKTOP` so
-KWin treats the window as wallpaper-layer content (atomic setGeometry,
-no gravity-shift on resize — see `WindowAnchor`). The trade-off: on
-some KWin point releases and Plasma containment configurations, a
-`DESKTOP`-typed client has right-click forwarded to the **containment
-menu** (wallpaper-level "Add widget…" / "Configure desktop…")
-instead of the window's own `MouseArea`. The widget's only entry
-point to Settings + Quit lives behind that right-click, so the
-regression is total UX loss.
+`applyDesktopWindowHints` rewrites the window type to `NORMAL` — it
+must REPLACE the type, not omit it, to clear the
+`_KDE_NET_WM_WINDOW_TYPE_OVERRIDE` Qt sets for `FramelessWindowHint`
+windows (see the Alt+Tab note above). Paired with `_NET_WM_STATE_BELOW`
+this pins the widget one layer **above** the wallpaper: a normally
+managed, bottom-most window.
 
-The current dev box keeps right-click delivered (verified live), but
-this should be considered fragile across KWin versions and entirely
-unknown on non-KDE compositors. The real fix is the native
-wlr-layer-shell path (background layer surface, no window-type
-involved) — scoped as PR C2 in
-[`docs/plasma-isolation/plan.md`](../../../../docs/plasma-isolation/plan.md).
-If right-click ever stops working post-upgrade, the diagnosis ladder
-is: (1) try `_NET_WM_WINDOW_TYPE_NORMAL` (loses gravity-shift fix —
-regression risk on slider resize); (2) try `_NET_WM_WINDOW_TYPE_DOCK`
-(panel-style — different KWin handling); (3) accelerate PR C2.
+We moved here from `_NET_WM_WINDOW_TYPE_DESKTOP` (see the trade-off
+record below). DESKTOP put the widget in plasmashell's own containment
+layer, where a left-click on the desktop raised the opaque wallpaper
+containment over it and the widget **vanished** (process alive, window
+occluded — not a crash); it also had right-click forwarded to the
+containment menu on some KWin point releases, hiding the only entry
+point to Settings + Quit. NORMAL is a normally-managed window, so
+right-click reaches the widget's own `MouseArea` reliably and the
+widget survives a desktop click. The gravity-shift-on-resize that
+DESKTOP used to mask is handled independently by `WindowAnchor`'s
+atomic `setGeometry` (`standalone/window_anchor.h`, QTBUG-57608), so
+the switch doesn't regress slider resize.
 
-**Recovery path for users who hit the regression:** the binary
-accepts a `--open-settings` (alias `--settings`) flag that loads a
-minimal recovery QML root showing just the `SettingsDialog`:
+Scope: this X11/XWayland path is a durable fix for the committed
+target — KWin, mutter, and xfwm4 are all EWMH stacking WMs that honour
+`_NET_WM_STATE_BELOW`. Tiling and pure-Wayland-native are out of scope
+(they need the wlr-layer-shell path, PR C2). See the
+`project-standalone-target-des` and
+`project-standalone-window-type-desktop-click` memories.
+
+**Recovery path** (defensive net, kept from the DESKTOP era): the
+binary accepts a `--open-settings` (alias `--settings`) flag that loads
+a minimal recovery QML root showing just the `SettingsDialog`, in case
+a compositor ever swallows the right-click:
 
 ```bash
 pkill -f ring-monitor-standalone
@@ -355,22 +362,30 @@ features.
 On X11 / XWayland the two window types we can set trade one bug for
 the other — **neither is fully correct**:
 
-- `_NET_WM_WINDOW_TYPE_DESKTOP` (current): clicks pass **through** to
+- `_NET_WM_WINDOW_TYPE_NORMAL` + `_NET_WM_STATE_BELOW` (**current**):
+  **survives** the desktop click (stays visible), BUT it's a managed
+  window that captures clicks over its area → the desktop underneath is
+  no longer clickable there (icon selection, containment menu), and it
+  shows in Alt+Tab (see the SKIP_* note above).
+- `_NET_WM_WINDOW_TYPE_DESKTOP` (previous): clicks pass **through** to
   the wallpaper, BUT clicking the desktop raises Plasma's own desktop
   containment over our window → the widget vanishes behind the
-  wallpaper.
-- `_NET_WM_WINDOW_TYPE_NORMAL` + `_NET_WM_STATE_BELOW`: **survives**
-  the desktop click (stays visible), BUT it's a managed window that
-  captures clicks over its area → the desktop underneath is no longer
-  clickable (icon selection, containment menu).
+  wallpaper (process alive, occluded).
+
+We picked NORMAL: a widget that **stays visible** beats one that passes
+clicks through but disappears on the first desktop click — the vanish
+was a total UX loss, the lost click-through over a small ring area is
+minor. The choice is durable for the committed target (KWin, mutter,
+xfwm4 — all EWMH stacking WMs); see the `project-standalone-target-des`
+memory.
 
 The only path that gives **both** (visible on a desktop click AND
 click pass-through) is the wlr-layer-shell `background` layer — it
 doesn't participate in window restacking and isn't a normal input
 target. That's PR C2 in
 [`docs/plasma-isolation/plan.md`](../../../../docs/plasma-isolation/plan.md).
-Don't keep flip-flopping DESKTOP ↔ NORMAL to "fix" one symptom; they
-are known-equivalent stopgaps. Full live-test notes in the
+Don't keep flip-flopping DESKTOP ↔ NORMAL to "fix" one symptom; NORMAL
+is the committed stopgap until C2. Full live-test notes in the
 `project-standalone-window-type-desktop-click` memory.
 
 ### Initial `_anchor()` must be deferred via `Qt.callLater`
@@ -382,7 +397,7 @@ synchronous boot order is:
 
 1. `engine.loadFromModule` → `Component.onCompleted` fires
 2. `applyDesktopWindowHints(window)` swaps the window-type to
-   `_NET_WM_WINDOW_TYPE_DESKTOP` (called from `main.cpp` right after
+   `_NET_WM_WINDOW_TYPE_NORMAL` (called from `main.cpp` right after
    `loadFromModule` returns)
 3. `app.exec()` — the event loop starts and `Qt.callLater` fires
 
@@ -533,7 +548,7 @@ protocol bits qt6 doesn't expose):
 
 | Compositor | Mechanism |
 |---|---|
-| X11 (Xorg or XWayland) | `_NET_WM_WINDOW_TYPE_DESKTOP` + EWMH hints `sticky + below + skip_taskbar + skip_pager` |
+| X11 (Xorg or XWayland) | `_NET_WM_WINDOW_TYPE_NORMAL` + EWMH hints `sticky + below + skip_taskbar + skip_pager` |
 | KWin-Wayland | `wlr-layer-shell-unstable-v1`, `layer: background`, anchor + margin |
 | sway / Hyprland | same as KWin |
 | GNOME-Wayland (mutter) | force XWayland via `QT_QPA_PLATFORM=xcb` env injection at startup, then EWMH hints |

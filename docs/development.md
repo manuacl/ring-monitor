@@ -118,7 +118,7 @@ Verify the hints landed with `xprop`:
 ```bash
 xprop -id "$(xdotool search --name 'ring-monitor' | head -1)" \
     _NET_WM_STATE _NET_WM_WINDOW_TYPE
-# Expect: _NET_WM_WINDOW_TYPE_DESKTOP (not OVERRIDE)
+# Expect: _NET_WM_WINDOW_TYPE_NORMAL (not OVERRIDE, not DESKTOP)
 #         _NET_WM_STATE has BELOW, SKIP_TASKBAR, SKIP_PAGER, STICKY
 # (STICKY may be missing on a default Plasma-Wayland session — single
 #  virtual desktop — but the hint is still set; multi-desktop X11
@@ -130,9 +130,9 @@ qt6-qtdeclarative-devel kf6-kirigami cmake gcc-c++ libxcb-devel`.
 
 ### Settings-only recovery launch
 
-If `_NET_WM_WINDOW_TYPE_DESKTOP` swallows right-click on a given
-compositor (KWin regression, mutter quirk) and the user can't reach
-Settings or Quit, they can launch the binary in recovery mode:
+If a compositor swallows the right-click on the wallpaper-layer
+window and the user can't reach Settings or Quit, they can launch the
+binary in recovery mode:
 
 ```bash
 pkill -f ring-monitor-standalone

@@ -41,9 +41,10 @@ int main(int argc, char *argv[])
     // requires a constructed QCoreApplication.
     //
     // --open-settings: load `SettingsOnlyRoot` instead of `Main`.
-    // Recovery path for the case where `_NET_WM_WINDOW_TYPE_DESKTOP`
-    // swallows right-click on the user's compositor (KWin regression,
-    // mutter quirk) — without this flag the user would have to
+    // Recovery path for the case where the compositor swallows the
+    // right-click on the wallpaper-layer widget window (some KWin /
+    // mutter setups route desktop-area clicks to the containment) —
+    // without this flag the user would have to
     // `pkill ring-monitor-standalone` and re-edit
     // ~/.config/dev.manuacl/ring-monitor.conf by hand.
     //

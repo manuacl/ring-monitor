@@ -10,11 +10,27 @@ for QML/Qt Quick.
 
 ## Metrics
 
-- CPU usage (optional per-core concentric inner rings)
-- RAM, SWAP, GPU, Disk
+- **CPU** — usage (with optional per-core concentric inner rings) and temperature
+- **Memory** — RAM and swap (zram included)
+- **GPU** — usage and temperature
+- **Disk** — per-partition usage rings; mounted removable drives are shown
+  automatically
 
-Order and visibility are user-configurable through the widget's config
-dialog (drag to reorder, click to toggle).
+Temperatures render as a half-arc and can optionally be merged into their
+usage ring; the unit follows your locale (°C / °F).
+
+## Features
+
+- **Themed to your desktop** — follows the current Plasma color scheme, or set
+  custom accent and text colors with separate light- and dark-mode values.
+- **Layout** — horizontal or vertical, with adjustable track / arc / text
+  opacity.
+- **Reorder & toggle** — drag rings to reorder, click to show or hide, all from
+  the config dialog.
+- **Update notifications** — an in-widget badge when a newer release is published
+  on GitHub (can be turned off in settings).
+- **Standalone build** — a native Qt/QML binary for non-KDE desktops
+  ([see below](#standalone-non-kde-desktops)).
 
 ## Install
 
@@ -113,15 +129,17 @@ plasmawindowed dev.manuacl.ringmonitor
 
 ## Documentation
 
-In-depth docs live under [`docs/`](docs/):
+In-depth docs live under [`docs/`](docs/) (start at the
+[index](docs/README.md)):
 
-- [`architecture.md`](docs/architecture.md) — file roles, layering rule
-- [`components.md`](docs/components.md) — `Ring`, `MetricRow`, `DraggableList`
+- [`architecture.md`](docs/architecture.md) — file roles, `core` → `platforms` layering
+- [`components.md`](docs/components.md) — visual components + platform adapters
 - [`logic-modules.md`](docs/logic-modules.md) — pure JS modules
-- [`config-dialog.md`](docs/config-dialog.md) — Plasma config gotchas
+- [`config-dialog.md`](docs/config-dialog.md) — Plasma config-dialog gotchas
 - [`adding-a-metric.md`](docs/adding-a-metric.md) — step-by-step
 - [`testing.md`](docs/testing.md) — Node + QML test runners
 - [`development.md`](docs/development.md) — symlink, journal, tooling
+- [`releasing.md`](docs/releasing.md) — release flow + KDE Store upload
 
 ## License
 

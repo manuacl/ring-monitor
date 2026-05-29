@@ -14,12 +14,27 @@ only.
   need to open Settings and tick it. Unmount the drive, or just pull it
   out, and the ring goes away the same way. The fixed disks you picked
   by hand are left exactly as they are.
+- **Metrics with no data source are hidden instead of showing an empty
+  ring.** GPU rings no longer appear on machines without an NVIDIA card,
+  swap is hidden when the system has none, and a temperature ring with
+  no sensor is dropped — so you never get a dead ring stuck at 0%. In
+  Settings, an unavailable metric is greyed out and tagged "not
+  detected".
+- **Disconnected disks can be cleaned up in Settings.** When a
+  filesystem you'd selected is unplugged, it now shows in the disk
+  picker as a greyed "no longer connected" row — keeping its last-known
+  label — with a trash button to remove it for good, instead of
+  lingering invisibly in the configuration.
 
 ### Fixed
 
 - **A disk ring no longer lingers after its drive is unplugged.** It
   used to stay on screen frozen at its last reading; it now disappears
   with the drive.
+- **Standalone build: a hung mount no longer freezes the widget.** Disk
+  usage for a stuck mount (stale NFS/CIFS, a spun-down USB) is now read
+  off the GUI thread, so that ring just holds its last value while every
+  other ring keeps updating.
 
 ### Technical
 
@@ -35,7 +50,19 @@ only.
   disk. vfat UUIDs are lower-cased to match ksysguard's keys.
 - The probe (`MountInfo`, via plasma5support's executable engine) only
   runs while the disk metric is enabled — no subprocess churn otherwise.
-- Plasma only for now; standalone parity is tracked under #7.
+- Metric availability (#52): both `MetricsBackend` adapters expose
+  `availableMetrics`; `MainContent` filters the enabled list through the
+  pure `Catalog.filterByAvailable` once warm-up settles and before
+  merged-temperature mode, and `MetricRow` gains an `available` axis that
+  greys the picker row.
+- Stale partitions (#49): a persisted `partitionLabels` JSON cache
+  (UUID→label) lets a disconnected partition keep its name;
+  `stalePartitionList` surfaces ids in `enabled ∪ order` not currently
+  discovered, gated off during warm-up so the trash action can't race
+  discovery.
+- Standalone disk reads run on a detached worker thread (#48), deduped
+  while in flight, so a blocking `statvfs` can't stall the GUI thread.
+- Standalone parity for the auto-show feature is tracked under #7.
 
 ## [0.6.0] — 2026-05-28
 

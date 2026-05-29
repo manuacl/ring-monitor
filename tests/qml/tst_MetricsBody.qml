@@ -43,6 +43,8 @@ Item {
             body.enabledMetricsCsv = "cpu,ram";
             body.enabledPartitionsCsv = "";
             body.partitionOrderCsv = "";
+            body.partitionOptOutCsv = "";
+            body.removablePartitions = [];
             body.diskPartitions = [];
             body.defaultPartitionIds = [];
             body.showCpuCores = false;
@@ -329,6 +331,76 @@ Item {
             compare(body.stalePartitionList.length, 1);
             compare(body.stalePartitionList[0].id, "u-usb");
             compare(body.stalePartitionList[0].label, "backups", "stale row keeps the last-known label from the cache");
+        }
+
+        // ── Checkbox reflects ring visibility (auto-show + opt-out) ──
+        // A mounted removable is auto-shown → its box reads CHECKED even though
+        // it isn't in the manual selection; unchecking opts it out (and keeps it
+        // out of the manual list), re-checking resumes auto-show; a fixed disk
+        // toggles the manual selection only.
+        function test_removable_is_checked_by_default_auto_show() {
+            body.removablePartitions = [{ id: "u-usb", label: "MYUSB" }];
+            body.enabledPartitionsCsv = "u-baz";
+            verify(body.isPartitionEnabled("u-usb"), "auto-shown removable → box checked");
+            verify(body.isPartitionEnabled("u-baz"), "manually-enabled fixed disk → box checked");
+        }
+
+        function test_uncheck_removable_opts_it_out_and_stays_out_of_manual() {
+            body.removablePartitions = [{ id: "u-usb", label: "MYUSB" }];
+            body.enabledPartitionsCsv = "u-baz";
+            body.setPartitionEnabled("u-usb", false);
+            verify(!body.isPartitionEnabled("u-usb"), "unchecked removable → box unchecked");
+            verify(body.partitionOptOutCsv.split(",").indexOf("u-usb") !== -1, "u-usb added to the opt-out list");
+            verify(body.enabledPartitionsCsv.split(",").indexOf("u-usb") === -1, "a removable is never written into the manual selection");
+            body.setPartitionEnabled("u-usb", true);
+            verify(body.isPartitionEnabled("u-usb"), "re-checked removable → box checked");
+            verify(body.partitionOptOutCsv.split(",").indexOf("u-usb") === -1, "u-usb removed from the opt-out list");
+        }
+
+        function test_fixed_disk_toggle_uses_manual_selection_not_optout() {
+            body.removablePartitions = [];
+            body.enabledPartitionsCsv = "";
+            body.setPartitionEnabled("u-baz", true);
+            verify(body.isPartitionEnabled("u-baz"));
+            verify(body.enabledPartitionsCsv.split(",").indexOf("u-baz") !== -1, "fixed disk → manual selection");
+            compare(body.partitionOptOutCsv, "", "fixed disk toggle must not touch the opt-out list");
+            body.setPartitionEnabled("u-baz", false);
+            verify(!body.isPartitionEnabled("u-baz"));
+        }
+
+        function test_SCENARIO_check_a_partition_then_unplug_greys_it() {
+            // A selected partition that drops out of the mounted set (what
+            // MetricsBackend.mountedAvailablePartitions does live on unmount)
+            // must surface as a greyed stale row, not vanish.
+            body.partitionsReady = true;
+            body.enabledPartitionsCsv = "u-baz";
+            body.diskPartitions = [{ id: "u-baz", label: "bazzite" }, { id: "u-usb", label: "MYUSB" }];
+            wait(20);
+            body.setPartitionEnabled("u-usb", true);
+            verify(body.isPartitionEnabled("u-usb"), "checking persists to enabledPartitions");
+            compare(body.stalePartitionList.length, 0, "still mounted → not stale");
+            body.diskPartitions = [{ id: "u-baz", label: "bazzite" }]; // unplug
+            wait(20);
+            compare(body.stalePartitionList.length, 1, "checked-then-unplugged → greyed stale row");
+            compare(body.stalePartitionList[0].id, "u-usb");
+        }
+
+        function test_SCENARIO_unchecked_autoshown_removable_just_disappears() {
+            // Counterpart: a removable that was only auto-shown (never checked)
+            // is NOT in enabledPartitions, so on unplug it correctly vanishes
+            // with no stale row (nothing to clean up). This is what the live
+            // test actually exercised — hence "no greyed row" was correct there.
+            body.partitionsReady = true;
+            body.enabledPartitionsCsv = "u-baz"; // u-usb deliberately NOT checked
+            body.diskPartitions = [
+                { id: "u-baz", label: "bazzite" },
+                { id: "u-usb", label: "MYUSB" }
+            ];
+            wait(20);
+            compare(body.stalePartitionList.length, 0);
+            body.diskPartitions = [{ id: "u-baz", label: "bazzite" }]; // unplug
+            wait(20);
+            compare(body.stalePartitionList.length, 0, "an unchecked auto-shown removable leaves no stale row");
         }
 
         function test_removeStalePartition_clears_csvs_and_cache() {

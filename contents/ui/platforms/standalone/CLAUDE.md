@@ -537,6 +537,34 @@ When implementing an adapter here, the contract is:
    from `/proc`, `/sys/class/hwmon`, `/sys/class/drm`, and
    `nvidia-smi` subprocess.
 
+### Same surface, intentionally different *values* — don't "fix" these
+
+The same-surface rule is about the property/function **shape**, not the
+numbers. Because the two backends read genuinely different sources
+(ksysguard vs `/proc`+sysfs+NVML), a few metrics legitimately read
+different on the two builds for the same hardware. These were reviewed
+and **left divergent on purpose** (2026-05-29) — each build shows the
+number native to its ecosystem. Do not try to force them equal:
+
+- **Disk usage %** — standalone uses `df`'s formula
+  (`used/(used+avail)`, the reserved-for-root blocks are invisible),
+  matching the `df` command. Plasma reads ksysguard's `usedPercent`,
+  which counts the reservation — matching Dolphin and the rest of KDE.
+  On a near-empty ext4 the gap is ~5%. ksysguard exposes no
+  bavail/`available` leaf, so Plasma *can't* compute the `df` number
+  anyway. Standalone targets non-KDE desktops where `df` is the neutral
+  reference; Plasma matches its own ecosystem. See `MemInfoParser.diskUsagePercent`.
+- **CPU temperature** — standalone reads the hwmon **package** sensor
+  ("Package id 0" / `Tctl`), the BIOS/lm-sensors headline number.
+  Plasma uses `cpu/all/averageTemperature` (the mean of the per-core
+  sensors); ksysguard exposes **no package sensor** (only per-core +
+  avg/max/min), so Plasma can't show the package value. ~4°C apart on
+  this hardware. See `CpuTempDiscovery.js`.
+- **GPU usage %** — both read NVML, but it's a volatile rolling-window
+  counter; two independent 500 ms pollers sampling at different phases
+  disagree transiently. This is sampling jitter, **not** a bug — the
+  ring's value animation already smooths it.
+
 ## Compositor-specific window setup
 
 The standalone window has to integrate into the desktop as a Conky-

@@ -38,6 +38,8 @@ Settings {
     // JSON UUID→label cache so a disconnected partition shows its last-known
     // name on the picker's stale row instead of a bare UUID.
     property string partitionLabels: ""
+    // Removable partitions the user opted out of auto-show (CSV of UUIDs).
+    property string partitionOptOut: ""
     property bool showCpuCores: true
     property bool mergeCpuTemp: false
     property bool mergeGpuTemp: false

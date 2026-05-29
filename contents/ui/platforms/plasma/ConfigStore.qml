@@ -29,6 +29,8 @@ Item {
     readonly property string partitionOrder: Plasmoid.configuration.partitionOrder
     // JSON UUID→label cache for the disconnected-partition stale rows.
     readonly property string partitionLabels: Plasmoid.configuration.partitionLabels
+    // Removable partitions the user opted out of auto-show (CSV of UUIDs).
+    readonly property string partitionOptOut: Plasmoid.configuration.partitionOptOut
     readonly property bool showCpuCores: Plasmoid.configuration.showCpuCores
     readonly property bool mergeCpuTemp: Plasmoid.configuration.mergeCpuTemp
     readonly property bool mergeGpuTemp: Plasmoid.configuration.mergeGpuTemp

@@ -129,6 +129,74 @@ test("stalePartitions: tolerates empty inputs", () => {
     assert.deepEqual(Disk.stalePartitions("u-a", "", null, null), [{ id: "u-a", label: "u-a" }]);
 });
 
+// ── filterToMounted ──────────────────────────────────────────────────
+
+const PARTS = [
+    { id: "u-a", label: "alpha" },
+    { id: "u-b", label: "beta" },
+    { id: "u-c", label: "gamma" },
+];
+
+test("filterToMounted: keeps only partitions whose id is mounted", () => {
+    assert.deepEqual(
+        Disk.filterToMounted(PARTS, ["u-a", "u-c"]),
+        [{ id: "u-a", label: "alpha" }, { id: "u-c", label: "gamma" }],
+    );
+});
+
+test("filterToMounted: SCENARIO #58 — a frozen-but-unmounted partition drops out", () => {
+    // ksysguard still lists u-b after its disk unmounted (its SensorTreeModel
+    // freezes), but findmnt no longer reports it → the picker must not offer
+    // it as a live selectable row.
+    assert.deepEqual(
+        Disk.filterToMounted(PARTS, ["u-a", "u-c"]).map(p => p.id),
+        ["u-a", "u-c"],
+    );
+});
+
+test("filterToMounted: empty/absent mountedIds → passthrough (warm-up window)", () => {
+    // Before the findmnt poll returns there is no live data; gating then would
+    // wrongly empty the whole picker. Passthrough until the set is known.
+    assert.deepEqual(Disk.filterToMounted(PARTS, []), PARTS);
+    assert.deepEqual(Disk.filterToMounted(PARTS, null), PARTS);
+    assert.deepEqual(Disk.filterToMounted(PARTS, undefined), PARTS);
+});
+
+test("filterToMounted: returns a new array, does not mutate input", () => {
+    const out = Disk.filterToMounted(PARTS, []);
+    assert.notEqual(out, PARTS);
+    assert.deepEqual(out, PARTS);
+});
+
+test("filterToMounted: tolerates empty/null partitions", () => {
+    assert.deepEqual(Disk.filterToMounted([], ["u-a"]), []);
+    assert.deepEqual(Disk.filterToMounted(null, ["u-a"]), []);
+    assert.deepEqual(Disk.filterToMounted(undefined, null), []);
+});
+
+test("filterToMounted: none of the discovered are mounted → empty", () => {
+    assert.deepEqual(Disk.filterToMounted(PARTS, ["u-x", "u-y"]), []);
+});
+
+// ── isPartitionShown (picker checkbox = ring visibility) ─────────────
+
+test("isPartitionShown: a removable is shown unless opted out (auto-show)", () => {
+    const removable = ["u-usb"];
+    assert.equal(Disk.isPartitionShown("u-usb", removable, [], []), true, "mounted removable, not opted-out → shown");
+    assert.equal(Disk.isPartitionShown("u-usb", removable, [], ["u-usb"]), false, "opted-out removable → hidden");
+});
+
+test("isPartitionShown: a fixed disk is shown iff manually enabled", () => {
+    assert.equal(Disk.isPartitionShown("u-baz", [], ["u-baz"], []), true, "manually enabled fixed disk → shown");
+    assert.equal(Disk.isPartitionShown("u-baz", [], [], []), false, "fixed disk not enabled → hidden");
+    assert.equal(Disk.isPartitionShown("u-baz", [], ["u-baz"], ["u-baz"]), true, "opt-out is ignored for a fixed (non-removable) disk");
+});
+
+test("isPartitionShown: tolerates null/undefined arrays", () => {
+    assert.equal(Disk.isPartitionShown("x", null, null, null), false);
+    assert.equal(Disk.isPartitionShown("x", ["x"], null, null), true);
+});
+
 // ── label cache (parse / serialize / merge) ──────────────────────────
 
 test("parseLabelCache: empty / malformed JSON → {}", () => {

@@ -20,7 +20,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms", "plasma", "MetricsBackend.qml"), "utf8");
 
 // Public surface main.qml consumes.
-const PUBLIC_PROPS = ["coreValues", "loading", "availableMetrics", "availablePartitions", "defaultPartitionIds", "removablePartitions", "removableTrackingActive", "mountedPartitionIds"];
+const PUBLIC_PROPS = ["coreValues", "loading", "availableMetrics", "availablePartitions", "defaultPartitionIds", "removablePartitions", "removableTrackingActive", "mountedPartitionIds", "mountedAvailablePartitions"];
 const PUBLIC_FUNCS = ["metricValue", "metricRawTemp", "metricTempPercent", "partitionValue"];
 
 // Universal-id sensor instances — sensors whose ksysguard id is the
@@ -42,6 +42,19 @@ test("MetricsBackend exposes the public properties main.qml depends on", () => {
         const pattern = new RegExp(`property\\s+\\w+\\s+${name}\\s*:`);
         assert.match(SOURCE, pattern, `MetricsBackend.qml must declare property "${name}"`);
     }
+});
+
+test("MetricsBackend gates the picker partition list on the live mount set (#58)", () => {
+    // ksysguard's SensorTreeModel freezes on unmount and keeps listing a
+    // just-unplugged filesystem, so the config picker would offer it as a live
+    // selectable row. mountedAvailablePartitions must intersect availablePartitions
+    // with the live findmnt set (mountedPartitionIds) via DiskMetrics.filterToMounted.
+    assert.match(SOURCE, /import\s+"\.\.\/\.\.\/core\/DiskMetrics\.js"\s+as\s+DiskMetrics/, "must import core/DiskMetrics.js");
+    assert.match(
+        SOURCE,
+        /mountedAvailablePartitions\s*:\s*DiskMetrics\.filterToMounted\(\s*backend\.availablePartitions\s*,\s*backend\.mountedPartitionIds\s*\)/,
+        "mountedAvailablePartitions must be DiskMetrics.filterToMounted(availablePartitions, mountedPartitionIds)",
+    );
 });
 
 test("MetricsBackend exposes the public functions main.qml depends on", () => {

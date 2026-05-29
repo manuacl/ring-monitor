@@ -1,8 +1,41 @@
 # Changelog
 
-All notable user-facing changes to Ring Monitor. Internal refactors,
-test additions, and tooling updates are intentionally omitted — the
-git history covers those.
+Each release leads with the **user-facing** changes (what changed for
+someone running the widget), followed by a **Technical** section with the
+implementation detail underneath. Entries before 0.7.0 are user-facing
+only.
+
+## [0.7.0] — 2026-05-29
+
+### Added
+
+- **Removable drives now show a ring on their own.** Plug in a USB key
+  or external disk and a ring appears within a couple of seconds — no
+  need to open Settings and tick it. Unmount the drive, or just pull it
+  out, and the ring goes away the same way. The fixed disks you picked
+  by hand are left exactly as they are.
+
+### Fixed
+
+- **A disk ring no longer lingers after its drive is unplugged.** It
+  used to stay on screen frozen at its last reading; it now disappears
+  with the drive.
+
+### Technical
+
+- The rendered disk set is now `(manual selection) ∪ (mounted removable
+  media)`, computed by a pure `resolveDiskRingIds` helper in
+  `core/DiskMetrics.js` and gated on the live kernel mount table. The
+  gate is what self-heals the stale ring (#58): the ksysguard sensor
+  tree freezes on unmount (no signal, frozen value), so the rendered set
+  is sourced from the mount table instead of trusted from the sensor.
+- Mounts are probed with `findmnt` (kernel mount table — complete and
+  freeze-free) rather than `lsblk`, whose block-device view misses
+  btrfs-subvolume and network mounts and would drop a still-mounted
+  disk. vfat UUIDs are lower-cased to match ksysguard's keys.
+- The probe (`MountInfo`, via plasma5support's executable engine) only
+  runs while the disk metric is enabled — no subprocess churn otherwise.
+- Plasma only for now; standalone parity is tracked under #7.
 
 ## [0.6.0] — 2026-05-28
 
@@ -179,6 +212,7 @@ No user-visible changes.
 First public release. Plasma 6 widget rendering CPU, RAM, swap,
 GPU, and disk usage as circular ring gauges with rounded caps.
 
+[0.7.0]: https://github.com/manuacl/ring-monitor/releases/tag/v0.7.0
 [0.6.0]: https://github.com/manuacl/ring-monitor/releases/tag/v0.6.0
 [0.5.3]: https://github.com/manuacl/ring-monitor/releases/tag/v0.5.3
 [0.5.0]: https://github.com/manuacl/ring-monitor/releases/tag/v0.5.0

@@ -88,7 +88,8 @@ tests/run-all.sh
 ```
 
 You need `qt6-qtdeclarative-devel` + `kf6-kirigami` for `qmllint`,
-`qmlformat`, and `qmltestrunner`. Standalone preview:
+`qmlformat`, and `qmltestrunner`. Windowed Plasma preview (still the
+Plasma build, not the [standalone binary](#standalone-non-kde-desktops)):
 
 ```bash
 plasmawindowed dev.manuacl.ringmonitor

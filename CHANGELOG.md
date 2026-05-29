@@ -7,6 +7,22 @@ only.
 
 ## [0.7.1] — 2026-05-29
 
+### Added
+
+- **Removable drives now auto-show a ring on the standalone build too.**
+  Plug in a USB key or external disk and a ring appears within a couple
+  of seconds — and disappears when you unplug it — exactly like the
+  Plasma version (previously this was Plasma-only).
+
+### Changed
+
+- **The disk picker's checkbox now reflects whether the ring is shown.**
+  A plugged removable's box is **ticked** (its ring is visible) instead
+  of appearing unticked while the ring shows. Unticking it **hides** the
+  ring (and remembers your choice, so it stays hidden until you tick it
+  again); reticking brings it back. Fixed disks are unchanged. The
+  behaviour is now identical on Plasma and standalone.
+
 ### Fixed
 
 - **The "Ring size" slider no longer appears in the Plasma settings,
@@ -23,6 +39,16 @@ only.
 
 ### Technical
 
+- New `partitionOptOut` config key (CSV of UUIDs) wired through all six
+  config touch points + `MetricsBody.partitionOptOutCsv`; consumed by
+  `DiskMetrics.resolveDiskRingIds` (the opt-out arg, previously hardcoded
+  `[]`). The picker checkbox is `DiskMetrics.isPartitionShown` (new pure
+  helper); `setPartitionEnabled` is dual — removable → opt-out list, fixed
+  → manual selection. The standalone `MetricsBackend` exposes
+  `removablePartitions` + `mountedPartitionIds` (derived from its existing
+  `/proc/mounts` + `/dev/disk/by-uuid` discovery via the shared
+  `DiskMetrics.isRemovableMount`), so `resolveDiskRingIds`'s auto-show path
+  lights up there too (the `MainContent` guards already consumed them).
 - `AppearanceBody` gains a `ringSizeVisible` gate (default `false`;
   the standalone `SettingsDialog` flips it on), mirroring
   `ringSpacingVisible` / `windowMarginVisible`. Unlike those two, the

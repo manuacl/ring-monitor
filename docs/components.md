@@ -38,6 +38,19 @@ For the Metrics page, `MetricsBody` additionally owns:
   instantiated inside `configMetrics.qml` (the KCM page has no live
   backend of its own); the standalone `SettingsDialog` takes it injected
   from `Main.qml`'s running backend.
+- the disk-partition picker's **checkbox = ring visibility** rule: the
+  body takes a `removablePartitions` prop ([{id,label}] of mounted
+  removables, injected by the wrapper from `MetricsBackend.removablePartitions`
+  on both hosts) and a `partitionOptOutCsv` (bridged to `cfg_partitionOptOut`).
+  `isPartitionEnabled` is `DiskMetrics.isPartitionShown` — a mounted removable
+  reads **checked** because its ring auto-shows (#60), a fixed disk reads
+  checked iff manually selected. `setPartitionEnabled` is dual: toggling a
+  removable writes the **opt-out** list (and keeps it out of the manual
+  selection); a fixed disk writes the manual selection. So unchecking an
+  auto-shown removable hides its ring (opt-out), re-checking restores it —
+  the box reflects *and* controls visibility, identically on Plasma and
+  standalone (standalone now exposes `removablePartitions` /
+  `mountedPartitionIds` too, so removables auto-show there as well).
 - the disk-partition picker's **stale-row handling** (issue #49): a
   partition the user selected then unplugged keeps its UUID in
   `enabledPartitions` / `partitionOrder` but is no longer discovered.

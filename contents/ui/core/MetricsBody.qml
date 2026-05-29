@@ -31,6 +31,9 @@ ColumnLayout {
     // SettingsDialog via the backend). Drives the per-partition checkboxes
     // under the disk row.
     property var diskPartitions: []
+    // [{id,label}] of currently-mounted REMOVABLE filesystems (auto-show set). The picker
+    // uses it to know which rows are governed by the opt-out list vs the manual selection.
+    property var removablePartitions: []
     // The backend's default partition selection (standalone: the $HOME-bearing
     // filesystem; Plasma: [] = aggregate). When the user hasn't selected
     // anything yet, the picker seeds enabledPartitions with this so the
@@ -43,6 +46,8 @@ ColumnLayout {
     property string enabledMetricsCsv: ""
     property string enabledPartitionsCsv: ""
     property string partitionOrderCsv: ""
+    // Removable partitions opted out of auto-show (CSV of UUIDs), bridged to cfg_partitionOptOut.
+    property string partitionOptOutCsv: ""
     // UUID→label JSON cache so a disconnected partition shows its last-known
     // volume name on the stale row instead of a bare UUID (the system stops
     // exposing the label once the filesystem is gone). Maintained by
@@ -122,12 +127,26 @@ ColumnLayout {
             body.mergeGpuTemp = false;
     }
 
+    function _removableIds() {
+        return (body.removablePartitions || []).map(function (p) {
+            return p.id;
+        });
+    }
+
     function isPartitionEnabled(id) {
-        return Catalog.parseCsv(body.enabledPartitionsCsv).indexOf(id) !== -1;
+        return DiskMetrics.isPartitionShown(id, body._removableIds(), Catalog.parseCsv(body.enabledPartitionsCsv), Catalog.parseCsv(body.partitionOptOutCsv));
     }
 
     function setPartitionEnabled(id, on) {
-        body.enabledPartitionsCsv = Catalog.toggleEnabled(Catalog.parseCsv(body.enabledPartitionsCsv), id, on).join(",");
+        if (body._removableIds().indexOf(id) !== -1) {
+            // Removable: governed by the opt-out list, never the manual selection.
+            if (Catalog.parseCsv(body.enabledPartitionsCsv).indexOf(id) !== -1)
+                body.enabledPartitionsCsv = Catalog.toggleEnabled(Catalog.parseCsv(body.enabledPartitionsCsv), id, false).join(",");
+            // on=true → remove from opt-out (auto-show), on=false → add to opt-out (hide).
+            body.partitionOptOutCsv = Catalog.toggleEnabled(Catalog.parseCsv(body.partitionOptOutCsv), id, !on).join(",");
+        } else {
+            body.enabledPartitionsCsv = Catalog.toggleEnabled(Catalog.parseCsv(body.enabledPartitionsCsv), id, on).join(",");
+        }
     }
 
     function currentPartitionOrder() {

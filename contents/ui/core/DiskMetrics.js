@@ -28,6 +28,12 @@
 //                                         removable media (auto-show), minus user
 //                                         opt-outs, falling back to defaultIds
 //                                         when empty, capped at maxCount.
+//   filterToMounted(partitions, mountedIds)
+//                                       - keep only the partitions whose id is in
+//                                         the live mounted set; passthrough when
+//                                         mountedIds is empty/absent (no live data
+//                                         yet). Gates the Plasma config picker so a
+//                                         frozen-but-unmounted partition drops out.
 //   stalePartitions(enabledCsv, orderCsv, discovered, labelCacheJson)
 //                                       - configured ids no longer present
 //                                         (unplugged), each {id, label}.
@@ -194,6 +200,45 @@ function resolveDiskRingIds(manualIds, removableMounts, optOutIds, defaultIds, m
     return out;
 }
 
+// Keep only the discovered partitions that are currently mounted, by id. The
+// Plasma config picker feeds its partition list from ksysguard's
+// SensorTreeModel, which FREEZES on unmount (#58) and keeps listing a
+// just-unplugged filesystem — so without this gate the picker offers a
+// dead partition as a live, selectable checkbox. Intersecting with the live
+// kernel mount set (findmnt via MountInfo) drops it; and because the picker
+// passes the SAME filtered list to stalePartitions(), a still-configured but
+// unmounted partition then surfaces as a greyed "no longer connected" row
+// instead. mountedIds empty/absent means "no live mount data yet" (the poll
+// hasn't returned) → passthrough, so the picker isn't emptied during the
+// warm-up window — same convention as resolveDiskRingIds' mount gate. Returns
+// a new array; does not mutate the input.
+function filterToMounted(partitions, mountedIds) {
+    partitions = partitions || [];
+    if (!mountedIds || mountedIds.length === 0)
+        return partitions.slice();
+    var mounted = {};
+    for (var i = 0; i < mountedIds.length; i++)
+        mounted[mountedIds[i]] = true;
+    return partitions.filter(function (p) {
+        return p && mounted[p.id];
+    });
+}
+
+// Is partition `id` currently shown as a ring, from the disk picker's point of
+// view (drives the checkbox `checked` state so the box reflects ring
+// visibility)? The picker only lists currently-mounted partitions, so:
+//   - a removable (id in removableIds) is shown UNLESS opted out (auto-show);
+//   - a fixed disk is shown iff it is manually enabled.
+// Mirrors resolveDiskRingIds' membership for a mounted partition, minus the
+// maxCount cap / default fallback (those are whole-set display concerns, not a
+// per-partition truth). The checkbox toggle is the inverse: toggling a
+// removable writes the opt-out list, a fixed disk writes the manual selection.
+function isPartitionShown(id, removableIds, enabledIds, optOutIds) {
+    if ((removableIds || []).indexOf(id) !== -1)
+        return (optOutIds || []).indexOf(id) === -1;
+    return (enabledIds || []).indexOf(id) !== -1;
+}
+
 // Mirrors MetricsCatalog.parseCsv — duplicated rather than imported because
 // the dual-load (no-pragma) .js modules can't import each other.
 function _csvIds(csv) {
@@ -291,6 +336,8 @@ if (typeof module !== "undefined" && module.exports) {
         sortByLabel: sortByLabel,
         orderPartitions: orderPartitions,
         resolveDiskRingIds: resolveDiskRingIds,
+        filterToMounted: filterToMounted,
+        isPartitionShown: isPartitionShown,
         stalePartitions: stalePartitions,
         parseLabelCache: parseLabelCache,
         serializeLabelCache: serializeLabelCache,

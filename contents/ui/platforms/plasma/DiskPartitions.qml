@@ -51,7 +51,15 @@ Item {
     Timer {
         id: settleTimer
         interval: disk.settleMs
-        onTriggered: disk._ready = true
+        onTriggered: {
+            disk._ready = true;
+            // Re-walk once the tree goes quiet: a hot-plugged partition's volume
+            // label resolves a beat after its node is inserted, with no signal we
+            // catch on the leaf walk (see _rewalk). This is what upgrades the
+            // freshly-shown `disk/<uuid>` to its friendly name without a dialog
+            // reopen. No settleTimer.restart here → no loop.
+            disk._rewalk();
+        }
     }
 
     Sensors.SensorTreeModel {
@@ -93,6 +101,19 @@ Item {
         // The tree changed → discovery is still in motion; (re)arm the settle
         // debounce so `ready` only trips once it goes quiet.
         settleTimer.restart();
+        disk._rewalk();
+    }
+
+    // Walk + update WITHOUT re-arming the settle timer. Split out so the settle
+    // tick can re-walk without looping. SCENARIO (hot-plug label): when a
+    // removable is plugged into a live tree, ksysguard inserts its node with the
+    // raw `disk/<uuid>` name and resolves the volume label ("BIOS") a beat later
+    // WITHOUT firing rowsInserted/dataChanged we'd catch — so the walk on
+    // rowsInserted captures the bare id. Re-walking once the change settles (the
+    // label has resolved by then) picks up the friendly name. A fresh tree
+    // resolves before the first walk, which is why reopening the dialog already
+    // showed the right label.
+    function _rewalk() {
         var walked = disk._walk();
         var usageIds = Catalog.classifyDiscoveredIds(walked.ids).diskPartitionUsageIds;
         var parts = [];
@@ -122,6 +143,16 @@ Item {
             disk._refresh();
         }
         function onModelReset() {
+            disk._refresh();
+        }
+        // A label resolving after insertion may surface as a data/layout change
+        // rather than a row change; re-walk on those too so the friendly name is
+        // picked up. Rare in practice (the tree model is structure, not live
+        // values), and _rewalk dedupes, so no churn.
+        function onDataChanged() {
+            disk._refresh();
+        }
+        function onLayoutChanged() {
             disk._refresh();
         }
     }

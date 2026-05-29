@@ -34,6 +34,7 @@ const BRIDGED_KEYS = [
     ["enabledPartitionsCsv", "enabledPartitions"],
     ["partitionOrderCsv", "partitionOrder"],
     ["partitionLabelsJson", "partitionLabels"],
+    ["partitionOptOutCsv", "partitionOptOut"],
     ["showCpuCores", "showCpuCores"],
     ["mergeCpuTemp", "mergeCpuTemp"],
     ["mergeGpuTemp", "mergeGpuTemp"],
@@ -82,6 +83,15 @@ test("SettingsDialog opts in to AppearanceBody.windowMarginVisible", () => {
     // Mirrors the autostartAvailable gate on AboutBody. Without this
     // line the slider would never appear for standalone users.
     assert.match(SOURCE, /windowMarginVisible\s*:\s*true/, "AppearanceBody.windowMarginVisible must be true so the Screen margin slider renders");
+});
+
+test("SettingsDialog opts in to AppearanceBody.ringSizeVisible", () => {
+    // The shared AppearanceBody also hides the Ring size slider by
+    // default: on the Plasma desktop containment the dragged frame
+    // overrides the rings' implicit size, so the slider is inert once
+    // placed. The standalone Window auto-sizes from ringSize, so the
+    // slider is meaningful there and must be flipped on.
+    assert.match(SOURCE, /ringSizeVisible\s*:\s*true/, "AppearanceBody.ringSizeVisible must be true so the Ring size slider renders on standalone");
 });
 
 test("SettingsDialog uses the pull + change-signal write-back pattern", () => {

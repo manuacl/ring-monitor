@@ -5,6 +5,7 @@ import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import RingMonitor.Standalone
 import "DiskDiscovery.js" as DiskDiscovery
+import "../../core/DiskMetrics.js" as DiskMetrics
 import "../../core" as Core
 
 // Standalone counterpart of the Plasma config dialog
@@ -97,6 +98,9 @@ Window {
         id: partitionReader
     }
     property var _diskPartitions: []
+    // Currently-mounted removable filesystems ([{id,label}]) — the auto-show set
+    // the picker uses to distinguish opt-out rows from manual-selection rows.
+    property var _removablePartitions: []
     // The $HOME-bearing filesystem — the default the picker seeds when the
     // user hasn't chosen any partition (mirrors the backend's defaultPartitionIds).
     property var _defaultPartitionIds: []
@@ -104,12 +108,20 @@ Window {
         var mounts = DiskDiscovery.parseMounts(partitionReader.read("/proc/mounts"));
         var parts = DiskDiscovery.buildPartitions(mounts, partitionReader.blockDeviceInfo());
         var out = [];
-        for (let i = 0; i < parts.length; i++)
+        var removable = [];
+        for (let i = 0; i < parts.length; i++) {
             out.push({
                 "id": parts[i].id,
                 "label": parts[i].label
             });
+            if (DiskMetrics.isRemovableMount(parts[i].mountpoint))
+                removable.push({
+                    "id": parts[i].id,
+                    "label": parts[i].label
+                });
+        }
         dialog._diskPartitions = out;
+        dialog._removablePartitions = removable;
         // Same helper as the backend so the seeded default matches the
         // widget's rendered default (incl. the first-partition fallback).
         dialog._defaultPartitionIds = DiskDiscovery.defaultOrFirst(mounts, parts, partitionReader.canonicalHome());
@@ -179,6 +191,7 @@ Window {
                     id: metricsBody
                     theme: dialog.theme
                     diskPartitions: dialog._diskPartitions
+                    removablePartitions: dialog._removablePartitions
                     defaultPartitionIds: dialog._defaultPartitionIds
                     availableMetrics: dialog.availableMetrics
                     // Standalone discovery (_refreshDiskPartitions) is synchronous
@@ -195,7 +208,7 @@ Window {
                     id: appearanceBody
                     width: appearanceScroll.availableWidth
                     colorPickerComponent: colorPickerComponent
-                    // Only the standalone host shows these two sliders:
+                    // Only the standalone host shows these three sliders:
                     //
                     //   `windowMargin` is consumed by the standalone
                     //   Window anchoring code only (plasmashell
@@ -209,10 +222,17 @@ Window {
                     //   to rings × count + spacings, so the slider
                     //   has obvious visual feedback.
                     //
+                    //   `ringSize` likewise drives the rings' implicit
+                    //   size; on the Plasma desktop containment the
+                    //   dragged frame overrides it (slider looks inert
+                    //   once placed), but the standalone Window
+                    //   auto-sizes to it, so the slider is meaningful.
+                    //
                     // Same gate convention as `autostartAvailable` on
                     // AboutBody.
                     windowMarginVisible: true
                     ringSpacingVisible: true
+                    ringSizeVisible: true
                 }
             }
 
@@ -253,7 +273,7 @@ Window {
     // standalone-settings-dialog.test.mjs text guard for that).
     readonly property var _bridgeMap: [
         // MetricsBody
-        [metricsBody, "metricOrderCsv", "metricOrder"], [metricsBody, "enabledMetricsCsv", "enabledMetrics"], [metricsBody, "enabledPartitionsCsv", "enabledPartitions"], [metricsBody, "partitionOrderCsv", "partitionOrder"], [metricsBody, "partitionLabelsJson", "partitionLabels"], [metricsBody, "showCpuCores", "showCpuCores"], [metricsBody, "mergeCpuTemp", "mergeCpuTemp"], [metricsBody, "mergeGpuTemp", "mergeGpuTemp"], [metricsBody, "tempUnit", "tempUnit"],
+        [metricsBody, "metricOrderCsv", "metricOrder"], [metricsBody, "enabledMetricsCsv", "enabledMetrics"], [metricsBody, "enabledPartitionsCsv", "enabledPartitions"], [metricsBody, "partitionOrderCsv", "partitionOrder"], [metricsBody, "partitionLabelsJson", "partitionLabels"], [metricsBody, "partitionOptOutCsv", "partitionOptOut"], [metricsBody, "showCpuCores", "showCpuCores"], [metricsBody, "mergeCpuTemp", "mergeCpuTemp"], [metricsBody, "mergeGpuTemp", "mergeGpuTemp"], [metricsBody, "tempUnit", "tempUnit"],
         // AppearanceBody
         [appearanceBody, "orientation", "orientation"], [appearanceBody, "ringSize", "ringSize"], [appearanceBody, "ringSpacingPercent", "ringSpacingPercent"], [appearanceBody, "windowMargin", "windowMargin"], [appearanceBody, "textOpacity", "textOpacity"], [appearanceBody, "trackOpacity", "trackOpacity"], [appearanceBody, "arcOpacity", "arcOpacity"], [appearanceBody, "colorTheme", "colorTheme"], [appearanceBody, "colorMode", "colorMode"], [appearanceBody, "customColorLight", "customColorLight"], [appearanceBody, "customColorDark", "customColorDark"], [appearanceBody, "textColorMode", "textColorMode"], [appearanceBody, "customTextColorLight", "customTextColorLight"], [appearanceBody, "customTextColorDark", "customTextColorDark"]]
 

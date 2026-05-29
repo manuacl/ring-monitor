@@ -5,6 +5,65 @@ someone running the widget), followed by a **Technical** section with the
 implementation detail underneath. Entries before 0.7.0 are user-facing
 only.
 
+## [0.7.1] — 2026-05-29
+
+### Added
+
+- **Removable drives now auto-show a ring on the standalone build too.**
+  Plug in a USB key or external disk and a ring appears within a couple
+  of seconds — and disappears when you unplug it — exactly like the
+  Plasma version (previously this was Plasma-only).
+
+### Changed
+
+- **The disk picker's checkbox now reflects whether the ring is shown.**
+  A plugged removable's box is **ticked** (its ring is visible) instead
+  of appearing unticked while the ring shows. Unticking it **hides** the
+  ring (and remembers your choice, so it stays hidden until you tick it
+  again); reticking brings it back. Fixed disks are unchanged. The
+  behaviour is now identical on Plasma and standalone.
+
+### Fixed
+
+- **The "Ring size" slider no longer appears in the Plasma settings,
+  where it did nothing.** On the Plasma desktop you size the widget by
+  dragging its frame, which overrides the slider — so it only ever
+  looked inert once the widget was placed. The slider stays in the
+  standalone build, where the window auto-sizes to it and it works.
+- **An unplugged disk no longer shows up as selectable in the Plasma
+  disk picker.** A drive you'd removed used to still appear as a
+  tickable filesystem in Settings (ksysguard keeps listing it for the
+  rest of the session). It now drops out of the selectable list; if you
+  had selected it, it appears as a greyed "no longer connected" row you
+  can clean up, the same as any other disconnected disk.
+
+### Technical
+
+- New `partitionOptOut` config key (CSV of UUIDs) wired through all six
+  config touch points + `MetricsBody.partitionOptOutCsv`; consumed by
+  `DiskMetrics.resolveDiskRingIds` (the opt-out arg, previously hardcoded
+  `[]`). The picker checkbox is `DiskMetrics.isPartitionShown` (new pure
+  helper); `setPartitionEnabled` is dual — removable → opt-out list, fixed
+  → manual selection. The standalone `MetricsBackend` exposes
+  `removablePartitions` + `mountedPartitionIds` (derived from its existing
+  `/proc/mounts` + `/dev/disk/by-uuid` discovery via the shared
+  `DiskMetrics.isRemovableMount`), so `resolveDiskRingIds`'s auto-show path
+  lights up there too (the `MainContent` guards already consumed them).
+- `AppearanceBody` gains a `ringSizeVisible` gate (default `false`;
+  the standalone `SettingsDialog` flips it on), mirroring
+  `ringSpacingVisible` / `windowMarginVisible`. Unlike those two, the
+  Plasma `ConfigStore` keeps `ringSize` **bound** rather than
+  hardcoded — it's a legitimate frame-overridden implicit size, not an
+  actively-wrong value to neutralise.
+- The config picker's partition list is now gated on the live `findmnt`
+  mount set via `MetricsBackend.mountedAvailablePartitions`
+  (`DiskMetrics.filterToMounted(availablePartitions, mountedPartitionIds)`);
+  `configMetrics.qml` turns `removableTrackingActive` on so the poll runs
+  while the dialog is open. This corrects the prior assumption that a
+  freshly-built `SensorTreeModel` omits an unplugged partition — the
+  staleness is at the ksystemstats daemon level, so even a fresh backend
+  lists it (#58).
+
 ## [0.7.0] — 2026-05-29
 
 ### Added
@@ -239,6 +298,7 @@ No user-visible changes.
 First public release. Plasma 6 widget rendering CPU, RAM, swap,
 GPU, and disk usage as circular ring gauges with rounded caps.
 
+[0.7.1]: https://github.com/manuacl/ring-monitor/releases/tag/v0.7.1
 [0.7.0]: https://github.com/manuacl/ring-monitor/releases/tag/v0.7.0
 [0.6.0]: https://github.com/manuacl/ring-monitor/releases/tag/v0.6.0
 [0.5.3]: https://github.com/manuacl/ring-monitor/releases/tag/v0.5.3

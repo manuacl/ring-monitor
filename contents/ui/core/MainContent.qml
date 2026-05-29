@@ -83,9 +83,9 @@ GridLayout {
     // partition's ring self-heals away even though ksysguard's tree freezes on
     // unmount (#58). `metrics.removablePartitions` / `mountedPartitionIds` exist
     // only on Plasma — the `|| []` (and undefined mountedIds) keep standalone
-    // rendering exactly as before until Phase 4 ports them. The opt-out list is
-    // `[]` until Phase 3 wires its config key. See DiskMetrics.resolveDiskRingIds.
-    readonly property var _diskSelectedIds: DiskMetrics.resolveDiskRingIds(content._manualPartitionIds, content.metrics.removablePartitions || [], [], content.metrics.defaultPartitionIds || [], Geom.DISK_MAX_RING_COUNT, content.metrics.mountedPartitionIds)
+    // rendering exactly as before until Phase 4 ports them. The opt-out list comes
+    // from configStore.partitionOptOut (parseCsv("") = []). See DiskMetrics.resolveDiskRingIds.
+    readonly property var _diskSelectedIds: DiskMetrics.resolveDiskRingIds(content._manualPartitionIds, content.metrics.removablePartitions || [], Catalog.parseCsv(content.configStore.partitionOptOut), content.metrics.defaultPartitionIds || [], Geom.DISK_MAX_RING_COUNT, content.metrics.mountedPartitionIds)
 
     columns: vertical ? 1 : count
     // Spacing between rings is configurable as a percentage of

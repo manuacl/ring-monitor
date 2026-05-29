@@ -100,16 +100,27 @@ The contract:
     (`6f45-2b2f`). Skipping the lower-case (done at the parse boundary in
     `MountInfo.js`) renders a vfat USB key's ring at 0% (no matching sensor)
     and makes the gate drop it. ext4/btrfs UUIDs are already lowercase.
-- **A long-lived `SensorTreeModel` does NOT signal an unmount.** When a
-  filesystem unmounts (USB unplug), the model fires no `rowsRemoved` /
-  `modelReset` / `layoutChanged`, the per-partition `Sensor.status` stays
-  `Ready`, and even a manual re-walk still lists the gone `disk/<uuid>` —
-  the data is frozen, not just the change signals. So you **cannot**
-  detect an unplug from the tree; source the live mounted set elsewhere
-  (`MountInfo.qml` runs `findmnt`). A *fresh* `SensorTreeModel` instance
-  discovers correctly (that's why the config dialog's freshly-built
-  backend omits an unplugged partition). Confirmed on real hardware,
-  issue #58.
+- **A `SensorTreeModel` does NOT signal an unmount — and a fresh instance
+  doesn't help.** When a filesystem unmounts (USB unplug), the model fires no
+  `rowsRemoved` / `modelReset` / `layoutChanged`, the per-partition
+  `Sensor.status` stays `Ready`, and even a manual re-walk still lists the gone
+  `disk/<uuid>` — the data is frozen, not just the change signals. The
+  staleness is at the **ksystemstats daemon** level, not just our QML model, so
+  a freshly-built `SensorTreeModel` (e.g. the config dialog's own backend)
+  **still lists the unplugged partition** within the same session — only a
+  plasmashell/daemon restart clears it. So you **cannot** detect an unplug from
+  the tree anywhere; source the live mounted set elsewhere (`MountInfo.qml`
+  runs `findmnt`). Two consumers gate on it:
+  - the rendered ring set, via `DiskMetrics.resolveDiskRingIds(…, mountedIds)`
+    (`MainContent`), so a ring self-heals away on unplug;
+  - the **config picker**, via `MetricsBackend.mountedAvailablePartitions`
+    (`= DiskMetrics.filterToMounted(availablePartitions, mountedPartitionIds)`),
+    so an unmounted-but-frozen partition drops from the selectable checkboxes
+    and, if still configured, surfaces as a greyed stale row instead of a live
+    one. `configMetrics.qml` sets `removableTrackingActive: true` so the
+    findmnt poll runs while the dialog is open.
+
+  Confirmed on real hardware, issue #58.
 
 ## Live light/dark scheme detection: `Qt.styleHints`, not Kirigami
 

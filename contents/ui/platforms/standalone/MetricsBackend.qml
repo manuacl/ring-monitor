@@ -5,6 +5,7 @@ import "MemInfoParser.js" as MemInfoParser
 import "CpuTempDiscovery.js" as CpuTemp
 import "DiskDiscovery.js" as DiskDiscovery
 import "../../core/MetricsCatalog.js" as Catalog
+import "../../core/DiskMetrics.js" as DiskMetrics
 
 // Standalone counterpart of `platforms/plasma/MetricsBackend.qml`.
 // Exposes the same public surface so the portable `core/MainContent`
@@ -144,6 +145,19 @@ Item {
             "id": p.id,
             "label": p.label
         };
+    })
+    // Currently-mounted removable filesystems (auto-show source on standalone), matching the Plasma surface.
+    readonly property var removablePartitions: (backend._partitions || []).filter(function (p) {
+        return DiskMetrics.isRemovableMount(p.mountpoint);
+    }).map(function (p) {
+        return {
+            "id": p.id,
+            "label": p.label
+        };
+    })
+    // Every currently-mounted UUID (the live mount set; /proc/mounts is always fresh on standalone).
+    readonly property var mountedPartitionIds: (backend._partitions || []).map(function (p) {
+        return p.id;
     })
     property var defaultPartitionIds: []
 

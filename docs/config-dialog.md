@@ -37,7 +37,14 @@ standalone. `partitionOrder` is the **display order** of all discovered
 partitions (CSV); first = outermost ring, last = innermost. Empty =
 alphabetical by volume label. The picker is a **`DraggableList` nested in
 the disk row** (`MetricsBody`) — drag a handle to reorder, which rewrites
-`partitionOrder`; the checkbox toggles membership in `enabledPartitions`.
+`partitionOrder`. The checkbox no longer maps 1:1 to `enabledPartitions`:
+it reflects **ring visibility** (`DiskMetrics.isPartitionShown`). A mounted
+**removable** auto-shows a ring (#60) so its box is checked by default;
+unchecking it adds the UUID to the **`partitionOptOut`** key (CSV) to hide it
+(re-checking removes it). A **fixed** disk's box still toggles
+`enabledPartitions`. Removables are kept out of `enabledPartitions` — they're
+governed by `partitionOptOut` only. Same behaviour on standalone, which now
+also auto-shows mounted removables.
 The partition list is fed by `MetricsBody.diskPartitions`, which the
 Plasma config wrapper populates from the shared `platforms/plasma/DiskPartitions.qml`
 adapter (the KCM page has no `MetricsBackend` of its own). The pair mirrors

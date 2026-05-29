@@ -48,6 +48,16 @@ Kirigami.FormLayout {
     // § AppearanceBody.
     property bool ringSpacingVisible: false
 
+    // Hidden by default (standalone SettingsDialog flips it on). `ringSize`
+    // drives the rings' implicit size, but on the Plasma desktop containment
+    // the user sizes the widget by dragging the frame — which overrides the
+    // implicit size — so the slider looks like it does nothing once placed.
+    // Unlike ringSpacing/windowMargin, the value stays bound (not hardcoded)
+    // on Plasma: it's a legitimate implicit size, just frame-overridden, not
+    // an actively-wrong value. Standalone (frameless auto-sized window) is the
+    // host where the slider has visible effect.
+    property bool ringSizeVisible: false
+
     // ── Bridged via aliases in the wrapper (cfg_orientation ↔ body.orientation, etc.) ──
     property string orientation: "horizontal"
     property int ringSize: 180
@@ -101,6 +111,7 @@ Kirigami.FormLayout {
     RowLayout {
         Kirigami.FormData.label: qsTr("Ring size:")
         Layout.fillWidth: true
+        visible: body.ringSizeVisible
 
         QQC2.Slider {
             id: ringSizeSlider

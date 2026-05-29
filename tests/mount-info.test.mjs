@@ -123,3 +123,9 @@ test("MountInfo.qml classifies through the shared helpers, not its own copy", ()
     assert.match(QML, /DiskMetrics\.isRemovableMount\s*\(/,
         "must classify removable via the shared core predicate");
 });
+
+test("MountInfo.qml keeps last-good on a failed lsblk run (no flicker to empty)", () => {
+    // A nonzero exit must not overwrite `mounted` — see review finding #2.
+    assert.match(QML, /data\["exit code"\]\s*!==\s*0/,
+        "must bail before updating when lsblk exits nonzero");
+});

@@ -47,6 +47,12 @@ Item {
         connectedSources: []
         onNewData: function (source, data) {
             lsblk.disconnectSource(source); // one-shot per poll
+            // A failed run (lsblk missing, a transient udev/sysfs error mid
+            // hotplug) comes back with a nonzero exit and empty stdout — don't
+            // let that wipe the last-good set to [] and blink every removable
+            // ring away for a cycle. A genuine "nothing mounted" still exits 0.
+            if (data["exit code"] !== 0)
+                return;
             var rows = MountInfo.parseLsblkPairs(data["stdout"] || "");
             var next = rows.map(function (r) {
                 return {

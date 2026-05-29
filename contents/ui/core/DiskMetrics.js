@@ -157,8 +157,19 @@ function resolveDiskRingIds(manualIds, removableMounts, optOutIds, defaultIds, m
             out.push(rid);
         }
     }
-    if (out.length === 0)
-        out = (defaultIds || []).slice();
+    // Empty union → platform default. Route it through the same dedup so the
+    // "deduped" contract holds on this path too; opt-out is deliberately NOT
+    // applied here (it suppresses removable auto-show, not the platform default).
+    if (out.length === 0) {
+        var def = defaultIds || [];
+        for (var d = 0; d < def.length; d++) {
+            var did = def[d];
+            if (did && !seen[did]) {
+                seen[did] = true;
+                out.push(did);
+            }
+        }
+    }
     if (typeof maxCount === "number" && maxCount >= 0)
         out = out.slice(0, maxCount);
     return out;

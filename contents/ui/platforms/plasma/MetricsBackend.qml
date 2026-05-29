@@ -158,9 +158,11 @@ Item {
         }
         return out;
     }
-    // Gate for MountInfo's lsblk poll — main.qml sets it true only while the disk
-    // ring is actually on screen (widget expanded + disk metric enabled), so a
-    // collapsed or disk-disabled widget spawns no subprocess (#59 review finding 1).
+    // Gate for MountInfo's lsblk poll — main.qml sets it true whenever the disk
+    // metric is enabled, so a widget without a disk ring spawns no subprocess
+    // (#59 review finding 1). It is intentionally NOT also gated on
+    // Plasmoid.expanded — see main.qml for why (that would break the inline
+    // desktop auto-show, where `expanded` is a popup signal and isn't reliably true).
     property bool removableTrackingActive: false
 
     // Last-good value per partition id, held across Sensor rebuilds. When the

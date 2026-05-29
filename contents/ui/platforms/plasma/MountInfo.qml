@@ -44,6 +44,16 @@ Item {
     property int pollMs: 2000
     property bool active: true
 
+    // Drop the last-good set when tracking is turned off, so a removable
+    // unplugged WHILE the disk ring was disabled can't briefly resurface as a
+    // ghost ring on re-enable (the Timer's triggeredOnStart re-scan is async, so
+    // without this the stale UUID would render for the lsblk round-trip window).
+    // Distinct from the keep-last-good-on-failed-run guard in onNewData (#59
+    // finding 2): that holds across a transient error mid-polling; this clears on
+    // an explicit deactivation, where the re-scan on reactivation refills it.
+    onActiveChanged: if (!root.active)
+        root._mounted = []
+
     // `-P` (key="value" pairs) is robust against spaces in label / mountpoint.
     readonly property string _command: "lsblk -P -o UUID,MOUNTPOINT,LABEL"
 

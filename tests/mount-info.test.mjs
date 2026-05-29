@@ -138,3 +138,12 @@ test("MountInfo.qml gates the poll Timer on `active` (no consumer ⇒ no subproc
     assert.match(QML, /running:\s*root\.active/,
         "the poll Timer's `running` must be bound to `active`, not hardcoded true");
 });
+
+test("MountInfo.qml clears the last-good set when deactivated (no ghost ring on re-enable)", () => {
+    // Phase 2 review: a removable unplugged while the disk ring was disabled
+    // must not briefly resurface on re-enable before the async re-scan returns.
+    assert.match(QML, /onActiveChanged:/,
+        "must react to `active` changes");
+    assert.match(QML, /onActiveChanged:[\s\S]{0,80}root\._mounted\s*=\s*\[\]/,
+        "deactivation must clear _mounted to []");
+});

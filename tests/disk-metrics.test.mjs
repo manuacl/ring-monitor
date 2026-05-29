@@ -258,6 +258,11 @@ test("resolveDiskRingIds: empty union falls back to defaultIds", () => {
     assert.deepEqual(out, ["home-fs"]);
 });
 
+test("resolveDiskRingIds: default fallback is deduped (contract holds on the empty-union path)", () => {
+    const out = Disk.resolveDiskRingIds([], [], [], ["d", "d", "e"], MAX);
+    assert.deepEqual(out, ["d", "e"]);
+});
+
 test("resolveDiskRingIds: a present member skips the default fallback", () => {
     const out = Disk.resolveDiskRingIds([], [{ id: "usb-1" }], [], ["home-fs"], MAX);
     assert.deepEqual(out, ["usb-1"]);

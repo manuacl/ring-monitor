@@ -18,13 +18,29 @@ dialog (drag to reorder, click to toggle).
 
 ## Install
 
-### KDE Plasma 6
+### KDE Plasma 6 (recommended: KDE Store)
+
+The easiest way — no terminal, and Plasma will offer updates:
+
+1. Right-click the desktop or a panel → **Add Widgets…**
+2. Click **Get New Widgets… → Download New Plasma Widgets**.
+3. Search for **Ring Monitor**, then **Install**.
+
+It's then available in the **Add Widgets** panel. The widget is published
+on the KDE Store at <https://www.opendesktop.org/p/2360410> — you can also
+browse the page there directly.
+
+#### Manual install (from source)
+
+If you've cloned the repo (e.g. to run an unreleased version), install the
+package straight from the working tree:
 
 ```bash
 kpackagetool6 -t Plasma/Applet -i .
 ```
 
-Then add "Ring Monitor" via Plasma's "Add Widgets" panel.
+Then add "Ring Monitor" via Plasma's "Add Widgets" panel. Use
+`kpackagetool6 -t Plasma/Applet -u .` to update an existing install.
 
 ### Standalone (non-KDE desktops)
 

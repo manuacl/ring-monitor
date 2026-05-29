@@ -49,11 +49,24 @@ test("DiskPartitions exposes a debounced `ready` settle signal", () => {
     assert.match(SOURCE, /readonly\s+property\s+bool\s+ready/, "must expose a readonly bool `ready`");
     assert.match(SOURCE, /Timer\s*{/, "must use a Timer to debounce the settle");
     assert.match(SOURCE, /settleTimer\.restart\(\)/, "_refresh must restart the settle timer on each tree change");
-    assert.match(SOURCE, /onTriggered:\s*disk\._ready\s*=\s*true/, "the timer must latch _ready true when the tree goes quiet");
+    assert.match(SOURCE, /onTriggered:\s*{[\s\S]*?disk\._ready\s*=\s*true/, "the timer must latch _ready true when the tree goes quiet");
 });
 
 test("DiskPartitions imports no path to a sibling platforms dir (isolation)", () => {
     // It lives in platforms/plasma/ and may import core/ helpers, but must
     // not reach into platforms/standalone.
     assert.doesNotMatch(SOURCE, /platforms\/standalone/, "must not import the standalone adapter dir");
+});
+
+test("SCENARIO hot-plug label: re-walks after the change settles + on data/layout changes", () => {
+    // A removable plugged into a live tree gets its volume label resolved a beat
+    // after its node is inserted, with no rowsInserted/value signal — so the walk
+    // on insertion captures the bare `disk/<uuid>` id. The settle tick must
+    // re-walk (picking up the now-resolved label), and we also listen to
+    // data/layout changes in case ksysguard surfaces the resolution that way.
+    // Without this, the picker shows the raw sensor id until the dialog is reopened.
+    assert.match(SOURCE, /onTriggered:\s*{[\s\S]*?_ready\s*=\s*true[\s\S]*?_rewalk\(\)/, "settleTimer must re-walk after marking ready (catch the late-resolved label)");
+    assert.match(SOURCE, /function\s+_rewalk\s*\(/, "must split the walk into _rewalk() so the settle tick can re-walk without re-arming the timer (no loop)");
+    assert.match(SOURCE, /function\s+onDataChanged\s*\(\)\s*{\s*disk\._refresh\(\)/, "must re-refresh on tree dataChanged");
+    assert.match(SOURCE, /function\s+onLayoutChanged\s*\(\)\s*{\s*disk\._refresh\(\)/, "must re-refresh on tree layoutChanged");
 });

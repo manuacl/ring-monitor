@@ -137,6 +137,32 @@ Item {
     readonly property bool partitionsReady: diskPartitions.ready
     readonly property var defaultPartitionIds: []
 
+    // Live mounted-removable set (USB keys, SD cards), [{id, label}] keyed by
+    // UUID — the data ksysguard can't give us (no mountpoint / removable flag)
+    // and which freezes on unmount (#58). Sourced from MountInfo's lsblk poll,
+    // gated by removableTrackingActive. MainContent unions it with the manual
+    // selection via DiskMetrics.resolveDiskRingIds, so a plugged key auto-shows a
+    // ring and an unplugged one self-heals away with no trip through Settings.
+    // The per-ring VALUE still comes from partitionValue(id): while a removable
+    // is mounted ksysguard does expose its disk/<uuid>/usedPercent sensor (only
+    // the set/unmount detection froze, which MountInfo sidesteps).
+    readonly property var removablePartitions: {
+        var out = [];
+        var m = mountInfo.mounted;
+        for (var i = 0; i < m.length; i++) {
+            if (m[i].removable)
+                out.push({
+                    "id": m[i].uuid,
+                    "label": m[i].label
+                });
+        }
+        return out;
+    }
+    // Gate for MountInfo's lsblk poll — main.qml sets it true only while the disk
+    // ring is actually on screen (widget expanded + disk metric enabled), so a
+    // collapsed or disk-disabled widget spawns no subprocess (#59 review finding 1).
+    property bool removableTrackingActive: false
+
     // Last-good value per partition id, held across Sensor rebuilds. When the
     // partition set changes (USB plug/unplug) the Instantiator recreates ALL
     // disk Sensors, which read 0 until their first ksysguard sample — without
@@ -374,6 +400,13 @@ Item {
     // per partition so partitionValue(id) reads the current usedPercent.
     DiskPartitions {
         id: diskPartitions
+    }
+
+    // Live mounted/removable set (lsblk via plasma5support) — drives
+    // removablePartitions above. Polls only while removableTrackingActive.
+    MountInfo {
+        id: mountInfo
+        active: backend.removableTrackingActive
     }
 
     property int _diskTick: 0

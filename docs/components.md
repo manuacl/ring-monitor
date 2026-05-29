@@ -640,6 +640,8 @@ per-GPU temperature, per-GPU usage).
 | `partitionsReady` (readonly property bool) | Plasma only: forwards `DiskPartitions.ready` — false until the incremental `SensorTreeModel` walk settles. The config picker gates its destructive stale-row removal on it (issue #49). |
 | `defaultPartitionIds` (readonly property var) | partition ids to show when the user has selected none — `[]` on Plasma (falls back to the `disk/all` aggregate ring); the `$HOME`-bearing filesystem on standalone |
 | `partitionValue(id)` (function) | latest 0–100 usage % for one discovered partition (Plasma: a live `disk/<uuid>/usedPercent` sensor; standalone: a **non-blocking** read of the last-good `statvfs` of the partition's representative mountpoint — see the async note below). Requesting an id also subscribes it to refreshes, so only the selected partitions are probed. |
+| `removablePartitions` (readonly property var) | Plasma only (Phase 2, [#58](https://github.com/manuacl/ring-monitor/issues/58)): `[{id, label}]` of the **currently-mounted removable** filesystems (USB keys, SD cards), sourced from `MountInfo` (lsblk) rather than ksysguard. `MainContent` unions it with the manual selection via `DiskMetrics.resolveDiskRingIds`, so a plugged key auto-shows a ring and an unplugged one self-heals away with no trip through Settings. The per-ring value still flows through `partitionValue(id)` (ksysguard exposes the sensor while mounted; only set/unmount detection froze, which `MountInfo` sidesteps). Absent on standalone until Phase 4 — `MainContent` guards with `\|\| []`. |
+| `removableTrackingActive` (property bool) | Plasma only: gate for the `MountInfo` lsblk poll. `main.qml` sets it `true` only while the disk ring is enabled, so a disk-disabled widget spawns no subprocess ([#59](https://github.com/manuacl/ring-monitor/pull/59) review finding 1). Deliberately **not** also gated on `Plasmoid.expanded` — with `preferredRepresentation: fullRepresentation` the rings draw inline on the desktop where `expanded` (a popup signal) is not reliably true, which would break auto-show there. |
 
 The disk-partition discovery on Plasma lives in a separate reusable
 adapter, `platforms/plasma/DiskPartitions.qml` (its own
@@ -727,6 +729,11 @@ parses it with [`MountInfo.js`](logic-modules.md#mountinfojs)'s
 |---|---|
 | `mounted` (readonly property var) | `[{uuid, label, mountpoint, removable}]`, one per mounted filesystem with a UUID. `uuid` is ksysguard's `disk/<uuid>` key, so a consumer joins this onto the per-partition sensors to know which are removable / currently mounted. |
 | `pollMs` (property int) | re-scan cadence (default 2000) — the unplug-detection latency. |
+| `active` (property bool) | when `false` the poll `Timer` is stopped, so no `lsblk` subprocess runs. `MetricsBackend` drives it from `removableTrackingActive` (true only while the disk ring is enabled), so a disk-disabled widget spawns nothing ([#59](https://github.com/manuacl/ring-monitor/pull/59) review finding 1). |
+
+`MetricsBackend` consumes `mounted` (filtered to `removable`) as its
+`removablePartitions` surface — see that section for how `MainContent`
+unions it into the rendered ring set.
 
 Reading mount state ourselves is also what makes removable rings
 **self-heal on unplug** (issue #58): the long-lived ksysguard

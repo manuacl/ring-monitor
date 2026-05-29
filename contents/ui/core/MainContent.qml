@@ -71,16 +71,18 @@ GridLayout {
     readonly property var _orderedPartitionIds: DiskMetrics.orderPartitions(content.configStore.partitionOrder, content.metrics.availablePartitions || []).map(function (p) {
         return p.id;
     })
-    readonly property var _diskSelectedIds: {
-        // Enabled ∩ ordered (filterByOrder keeps the display order). Empty
-        // selection → the platform default ($HOME FS / aggregate). Capped at
-        // DISK_MAX_RING_COUNT so the concentric stack stays readable and every
-        // radius stays positive at the minimum ringSize.
-        var sel = Catalog.filterByOrder(Catalog.parseCsv(content.configStore.enabledPartitions), content._orderedPartitionIds);
-        if (sel.length === 0)
-            sel = content.metrics.defaultPartitionIds || [];
-        return sel.slice(0, Geom.DISK_MAX_RING_COUNT);
-    }
+    // The user's explicit checkbox selection, in display order (enabled ∩
+    // ordered; filterByOrder keeps the order).
+    readonly property var _manualPartitionIds: Catalog.filterByOrder(Catalog.parseCsv(content.configStore.enabledPartitions), content._orderedPartitionIds)
+    // Final disk-ring set = manual selection ∪ currently-mounted removable media
+    // (auto-show), minus opt-outs, falling back to the platform default when
+    // empty ($HOME FS on standalone, [] = aggregate on Plasma), capped at
+    // DISK_MAX_RING_COUNT so the concentric stack stays readable and every radius
+    // stays positive at the minimum ringSize. `metrics.removablePartitions`
+    // exists only on Plasma — the `|| []` keeps standalone rendering exactly as
+    // before until Phase 4 ports it. The opt-out list is `[]` until Phase 3 wires
+    // its config key. See DiskMetrics.resolveDiskRingIds + issue #58.
+    readonly property var _diskSelectedIds: DiskMetrics.resolveDiskRingIds(content._manualPartitionIds, content.metrics.removablePartitions || [], [], content.metrics.defaultPartitionIds || [], Geom.DISK_MAX_RING_COUNT)
 
     columns: vertical ? 1 : count
     // Spacing between rings is configurable as a percentage of

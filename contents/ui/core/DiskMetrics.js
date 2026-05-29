@@ -18,6 +18,13 @@
 //   orderPartitions(savedOrderCsv, available)
 //                                       - saved order first, then newly-
 //                                         discovered appended alphabetically.
+//   resolveDiskRingIds(manualIds, removableMounts, optOutIds, defaultIds, maxCount)
+//                                       - the final ordered set of disk rings to
+//                                         draw: the manual selection unioned with
+//                                         the currently-mounted removable media
+//                                         (auto-show), minus user opt-outs,
+//                                         falling back to defaultIds when empty,
+//                                         capped at maxCount.
 //   stalePartitions(enabledCsv, orderCsv, discovered, labelCacheJson)
 //                                       - configured ids no longer present
 //                                         (unplugged), each {id, label}.
@@ -110,6 +117,51 @@ function orderPartitions(savedOrderCsv, available) {
             rest.push(available[k]);
     }
     return out.concat(sortByLabel(rest));
+}
+
+// The final ordered set of disk-partition ring ids to render. The manual
+// selection (the user's explicit checkboxes, already filtered to display order
+// by MetricsCatalog.filterByOrder) comes first; then every currently-mounted
+// removable filesystem not already manually selected and not in the user's
+// opt-out set is appended (the auto-show). An empty union falls back to
+// defaultIds — the platform default ([] = aggregate ring on Plasma, the $HOME
+// filesystem on standalone). Capped at maxCount so the concentric stack stays
+// readable. Order-preserving and deduped.
+//
+// removableMounts is the live mounted-removable set ([{id, label}], id = the
+// UUID) the platform's MountInfo discovers; optOutIds are UUIDs the user hid
+// despite being mounted (a Phase 3 override — empty until that lands). Driving
+// the removable members off the live mount set (not ksysguard) is what makes the
+// ring self-heal on unplug: see contents/ui/platforms/plasma/MountInfo.qml and
+// issue #58.
+function resolveDiskRingIds(manualIds, removableMounts, optOutIds, defaultIds, maxCount) {
+    manualIds = manualIds || [];
+    removableMounts = removableMounts || [];
+    var optOut = {};
+    var optList = optOutIds || [];
+    for (var o = 0; o < optList.length; o++)
+        optOut[optList[o]] = true;
+    var seen = {};
+    var out = [];
+    for (var i = 0; i < manualIds.length; i++) {
+        var mid = manualIds[i];
+        if (mid && !seen[mid]) {
+            seen[mid] = true;
+            out.push(mid);
+        }
+    }
+    for (var j = 0; j < removableMounts.length; j++) {
+        var rid = removableMounts[j] && removableMounts[j].id;
+        if (rid && !seen[rid] && !optOut[rid]) {
+            seen[rid] = true;
+            out.push(rid);
+        }
+    }
+    if (out.length === 0)
+        out = (defaultIds || []).slice();
+    if (typeof maxCount === "number" && maxCount >= 0)
+        out = out.slice(0, maxCount);
+    return out;
 }
 
 // Mirrors MetricsCatalog.parseCsv — duplicated rather than imported because
@@ -208,6 +260,7 @@ if (typeof module !== "undefined" && module.exports) {
         averagePercent: averagePercent,
         sortByLabel: sortByLabel,
         orderPartitions: orderPartitions,
+        resolveDiskRingIds: resolveDiskRingIds,
         stalePartitions: stalePartitions,
         parseLabelCache: parseLabelCache,
         serializeLabelCache: serializeLabelCache,

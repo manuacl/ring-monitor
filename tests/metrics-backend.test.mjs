@@ -20,7 +20,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms", "plasma", "MetricsBackend.qml"), "utf8");
 
 // Public surface main.qml consumes.
-const PUBLIC_PROPS = ["coreValues", "loading", "availableMetrics", "availablePartitions", "defaultPartitionIds"];
+const PUBLIC_PROPS = ["coreValues", "loading", "availableMetrics", "availablePartitions", "defaultPartitionIds", "removablePartitions", "removableTrackingActive"];
 const PUBLIC_FUNCS = ["metricValue", "metricRawTemp", "metricTempPercent", "partitionValue"];
 
 // Universal-id sensor instances — sensors whose ksysguard id is the
@@ -153,6 +153,19 @@ test("MetricsBackend forwards DiskPartitions.ready as partitionsReady", () => {
     // SensorTreeModel walk populates incrementally, so a non-empty partition
     // list does not mean discovery is complete (issue #49 review).
     assert.match(SOURCE, /partitionsReady:\s*diskPartitions\.ready/, "must forward diskPartitions.ready as partitionsReady");
+});
+
+test("MetricsBackend exposes a live removable-mount set gated by removableTrackingActive", () => {
+    // Auto-show of USB rings (#58 Phase 2): the removable set comes from
+    // MountInfo (lsblk), NOT ksysguard, so it self-heals on unplug. The
+    // VALUE per ring still flows through the ksysguard partitionValue path —
+    // MountInfo only governs the SET. The poll is gated so a disk-disabled
+    // widget spawns no subprocess (#59 review finding 1).
+    assert.match(SOURCE, /MountInfo\s*{/, "must instantiate the MountInfo lsblk adapter");
+    assert.match(SOURCE, /active:\s*backend\.removableTrackingActive/, "MountInfo.active must be driven by removableTrackingActive (the poll gate)");
+    assert.match(SOURCE, /property\s+var\s+removablePartitions\s*:/, "must declare removablePartitions");
+    assert.match(SOURCE, /mountInfo\.mounted/, "removablePartitions must derive from mountInfo.mounted");
+    assert.match(SOURCE, /\.removable\b/, "removablePartitions must filter on the removable flag");
 });
 
 test("availableMetrics gates each metric on its Sensor reaching Ready", () => {

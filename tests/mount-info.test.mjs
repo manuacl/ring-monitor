@@ -129,3 +129,12 @@ test("MountInfo.qml keeps last-good on a failed lsblk run (no flicker to empty)"
     assert.match(QML, /data\["exit code"\]\s*!==\s*0/,
         "must bail before updating when lsblk exits nonzero");
 });
+
+test("MountInfo.qml gates the poll Timer on `active` (no consumer ⇒ no subprocess)", () => {
+    // #59 review finding #1: the lsblk poll must be suppressible so a
+    // disk-disabled widget spawns nothing. The backend drives `active`.
+    assert.match(QML, /property\s+bool\s+active\s*:/,
+        "must expose a bool `active` gate");
+    assert.match(QML, /running:\s*root\.active/,
+        "the poll Timer's `running` must be bound to `active`, not hardcoded true");
+});

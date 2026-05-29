@@ -213,3 +213,80 @@ test("isRemovableMount: empty / non-string → false", () => {
     assert.equal(Disk.isRemovableMount(undefined), false);
     assert.equal(Disk.isRemovableMount(42), false);
 });
+
+// ── resolveDiskRingIds ──────────────────────────────────────────────
+// The final disk-ring set: manual selection ∪ mounted removable (− opt-out),
+// default fallback when empty, capped at maxCount. removableMounts is [{id,…}].
+
+const MAX = 6;
+
+test("resolveDiskRingIds: manual selection only → unchanged, order preserved", () => {
+    const out = Disk.resolveDiskRingIds(["a", "b"], [], [], [], MAX);
+    assert.deepEqual(out, ["a", "b"]);
+});
+
+test("resolveDiskRingIds: a mounted removable auto-shows even with no manual selection", () => {
+    const out = Disk.resolveDiskRingIds([], [{ id: "usb-1", label: "BIOS" }], [], [], MAX);
+    assert.deepEqual(out, ["usb-1"]);
+});
+
+test("resolveDiskRingIds: manual first, then removable appended", () => {
+    const out = Disk.resolveDiskRingIds(["home", "data"], [{ id: "usb-1" }], [], [], MAX);
+    assert.deepEqual(out, ["home", "data", "usb-1"]);
+});
+
+test("resolveDiskRingIds: a manually-selected removable is not double-counted", () => {
+    // The user explicitly checked the USB AND it is mounted-removable — it must
+    // appear once (in its manual position), not twice.
+    const out = Disk.resolveDiskRingIds(["usb-1", "home"], [{ id: "usb-1" }], [], [], MAX);
+    assert.deepEqual(out, ["usb-1", "home"]);
+});
+
+test("resolveDiskRingIds: an opted-out removable is suppressed from the auto-show", () => {
+    const out = Disk.resolveDiskRingIds([], [{ id: "usb-1" }, { id: "usb-2" }], ["usb-1"], [], MAX);
+    assert.deepEqual(out, ["usb-2"]);
+});
+
+test("resolveDiskRingIds: opt-out does not hide a manually-selected partition", () => {
+    // Manual selection wins — opt-out only governs the auto-show of removables.
+    const out = Disk.resolveDiskRingIds(["usb-1"], [{ id: "usb-1" }], ["usb-1"], [], MAX);
+    assert.deepEqual(out, ["usb-1"]);
+});
+
+test("resolveDiskRingIds: empty union falls back to defaultIds", () => {
+    const out = Disk.resolveDiskRingIds([], [], [], ["home-fs"], MAX);
+    assert.deepEqual(out, ["home-fs"]);
+});
+
+test("resolveDiskRingIds: a present member skips the default fallback", () => {
+    const out = Disk.resolveDiskRingIds([], [{ id: "usb-1" }], [], ["home-fs"], MAX);
+    assert.deepEqual(out, ["usb-1"]);
+});
+
+test("resolveDiskRingIds: capped at maxCount (manual + removable overflow)", () => {
+    const removable = [{ id: "r1" }, { id: "r2" }, { id: "r3" }, { id: "r4" }, { id: "r5" }];
+    const out = Disk.resolveDiskRingIds(["m1", "m2"], removable, [], [], 6);
+    assert.deepEqual(out, ["m1", "m2", "r1", "r2", "r3", "r4"]);
+    assert.equal(out.length, 6);
+});
+
+test("resolveDiskRingIds: dedups repeated ids within the manual list", () => {
+    const out = Disk.resolveDiskRingIds(["a", "a", "b"], [], [], [], MAX);
+    assert.deepEqual(out, ["a", "b"]);
+});
+
+test("resolveDiskRingIds: tolerates null/undefined inputs", () => {
+    assert.deepEqual(Disk.resolveDiskRingIds(null, null, null, null, MAX), []);
+    assert.deepEqual(Disk.resolveDiskRingIds(undefined, undefined, undefined, undefined, undefined), []);
+});
+
+test("resolveDiskRingIds: drops falsy / id-less removable entries", () => {
+    const out = Disk.resolveDiskRingIds([], [{ id: "" }, null, { label: "x" }, { id: "ok" }], [], [], MAX);
+    assert.deepEqual(out, ["ok"]);
+});
+
+test("resolveDiskRingIds: omitted maxCount returns the full union (no cap)", () => {
+    const removable = [{ id: "r1" }, { id: "r2" }, { id: "r3" }, { id: "r4" }, { id: "r5" }, { id: "r6" }, { id: "r7" }];
+    const out = Disk.resolveDiskRingIds([], removable, [], []);
+    assert.equal(out.length, 7);
+});

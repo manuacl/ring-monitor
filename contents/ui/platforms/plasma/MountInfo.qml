@@ -30,6 +30,11 @@ import "../../core/DiskMetrics.js" as DiskMetrics
 //   readonly property var mounted  - [{uuid, label, mountpoint, removable}],
 //                                    one per mounted filesystem with a UUID.
 //   property int pollMs            - re-scan cadence (unplug-detection latency).
+//   property bool active           - when false the poll Timer is stopped, so no
+//                                    lsblk subprocess runs. The consumer gates
+//                                    this on "is the disk ring actually on
+//                                    screen" so a collapsed / disk-disabled
+//                                    widget spawns nothing (#59 review finding 1).
 
 Item {
     id: root
@@ -37,6 +42,7 @@ Item {
     readonly property var mounted: _mounted
     property var _mounted: []
     property int pollMs: 2000
+    property bool active: true
 
     // `-P` (key="value" pairs) is robust against spaces in label / mountpoint.
     readonly property string _command: "lsblk -P -o UUID,MOUNTPOINT,LABEL"
@@ -70,8 +76,8 @@ Item {
     Timer {
         interval: root.pollMs
         repeat: true
-        running: true
-        triggeredOnStart: true
+        running: root.active
+        triggeredOnStart: true // re-scan immediately when tracking (re)activates
         onTriggered: lsblk.connectSource(root._command)
     }
 }

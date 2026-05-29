@@ -126,6 +126,23 @@ page, so the assignments land somewhere instead of polluting the
 journal. Full discussion in
 [`docs/config-dialog.md`](../../../docs/config-dialog.md).
 
+### Adding a persisted config key: six touch points
+
+A new `<entry>` in `contents/config/main.xml` is not enough — the key
+has to land in **all six** of these or one platform silently uses a
+different value (or the standalone build never reads it):
+
+1. `contents/config/main.xml` — the `<entry>` + default (source of truth).
+2. `platforms/plasma/ConfigStore.qml` — `readonly property X: Plasmoid.configuration.X`.
+3. `platforms/standalone/ConfigStore.qml` — `property X: <default>` (mirror the default byte-for-byte).
+4. `configMetrics.qml` (or the owning page) — `property alias cfg_X: body.X` + the `cfg_XDefault` placeholder.
+5. `configAppearance.qml` (and any other page) — `cfg_X` + `cfg_XDefault` 484541 placeholders.
+6. `platforms/standalone/SettingsDialog.qml` — a `_bridgeMap` entry `[body, "X", "X"]` (+ the pair in `standalone-settings-dialog.test.mjs`).
+
+The `config-store` / `standalone-config-store` / `standalone-settings-dialog`
+drift tests enforce 2/3/6, but only once run — work the list top-to-bottom
+when adding the key (forgetting the **Plasma** ConfigStore is the easy miss).
+
 ### Config dialog has its own qmlcache
 
 If a QML change to a config page doesn't seem to take effect after

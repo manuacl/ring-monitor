@@ -12,8 +12,6 @@
 // (layer-shell-qt) lands in a follow-up PR. See
 // `docs/plasma-isolation/plan.md` "Window model" and
 // `contents/ui/platforms/standalone/CLAUDE.md`.
-//
-// Metric rendering arrives with PR D / E.
 
 #include "desktop_hints.h"
 
@@ -85,15 +83,12 @@ int main(int argc, char *argv[])
     QGuiApplication::setApplicationVersion(QStringLiteral(RING_MONITOR_VERSION));
 
     QQmlApplicationEngine engine;
-    // Recovery mode loads a minimal QML root that only hosts the
-    // SettingsDialog; normal mode loads the full widget. The two
-    // roots are physically separate files (no `_settingsOnly` flag
-    // threaded through Main.qml).
+    // Two physically separate roots (no `_settingsOnly` flag threaded
+    // through Main.qml): recovery mode hosts only the SettingsDialog.
     const char *qmlRoot = openSettings ? "SettingsOnlyRoot" : "Main";
     engine.loadFromModule("RingMonitor.Standalone", qmlRoot);
 
-    // engine.rootObjects().isEmpty() is the canonical "QML failed to
-    // load" check. Bail with non-zero so a wrapper script knows.
+    // Bail non-zero so a wrapper script knows QML failed to load.
     if (engine.rootObjects().isEmpty())
         return 1;
 

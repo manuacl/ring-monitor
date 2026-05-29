@@ -6,8 +6,7 @@ import org.kde.kquickcontrols as KQuickControls
 // org.kde.kquickcontrols directly. A standalone build ships a parallel
 // ColorPicker.qml backed by a plain Button + QtQuick.Dialogs.ColorDialog.
 //
-// Surface: re-exposes the `color` property of ColorButton and forces
-// showAlphaChannel=false (the rings already have arcOpacity for that).
+// showAlphaChannel is forced off — the rings already have arcOpacity for that.
 KQuickControls.ColorButton {
     showAlphaChannel: false
 }

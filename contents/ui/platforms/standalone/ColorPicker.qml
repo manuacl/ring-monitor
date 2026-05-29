@@ -13,10 +13,6 @@ import QtQuick.Dialogs as QtDialogs
 //   - `accepted` signal fired when the user confirms a new colour
 // The two-way binding in core/AppearanceBody.qml works against this
 // surface unchanged.
-//
-// Visual: a 32×24 swatch button whose background mirrors the current
-// colour. Clicking opens the modal native picker; on accept, the new
-// colour is written back to `color` and the `accepted` signal fires.
 
 QQC2.AbstractButton {
     id: root
@@ -38,10 +34,9 @@ QQC2.AbstractButton {
 
     QtDialogs.ColorDialog {
         id: dialog
-        // showAlphaChannel default in QtDialogs.ColorDialog is false
-        // (matches the KQuickControls.ColorButton config), so the
-        // user can't pick a transparency value that would conflict
-        // with the rings' arcOpacity setting.
+        // showAlphaChannel defaults false here (matches the Plasma
+        // ColorButton): no transparency value that would conflict with
+        // the rings' arcOpacity.
         selectedColor: root.color
         onAccepted: {
             root.color = dialog.selectedColor;

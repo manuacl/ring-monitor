@@ -34,12 +34,11 @@ bool NvmlReader::ensureInit()
 {
     if (_ready)
         return true;
-    // Bounded retry (see header): the driver / libnvidia-ml can load a few
-    // seconds after autostart, so re-attempt for kMaxInitAttempts ticks,
-    // then latch off (a non-NVIDIA host must NOT dlopen every tick for the
-    // whole session). qWarning only on the FINAL attempt — so a permanently
-    // GPU-less host logs exactly once after the window, and a late-loading
-    // driver that eventually succeeds logs nothing.
+    // Bounded retry (see header): the driver can load seconds after
+    // autostart, so re-attempt for kMaxInitAttempts ticks then latch
+    // off — a non-NVIDIA host must not dlopen every tick all session.
+    // qWarning only on the FINAL attempt: a GPU-less host logs once, a
+    // late-loading driver that eventually succeeds logs nothing.
     if (_initAttempts >= kMaxInitAttempts)
         return false;
     const bool lastAttempt = (++_initAttempts >= kMaxInitAttempts);

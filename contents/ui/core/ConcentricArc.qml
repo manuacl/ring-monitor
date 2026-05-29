@@ -19,7 +19,7 @@ Item {
 
     property real radius: 0
     property real stroke: 0
-    property real value: 0            // 0-100, drives the sweep
+    property real value: 0
     property color ringColor: "#3daee9"
     property real trackOpacity: 0.15
     property real arcOpacity: 1.0

@@ -7,19 +7,10 @@ import org.kde.kirigami as Kirigami
 // standalone build can reuse it verbatim — the Plasma wrapper
 // (configAbout.qml) bridges cfg_* magic to plain properties and feeds
 // the UpdateChecker.
-//
-// Layout (top → bottom):
-//   1. Widget name + current version
-//   2. Update status block (if checks enabled): "Up to date" or
-//      "Update v0.5.0 available" with [Open release] [Got it] buttons
-//   3. Installation methods — three subsections (KDE Store / from
-//      source / KNewStuff in System Settings)
-//   4. Settings — "Check for updates automatically" toggle
 
 Kirigami.FormLayout {
     id: body
 
-    // ── Inputs ──────────────────────────────────────────────────────
     // localVersion comes from Plasmoid.metaData via the wrapper;
     // updateAvailable / remoteVersion come from the shared
     // UpdateChecker instance the wrapper passes in.
@@ -28,7 +19,6 @@ Kirigami.FormLayout {
     property bool updateAvailable: false
     property bool checkForUpdatesEnabled: true
 
-    // ── Autostart (standalone-only) ─────────────────────────────────
     // Plasma users get auto-launch via plasmashell, so the wrapper
     // leaves `autostartAvailable: false` and the toggle stays hidden.
     // Standalone wires `true` + the current state — see the
@@ -36,20 +26,17 @@ Kirigami.FormLayout {
     property bool autostartAvailable: false
     property bool autostartEnabled: false
 
-    // ── Outputs (parent wires these into the UpdateChecker / config) ─
     signal acknowledgeClicked
     signal openStorePageClicked
     signal checkForUpdatesToggled(bool on)
     signal autostartToggled(bool on)
 
-    // ── 1. Version header ───────────────────────────────────────────
     QQC2.Label {
         Kirigami.FormData.label: qsTr("Version:")
         text: body.localVersion || qsTr("unknown")
         font.family: "monospace"
     }
 
-    // ── 2. Update status ────────────────────────────────────────────
     // Distinct visual treatments for the three states so the user
     // reads at a glance: "you have something to do" vs "nothing to
     // do" vs "check disabled".
@@ -111,7 +98,6 @@ Kirigami.FormLayout {
         Kirigami.FormData.isSection: true
     }
 
-    // ── 3. Installation methods ─────────────────────────────────────
     QQC2.Label {
         Kirigami.FormData.label: qsTr("KDE Store:")
         text: qsTr("<a href=\"https://www.opendesktop.org/p/2360410\">opendesktop.org/p/2360410</a>")
@@ -148,7 +134,6 @@ Kirigami.FormLayout {
         Kirigami.FormData.isSection: true
     }
 
-    // ── 4. Settings ─────────────────────────────────────────────────
     QQC2.CheckBox {
         id: checkBox
         Kirigami.FormData.label: qsTr("Updates:")

@@ -21,8 +21,8 @@ import "../../core/MetricsCatalog.js" as Catalog
 //
 // Backend = single `Timer` polling at 2 Hz (every 500 ms, matching the
 // Plasma ksysguard cadence) via the
-// `ProcReader` C++ helper (`/proc/stat`, `/proc/meminfo`, `statvfs`
-// on `/`), then deferring the parse + percent math to the pure
+// `ProcReader` C++ helper (`/proc/stat`, `/proc/meminfo`, async
+// `statvfs` per selected filesystem), then deferring the parse + percent math to the pure
 // modules in `core/`. Maximum work in `core/`, minimum in this
 // adapter — same rule that drove the `SensorPicking` extraction
 // (see [feedback-maximize-shared-code] memory).

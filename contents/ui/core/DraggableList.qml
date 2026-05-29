@@ -44,8 +44,8 @@ ListView {
     // ── Public API ──────────────────────────────────────────────────────
     property real rowHeight: 36
     property real rowSpacing: 4
-    property Component rowContent     // user-provided content for each row
-    property bool showHandle: true    // visual move icon on the left
+    property Component rowContent
+    property bool showHandle: true
 
     // Drag-and-drop scope key. Each row's Drag.keys and every DropArea's
     // keys are set to this, so a DraggableList only reacts to its OWN drags.

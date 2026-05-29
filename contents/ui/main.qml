@@ -34,6 +34,16 @@ PlasmoidItem {
 
     Platform.MetricsBackend {
         id: metricsAdapter
+        // Track removable media (the findmnt poll behind auto-showing USB rings)
+        // ONLY when the user has the disk ring enabled — a widget without a disk
+        // ring spawns no subprocess at all (#59 review finding 1). We deliberately
+        // do NOT also gate on Plasmoid.expanded: with preferredRepresentation =
+        // fullRepresentation the rings are drawn inline on the desktop (this
+        // widget's primary home), where `expanded` is the popup-open signal and
+        // is not reliably true — ANDing it in would break auto-show there. A 2s
+        // mount scan while a panel popup is collapsed is negligible and keeps the
+        // removable set fresh for when it is reopened.
+        removableTrackingActive: configStoreAdapter.enabledMetrics.split(",").indexOf("disk") >= 0
     }
 
     Core.UpdateChecker {

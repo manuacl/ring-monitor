@@ -18,6 +18,16 @@
 //   orderPartitions(savedOrderCsv, available)
 //                                       - saved order first, then newly-
 //                                         discovered appended alphabetically.
+//   resolveDiskRingIds(manualIds, removableMounts, optOutIds, defaultIds,
+//                      maxCount, mountedIds)
+//                                       - the final ordered set of disk rings to
+//                                         draw: the manual selection (gated on
+//                                         the live mountedIds set so an unmounted
+//                                         partition's ring self-heals away)
+//                                         unioned with the currently-mounted
+//                                         removable media (auto-show), minus user
+//                                         opt-outs, falling back to defaultIds
+//                                         when empty, capped at maxCount.
 //   stalePartitions(enabledCsv, orderCsv, discovered, labelCacheJson)
 //                                       - configured ids no longer present
 //                                         (unplugged), each {id, label}.
@@ -110,6 +120,78 @@ function orderPartitions(savedOrderCsv, available) {
             rest.push(available[k]);
     }
     return out.concat(sortByLabel(rest));
+}
+
+// The final ordered set of disk-partition ring ids to render. The manual
+// selection (the user's explicit checkboxes, already filtered to display order
+// by MetricsCatalog.filterByOrder) comes first; then every currently-mounted
+// removable filesystem not already manually selected and not in the user's
+// opt-out set is appended (the auto-show). An empty union falls back to
+// defaultIds — the platform default ([] = aggregate ring on Plasma, the $HOME
+// filesystem on standalone). Capped at maxCount so the concentric stack stays
+// readable. Order-preserving and deduped.
+//
+// removableMounts is the live mounted-removable set ([{id, label}], id = the
+// UUID) the platform's MountInfo discovers; optOutIds are UUIDs the user hid
+// despite being mounted (a Phase 3 override — empty until that lands).
+//
+// mountedIds is the live set of ALL currently-mounted UUIDs (fixed + removable,
+// from the kernel mount table). When supplied (non-empty), a MANUAL id absent
+// from it is dropped: that is the #58 self-heal — a configured partition that
+// has been unmounted (a removable unplugged) loses its ring whether it was
+// hand-checked or auto-checked, while a fixed disk (always mounted) is
+// unaffected. ksysguard's own partition list can't drive this because it FREEZES
+// on unmount (still lists the gone UUID) — only the live mount table reflects
+// reality. An empty/absent mountedIds means "no live mount data" (a real system
+// always has a root mount,
+// so empty ⇒ the poll hasn't returned yet) or a platform without mount tracking
+// (standalone today) → don't gate, so fixed-disk rings aren't hidden during the
+// startup poll window. See contents/ui/platforms/plasma/MountInfo.qml and #58.
+function resolveDiskRingIds(manualIds, removableMounts, optOutIds, defaultIds, maxCount, mountedIds) {
+    manualIds = manualIds || [];
+    removableMounts = removableMounts || [];
+    var optOut = {};
+    var optList = optOutIds || [];
+    for (var o = 0; o < optList.length; o++)
+        optOut[optList[o]] = true;
+    var mounted = null;
+    if (mountedIds && mountedIds.length > 0) {
+        mounted = {};
+        for (var k = 0; k < mountedIds.length; k++)
+            mounted[mountedIds[k]] = true;
+    }
+    var seen = {};
+    var out = [];
+    for (var i = 0; i < manualIds.length; i++) {
+        var mid = manualIds[i];
+        if (mid && !seen[mid] && (mounted === null || mounted[mid])) {
+            seen[mid] = true;
+            out.push(mid);
+        }
+    }
+    for (var j = 0; j < removableMounts.length; j++) {
+        var rid = removableMounts[j] && removableMounts[j].id;
+        if (rid && !seen[rid] && !optOut[rid]) {
+            seen[rid] = true;
+            out.push(rid);
+        }
+    }
+    // Empty union → platform default. Route it through the same dedup so the
+    // "deduped" contract holds on this path too; opt-out is deliberately NOT
+    // applied here (it suppresses removable auto-show, not the platform default).
+    if (out.length === 0) {
+        var def = defaultIds || [];
+        for (var d = 0; d < def.length; d++) {
+            var did = def[d];
+            if (did && !seen[did]) {
+                seen[did] = true;
+                out.push(did);
+            }
+        }
+    }
+    if (typeof maxCount === "number" && maxCount >= 0)
+        out = out.slice(0, maxCount);
+    return out;
 }
 
 // Mirrors MetricsCatalog.parseCsv — duplicated rather than imported because
@@ -208,6 +290,7 @@ if (typeof module !== "undefined" && module.exports) {
         averagePercent: averagePercent,
         sortByLabel: sortByLabel,
         orderPartitions: orderPartitions,
+        resolveDiskRingIds: resolveDiskRingIds,
         stalePartitions: stalePartitions,
         parseLabelCache: parseLabelCache,
         serializeLabelCache: serializeLabelCache,

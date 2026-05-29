@@ -85,13 +85,28 @@ The contract:
   bucket on the `usedPercent` leaf (excluding the `disk/all` aggregate).
   The mountpoint is **not** exposed as a sensor, which is why the disk
   multi-ring default can't match `$HOME` on Plasma (→ aggregate fallback).
+- **The mount probe is `findmnt`, not `lsblk` — and UUIDs need lower-casing.**
+  Two gotchas on `MountInfo.qml`'s live-mount probe, both cost a live-debug
+  iteration (#58):
+  - **Use `findmnt` (kernel mount table), not `lsblk` (block-device view).**
+    The self-heal gate trusts "UUID absent from the live set ⇒ unmounted". A
+    btrfs filesystem mounted only via subvolumes can make `lsblk`'s singular
+    `MOUNTPOINT` empty (row dropped) while it is genuinely mounted — `lsblk`
+    would then wrongly drop a still-mounted disk's ring. `findmnt -P -o
+    UUID,TARGET,LABEL` lists every mount, so "absent ⇒ unmounted" holds.
+  - **Lower-case the UUID.** `findmnt`/`lsblk` (via libblkid) print FAT/vfat
+    volume serials UPPERCASE (`6F45-2B2F`), but the `disk/<uuid>` sensor id —
+    and the persisted `enabledPartitions` / `partitionLabels` — is lowercase
+    (`6f45-2b2f`). Skipping the lower-case (done at the parse boundary in
+    `MountInfo.js`) renders a vfat USB key's ring at 0% (no matching sensor)
+    and makes the gate drop it. ext4/btrfs UUIDs are already lowercase.
 - **A long-lived `SensorTreeModel` does NOT signal an unmount.** When a
   filesystem unmounts (USB unplug), the model fires no `rowsRemoved` /
   `modelReset` / `layoutChanged`, the per-partition `Sensor.status` stays
   `Ready`, and even a manual re-walk still lists the gone `disk/<uuid>` —
   the data is frozen, not just the change signals. So you **cannot**
   detect an unplug from the tree; source the live mounted set elsewhere
-  (`MountInfo.qml` runs `lsblk`). A *fresh* `SensorTreeModel` instance
+  (`MountInfo.qml` runs `findmnt`). A *fresh* `SensorTreeModel` instance
   discovers correctly (that's why the config dialog's freshly-built
   backend omits an unplugged partition). Confirmed on real hardware,
   issue #58.
@@ -205,7 +220,7 @@ bypassed, but the key persists; useful for debugging).
   Reach for `console.warn` when instrumenting a widget QML file you'll
   observe via the journal.
 - **`plasma5support` `DataSource` (engine `"executable"`) runs commands
-  with the session `PATH`.** So invoke tools by bare name (`lsblk`), not
+  with the session `PATH`.** So invoke tools by bare name (`findmnt`), not
   an absolute path — see the no-absolute-path rule in the root
   [`CLAUDE.md`](../../../CLAUDE.md). Result keys are `"exit code"`,
   `"exit status"`, `"stdout"`, `"stderr"`; deliver is async (handle in

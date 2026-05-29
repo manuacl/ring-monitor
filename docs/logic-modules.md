@@ -175,18 +175,22 @@ standalone backend already gets mountpoints from `/proc/mounts` via
 `DiskDiscovery`), so per the placement rule it sits beside the Plasma
 adapter, not in `core/`.
 
-Parses the `lsblk -P -o UUID,MOUNTPOINT,LABEL` pairs output that
+Parses the `findmnt -P -o UUID,TARGET,LABEL` pairs output that
 `MountInfo.qml` runs through plasma5support. This is how the Plasma
 build learns each filesystem's mountpoint — ksysguard exposes only the
 label + `usedPercent` per UUID, never the mountpoint, so removable
 detection (auto-show / auto-check of plugged USB keys) would be
-impossible from sensors alone. lsblk's `UUID` is exactly ksysguard's
+impossible from sensors alone. findmnt's `UUID` is exactly ksysguard's
 `disk/<uuid>` key, so the parsed rows join straight onto the
-per-partition sensors.
+per-partition sensors. `findmnt` (kernel mount table) is used over
+`lsblk` (block-device view) so the set is complete — it lists btrfs
+subvolume mounts that lsblk's singular `MOUNTPOINT` can report empty,
+which matters because the live-mount self-heal gate trusts "absent ⇒
+unmounted" (see `DiskMetrics.resolveDiskRingIds`).
 
 | Function | Purpose |
 |---|---|
-| `parseLsblkPairs(stdout)` | `[{uuid, label, mountpoint}]`, one per mounted filesystem with a UUID. `-P` (key=`"value"` pairs) is used over raw columns so spaces in a label or mountpoint survive. Rows without a UUID, unmounted rows (empty mountpoint), and pseudo-mounts whose mountpoint isn't an absolute path (lsblk prints `[SWAP]` for swap) are dropped; a duplicate UUID keeps the first row. Removable classification is **not** done here — that's the shared `DiskMetrics.isRemovableMount(mountpoint)` predicate, applied by the consumer so the standalone `/proc` path classifies through the same rule. |
+| `parseMountPairs(stdout)` | `[{uuid, label, mountpoint}]`, one per mounted filesystem with a UUID. `-P` (key=`"value"` pairs) is used over raw columns so spaces in a label or target survive. The UUID is **lower-cased** to match ksysguard's keys (findmnt prints FAT/vfat serials UPPERCASE, e.g. `6F45-2B2F`, while ksysguard uses `6f45-2b2f`). Rows without a UUID (pseudo / network mounts) and rows whose target isn't an absolute path are dropped; a filesystem mounted at several targets (btrfs subvolumes, bind mounts) appears once — the first row, whose target drives the removable classification. Removable classification is **not** done here — that's the shared `DiskMetrics.isRemovableMount(mountpoint)` predicate, applied by the consumer so the standalone `/proc` path classifies through the same rule. |
 
 Covered by `tests/mount-info.test.mjs` (which also text-guards the
 `MountInfo.qml` adapter surface — its plasma5support import keeps it out
@@ -291,6 +295,7 @@ subset in display order is done with `MetricsCatalog.filterByOrder`
 |---|---|
 | `averagePercent(values)` | Mean of a 0–100 array (the centre readout for the multi-ring disk). `0` on empty or any non-finite member — never propagates NaN into the centre text. |
 | `orderPartitions(savedOrderCsv, available)` | Order the discovered partitions for the reorderable picker + ring nesting: ids in the saved CSV first (that order), then newly-discovered ones appended alphabetically by label; stale (no-longer-discovered) ids excluded — they surface separately via `stalePartitions`, not in the draggable list. Empty saved order → fully alphabetical (the default). First = outermost ring. Mirror of `MetricsCatalog.mergeWithCatalog` for the dynamic partition set. |
+| `resolveDiskRingIds(manualIds, removableMounts, optOutIds, defaultIds, maxCount, mountedIds)` | The final ordered disk-ring set rendered by `MainContent`: the manual selection (`manualIds`, already ordered) first, then each currently-mounted removable filesystem (`removableMounts = [{id,…}]`) not already selected and not in `optOutIds` (the **auto-show**), deduped; falls back to `defaultIds` when the union is empty (`[]` = aggregate ring on Plasma, the `$HOME` FS on standalone), capped at `maxCount`. `mountedIds` is the live set of ALL mounted UUIDs (from the kernel mount table via `findmnt`); when non-empty it **gates the manual ids** so an unmounted partition's ring self-heals away ([#58](https://github.com/manuacl/ring-monitor/issues/58)) — this is needed because ksysguard's own tree freezes on unmount and keeps listing the gone UUID. Empty/absent `mountedIds` (startup poll window, or standalone before Phase 4) → no gating, so fixed-disk rings aren't blanked. `optOutIds` is `[]` until Phase 3 adds its config key. |
 | `sortByLabel(partitions)` | Alphabetical (case-insensitive) sort by label, ties broken by id. The default ordering used by `orderPartitions` for the un-saved tail. |
 | `stalePartitions(enabledCsv, orderCsv, discovered, labelCacheJson)` | Configured ids no longer discovered (the disk was unplugged) — returned as `[{id, label}]`, order-CSV ids first then enabled-only, deduped. `label` comes from the cache, falling back to the bare UUID. Drives the greyed "no longer connected" rows in the picker (issue #49). |
 | `parseLabelCache` / `serializeLabelCache` / `mergeLabelCache` | The UUID→label cache backing the friendly name on stale rows. `mergeLabelCache(prev, discovered, referencedIds)` keeps the fresh discovered label, else the last-known one (so an unplugged partition keeps its name), and is **bounded to `enabled ∪ order`** so it can't grow unbounded. `serializeLabelCache` sorts keys so an unchanged cache round-trips to the same string — no spurious config write per discovery pass. |

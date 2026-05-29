@@ -137,6 +137,46 @@ Item {
     readonly property bool partitionsReady: diskPartitions.ready
     readonly property var defaultPartitionIds: []
 
+    // Live mounted-removable set (USB keys, SD cards), [{id, label}] keyed by
+    // UUID — the data ksysguard can't give us (no mountpoint / removable flag)
+    // and which freezes on unmount (#58). Sourced from MountInfo's findmnt poll,
+    // gated by removableTrackingActive. MainContent unions it with the manual
+    // selection via DiskMetrics.resolveDiskRingIds, so a plugged key auto-shows a
+    // ring and an unplugged one self-heals away with no trip through Settings.
+    // The per-ring VALUE still comes from partitionValue(id): while a removable
+    // is mounted ksysguard does expose its disk/<uuid>/usedPercent sensor (only
+    // the set/unmount detection froze, which MountInfo sidesteps).
+    readonly property var removablePartitions: {
+        var out = [];
+        var m = mountInfo.mounted;
+        for (var i = 0; i < m.length; i++) {
+            if (m[i].removable)
+                out.push({
+                    "id": m[i].uuid,
+                    "label": m[i].label
+                });
+        }
+        return out;
+    }
+    // Every currently-mounted UUID (fixed + removable) per the live findmnt poll
+    // — the authoritative "is this still mounted?" set MainContent gates the disk
+    // ring on, so a stale partition (unplugged removable) loses its ring even
+    // when it lingers in ksysguard's frozen tree (#58). Empty until the first
+    // poll returns; MainContent treats empty as "no data, don't gate".
+    readonly property var mountedPartitionIds: {
+        var ids = [];
+        var m = mountInfo.mounted;
+        for (var i = 0; i < m.length; i++)
+            ids.push(m[i].uuid);
+        return ids;
+    }
+    // Gate for MountInfo's findmnt poll — main.qml sets it true whenever the disk
+    // metric is enabled, so a widget without a disk ring spawns no subprocess
+    // (#59 review finding 1). It is intentionally NOT also gated on
+    // Plasmoid.expanded — see main.qml for why (that would break the inline
+    // desktop auto-show, where `expanded` is a popup signal and isn't reliably true).
+    property bool removableTrackingActive: false
+
     // Last-good value per partition id, held across Sensor rebuilds. When the
     // partition set changes (USB plug/unplug) the Instantiator recreates ALL
     // disk Sensors, which read 0 until their first ksysguard sample — without
@@ -374,6 +414,13 @@ Item {
     // per partition so partitionValue(id) reads the current usedPercent.
     DiskPartitions {
         id: diskPartitions
+    }
+
+    // Live mounted/removable set (findmnt via plasma5support) — drives
+    // removablePartitions above. Polls only while removableTrackingActive.
+    MountInfo {
+        id: mountInfo
+        active: backend.removableTrackingActive
     }
 
     property int _diskTick: 0

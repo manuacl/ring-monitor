@@ -168,6 +168,30 @@ rather than in `core/`. See
 [`plasma-isolation/plan.md`](plasma-isolation/plan.md) "PR A" for
 the broader rationale.
 
+## `MountInfo.js`
+
+Lives in `contents/ui/platforms/plasma/` — it's **plasma-only** (the
+standalone backend already gets mountpoints from `/proc/mounts` via
+`DiskDiscovery`), so per the placement rule it sits beside the Plasma
+adapter, not in `core/`.
+
+Parses the `lsblk -P -o UUID,MOUNTPOINT,LABEL` pairs output that
+`MountInfo.qml` runs through plasma5support. This is how the Plasma
+build learns each filesystem's mountpoint — ksysguard exposes only the
+label + `usedPercent` per UUID, never the mountpoint, so removable
+detection (auto-show / auto-check of plugged USB keys) would be
+impossible from sensors alone. lsblk's `UUID` is exactly ksysguard's
+`disk/<uuid>` key, so the parsed rows join straight onto the
+per-partition sensors.
+
+| Function | Purpose |
+|---|---|
+| `parseLsblkPairs(stdout)` | `[{uuid, label, mountpoint}]`, one per mounted filesystem with a UUID. `-P` (key=`"value"` pairs) is used over raw columns so spaces in a label or mountpoint survive. Rows without a UUID, unmounted rows (empty mountpoint), and pseudo-mounts whose mountpoint isn't an absolute path (lsblk prints `[SWAP]` for swap) are dropped; a duplicate UUID keeps the first row. Removable classification is **not** done here — that's the shared `DiskMetrics.isRemovableMount(mountpoint)` predicate, applied by the consumer so the standalone `/proc` path classifies through the same rule. |
+
+Covered by `tests/mount-info.test.mjs` (which also text-guards the
+`MountInfo.qml` adapter surface — its plasma5support import keeps it out
+of `qmltestrunner`, same as the other Plasma adapters).
+
 ## `ProcStatParser.js`
 
 Lives in `contents/ui/platforms/standalone/` — **standalone-only**
@@ -270,6 +294,7 @@ subset in display order is done with `MetricsCatalog.filterByOrder`
 | `sortByLabel(partitions)` | Alphabetical (case-insensitive) sort by label, ties broken by id. The default ordering used by `orderPartitions` for the un-saved tail. |
 | `stalePartitions(enabledCsv, orderCsv, discovered, labelCacheJson)` | Configured ids no longer discovered (the disk was unplugged) — returned as `[{id, label}]`, order-CSV ids first then enabled-only, deduped. `label` comes from the cache, falling back to the bare UUID. Drives the greyed "no longer connected" rows in the picker (issue #49). |
 | `parseLabelCache` / `serializeLabelCache` / `mergeLabelCache` | The UUID→label cache backing the friendly name on stale rows. `mergeLabelCache(prev, discovered, referencedIds)` keeps the fresh discovered label, else the last-known one (so an unplugged partition keeps its name), and is **bounded to `enabled ∪ order`** so it can't grow unbounded. `serializeLabelCache` sorts keys so an unchanged cache round-trips to the same string — no spurious config write per discovery pass. |
+| `isRemovableMount(mountpoint)` | `true` when a filesystem's mountpoint marks it as user-plugged removable media — KDE/udisks2 auto-mounts those under `/run/media/<user>/` (older / non-KDE setups: `/media/<user>/`); fixed disks mount under `/`, `/boot`, `/var`, … It's a strict prefix test (`/var/media/...` is **not** removable). The only removable signal available on Plasma (ksysguard exposes no removable flag), and the standalone `/proc/mounts` path sees the same mountpoints, so both platforms classify identically through this one helper. |
 
 Covered by `tests/disk-metrics.test.mjs`.
 

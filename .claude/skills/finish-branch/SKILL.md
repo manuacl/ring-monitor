@@ -216,6 +216,33 @@ for f in contents/ui/core/*.qml; do
 done
 ```
 
+**3d. No hardcoded absolute paths to executables.**
+
+Portability rule from CLAUDE.md § "Working rules": external tools are
+invoked by bare name so the session `PATH` resolves them — pinning a
+binary dir (`/usr/bin/lsblk`) breaks on a distro that installs it
+elsewhere, and the widget must install on any Linux. Absolute paths to
+*kernel / FHS interfaces* (`/proc`, `/sys`, `/run/media`, `/dev`, `/etc`)
+are fine and NOT matched — only the binary directories are. Motivated
+by `MountInfo.qml`'s `lsblk` call (plasma5support's executable engine
+inherits the session `PATH`, so bare resolves).
+
+Heuristic: a binary-dir prefix in source. False positives are possible
+(a legitimate `/bin/sh` shebang in a helper script, a path inside a
+comment) — re-read each match before treating it as a block.
+
+```bash
+abs=$(grep -rnE '(/usr/bin/|/usr/sbin/|/usr/local/bin/|/sbin/|/bin/)[a-zA-Z]' \
+    contents/ui/ standalone/ 2>/dev/null)
+if [ -n "$abs" ]; then
+    echo "$abs"
+    echo "FAIL: hardcoded absolute path to an executable (portability — invoke by bare name, let PATH resolve; see CLAUDE.md § Working rules)"
+    status=1
+else
+    echo "PASS: no hardcoded executable paths (portability)"
+fi
+```
+
 ### 4. Tests & docs consistent with the branch diff — auto-create missing ones
 
 The `origin/main..HEAD` diff must come with the tests and docs it

@@ -75,6 +75,17 @@ editing.
   its own `.qml` file (e.g. the `MetricRow` extraction from
   `configMetrics.qml`). Don't raise the cap. Docs (`docs/*.md`, every
   `CLAUDE.md`) are intentionally not capped.
+- **Comments: why, not what — and not a third copy.** A comment that
+  restates what the code does (or paraphrases a self-evident binding)
+  is noise; delete it and let the code + the symbol name carry it. Keep
+  comments that encode a *why the reader can't deduce*: a `SCENARIO:`
+  bug trace, a KDE/Qt bug number, a platform gotcha, a non-obvious
+  invariant. When the rationale runs longer than ~4 lines it's
+  explanation, not a rule — move it to `docs/` and leave a one-line
+  pointer (`// availability axis: see docs/components.md`), so the same
+  prose doesn't live in three places (code + `docs/` + `CLAUDE.md`).
+  This also relieves the 500-line cap above without deleting tests or
+  splitting a file.
 - **Qt docs before inventing.** For any QtQuick pattern (drag/drop,
   model/view, animations), start from
   [doc.qt.io](https://doc.qt.io/qt-6/) — especially the "Dynamic View

@@ -34,16 +34,13 @@ class Autostart : public QObject
 public:
     explicit Autostart(QObject *parent = nullptr);
 
-    // True iff the autostart .desktop file exists in the user's
-    // XDG_CONFIG_HOME/autostart/. Does not validate the Exec line
-    // against the current binary path — a stale Exec from a
-    // previous install will silently re-resolve at login time, and
-    // the user can toggle off / on to refresh it.
+    // True iff the autostart .desktop file exists. Does NOT validate
+    // its Exec line against the current binary — a stale Exec from a
+    // previous install re-resolves at login; toggle off/on to refresh.
     bool isEnabled() const;
 
-    // Creates (true) or removes (false) the autostart file. No-op
-    // if the file is already in the requested state. Emits
-    // enabledChanged() on actual transitions.
+    // Creates (true) or removes (false) the autostart file. No-op if
+    // already in the requested state.
     Q_INVOKABLE void setEnabled(bool on);
 
 signals:

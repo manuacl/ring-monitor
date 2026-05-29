@@ -27,11 +27,10 @@ import "ColorThemes.js" as ColorThemes
 Kirigami.FormLayout {
     id: body
 
-    // ── Adapter input (injected by wrapper) ─────────────────────────
-    //
-    // Surface contract: any QML item with a writable `color` property
-    // and an `accepted` signal fired when the user confirms a new
-    // colour. Both `platforms/plasma/ColorPicker.qml` and
+    // Adapter input (injected by wrapper). Surface contract: any QML
+    // item with a writable `color` property and an `accepted` signal
+    // fired when the user confirms a new colour. Both
+    // `platforms/plasma/ColorPicker.qml` and
     // `platforms/standalone/ColorPicker.qml` honour this.
     property Component colorPickerComponent
 
@@ -43,23 +42,10 @@ Kirigami.FormLayout {
     // `autostartAvailable`.
     property bool windowMarginVisible: false
 
-    // `ringSpacingPercent` IS read by `core/MainContent.qml` on both
-    // hosts (it sets the GridLayout's rowSpacing/columnSpacing), but
-    // the user-visible effect on Plasma is near-zero: the desktop
-    // plasmoid frame has a user-dragged fixed size, and the Ring
-    // delegates declare `Layout.fillWidth: true` + `Layout.fillHeight:
-    // true`, so a bigger spacing just shrinks each ring proportionally
-    // to keep the total fitting in the frame. Net visual change is
-    // dominated by the frame, not by the spacing — moving the slider
-    // looks like a no-op to the user.
-    //
-    // Same convention as `windowMarginVisible` — hide the slider by
-    // default, the standalone SettingsDialog flips it on (the
-    // standalone Window auto-sizes to rings × count + spacings along
-    // the stack axis, so spacing changes are visually obvious).
-    // Plasma's configAppearance.qml doesn't set it → slider stays
-    // hidden, the setting still has its default schema value if
-    // anyone really needs to override it from the config file.
+    // Hidden by default (standalone SettingsDialog flips it on), same gate
+    // as windowMarginVisible: the slider is a near-no-op on Plasma where the
+    // fixed frame dominates the layout. Full rationale: docs/components.md
+    // § AppearanceBody.
     property bool ringSpacingVisible: false
 
     // ── Bridged via aliases in the wrapper (cfg_orientation ↔ body.orientation, etc.) ──

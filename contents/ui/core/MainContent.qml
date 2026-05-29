@@ -63,14 +63,11 @@ GridLayout {
     readonly property bool _isDark: ColorThemes.effectiveIsDark(content.configStore.colorMode, content.theme.isDarkMode)
 
     // Disk multi-partition selection, resolved once here and shared by the
-    // disk ring delegate. The persisted CSV is intersected with the
-    // partitions the backend actually discovered; an empty result (nothing
-    // selected, or only stale ids) falls back to the platform default
+    // disk ring delegate. Partition ids in the user's configured display
+    // order (first = outermost ring); order comes from
+    // configStore.partitionOrder (default alphabetical), membership from
+    // enabledPartitions. Empty selection → the platform default
     // (the $HOME filesystem on standalone, [] = aggregate on Plasma).
-    // Partition ids in the user's configured display order (first =
-    // outermost ring), then filtered to the enabled subset. Order comes
-    // from configStore.partitionOrder (default alphabetical); membership
-    // from enabledPartitions. Empty selection → the platform default.
     readonly property var _orderedPartitionIds: DiskMetrics.orderPartitions(content.configStore.partitionOrder, content.metrics.availablePartitions || []).map(function (p) {
         return p.id;
     })

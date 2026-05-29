@@ -36,11 +36,8 @@ void forceXWaylandUnderWayland()
     // Xwayland whether it lives in /usr/bin (Debian/Fedora default)
     // or /usr/libexec (some Arch builds, NixOS profiles).
     if (QStandardPaths::findExecutable(QStringLiteral("Xwayland")).isEmpty()) {
-        // Without a diagnostic line, a user on minimal Sway/Hyprland
-        // (no `xorg-x11-server-Xwayland`) sees a floating window with
-        // no taskbar exclusion, no STICKY, no DESKTOP type, and no
-        // explanation. Emit a single warning so the failure mode is
-        // greppable in the journal / stderr.
+        // Single warning so the no-Xwayland failure mode (floating
+        // window, no EWMH hints) is greppable in the journal / stderr.
         qWarning(
             "ring-monitor: Xwayland not found on $PATH — staying on "
             "native Wayland. The Conky-style EWMH hints "

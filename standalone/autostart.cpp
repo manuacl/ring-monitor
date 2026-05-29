@@ -9,9 +9,8 @@
 
 namespace {
 
-// Single source of truth for the autostart filename. Matches the
-// plasmoid id so KDE recognises the entry as ours in System
-// Settings → Startup applications.
+// Matches the plasmoid id so KDE recognises the entry as ours in
+// System Settings → Startup applications.
 constexpr auto kDesktopFileName = "dev.manuacl.ringmonitor.desktop";
 
 } // namespace
@@ -38,13 +37,10 @@ QString Autostart::currentExecPath() const
     const QString self = QCoreApplication::applicationFilePath();
     const QByteArray appImage = qgetenv("APPIMAGE");
     const QByteArray appDir = qgetenv("APPDIR");
-    // Compare with `appDir + "/"` so a prefix that only coincidentally
-    // shares a path with another AppImage mount doesn't match. E.g.
-    // launching from a Limux/Ghostty terminal that is itself an
-    // AppImage exports APPDIR=/tmp/.mount_limuxAB; our binary may
-    // actually live at /tmp/.mount_limuxABCDE/usr/bin/ring-monitor
-    // (different mount), and a bare startsWith() would falsely match
-    // and point the autostart Exec= at the terminal's AppImage.
+    // Compare with `appDir + "/"`, not a bare startsWith(): a sibling
+    // mount (APPDIR=/tmp/.mount_limuxAB vs our binary under
+    // /tmp/.mount_limuxABCDE) would falsely prefix-match and point
+    // Exec= at the wrong AppImage.
     if (!appImage.isEmpty() && !appDir.isEmpty()
         && self.startsWith(QString::fromLocal8Bit(appDir) + QLatin1Char('/'))) {
         return QString::fromLocal8Bit(appImage);
@@ -82,11 +78,9 @@ QString Autostart::buildDesktopFileContent() const
     // / skip-pager / below) actually apply. Harmless on X11. Drop
     // when native layer-shell support lands (PR C2).
     //
-    // Only the executable path is quoted: `env` and the
-    // `KEY=VALUE` assignment are fixed identifiers free of reserved
-    // characters, so they're left bare (the spec allows unquoted
-    // tokens). The path is the only piece a user can introduce
-    // spaces / special chars into.
+    // Only the path is quoted: `env` and the `KEY=VALUE` token are
+    // fixed identifiers free of reserved chars, the path is the only
+    // piece a user can introduce spaces / special chars into.
     const QString exec = QStringLiteral("env QT_QPA_PLATFORM=xcb ")
                          + quoteExecArg(currentExecPath());
     return QStringLiteral("[Desktop Entry]\n"

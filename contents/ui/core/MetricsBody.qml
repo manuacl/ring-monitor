@@ -211,9 +211,6 @@ ColumnLayout {
                 smallSpacing: body.theme.smallSpacing
 
                 // Per-metric sub-options indented below the row.
-                //   cpu     → "show cores" toggle
-                //   cpuTemp → "merge into the cpu ring" toggle
-                //   gpuTemp → "merge into the gpu ring" toggle
                 extraContent: {
                     if (_metricId === "cpu")
                         return cpuCoresToggle;

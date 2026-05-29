@@ -5,6 +5,25 @@ someone running the widget), followed by a **Technical** section with the
 implementation detail underneath. Entries before 0.7.0 are user-facing
 only.
 
+## [0.7.1] — 2026-05-29
+
+### Fixed
+
+- **The "Ring size" slider no longer appears in the Plasma settings,
+  where it did nothing.** On the Plasma desktop you size the widget by
+  dragging its frame, which overrides the slider — so it only ever
+  looked inert once the widget was placed. The slider stays in the
+  standalone build, where the window auto-sizes to it and it works.
+
+### Technical
+
+- `AppearanceBody` gains a `ringSizeVisible` gate (default `false`;
+  the standalone `SettingsDialog` flips it on), mirroring
+  `ringSpacingVisible` / `windowMarginVisible`. Unlike those two, the
+  Plasma `ConfigStore` keeps `ringSize` **bound** rather than
+  hardcoded — it's a legitimate frame-overridden implicit size, not an
+  actively-wrong value to neutralise.
+
 ## [0.7.0] — 2026-05-29
 
 ### Added
@@ -239,6 +258,7 @@ No user-visible changes.
 First public release. Plasma 6 widget rendering CPU, RAM, swap,
 GPU, and disk usage as circular ring gauges with rounded caps.
 
+[0.7.1]: https://github.com/manuacl/ring-monitor/releases/tag/v0.7.1
 [0.7.0]: https://github.com/manuacl/ring-monitor/releases/tag/v0.7.0
 [0.6.0]: https://github.com/manuacl/ring-monitor/releases/tag/v0.6.0
 [0.5.3]: https://github.com/manuacl/ring-monitor/releases/tag/v0.5.3

@@ -195,7 +195,7 @@ Window {
                     id: appearanceBody
                     width: appearanceScroll.availableWidth
                     colorPickerComponent: colorPickerComponent
-                    // Only the standalone host shows these two sliders:
+                    // Only the standalone host shows these three sliders:
                     //
                     //   `windowMargin` is consumed by the standalone
                     //   Window anchoring code only (plasmashell
@@ -209,10 +209,17 @@ Window {
                     //   to rings × count + spacings, so the slider
                     //   has obvious visual feedback.
                     //
+                    //   `ringSize` likewise drives the rings' implicit
+                    //   size; on the Plasma desktop containment the
+                    //   dragged frame overrides it (slider looks inert
+                    //   once placed), but the standalone Window
+                    //   auto-sizes to it, so the slider is meaningful.
+                    //
                     // Same gate convention as `autostartAvailable` on
                     // AboutBody.
                     windowMarginVisible: true
                     ringSpacingVisible: true
+                    ringSizeVisible: true
                 }
             }
 

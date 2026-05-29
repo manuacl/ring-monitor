@@ -34,6 +34,7 @@ const BRIDGED_KEYS = [
     ["enabledPartitionsCsv", "enabledPartitions"],
     ["partitionOrderCsv", "partitionOrder"],
     ["partitionLabelsJson", "partitionLabels"],
+    ["partitionOptOutCsv", "partitionOptOut"],
     ["showCpuCores", "showCpuCores"],
     ["mergeCpuTemp", "mergeCpuTemp"],
     ["mergeGpuTemp", "mergeGpuTemp"],

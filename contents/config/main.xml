@@ -26,6 +26,11 @@
             <default></default>
         </entry>
 
+        <entry name="partitionOptOut" type="String">
+            <label>Comma-separated disk partition UUIDs the user hid despite being mounted (removable opt-out). Suppresses their auto-shown ring.</label>
+            <default></default>
+        </entry>
+
         <entry name="partitionLabels" type="String">
             <label>JSON map of disk partition id to last-known volume label. Caches the friendly name so a disconnected (unplugged) partition can be shown by name in the picker instead of a bare UUID. Bounded to selected/ordered ids.</label>
             <default></default>

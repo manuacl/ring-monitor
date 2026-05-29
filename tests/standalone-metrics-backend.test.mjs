@@ -223,6 +223,18 @@ test("standalone availableMetrics binding does not depend on _tick (no per-poll 
     assert.doesNotMatch(binding[0], /backend\._tick/, "availableMetrics must NOT read backend._tick (would rebuild the ring strip every poll)");
 });
 
+test("standalone MetricsBackend exposes removablePartitions + mountedPartitionIds for auto-show parity", () => {
+    // Phase 4 auto-show: MainContent unions the manual selection with the
+    // live removable set and gates manual ids on the live mount set. These
+    // two properties feed DiskMetrics.resolveDiskRingIds (same surface the
+    // Plasma adapter exposes). removablePartitions classifies each mounted
+    // filesystem via DiskMetrics.isRemovableMount(mountpoint).
+    assert.match(SOURCE, /import\s+["']\.\.\/\.\.\/core\/DiskMetrics\.js["']\s+as\s+DiskMetrics/, "must import the shared core/DiskMetrics module");
+    assert.match(SOURCE, /property\s+var\s+removablePartitions\s*:/, "must declare a removablePartitions property");
+    assert.match(SOURCE, /property\s+var\s+mountedPartitionIds\s*:/, "must declare a mountedPartitionIds property");
+    assert.match(SOURCE, /DiskMetrics\.isRemovableMount\s*\(/, "removablePartitions must classify mounts via DiskMetrics.isRemovableMount");
+});
+
 test("standalone MetricsBackend polls on a Timer", () => {
     // Polling cadence: 500 ms (2 Hz) to match the Plasma ksysguard
     // cadence — see platforms/standalone/CLAUDE.md. Use the interval

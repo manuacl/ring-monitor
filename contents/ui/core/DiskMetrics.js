@@ -224,6 +224,21 @@ function filterToMounted(partitions, mountedIds) {
     });
 }
 
+// Is partition `id` currently shown as a ring, from the disk picker's point of
+// view (drives the checkbox `checked` state so the box reflects ring
+// visibility)? The picker only lists currently-mounted partitions, so:
+//   - a removable (id in removableIds) is shown UNLESS opted out (auto-show);
+//   - a fixed disk is shown iff it is manually enabled.
+// Mirrors resolveDiskRingIds' membership for a mounted partition, minus the
+// maxCount cap / default fallback (those are whole-set display concerns, not a
+// per-partition truth). The checkbox toggle is the inverse: toggling a
+// removable writes the opt-out list, a fixed disk writes the manual selection.
+function isPartitionShown(id, removableIds, enabledIds, optOutIds) {
+    if ((removableIds || []).indexOf(id) !== -1)
+        return (optOutIds || []).indexOf(id) === -1;
+    return (enabledIds || []).indexOf(id) !== -1;
+}
+
 // Mirrors MetricsCatalog.parseCsv — duplicated rather than imported because
 // the dual-load (no-pragma) .js modules can't import each other.
 function _csvIds(csv) {
@@ -322,6 +337,7 @@ if (typeof module !== "undefined" && module.exports) {
         orderPartitions: orderPartitions,
         resolveDiskRingIds: resolveDiskRingIds,
         filterToMounted: filterToMounted,
+        isPartitionShown: isPartitionShown,
         stalePartitions: stalePartitions,
         parseLabelCache: parseLabelCache,
         serializeLabelCache: serializeLabelCache,

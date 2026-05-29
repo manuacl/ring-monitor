@@ -178,6 +178,25 @@ test("filterToMounted: none of the discovered are mounted → empty", () => {
     assert.deepEqual(Disk.filterToMounted(PARTS, ["u-x", "u-y"]), []);
 });
 
+// ── isPartitionShown (picker checkbox = ring visibility) ─────────────
+
+test("isPartitionShown: a removable is shown unless opted out (auto-show)", () => {
+    const removable = ["u-usb"];
+    assert.equal(Disk.isPartitionShown("u-usb", removable, [], []), true, "mounted removable, not opted-out → shown");
+    assert.equal(Disk.isPartitionShown("u-usb", removable, [], ["u-usb"]), false, "opted-out removable → hidden");
+});
+
+test("isPartitionShown: a fixed disk is shown iff manually enabled", () => {
+    assert.equal(Disk.isPartitionShown("u-baz", [], ["u-baz"], []), true, "manually enabled fixed disk → shown");
+    assert.equal(Disk.isPartitionShown("u-baz", [], [], []), false, "fixed disk not enabled → hidden");
+    assert.equal(Disk.isPartitionShown("u-baz", [], ["u-baz"], ["u-baz"]), true, "opt-out is ignored for a fixed (non-removable) disk");
+});
+
+test("isPartitionShown: tolerates null/undefined arrays", () => {
+    assert.equal(Disk.isPartitionShown("x", null, null, null), false);
+    assert.equal(Disk.isPartitionShown("x", ["x"], null, null), true);
+});
+
 // ── label cache (parse / serialize / merge) ──────────────────────────
 
 test("parseLabelCache: empty / malformed JSON → {}", () => {

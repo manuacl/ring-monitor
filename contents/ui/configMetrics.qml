@@ -22,6 +22,7 @@ KCM.SimpleKCM {
     property alias cfg_enabledMetrics: body.enabledMetricsCsv
     property alias cfg_enabledPartitions: body.enabledPartitionsCsv
     property alias cfg_partitionOrder: body.partitionOrderCsv
+    property alias cfg_partitionOptOut: body.partitionOptOutCsv
     property alias cfg_partitionLabels: body.partitionLabelsJson
     property alias cfg_showCpuCores: body.showCpuCores
     property alias cfg_mergeCpuTemp: body.mergeCpuTemp
@@ -63,6 +64,7 @@ KCM.SimpleKCM {
     property var cfg_enabledMetricsDefault
     property var cfg_enabledPartitionsDefault
     property var cfg_partitionOrderDefault
+    property var cfg_partitionOptOutDefault
     property var cfg_partitionLabelsDefault
     property var cfg_showCpuCoresDefault
     property var cfg_mergeCpuTempDefault
@@ -100,6 +102,7 @@ KCM.SimpleKCM {
         // ksysguard still lists (#58 frozen tree) drops from the selectable
         // picker and, if still configured, surfaces as a greyed stale row.
         diskPartitions: metricsAdapter.mountedAvailablePartitions
+        removablePartitions: metricsAdapter.removablePartitions
         // Gate the destructive stale-row removal on the adapter's debounced
         // discovery signal — the SensorTreeModel walk populates incrementally.
         partitionsReady: metricsAdapter.partitionsReady

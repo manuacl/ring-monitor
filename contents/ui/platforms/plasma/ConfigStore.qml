@@ -27,6 +27,8 @@ Item {
     readonly property string enabledPartitions: Plasmoid.configuration.enabledPartitions
     // All discovered partition ids in display order (first = outermost ring).
     readonly property string partitionOrder: Plasmoid.configuration.partitionOrder
+    // JSON UUID→label cache for the disconnected-partition stale rows.
+    readonly property string partitionLabels: Plasmoid.configuration.partitionLabels
     readonly property bool showCpuCores: Plasmoid.configuration.showCpuCores
     readonly property bool mergeCpuTemp: Plasmoid.configuration.mergeCpuTemp
     readonly property bool mergeGpuTemp: Plasmoid.configuration.mergeGpuTemp

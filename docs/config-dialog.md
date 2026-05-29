@@ -10,6 +10,7 @@
     <entry name="enabledMetrics"    type="String"> <default>cpu,ram</default> </entry>
     <entry name="enabledPartitions" type="String"> <default></default> </entry>
     <entry name="partitionOrder"    type="String"> <default></default> </entry>
+    <entry name="partitionLabels"   type="String"> <default></default> </entry>
     <entry name="showCpuCores"      type="Bool">   <default>true</default> </entry>
 </group>
 <group name="Appearance">
@@ -40,7 +41,10 @@ the disk row** (`MetricsBody`) — drag a handle to reorder, which rewrites
 The partition list is fed by `MetricsBody.diskPartitions`, which the
 Plasma config wrapper populates from the shared `platforms/plasma/DiskPartitions.qml`
 adapter (the KCM page has no `MetricsBackend` of its own). The pair mirrors
-`metricOrder` + `enabledMetrics` exactly.
+`metricOrder` + `enabledMetrics` exactly. `partitionLabels` is a JSON UUID→label
+cache so a partition the user selected and then unplugged still shows its
+last-known name on the picker's greyed "no longer connected" stale row (issue
+#49) instead of a bare UUID.
 
 For each `<entry name="X">`, Plasma exposes:
 

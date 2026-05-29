@@ -259,14 +259,17 @@ fuse dropped; `$HOME=/home/manu` → `/var/home` → sda3).
 
 Shared (`core/`) view-side helpers for the disk multi-partition ring —
 the per-partition discovery + value reads are platform-specific, but
-these two computations are identical on both hosts.
+these computations are identical on both hosts. Selecting the enabled
+subset in display order is done with `MetricsCatalog.filterByOrder`
+(no disk-specific helper).
 
 | Function | Purpose |
 |---|---|
 | `averagePercent(values)` | Mean of a 0–100 array (the centre readout for the multi-ring disk). `0` on empty or any non-finite member — never propagates NaN into the centre text. |
-| `selectPartitions(availableIds, csvIds)` | Intersection of the CSV selection with the partitions on offer, preserving `availableIds` order. Fed the *ordered* id list (see `orderPartitions`) so the selected rings come out in display order. Drops stale ids (an unplugged disk). |
-| `orderPartitions(savedOrderCsv, available)` | Order the discovered partitions for the reorderable picker + ring nesting: ids in the saved CSV first (that order), then newly-discovered ones appended alphabetically by label; stale saved ids dropped. Empty saved order → fully alphabetical (the default). First = outermost ring. Mirror of `MetricsCatalog.mergeWithCatalog` for the dynamic partition set. |
+| `orderPartitions(savedOrderCsv, available)` | Order the discovered partitions for the reorderable picker + ring nesting: ids in the saved CSV first (that order), then newly-discovered ones appended alphabetically by label; stale (no-longer-discovered) ids excluded — they surface separately via `stalePartitions`, not in the draggable list. Empty saved order → fully alphabetical (the default). First = outermost ring. Mirror of `MetricsCatalog.mergeWithCatalog` for the dynamic partition set. |
 | `sortByLabel(partitions)` | Alphabetical (case-insensitive) sort by label, ties broken by id. The default ordering used by `orderPartitions` for the un-saved tail. |
+| `stalePartitions(enabledCsv, orderCsv, discovered, labelCacheJson)` | Configured ids no longer discovered (the disk was unplugged) — returned as `[{id, label}]`, order-CSV ids first then enabled-only, deduped. `label` comes from the cache, falling back to the bare UUID. Drives the greyed "no longer connected" rows in the picker (issue #49). |
+| `parseLabelCache` / `serializeLabelCache` / `mergeLabelCache` | The UUID→label cache backing the friendly name on stale rows. `mergeLabelCache(prev, discovered, referencedIds)` keeps the fresh discovered label, else the last-known one (so an unplugged partition keeps its name), and is **bounded to `enabled ∪ order`** so it can't grow unbounded. `serializeLabelCache` sorts keys so an unchanged cache round-trips to the same string — no spurious config write per discovery pass. |
 
 Covered by `tests/disk-metrics.test.mjs`.
 

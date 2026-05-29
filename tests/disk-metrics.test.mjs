@@ -77,7 +77,9 @@ test("orderPartitions: newly-discovered (not in saved) appended alphabetically",
     assert.deepEqual(out.map((p) => p.id), ["u-sync", "u-bazzite", "u-photos"]);
 });
 
-test("orderPartitions: stale saved ids (unplugged) are dropped", () => {
+test("orderPartitions: stale saved ids (unplugged) are excluded from the draggable list", () => {
+    // The draggable list shows only discovered partitions; stale ids are
+    // surfaced separately via stalePartitions() (see below), not here.
     const out = Disk.orderPartitions("u-gone,u-photos", AVAIL);
     assert.deepEqual(out.map((p) => p.id), ["u-photos", "u-bazzite", "u-sync"]);
 });
@@ -85,6 +87,91 @@ test("orderPartitions: stale saved ids (unplugged) are dropped", () => {
 test("orderPartitions: tolerates empty available", () => {
     assert.deepEqual(Disk.orderPartitions("u-a,u-b", []), []);
     assert.deepEqual(Disk.orderPartitions("", null), []);
+});
+
+// ── stalePartitions ──────────────────────────────────────────────────
+
+test("stalePartitions: none when every configured id is discovered", () => {
+    assert.deepEqual(Disk.stalePartitions("u-bazzite,u-photos", "u-photos,u-bazzite", AVAIL, ""), []);
+});
+
+test("stalePartitions: an unplugged enabled id surfaces as stale", () => {
+    // SCENARIO (#49): user selected a USB drive (u-usb), then unplugged it.
+    // Its UUID lingers in enabledPartitions but is no longer discovered.
+    const out = Disk.stalePartitions("u-photos,u-usb", "", AVAIL, "");
+    assert.deepEqual(out.map((p) => p.id), ["u-usb"]);
+});
+
+test("stalePartitions: stale id present only in the order CSV still surfaces", () => {
+    const out = Disk.stalePartitions("", "u-gone,u-photos", AVAIL, "");
+    assert.deepEqual(out.map((p) => p.id), ["u-gone"]);
+});
+
+test("stalePartitions: order CSV listed first, then enabled-only, deduped", () => {
+    const out = Disk.stalePartitions("u-enabled-only", "u-ordered", AVAIL, "");
+    assert.deepEqual(out.map((p) => p.id), ["u-ordered", "u-enabled-only"]);
+    // u-ordered appearing in both must not duplicate.
+    const dedup = Disk.stalePartitions("u-ordered,u-x", "u-ordered", AVAIL, "");
+    assert.deepEqual(dedup.map((p) => p.id), ["u-ordered", "u-x"]);
+});
+
+test("stalePartitions: label comes from the cache, falls back to the UUID", () => {
+    const cache = JSON.stringify({ "u-usb": "backups" });
+    const out = Disk.stalePartitions("u-usb,u-nocache", "", AVAIL, cache);
+    assert.deepEqual(out, [
+        { id: "u-usb", label: "backups" },
+        { id: "u-nocache", label: "u-nocache" },
+    ]);
+});
+
+test("stalePartitions: tolerates empty inputs", () => {
+    assert.deepEqual(Disk.stalePartitions("", "", AVAIL, ""), []);
+    assert.deepEqual(Disk.stalePartitions("u-a", "", null, null), [{ id: "u-a", label: "u-a" }]);
+});
+
+// ── label cache (parse / serialize / merge) ──────────────────────────
+
+test("parseLabelCache: empty / malformed JSON → {}", () => {
+    assert.deepEqual(Disk.parseLabelCache(""), {});
+    assert.deepEqual(Disk.parseLabelCache(null), {});
+    assert.deepEqual(Disk.parseLabelCache("not json"), {});
+    assert.deepEqual(Disk.parseLabelCache("[1,2]"), {}); // array is not a map
+    assert.deepEqual(Disk.parseLabelCache('{"u-a":"x"}'), { "u-a": "x" });
+});
+
+test("serializeLabelCache: sorted keys → stable output regardless of insertion order", () => {
+    const a = Disk.serializeLabelCache({ z: "1", a: "2", m: "3" });
+    const b = Disk.serializeLabelCache({ a: "2", m: "3", z: "1" });
+    assert.equal(a, b);
+    assert.equal(a, '{"a":"2","m":"3","z":"1"}');
+});
+
+test("mergeLabelCache: fresh discovered labels win, bounded to referenced ids", () => {
+    const out = Disk.mergeLabelCache("{}", AVAIL, ["u-bazzite", "u-photos"]);
+    assert.deepEqual(JSON.parse(out), { "u-bazzite": "bazzite", "u-photos": "photos" });
+    // u-sync discovered but not referenced → not cached.
+    assert.equal(JSON.parse(out)["u-sync"], undefined);
+});
+
+test("mergeLabelCache: preserves last-known label for a referenced-but-undiscovered id", () => {
+    // SCENARIO (#49): u-usb was cached while plugged; now unplugged (not in
+    // AVAIL) but still referenced → keep its friendly name for the stale row.
+    const prev = JSON.stringify({ "u-usb": "backups" });
+    const out = Disk.mergeLabelCache(prev, AVAIL, ["u-usb", "u-bazzite"]);
+    assert.deepEqual(JSON.parse(out), { "u-usb": "backups", "u-bazzite": "bazzite" });
+});
+
+test("mergeLabelCache: drops entries for ids no longer referenced", () => {
+    const prev = JSON.stringify({ "u-old": "gone", "u-bazzite": "stale-name" });
+    const out = Disk.mergeLabelCache(prev, AVAIL, ["u-bazzite"]);
+    // u-old dropped (unreferenced); u-bazzite refreshed from discovery.
+    assert.deepEqual(JSON.parse(out), { "u-bazzite": "bazzite" });
+});
+
+test("mergeLabelCache: stable output → unchanged cache round-trips identically", () => {
+    const first = Disk.mergeLabelCache("{}", AVAIL, ["u-photos", "u-bazzite"]);
+    const second = Disk.mergeLabelCache(first, AVAIL, ["u-bazzite", "u-photos"]);
+    assert.equal(first, second);
 });
 
 test("sortByLabel: ties broken by id; tolerates empty/missing", () => {

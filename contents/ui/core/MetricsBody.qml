@@ -43,6 +43,11 @@ ColumnLayout {
     property string enabledMetricsCsv: ""
     property string enabledPartitionsCsv: ""
     property string partitionOrderCsv: ""
+    // UUID→label JSON cache so a disconnected partition shows its last-known
+    // volume name on the stale row instead of a bare UUID (the system stops
+    // exposing the label once the filesystem is gone). Maintained by
+    // _refreshLabelCache; see DiskMetrics.mergeLabelCache.
+    property string partitionLabelsJson: ""
     property bool showCpuCores: false
     property bool mergeCpuTemp: false
     property bool mergeGpuTemp: false
@@ -149,6 +154,37 @@ ColumnLayout {
         body.partitionOrderCsv = currentPartitionOrder().join(",");
     }
 
+    // Configured partitions that are no longer discovered (unplugged disk).
+    // Gated to avoid a destructive false-positive: availableMetrics === null
+    // means the backend is still loading (the wrappers gate it that way), and
+    // an empty diskPartitions means discovery hasn't run — in both states every
+    // enabled id would look stale and the user could trash a partition that is
+    // merely not-yet-discovered. Only surface stale rows once discovery settled.
+    readonly property var stalePartitionList: {
+        if (body.availableMetrics === null || !body.diskPartitions || body.diskPartitions.length === 0)
+            return [];
+        return DiskMetrics.stalePartitions(body.enabledPartitionsCsv, body.partitionOrderCsv, body.diskPartitions, body.partitionLabelsJson);
+    }
+
+    // The set of ids whose label is worth caching: everything currently
+    // selected or ordered (so an unplugged one keeps its friendly name).
+    function _referencedPartitionIds() {
+        const ids = Catalog.parseCsv(body.enabledPartitionsCsv).concat(Catalog.parseCsv(body.partitionOrderCsv));
+        return ids;
+    }
+
+    function _refreshLabelCache() {
+        body.partitionLabelsJson = DiskMetrics.mergeLabelCache(body.partitionLabelsJson, body.diskPartitions || [], body._referencedPartitionIds());
+    }
+
+    // Trash action on a stale row: drop the id from the selection, the order,
+    // and the label cache so it stops lingering in the persisted config.
+    function removeStalePartition(id) {
+        body.enabledPartitionsCsv = Catalog.toggleEnabled(Catalog.parseCsv(body.enabledPartitionsCsv), id, false).join(",");
+        body.partitionOrderCsv = Catalog.toggleEnabled(Catalog.parseCsv(body.partitionOrderCsv), id, false).join(",");
+        _refreshLabelCache();
+    }
+
     // Seed the selection with the backend default when nothing is chosen yet,
     // so the picker reflects what the widget actually renders (the default
     // ring) as a checked, editable row. Empty selection = always the default
@@ -163,12 +199,15 @@ ColumnLayout {
     onDiskPartitionsChanged: {
         loadPartitionOrder();
         _seedDefaultIfEmpty();
+        _refreshLabelCache();
     }
+    onEnabledPartitionsCsvChanged: _refreshLabelCache()
     onDefaultPartitionIdsChanged: _seedDefaultIfEmpty()
     Component.onCompleted: {
         loadOrder();
         loadPartitionOrder();
         _seedDefaultIfEmpty();
+        _refreshLabelCache();
     }
 
     Layout.fillWidth: true
@@ -367,6 +406,49 @@ ColumnLayout {
                     // then commit serializes the new model order to the CSV.
                     partitionOrderModel.move(from, to, 1);
                     body.commitPartitionOrder();
+                }
+            }
+
+            // Stale rows: partitions still in the config but no longer present
+            // (unplugged). Greyed, non-draggable, each with a trash button that
+            // clears it from the selection + order + label cache. Rendered below
+            // the draggable list so the ring-nesting order stays untouched.
+            Repeater {
+                model: body.stalePartitionList
+                delegate: RowLayout {
+                    id: staleRow
+                    required property var modelData
+                    Layout.fillWidth: true
+                    spacing: body.theme ? body.theme.smallSpacing : 4
+
+                    QQC2.Label {
+                        text: staleRow.modelData.label
+                        opacity: 0.4
+                        font.italic: true
+                        elide: Text.ElideRight
+                        Layout.fillWidth: true
+                        Layout.leftMargin: (body.theme ? body.theme.iconSize : 16) + 12
+
+                        HoverHandler {
+                            id: staleHover
+                        }
+                        QQC2.ToolTip.text: qsTr("This filesystem is no longer connected — remove it from the selection.")
+                        QQC2.ToolTip.visible: staleHover.hovered
+                        QQC2.ToolTip.delay: 500
+                    }
+                    QQC2.Label {
+                        text: qsTr("not connected")
+                        opacity: 0.5
+                        font.italic: true
+                    }
+                    QQC2.ToolButton {
+                        icon.name: "edit-delete-remove"
+                        flat: true
+                        onClicked: body.removeStalePartition(staleRow.modelData.id)
+                        QQC2.ToolTip.text: qsTr("Remove this disconnected filesystem")
+                        QQC2.ToolTip.visible: hovered
+                        QQC2.ToolTip.delay: 500
+                    }
                 }
             }
         }

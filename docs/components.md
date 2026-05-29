@@ -38,6 +38,21 @@ For the Metrics page, `MetricsBody` additionally owns:
   instantiated inside `configMetrics.qml` (the KCM page has no live
   backend of its own); the standalone `SettingsDialog` takes it injected
   from `Main.qml`'s running backend.
+- the disk-partition picker's **stale-row handling** (issue #49): a
+  partition the user selected then unplugged keeps its UUID in
+  `enabledPartitions` / `partitionOrder` but is no longer discovered.
+  `stalePartitionList` (via `DiskMetrics.stalePartitions`) surfaces those
+  as greyed, non-draggable rows **below** the draggable picker — each with
+  a "not connected" tag and a trash button wired to `removeStalePartition`,
+  which clears the id from both CSVs and the label cache. The friendly name
+  comes from `partitionLabelsJson`, a UUID→label cache maintained by
+  `_refreshLabelCache` (persisted via the `partitionLabels` config key) so a
+  disconnected partition shows its last-known label instead of a raw UUID.
+  **Destructive-action gate:** `stalePartitionList` returns empty while
+  `availableMetrics === null` (backend still loading) or `diskPartitions` is
+  empty (discovery hasn't run) — otherwise every enabled id would look stale
+  during warm-up and the user could trash a partition that's merely
+  not-yet-discovered.
 
 **No Plasma writes happen inside the body** — the body only ever
 writes to its own properties; the alias propagates the change to
@@ -508,6 +523,7 @@ future reader) consumes `configStore.X` instead of reaching into
 | `enabledMetrics` | `string` | `Plasmoid.configuration.enabledMetrics` |
 | `enabledPartitions` | `string` | `Plasmoid.configuration.enabledPartitions` (checked disk partitions; empty = aggregate ring on Plasma / `$HOME` FS on standalone) |
 | `partitionOrder` | `string` | `Plasmoid.configuration.partitionOrder` (disk partition display order; first = outermost ring; empty = alphabetical) |
+| `partitionLabels` | `string` | `Plasmoid.configuration.partitionLabels` (JSON UUID→label cache for the disconnected-partition stale rows; empty = `{}`) |
 | `showCpuCores` | `bool` | `Plasmoid.configuration.showCpuCores` |
 | `mergeCpuTemp` | `bool` | `Plasmoid.configuration.mergeCpuTemp` (hide `cpuTemp` ring, render it as the right half of the `cpu` ring) |
 | `mergeGpuTemp` | `bool` | `Plasmoid.configuration.mergeGpuTemp` (same for the GPU pair) |

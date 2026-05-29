@@ -42,6 +42,8 @@ KCM.SimpleKCM {
     property var cfg_enabledPartitionsDefault
     property var cfg_partitionOrder
     property var cfg_partitionOrderDefault
+    property var cfg_partitionLabels
+    property var cfg_partitionLabelsDefault
     property var cfg_showCpuCores
     property var cfg_showCpuCoresDefault
     property var cfg_mergeCpuTemp

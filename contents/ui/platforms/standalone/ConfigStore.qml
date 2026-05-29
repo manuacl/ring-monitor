@@ -35,6 +35,9 @@ Settings {
     // All discovered partition ids in display order (first = outermost ring).
     // Empty = alphabetical by label.
     property string partitionOrder: ""
+    // JSON UUID→label cache so a disconnected partition shows its last-known
+    // name on the picker's stale row instead of a bare UUID.
+    property string partitionLabels: ""
     property bool showCpuCores: true
     property bool mergeCpuTemp: false
     property bool mergeGpuTemp: false

@@ -18,11 +18,54 @@ dialog (drag to reorder, click to toggle).
 
 ## Install
 
+### KDE Plasma 6
+
 ```bash
 kpackagetool6 -t Plasma/Applet -i .
 ```
 
 Then add "Ring Monitor" via Plasma's "Add Widgets" panel.
+
+### Standalone (non-KDE desktops)
+
+A native Qt/QML build runs the same rings as a frameless desktop widget
+on non-KDE desktops, with no Plasma shell, `libksysguard`, or `KConfig`
+dependency (issue [#7](https://github.com/manuacl/ring-monitor/issues/7)).
+It reads metrics directly from `/proc`, sysfs, and NVML.
+
+> **Status: work in progress.** There is no packaged release yet — build
+> from source as below. Supported desktops are EWMH stacking environments
+> (KDE/KWin, GNOME/Mutter, XFCE/Xfwm4); tiling WMs and pure-Wayland
+> compositors are out of scope for now. GPU is NVIDIA-only so far
+> (AMD/Intel via sysfs is planned).
+
+**Build dependencies:** CMake ≥ 3.16, a C++17 compiler, Qt 6.5+
+(`Core Gui Qml Quick QuickControls2`), `xcb` (dev headers) and
+`pkg-config`. NVIDIA GPU support needs no build dependency — the standalone
+binary `dlopen`s `libnvidia-ml.so.1` at runtime (absent → the GPU ring
+simply stays at 0, so the build runs on AMD/Intel boxes too).
+
+```bash
+# Fedora
+sudo dnf install cmake gcc-c++ qt6-qtdeclarative-devel qt6-qtbase-devel libxcb-devel pkgconf
+# Debian / Ubuntu
+sudo apt install cmake g++ qt6-declarative-dev qt6-base-dev libxcb1-dev pkg-config
+# Arch
+sudo pacman -S cmake gcc qt6-declarative qt6-base libxcb pkgconf
+```
+
+**Build and run:**
+
+```bash
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+./build/ring-monitor-standalone
+```
+
+Right-click the widget for settings. To start it on login, enable
+**"Start on login"** in those settings — it writes
+`~/.config/autostart/dev.manuacl.ringmonitor.desktop` (no system-wide
+install step is required).
 
 ## Develop
 
@@ -45,7 +88,8 @@ tests/run-all.sh
 ```
 
 You need `qt6-qtdeclarative-devel` + `kf6-kirigami` for `qmllint`,
-`qmlformat`, and `qmltestrunner`. Standalone preview:
+`qmlformat`, and `qmltestrunner`. Windowed Plasma preview (still the
+Plasma build, not the [standalone binary](#standalone-non-kde-desktops)):
 
 ```bash
 plasmawindowed dev.manuacl.ringmonitor

@@ -14,6 +14,24 @@ Full "branch → opened PR" pipeline:
 The goal is **zero surprise** when the pipeline runs and **zero PR
 opened on red**.
 
+## Running this skill with agents
+
+You may delegate any part of this pipeline to as many subagents as the
+work warrants — e.g. one agent per audit block, parallel finders for
+the step-6 reflection, a dedicated agent to draft the PR body. **Pick
+the model per task complexity**: a cheap/fast model for mechanical
+greps and check-running, a stronger model for judgement calls (the
+CLAUDE.md-lesson reflection, triaging review findings). When in doubt,
+start cheap and escalate.
+
+**Escalation contract:** if a delegated agent realises the task is
+beyond its model — it's going in circles, can't reason about the
+diff, or hits a judgement call above its tier — it must **stop and
+report back to the parent** rather than guessing or pushing through.
+The parent then re-launches that task on a stronger model. A clean
+"this is over my head, here's what I got" hand-back is the desired
+outcome, not a failure.
+
 ## When to use
 
 - The user says "finis la branche", "prêt à merger ?", "audit branche",

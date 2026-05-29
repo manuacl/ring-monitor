@@ -98,6 +98,15 @@ editing.
   `tests/qml/tst_<Name>.qml`. Use `SCENARIO:` tests to encode
   reported bugs as regression guards. Layout, naming and patterns:
   [`tests/CLAUDE.md`](tests/CLAUDE.md).
+- **No hardcoded absolute paths to executables.** Invoke external
+  tools by bare name (`lsblk`, not `/usr/bin/lsblk`) and let `PATH`
+  resolve them — pinning a binary dir breaks on distros that install
+  it elsewhere, and the widget must install on **any** Linux. Absolute
+  paths to *kernel / FHS interfaces* (`/proc`, `/sys`, `/run/media`,
+  `/dev`) are fine — those are stable across distros. Motivating case:
+  `MountInfo.qml`'s plasma5support `lsblk` call (the executable engine
+  inherits the session `PATH`, so bare resolves). Enforced by
+  `finish-branch` (grep for `/usr/bin/`, `/sbin/`, … in source).
 - **Pure-logic placement follows usage, not just purity.** Shared by
   both platforms ⇒ `core/*.js`. Used by one platform only ⇒ that
   platform's `platforms/<p>/` dir, beside its adapter — keeping

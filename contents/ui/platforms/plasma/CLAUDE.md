@@ -85,6 +85,16 @@ The contract:
   bucket on the `usedPercent` leaf (excluding the `disk/all` aggregate).
   The mountpoint is **not** exposed as a sensor, which is why the disk
   multi-ring default can't match `$HOME` on Plasma (→ aggregate fallback).
+- **A long-lived `SensorTreeModel` does NOT signal an unmount.** When a
+  filesystem unmounts (USB unplug), the model fires no `rowsRemoved` /
+  `modelReset` / `layoutChanged`, the per-partition `Sensor.status` stays
+  `Ready`, and even a manual re-walk still lists the gone `disk/<uuid>` —
+  the data is frozen, not just the change signals. So you **cannot**
+  detect an unplug from the tree; source the live mounted set elsewhere
+  (`MountInfo.qml` runs `lsblk`). A *fresh* `SensorTreeModel` instance
+  discovers correctly (that's why the config dialog's freshly-built
+  backend omits an unplugged partition). Confirmed on real hardware,
+  issue #58.
 
 ## Live light/dark scheme detection: `Qt.styleHints`, not Kirigami
 
@@ -189,6 +199,17 @@ bypassed, but the key persists; useful for debugging).
   preview".
 - **After `contents/config/main.xml` changes, restart plasmashell**
   (the config schema is read once at applet load).
+- **QML `console.log` is filtered from the journal — use `console.warn`.**
+  plasmashell drops QML debug-level messages, so `console.log(...)`
+  produces nothing in `journalctl --user`; `console.warn(...)` shows.
+  Reach for `console.warn` when instrumenting a widget QML file you'll
+  observe via the journal.
+- **`plasma5support` `DataSource` (engine `"executable"`) runs commands
+  with the session `PATH`.** So invoke tools by bare name (`lsblk`), not
+  an absolute path — see the no-absolute-path rule in the root
+  [`CLAUDE.md`](../../../CLAUDE.md). Result keys are `"exit code"`,
+  `"exit status"`, `"stdout"`, `"stderr"`; deliver is async (handle in
+  `onNewData`, then `disconnectSource`). Canonical use: `MountInfo.qml`.
 
 ## Where the rest lives
 

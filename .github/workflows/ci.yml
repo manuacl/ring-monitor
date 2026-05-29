@@ -12,6 +12,57 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # ── Change detection ─────────────────────────────────────────────────
+  #
+  # Each downstream job runs only when its area of the tree changed, so a
+  # docs-only PR (README, docs/**, **/CLAUDE.md, .claude/**) skips the whole
+  # matrix and a plasma-adapter-only change doesn't rebuild the standalone
+  # C++ binary. `main` is unprotected (no required status checks), so a
+  # skipped job never blocks a merge — the filter is pure cost-saving.
+  #
+  # Filter notes:
+  #   - `src`  feeds the file-size cap, whose glob is contents/ui/** +
+  #            standalone/*.cpp + tests/**.
+  #   - `js`   feeds the Node logic tests. Keyed on contents/ui/** (NOT just
+  #            *.js) because several Node tests are text-level guards that
+  #            read .qml source (e.g. disk-partitions.test.mjs asserts on
+  #            DiskPartitions.qml) — a .qml edit can legitimately fail them.
+  #   - `qml`  feeds qmllint/qmlformat/qmltestrunner over every .qml.
+  #   - `standalone` feeds the C++ build, which bundles only core/ +
+  #            platforms/standalone/ QML (plus the C++, CMakeLists, and
+  #            metadata.json the build parses the version from) — so a
+  #            platforms/plasma/ change does not trigger it.
+  changes:
+    name: Detect changed areas
+    runs-on: ubuntu-latest
+    outputs:
+      src: ${{ steps.filter.outputs.src }}
+      js: ${{ steps.filter.outputs.js }}
+      qml: ${{ steps.filter.outputs.qml }}
+      standalone: ${{ steps.filter.outputs.standalone }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            src:
+              - 'contents/ui/**'
+              - 'standalone/**/*.cpp'
+              - 'tests/**'
+            js:
+              - 'contents/ui/**'
+              - 'tests/*.test.mjs'
+            qml:
+              - 'contents/ui/**'
+              - 'tests/qml/**'
+            standalone:
+              - 'standalone/**'
+              - 'CMakeLists.txt'
+              - 'metadata.json'
+              - 'contents/ui/core/**'
+              - 'contents/ui/platforms/standalone/**'
+
   # ── File-size gate ──────────────────────────────────────────────────
   #
   # Source + test files capped at 500 lines. If a file outgrows this, the
@@ -20,6 +71,8 @@ jobs:
   # "Working rules".
   file-size:
     name: File-size gate (≤500 lines)
+    needs: changes
+    if: ${{ needs.changes.outputs.src == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -45,6 +98,8 @@ jobs:
   # ── Pure Node logic tests ────────────────────────────────────────────
   node-tests:
     name: Node tests (logic)
+    needs: changes
+    if: ${{ needs.changes.outputs.js == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -61,6 +116,8 @@ jobs:
   # — QT_QPA_PLATFORM=offscreen lets it run headlessly.
   qml-checks:
     name: QML lint + format + tests
+    needs: changes
+    if: ${{ needs.changes.outputs.qml == 'true' }}
     runs-on: ubuntu-latest
     container:
       image: fedora:41
@@ -116,6 +173,8 @@ jobs:
   # by `qml-checks` above. This job is purely "does the C++ link".
   standalone-build:
     name: Standalone C++ build
+    needs: changes
+    if: ${{ needs.changes.outputs.standalone == 'true' }}
     runs-on: ubuntu-latest
     container:
       image: fedora:41

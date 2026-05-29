@@ -136,13 +136,14 @@ function orderPartitions(savedOrderCsv, available) {
 // despite being mounted (a Phase 3 override — empty until that lands).
 //
 // mountedIds is the live set of ALL currently-mounted UUIDs (fixed + removable,
-// from lsblk). When supplied (non-empty), a MANUAL id absent from it is dropped:
-// that is the #58 self-heal — a configured partition that has been unmounted
-// (a removable unplugged) loses its ring whether it was hand-checked or
-// auto-checked, while a fixed disk (always mounted) is unaffected. ksysguard's
-// own partition list can't drive this because it FREEZES on unmount (still lists
-// the gone UUID) — only the live lsblk set reflects reality. An empty/absent
-// mountedIds means "no live mount data" (a real system always has a root mount,
+// from the kernel mount table). When supplied (non-empty), a MANUAL id absent
+// from it is dropped: that is the #58 self-heal — a configured partition that
+// has been unmounted (a removable unplugged) loses its ring whether it was
+// hand-checked or auto-checked, while a fixed disk (always mounted) is
+// unaffected. ksysguard's own partition list can't drive this because it FREEZES
+// on unmount (still lists the gone UUID) — only the live mount table reflects
+// reality. An empty/absent mountedIds means "no live mount data" (a real system
+// always has a root mount,
 // so empty ⇒ the poll hasn't returned yet) or a platform without mount tracking
 // (standalone today) → don't gate, so fixed-disk rings aren't hidden during the
 // startup poll window. See contents/ui/platforms/plasma/MountInfo.qml and #58.

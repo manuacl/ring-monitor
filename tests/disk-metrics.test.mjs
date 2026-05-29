@@ -302,8 +302,8 @@ test("resolveDiskRingIds: omitted maxCount returns the full union (no cap)", () 
 
 test("resolveDiskRingIds: a manual id NOT in the live mounted set is dropped (self-heal)", () => {
     // SCENARIO #58: a manually-checked USB key is unplugged. ksysguard's tree
-    // still lists its frozen UUID, but lsblk (mountedIds) does not — the ring
-    // must disappear.
+    // still lists its frozen UUID, but the live mount table (mountedIds) does
+    // not — the ring must disappear.
     const out = Disk.resolveDiskRingIds(["samsung", "photos", "usb-bios"], [], [], [], MAX,
         ["samsung", "photos", "bazzite"]);
     assert.deepEqual(out, ["samsung", "photos"]);
@@ -316,7 +316,7 @@ test("resolveDiskRingIds: manual ids present in the mounted set are all kept", (
 });
 
 test("resolveDiskRingIds: empty mountedIds does NOT gate (startup poll window)", () => {
-    // Before the first lsblk poll returns mountedIds is [] — a real system
+    // Before the first mount poll returns mountedIds is [] — a real system
     // always has a root mount, so empty means 'no data', not 'nothing mounted'.
     // Gating then would wrongly blank every fixed-disk ring for a frame.
     const out = Disk.resolveDiskRingIds(["a", "b"], [], [], [], MAX, []);

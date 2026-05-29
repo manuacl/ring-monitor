@@ -157,11 +157,11 @@ test("MetricsBackend forwards DiskPartitions.ready as partitionsReady", () => {
 
 test("MetricsBackend exposes a live removable-mount set gated by removableTrackingActive", () => {
     // Auto-show of USB rings (#58 Phase 2): the removable set comes from
-    // MountInfo (lsblk), NOT ksysguard, so it self-heals on unplug. The
+    // MountInfo (findmnt), NOT ksysguard, so it self-heals on unplug. The
     // VALUE per ring still flows through the ksysguard partitionValue path —
     // MountInfo only governs the SET. The poll is gated so a disk-disabled
     // widget spawns no subprocess (#59 review finding 1).
-    assert.match(SOURCE, /MountInfo\s*{/, "must instantiate the MountInfo lsblk adapter");
+    assert.match(SOURCE, /MountInfo\s*{/, "must instantiate the MountInfo mount adapter");
     assert.match(SOURCE, /active:\s*backend\.removableTrackingActive/, "MountInfo.active must be driven by removableTrackingActive (the poll gate)");
     assert.match(SOURCE, /property\s+var\s+removablePartitions\s*:/, "must declare removablePartitions");
     assert.match(SOURCE, /mountInfo\.mounted/, "removablePartitions must derive from mountInfo.mounted");
@@ -169,7 +169,7 @@ test("MetricsBackend exposes a live removable-mount set gated by removableTracki
 });
 
 test("MetricsBackend exposes mountedPartitionIds for the #58 live-mount self-heal gate", () => {
-    // MainContent gates the manual disk selection on this live lsblk set so an
+    // MainContent gates the manual disk selection on this live mount set so an
     // unmounted partition's ring disappears even though ksysguard's tree freezes.
     assert.match(SOURCE, /property\s+var\s+mountedPartitionIds\s*:/, "must declare mountedPartitionIds");
     assert.match(SOURCE, /mountedPartitionIds[\s\S]{0,200}mountInfo\.mounted/, "mountedPartitionIds must derive from mountInfo.mounted (the live set)");

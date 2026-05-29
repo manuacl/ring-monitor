@@ -79,7 +79,7 @@ GridLayout {
     // empty ($HOME FS on standalone, [] = aggregate on Plasma), capped at
     // DISK_MAX_RING_COUNT so the concentric stack stays readable and every radius
     // stays positive at the minimum ringSize. The manual ids are gated on
-    // `metrics.mountedPartitionIds` (the live lsblk set) so an unmounted
+    // `metrics.mountedPartitionIds` (the live mount set) so an unmounted
     // partition's ring self-heals away even though ksysguard's tree freezes on
     // unmount (#58). `metrics.removablePartitions` / `mountedPartitionIds` exist
     // only on Plasma — the `|| []` (and undefined mountedIds) keep standalone

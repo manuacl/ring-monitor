@@ -139,7 +139,7 @@ Item {
 
     // Live mounted-removable set (USB keys, SD cards), [{id, label}] keyed by
     // UUID — the data ksysguard can't give us (no mountpoint / removable flag)
-    // and which freezes on unmount (#58). Sourced from MountInfo's lsblk poll,
+    // and which freezes on unmount (#58). Sourced from MountInfo's findmnt poll,
     // gated by removableTrackingActive. MainContent unions it with the manual
     // selection via DiskMetrics.resolveDiskRingIds, so a plugged key auto-shows a
     // ring and an unplugged one self-heals away with no trip through Settings.
@@ -158,8 +158,8 @@ Item {
         }
         return out;
     }
-    // Every currently-mounted UUID (fixed + removable) per the live lsblk poll —
-    // the authoritative "is this still mounted?" set MainContent gates the disk
+    // Every currently-mounted UUID (fixed + removable) per the live findmnt poll
+    // — the authoritative "is this still mounted?" set MainContent gates the disk
     // ring on, so a stale partition (unplugged removable) loses its ring even
     // when it lingers in ksysguard's frozen tree (#58). Empty until the first
     // poll returns; MainContent treats empty as "no data, don't gate".
@@ -170,7 +170,7 @@ Item {
             ids.push(m[i].uuid);
         return ids;
     }
-    // Gate for MountInfo's lsblk poll — main.qml sets it true whenever the disk
+    // Gate for MountInfo's findmnt poll — main.qml sets it true whenever the disk
     // metric is enabled, so a widget without a disk ring spawns no subprocess
     // (#59 review finding 1). It is intentionally NOT also gated on
     // Plasmoid.expanded — see main.qml for why (that would break the inline
@@ -416,7 +416,7 @@ Item {
         id: diskPartitions
     }
 
-    // Live mounted/removable set (lsblk via plasma5support) — drives
+    // Live mounted/removable set (findmnt via plasma5support) — drives
     // removablePartitions above. Polls only while removableTrackingActive.
     MountInfo {
         id: mountInfo

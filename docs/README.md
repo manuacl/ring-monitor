@@ -14,6 +14,10 @@ as a directory.
 - [Testing](testing.md) — running and writing tests
 - [Development workflow](development.md) — symlink, restarting plasmashell,
   using `plasmawindowed`, debugging
+- [Releasing](releasing.md) — release flow (`version.yml` / `release.yml`),
+  `bump:*` PR labels, KDE Store upload
+- [Plasma-isolation plan](plasma-isolation/plan.md) — active multi-PR refactor
+  isolating Plasma deps behind the `platforms/plasma/` adapter layer
 
 The repo also ships a [CLAUDE.md](../CLAUDE.md) at the root — that's the
 short briefing AI assistants load first. It points here for depth.

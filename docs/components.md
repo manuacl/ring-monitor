@@ -77,7 +77,18 @@ qmltestrunner since they only import Kirigami + QtQuick.Controls
 the standalone window auto-size (Plasma reads them too but the
 panel container may ignore them):
 
-- `ringSize` (Int, px) — per-ring side length. Slider range 80-800.
+- `ringSize` (Int, px) — per-ring side length, drives the rings'
+  implicit size. Slider range 80-800. The slider that drives this
+  property is hidden by default — the body exposes `ringSizeVisible`
+  (default `false`) which the standalone `SettingsDialog` flips to
+  `true`. The Plasma wrapper leaves it default because on the desktop
+  containment the user-dragged frame overrides the implicit size, so
+  the slider looks inert once the widget is placed. Unlike
+  `ringSpacingPercent` / `windowMargin`, the Plasma `ConfigStore`
+  keeps `ringSize` **bound** (not hardcoded): the value is a
+  legitimate frame-overridden implicit size, not an actively-wrong one
+  the hardcode needs to neutralise. Same opt-in pattern as
+  `AboutBody.autostartAvailable`.
 - `ringSpacingPercent` (Int, 0-25) — gap between rings as a
   percentage of `ringSize`. 7% reproduces the historic 12px default
   at the original `ringSize=180`. The slider that drives this

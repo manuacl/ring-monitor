@@ -84,6 +84,15 @@ test("SettingsDialog opts in to AppearanceBody.windowMarginVisible", () => {
     assert.match(SOURCE, /windowMarginVisible\s*:\s*true/, "AppearanceBody.windowMarginVisible must be true so the Screen margin slider renders");
 });
 
+test("SettingsDialog opts in to AppearanceBody.ringSizeVisible", () => {
+    // The shared AppearanceBody also hides the Ring size slider by
+    // default: on the Plasma desktop containment the dragged frame
+    // overrides the rings' implicit size, so the slider is inert once
+    // placed. The standalone Window auto-sizes from ringSize, so the
+    // slider is meaningful there and must be flipped on.
+    assert.match(SOURCE, /ringSizeVisible\s*:\s*true/, "AppearanceBody.ringSizeVisible must be true so the Ring size slider renders on standalone");
+});
+
 test("SettingsDialog uses the pull + change-signal write-back pattern", () => {
     // _wireBridges must contain both halves: initial pull (body[bodyProp] = configStore[storeProp])
     // AND a XChanged signal connect that writes back.

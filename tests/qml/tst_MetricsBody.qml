@@ -331,6 +331,56 @@ Item {
             compare(body.stalePartitionList[0].label, "backups", "stale row keeps the last-known label from the cache");
         }
 
+        function test_SCENARIO_check_an_autoshown_removable_then_unplug_greys_it() {
+            // SCENARIO (2026-05-29 live test): a removable is auto-shown (ring
+            // visible, picker row UNCHECKED — auto-show never ticks the box).
+            // The user CHECKS it in the picker, then unplugs. It must surface
+            // as a greyed stale row — NOT silently vanish. Uses the real
+            // setPartitionEnabled setter (what the checkbox calls) to be
+            // faithful to the live flow, and mutates diskPartitions the way the
+            // Plasma backend's mountedAvailablePartitions does on unmount.
+            body.partitionsReady = true;
+            body.enabledPartitionsCsv = "u-baz"; // a fixed disk already selected
+            body.diskPartitions = [
+                { id: "u-baz", label: "bazzite" },
+                { id: "u-usb", label: "MYUSB" } // removable, mounted + discovered
+            ];
+            wait(20);
+            // The auto-shown removable starts UNCHECKED in the picker.
+            verify(!body.isPartitionEnabled("u-usb"), "auto-show must not pre-check the box");
+            compare(body.stalePartitionList.length, 0, "nothing stale while mounted");
+
+            // User ticks the checkbox → this is exactly PartitionRow.onToggled.
+            body.setPartitionEnabled("u-usb", true);
+            verify(body.isPartitionEnabled("u-usb"), "checking the box must persist to enabledPartitions");
+            compare(body.stalePartitionList.length, 0, "still mounted → still not stale");
+
+            // Unplug: the mount-gated list drops u-usb (what
+            // MetricsBackend.mountedAvailablePartitions does live).
+            body.diskPartitions = [{ id: "u-baz", label: "bazzite" }];
+            wait(20);
+            compare(body.stalePartitionList.length, 1, "checked-then-unplugged removable must surface as a greyed stale row");
+            compare(body.stalePartitionList[0].id, "u-usb");
+        }
+
+        function test_SCENARIO_unchecked_autoshown_removable_just_disappears() {
+            // Counterpart: a removable that was only auto-shown (never checked)
+            // is NOT in enabledPartitions, so on unplug it correctly vanishes
+            // with no stale row (nothing to clean up). This is what the live
+            // test actually exercised — hence "no greyed row" was correct there.
+            body.partitionsReady = true;
+            body.enabledPartitionsCsv = "u-baz"; // u-usb deliberately NOT checked
+            body.diskPartitions = [
+                { id: "u-baz", label: "bazzite" },
+                { id: "u-usb", label: "MYUSB" }
+            ];
+            wait(20);
+            compare(body.stalePartitionList.length, 0);
+            body.diskPartitions = [{ id: "u-baz", label: "bazzite" }]; // unplug
+            wait(20);
+            compare(body.stalePartitionList.length, 0, "an unchecked auto-shown removable leaves no stale row");
+        }
+
         function test_removeStalePartition_clears_csvs_and_cache() {
             body.partitionsReady = true;
             body.enabledPartitionsCsv = "u-usb,u-baz";

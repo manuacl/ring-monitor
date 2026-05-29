@@ -42,10 +42,12 @@ test("parseLsblkPairs: parses each mounted filesystem", () => {
     });
 });
 
-test("parseLsblkPairs: empty label falls back to the UUID", () => {
+test("parseLsblkPairs: empty label falls back to the UUID (lower-cased)", () => {
     const rows = MountInfo.parseLsblkPairs(SAMPLE);
-    const efi = rows.find((r) => r.uuid === "ADD0-32B6");
-    assert.equal(efi.label, "ADD0-32B6");
+    // The EFI row's serial is uppercase in lsblk ("ADD0-32B6") → lower-cased,
+    // and with an empty LABEL the fallback uses that same lowercase uuid.
+    const efi = rows.find((r) => r.uuid === "add0-32b6");
+    assert.equal(efi.label, "add0-32b6");
 });
 
 test("parseLsblkPairs: drops rows with no UUID", () => {
@@ -67,6 +69,23 @@ test("parseLsblkPairs: drops swap (mountpoint is [SWAP], not a path)", () => {
         'UUID="zram-1" MOUNTPOINT="[SWAP]" LABEL="zram0"\n' +
         'UUID="mounted-1" MOUNTPOINT="/data" LABEL="data"\n');
     assert.deepEqual(out.map((r) => r.uuid), ["mounted-1"]);
+});
+
+test("parseLsblkPairs: lower-cases the UUID to match ksysguard (vfat serials are UPPERCASE)", () => {
+    // SCENARIO: a vfat USB key. lsblk prints its volume serial uppercase
+    // ("6F45-2B2F"), but ksysguard keys disk/<uuid> sensors — and the persisted
+    // enabledPartitions — lowercase. Without normalization the ring renders at
+    // 0% (no matching sensor) and the live-mount gate wrongly drops it.
+    const out = MountInfo.parseLsblkPairs(
+        'UUID="6F45-2B2F" MOUNTPOINT="/run/media/manu/BIOS" LABEL="BIOS"\n');
+    assert.equal(out[0].uuid, "6f45-2b2f");
+});
+
+test("parseLsblkPairs: dedups case-insensitively after lower-casing", () => {
+    const out = MountInfo.parseLsblkPairs(
+        'UUID="AB12-CD34" MOUNTPOINT="/run/media/manu/a" LABEL="a"\n' +
+        'UUID="ab12-cd34" MOUNTPOINT="/run/media/manu/b" LABEL="b"\n');
+    assert.deepEqual(out.map((r) => r.uuid), ["ab12-cd34"]);
 });
 
 test("parseLsblkPairs: preserves spaces inside quoted label and mountpoint", () => {

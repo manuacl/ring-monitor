@@ -12,6 +12,15 @@
 // label / mountpoint:
 //   UUID="6f45-2b2f" MOUNTPOINT="/run/media/manu/BIOS" LABEL="BIOS"
 //
+// The UUID is lower-cased: lsblk prints FAT/vfat volume serials in UPPERCASE
+// (e.g. "6F45-2B2F") while ksysguard keys its disk/<uuid> sensors — and thus
+// the persisted enabledPartitions / partitionLabels — in lowercase. Without
+// this, a vfat USB key's lsblk UUID would never match its ksysguard sensor or
+// the saved selection, so its ring would render at 0% and the live-mount
+// self-heal gate would wrongly drop it. ext4/btrfs UUIDs are already lowercase,
+// so this is a no-op for them. (Confirmed live: lsblk "6F45-2B2F" vs config
+// "6f45-2b2f" for the BIOS key.)
+//
 // Removable classification is NOT done here — it's the shared
 // DiskMetrics.isRemovableMount(mountpoint) predicate, applied by the consumer
 // so the standalone /proc path classifies through the same rule.
@@ -41,7 +50,9 @@ function parseLsblkPairs(stdout) {
         var m;
         while ((m = re.exec(line)) !== null)
             row[m[1]] = m[2];
-        var uuid = row.UUID || "";
+        // Lower-case to match ksysguard's lowercase disk/<uuid> keys — lsblk
+        // emits FAT/vfat serials uppercase (see the header note).
+        var uuid = (row.UUID || "").toLowerCase();
         var mountpoint = row.MOUNTPOINT || "";
         // Absolute-path mountpoint only: drops unmounted rows ("") and lsblk's
         // "[SWAP]" pseudo-mount in one test.

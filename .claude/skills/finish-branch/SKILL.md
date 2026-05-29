@@ -375,7 +375,29 @@ for d in $candidate_dirs; do
     fi
 done
 
-# 4h. Manual audit prompt — these can't be greped reliably. Always
+# 4h. User-facing change (feat:/fix: commit) without a CHANGELOG entry.
+# CHANGELOG.md documents user-facing changes only (its header says
+# internal refactors / tests / tooling are intentionally omitted), so a
+# branch carrying a feat:/fix: commit almost always owes it an entry.
+# WARN, not FAIL: some fix: commits are internal-only (a test or build
+# fix), which the author can judge. Motivated by v0.7.0 shipping the
+# removable-disk auto-tracking feature with NO changelog entry — the
+# release went out, the changelog didn't, and nothing flagged it.
+#
+# `command grep -E` bypasses any grep shim defaulting to basic regex —
+# the `(feat|fix)` alternation would silently never match under it (the
+# bump-label "none" heuristic got bitten the same way once).
+userfacing_commits=$(git log --format='%s' origin/main..HEAD | \
+    command grep -E '^(feat|fix)(\([^)]+\))?!?:' || true)
+if [ -n "$userfacing_commits" ]; then
+    if ! echo "$changed" | grep -qx "CHANGELOG.md"; then
+        echo "WARN: branch has feat:/fix: commit(s) but CHANGELOG.md was not touched:"
+        echo "$userfacing_commits" | sed 's/^/    /'
+        echo "  → add a user-facing entry under a new version heading, or confirm the change is internal-only"
+    fi
+fi
+
+# 4i. Manual audit prompt — these can't be greped reliably. Always
 # print, so the user sees the checklist before phase B.
 echo ""
 echo "AUDIT (manual, did you also update if relevant?):"

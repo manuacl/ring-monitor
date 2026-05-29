@@ -18,6 +18,17 @@ import "../../core/MetricsCatalog.js" as Catalog
 //   readonly property var partitions  - [{ id, label, sensorId }], one per
 //                                       mounted filesystem (id = the UUID,
 //                                       sensorId = disk/<uuid>/usedPercent).
+//   readonly property bool ready       - false until the SensorTreeModel has
+//                                       stopped changing for `settleMs`, i.e.
+//                                       discovery is no longer mid-flight. The
+//                                       tree populates incrementally (one
+//                                       rowsInserted per subsystem), so a
+//                                       partial snapshot would make a not-yet-
+//                                       walked partition look absent. Consumers
+//                                       taking a destructive "this partition is
+//                                       gone" action (the picker's stale-row
+//                                       trash button) gate on this. Latches true
+//                                       on the first quiet period and stays.
 
 Item {
     id: disk
@@ -27,6 +38,20 @@ Item {
     readonly property var partitions: {
         disk._tick;
         return disk._partitions.slice();
+    }
+
+    // Quiet period (ms) after the last tree change before discovery is trusted.
+    property int settleMs: 500
+    readonly property bool ready: _ready
+    property bool _ready: false
+
+    // Restarted on every _refresh; fires once the changes stop. Resetting per
+    // change means an arbitrarily long warm-up storm is handled — ready flips
+    // settleMs after the LAST change, not after a fixed budget from the first.
+    Timer {
+        id: settleTimer
+        interval: disk.settleMs
+        onTriggered: disk._ready = true
     }
 
     Sensors.SensorTreeModel {
@@ -65,6 +90,9 @@ Item {
     }
 
     function _refresh() {
+        // The tree changed → discovery is still in motion; (re)arm the settle
+        // debounce so `ready` only trips once it goes quiet.
+        settleTimer.restart();
         var walked = disk._walk();
         var usageIds = Catalog.classifyDiscoveredIds(walked.ids).diskPartitionUsageIds;
         var parts = [];

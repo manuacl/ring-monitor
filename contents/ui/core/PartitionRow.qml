@@ -27,7 +27,6 @@ Item {
     property bool checked: false
 
     // Theme tokens — injected by the parent. Defaults match Kirigami's.
-    property real unit: 18
     property real smallSpacing: 4
     property real iconSize: 16
 
@@ -63,6 +62,9 @@ Item {
             font.italic: true
             elide: Text.ElideRight
             Layout.fillWidth: true
+            // Align under the available rows' label: mirror DraggableList's
+            // drag-handle width (handleArea = iconSize + 12) since stale rows
+            // sit outside the list and have no handle of their own.
             Layout.leftMargin: row.iconSize + 12
 
             HoverHandler {

@@ -181,6 +181,10 @@ Window {
                     diskPartitions: dialog._diskPartitions
                     defaultPartitionIds: dialog._defaultPartitionIds
                     availableMetrics: dialog.availableMetrics
+                    // Standalone discovery (_refreshDiskPartitions) is synchronous
+                    // and complete in one shot — no incremental enumeration, so
+                    // discovery is trustworthy immediately (no debounce needed).
+                    partitionsReady: true
                     width: metricsScroll.availableWidth
                 }
             }

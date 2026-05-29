@@ -148,6 +148,13 @@ test("MetricsBackend wires disk partitions via the shared DiskPartitions adapter
     assert.match(SOURCE, /defaultPartitionIds:\s*\[\s*\]/, "Plasma defaultPartitionIds must be empty (aggregate fallback)");
 });
 
+test("MetricsBackend forwards DiskPartitions.ready as partitionsReady", () => {
+    // The config picker gates its destructive stale-row removal on this — the
+    // SensorTreeModel walk populates incrementally, so a non-empty partition
+    // list does not mean discovery is complete (issue #49 review).
+    assert.match(SOURCE, /partitionsReady:\s*diskPartitions\.ready/, "must forward diskPartitions.ready as partitionsReady");
+});
+
 test("availableMetrics gates each metric on its Sensor reaching Ready", () => {
     // A metric whose Sensor never reaches Ready (no such sensor on the
     // host) must be omitted so MainContent drops the dead 0% ring and the

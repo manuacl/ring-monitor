@@ -54,12 +54,14 @@ For the Metrics page, `MetricsBody` additionally owns:
   **Destructive-action gate:** discovery on Plasma populates incrementally
   (`DiskPartitions._refresh` per `rowsInserted`), so a non-empty
   `diskPartitions` does not mean discovery is complete. `stalePartitionList`
-  returns empty until `diskPartitions` has stopped changing for
-  `_partitionSettleMs` (debounced by `partitionSettleTimer` → `_partitionsSettled`)
-  — otherwise a not-yet-enumerated partition would flash as stale with a live
-  trash button. This deliberately does **not** key off `availableMetrics`
-  (a per-metric readiness signal is the wrong proxy for partition discovery,
-  and would leave the feature inert in the standalone recovery dialog).
+  returns empty unless `partitionsReady` (a wrapper-injected boolean) is true —
+  otherwise a not-yet-enumerated partition would flash as stale with a live
+  trash button. The Plasma wrapper drives `partitionsReady` from
+  `DiskPartitions.ready` (debounced in the adapter, where the incremental-
+  population quirk lives); the standalone dialog discovers synchronously and
+  passes `true`. Keeping the debounce in the adapter rather than this portable
+  view means standalone pays no settle latency, and `availableMetrics` (a
+  per-metric readiness signal) isn't misused as a partition-discovery proxy.
 
 **No Plasma writes happen inside the body** — the body only ever
 writes to its own properties; the alias propagates the change to
@@ -635,6 +637,7 @@ per-GPU temperature, per-GPU usage).
 | `metricRawTemp(id)` (function) | latest raw °C reading for ids that expose a temperature sensor (`cpu` via static, `gpu` via discovery); `0` for others |
 | `metricTempPercent(id)` (function) | same value mapped to 0–100 via `MetricsCatalog.tempToPercent` — drives the Ring's right-half split arc |
 | `availablePartitions` (readonly property var) | `[{id, label}]` — discovered mounted filesystems for the disk multi-ring picker (Plasma: via the shared `DiskPartitions` adapter; standalone: via `/proc/mounts` + `DiskDiscovery`) |
+| `partitionsReady` (readonly property bool) | Plasma only: forwards `DiskPartitions.ready` — false until the incremental `SensorTreeModel` walk settles. The config picker gates its destructive stale-row removal on it (issue #49). |
 | `defaultPartitionIds` (readonly property var) | partition ids to show when the user has selected none — `[]` on Plasma (falls back to the `disk/all` aggregate ring); the `$HOME`-bearing filesystem on standalone |
 | `partitionValue(id)` (function) | latest 0–100 usage % for one discovered partition (Plasma: a live `disk/<uuid>/usedPercent` sensor; standalone: a **non-blocking** read of the last-good `statvfs` of the partition's representative mountpoint — see the async note below). Requesting an id also subscribes it to refreshes, so only the selected partitions are probed. |
 

@@ -94,6 +94,9 @@ KCM.SimpleKCM {
         id: body
         theme: themeAdapter
         diskPartitions: metricsAdapter.availablePartitions
+        // Gate the destructive stale-row removal on the adapter's debounced
+        // discovery signal — the SensorTreeModel walk populates incrementally.
+        partitionsReady: metricsAdapter.partitionsReady
         // `null` (= unknown → all enable-able) during warm-up, else the real
         // list — without the gate the freshly-spun-up backend would grey every
         // row until its Sensors resolve. Mirrors MainContent's loading gate.

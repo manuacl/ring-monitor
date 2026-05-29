@@ -154,27 +154,21 @@ ColumnLayout {
         body.partitionOrderCsv = currentPartitionOrder().join(",");
     }
 
-    // Discovery on Plasma populates incrementally (DiskPartitions._refresh runs
-    // on every SensorTreeModel rowsInserted), so a non-empty diskPartitions does
-    // NOT mean discovery is complete — a still-to-be-enumerated partition would
-    // transiently look stale. The trash action is destructive, so we only treat
-    // discovery as trustworthy once diskPartitions has stopped changing for
-    // _partitionSettleMs. partitionSettleTimer flips _partitionsSettled.
-    property int _partitionSettleMs: 500
-    property bool _partitionsSettled: false
-
-    Timer {
-        id: partitionSettleTimer
-        interval: body._partitionSettleMs
-        onTriggered: body._partitionsSettled = true
-    }
+    // Whether partition discovery has settled, injected by the platform wrapper.
+    // Plasma populates diskPartitions incrementally (per SensorTreeModel
+    // rowsInserted), so a non-empty list does NOT mean discovery is complete —
+    // surfacing a not-yet-enumerated partition as stale would offer a destructive
+    // trash button on a partition that's actually present. The Plasma wrapper
+    // drives this from DiskPartitions.ready (debounced there); the standalone
+    // dialog discovers synchronously and passes true. Default false → no stale
+    // rows until a wrapper confirms readiness.
+    property bool partitionsReady: false
 
     // Configured partitions that are no longer discovered (unplugged disk).
-    // Empty until discovery has settled (see above) or nothing is discovered
-    // yet — otherwise the user could trash a partition that's merely not-yet-
-    // enumerated during the warm-up insert storm.
+    // Empty until discovery is ready (see partitionsReady) or nothing is
+    // discovered yet.
     readonly property var stalePartitionList: {
-        if (!body._partitionsSettled || !body.diskPartitions || body.diskPartitions.length === 0)
+        if (!body.partitionsReady || !body.diskPartitions || body.diskPartitions.length === 0)
             return [];
         return DiskMetrics.stalePartitions(body.enabledPartitionsCsv, body.partitionOrderCsv, body.diskPartitions, body.partitionLabelsJson);
     }
@@ -216,10 +210,6 @@ ColumnLayout {
     onMetricOrderCsvChanged: loadOrder()
     onPartitionOrderCsvChanged: loadPartitionOrder()
     onDiskPartitionsChanged: {
-        // Discovery moved — restart the settle debounce so stale rows don't
-        // surface mid-enumeration (see _partitionsSettled).
-        body._partitionsSettled = false;
-        partitionSettleTimer.restart();
         loadPartitionOrder();
         _seedDefaultIfEmpty();
         _refreshLabelCache();
@@ -231,9 +221,6 @@ ColumnLayout {
         loadPartitionOrder();
         _seedDefaultIfEmpty();
         _refreshLabelCache();
-        // Kick the settle debounce in case diskPartitions was assigned before
-        // this handler wired up (so onDiskPartitionsChanged didn't fire).
-        partitionSettleTimer.restart();
     }
 
     Layout.fillWidth: true
@@ -425,7 +412,6 @@ ColumnLayout {
                         available: true
                         checked: body.isPartitionEnabled(_partId)
                         onToggled: on => body.setPartitionEnabled(_partId, on)
-                        unit: body.theme.unit
                         smallSpacing: body.theme.smallSpacing
                         iconSize: body.theme.iconSize
                     }
@@ -453,7 +439,6 @@ ColumnLayout {
                     partLabel: modelData.label
                     available: false
                     onRemoveRequested: body.removeStalePartition(modelData.id)
-                    unit: body.theme.unit
                     smallSpacing: body.theme.smallSpacing
                     iconSize: body.theme.iconSize
                 }

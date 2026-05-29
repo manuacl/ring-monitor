@@ -654,6 +654,7 @@ per-GPU temperature, per-GPU usage).
 | `removablePartitions` (readonly property var) | Plasma only (Phase 2, [#58](https://github.com/manuacl/ring-monitor/issues/58)): `[{id, label}]` of the **currently-mounted removable** filesystems (USB keys, SD cards), sourced from `MountInfo` (findmnt) rather than ksysguard. `MainContent` unions it with the manual selection via `DiskMetrics.resolveDiskRingIds`, so a plugged key auto-shows a ring and an unplugged one self-heals away with no trip through Settings. The per-ring value still flows through `partitionValue(id)` (ksysguard exposes the sensor while mounted; only set/unmount detection froze, which `MountInfo` sidesteps). Absent on standalone until Phase 4 — `MainContent` guards with `\|\| []`. |
 | `removableTrackingActive` (property bool) | Plasma only: gate for the `MountInfo` findmnt poll. `main.qml` sets it `true` only while the disk ring is enabled, so a disk-disabled widget spawns no subprocess ([#59](https://github.com/manuacl/ring-monitor/pull/59) review finding 1). Deliberately **not** also gated on `Plasmoid.expanded` — with `preferredRepresentation: fullRepresentation` the rings draw inline on the desktop where `expanded` (a popup signal) is not reliably true, which would break auto-show there. |
 | `mountedPartitionIds` (readonly property var) | Plasma only: every currently-mounted UUID (fixed + removable) from the live `MountInfo` findmnt poll (the kernel mount table, so btrfs-subvolume / non-block mounts are included and a still-mounted disk isn't wrongly dropped). `MainContent` gates the manual disk selection on it via `DiskMetrics.resolveDiskRingIds`, so an unmounted partition's ring self-heals away even though ksysguard's tree freezes on unmount and keeps listing the gone UUID ([#58](https://github.com/manuacl/ring-monitor/issues/58)). Empty until the first poll returns (treated as "no data, don't gate"). |
+| `mountedAvailablePartitions` (readonly property var) | `availablePartitions` intersected with `mountedPartitionIds` (via `DiskMetrics.filterToMounted`). The config picker uses this instead of the raw list so a partition ksysguard still lists after unmount ([#58](https://github.com/manuacl/ring-monitor/issues/58) — the frozen tree, stale even on a fresh backend) drops from the selectable checkboxes and, if still configured, surfaces as a greyed stale row. Empty `mountedPartitionIds` → passthrough (warm-up). |
 
 The disk-partition discovery on Plasma lives in a separate reusable
 adapter, `platforms/plasma/DiskPartitions.qml` (its own
@@ -663,7 +664,10 @@ a per-partition `Sensor` `Instantiator`. The config dialog
 (`configMetrics.qml`) instantiates a **whole `MetricsBackend`** of its
 own — the KCM page runs in a separate context from the live widget, so
 it can't read the running one — and feeds `MetricsBody.diskPartitions`
-from `backend.availablePartitions` and `MetricsBody.availableMetrics`
+from `backend.mountedAvailablePartitions` (the mount-gated list, not the
+raw `availablePartitions`, so an unplugged-but-frozen partition isn't
+offered as a live checkbox; it sets `removableTrackingActive: true` so the
+findmnt poll runs while the dialog is open) and `MetricsBody.availableMetrics`
 from `backend.availableMetrics`. (The Plasma backend has no `Timer`; its
 `Sensor`s are pushed by ksysguard, so this extra instance is a cheap,
 short-lived probe for the duration of the config dialog.)

@@ -88,12 +88,18 @@ KCM.SimpleKCM {
     // the Plasma backend → cheap probe). See docs/components.md § MetricsBackend.
     Platform.MetricsBackend {
         id: metricsAdapter
+        // Run the findmnt poll while the dialog is open so the picker can gate
+        // out partitions ksysguard still lists after unmount (#58 frozen tree).
+        removableTrackingActive: true
     }
 
     Core.MetricsBody {
         id: body
         theme: themeAdapter
-        diskPartitions: metricsAdapter.availablePartitions
+        // Mount-gated list (not the raw availablePartitions): an unplugged disk
+        // ksysguard still lists (#58 frozen tree) drops from the selectable
+        // picker and, if still configured, surfaces as a greyed stale row.
+        diskPartitions: metricsAdapter.mountedAvailablePartitions
         // Gate the destructive stale-row removal on the adapter's debounced
         // discovery signal — the SensorTreeModel walk populates incrementally.
         partitionsReady: metricsAdapter.partitionsReady

@@ -28,6 +28,12 @@
 //                                         removable media (auto-show), minus user
 //                                         opt-outs, falling back to defaultIds
 //                                         when empty, capped at maxCount.
+//   filterToMounted(partitions, mountedIds)
+//                                       - keep only the partitions whose id is in
+//                                         the live mounted set; passthrough when
+//                                         mountedIds is empty/absent (no live data
+//                                         yet). Gates the Plasma config picker so a
+//                                         frozen-but-unmounted partition drops out.
 //   stalePartitions(enabledCsv, orderCsv, discovered, labelCacheJson)
 //                                       - configured ids no longer present
 //                                         (unplugged), each {id, label}.
@@ -194,6 +200,30 @@ function resolveDiskRingIds(manualIds, removableMounts, optOutIds, defaultIds, m
     return out;
 }
 
+// Keep only the discovered partitions that are currently mounted, by id. The
+// Plasma config picker feeds its partition list from ksysguard's
+// SensorTreeModel, which FREEZES on unmount (#58) and keeps listing a
+// just-unplugged filesystem — so without this gate the picker offers a
+// dead partition as a live, selectable checkbox. Intersecting with the live
+// kernel mount set (findmnt via MountInfo) drops it; and because the picker
+// passes the SAME filtered list to stalePartitions(), a still-configured but
+// unmounted partition then surfaces as a greyed "no longer connected" row
+// instead. mountedIds empty/absent means "no live mount data yet" (the poll
+// hasn't returned) → passthrough, so the picker isn't emptied during the
+// warm-up window — same convention as resolveDiskRingIds' mount gate. Returns
+// a new array; does not mutate the input.
+function filterToMounted(partitions, mountedIds) {
+    partitions = partitions || [];
+    if (!mountedIds || mountedIds.length === 0)
+        return partitions.slice();
+    var mounted = {};
+    for (var i = 0; i < mountedIds.length; i++)
+        mounted[mountedIds[i]] = true;
+    return partitions.filter(function (p) {
+        return p && mounted[p.id];
+    });
+}
+
 // Mirrors MetricsCatalog.parseCsv — duplicated rather than imported because
 // the dual-load (no-pragma) .js modules can't import each other.
 function _csvIds(csv) {
@@ -291,6 +321,7 @@ if (typeof module !== "undefined" && module.exports) {
         sortByLabel: sortByLabel,
         orderPartitions: orderPartitions,
         resolveDiskRingIds: resolveDiskRingIds,
+        filterToMounted: filterToMounted,
         stalePartitions: stalePartitions,
         parseLabelCache: parseLabelCache,
         serializeLabelCache: serializeLabelCache,

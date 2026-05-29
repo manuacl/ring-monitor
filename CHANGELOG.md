@@ -14,6 +14,12 @@ only.
   dragging its frame, which overrides the slider — so it only ever
   looked inert once the widget was placed. The slider stays in the
   standalone build, where the window auto-sizes to it and it works.
+- **An unplugged disk no longer shows up as selectable in the Plasma
+  disk picker.** A drive you'd removed used to still appear as a
+  tickable filesystem in Settings (ksysguard keeps listing it for the
+  rest of the session). It now drops out of the selectable list; if you
+  had selected it, it appears as a greyed "no longer connected" row you
+  can clean up, the same as any other disconnected disk.
 
 ### Technical
 
@@ -23,6 +29,14 @@ only.
   Plasma `ConfigStore` keeps `ringSize` **bound** rather than
   hardcoded — it's a legitimate frame-overridden implicit size, not an
   actively-wrong value to neutralise.
+- The config picker's partition list is now gated on the live `findmnt`
+  mount set via `MetricsBackend.mountedAvailablePartitions`
+  (`DiskMetrics.filterToMounted(availablePartitions, mountedPartitionIds)`);
+  `configMetrics.qml` turns `removableTrackingActive` on so the poll runs
+  while the dialog is open. This corrects the prior assumption that a
+  freshly-built `SensorTreeModel` omits an unplugged partition — the
+  staleness is at the ksystemstats daemon level, so even a fresh backend
+  lists it (#58).
 
 ## [0.7.0] — 2026-05-29
 

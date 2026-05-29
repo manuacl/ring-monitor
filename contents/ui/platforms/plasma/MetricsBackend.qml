@@ -2,6 +2,7 @@ import QtQuick
 import QtQml.Models
 import org.kde.ksysguard.sensors as Sensors
 import "../../core/MetricsCatalog.js" as Catalog
+import "../../core/DiskMetrics.js" as DiskMetrics
 import "SensorPicking.js" as SensorPicking
 
 // Platform adapter: wraps the KSysGuard sensor system used by the
@@ -132,6 +133,17 @@ Item {
             "label": p.label
         };
     })
+    // availablePartitions intersected with the live mount set. ksysguard's
+    // SensorTreeModel freezes on unmount (#58) and keeps listing a
+    // just-unplugged filesystem, so the raw availablePartitions would offer a
+    // dead partition as a selectable picker checkbox. Gating on the live
+    // findmnt set (mountedPartitionIds) drops it; and since the config picker
+    // feeds this SAME list to DiskMetrics.stalePartitions, a still-configured
+    // unmounted partition then shows as a greyed stale row instead. Empty
+    // mountedPartitionIds (poll not yet returned, or tracking off) → passthrough
+    // (no gating during warm-up). Consumed by configMetrics.qml, which turns
+    // removableTrackingActive on so the findmnt poll runs while the dialog is open.
+    readonly property var mountedAvailablePartitions: DiskMetrics.filterToMounted(backend.availablePartitions, backend.mountedPartitionIds)
     // False until DiskPartitions' incremental tree walk has settled — the
     // config picker gates its destructive stale-row removal on this.
     readonly property bool partitionsReady: diskPartitions.ready

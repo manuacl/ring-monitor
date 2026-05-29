@@ -81,13 +81,9 @@ KCM.SimpleKCM {
         id: themeAdapter
     }
 
-    // The KCM config page runs in its own context, separate from the live
-    // widget, so it can't read the running backend. It instantiates its own
-    // MetricsBackend purely as the discovery/availability source for the
-    // picker: `availablePartitions` enumerates mounted filesystems and
-    // `availableMetrics` says which metrics have a live data source (so the
-    // picker greys out the rest). The Plasma backend has no Timer — its
-    // Sensors are pushed by ksysguard — so this is a cheap, short-lived probe.
+    // The KCM page can't read the running widget's backend, so it runs its
+    // own as the partition + availability source for the picker (no Timer on
+    // the Plasma backend → cheap probe). See docs/components.md § MetricsBackend.
     Platform.MetricsBackend {
         id: metricsAdapter
     }
@@ -96,13 +92,9 @@ KCM.SimpleKCM {
         id: body
         theme: themeAdapter
         diskPartitions: metricsAdapter.availablePartitions
-        // While the freshly-instantiated backend is still warming up, its
-        // Sensors haven't reached Ready so availableMetrics is a partial /
-        // empty (non-null) list — passing that straight through would grey
-        // out and disable every row until ksysguard resolves. Feed `null`
-        // (= availability unknown → everything enable-able) until loading
-        // clears, mirroring MainContent's warm-up gate. Once resolved, the
-        // reactive binding lets late sensors un-grey their rows.
+        // `null` (= unknown → all enable-able) during warm-up, else the real
+        // list — without the gate the freshly-spun-up backend would grey every
+        // row until its Sensors resolve. Mirrors MainContent's loading gate.
         availableMetrics: metricsAdapter.loading ? null : metricsAdapter.availableMetrics
     }
 }

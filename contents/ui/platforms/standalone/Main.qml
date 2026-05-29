@@ -168,11 +168,9 @@ Window {
         configStore: configStoreAdapter
         theme: themeAdapter
         updateChecker: updateCheckerAdapter
-        // Live availability from the running backend so the metrics picker
-        // greys out metrics with no data source (no GPU, no swap, …). `null`
-        // while loading (= unknown → everything enable-able) so a dialog
-        // opened during the first sample doesn't transiently grey rows that
-        // are about to resolve; mirrors MainContent's warm-up gate.
+        // Live availability so the picker greys metrics with no data source;
+        // `null` while loading (= unknown → all enable-able) so a dialog opened
+        // mid-warm-up doesn't grey rows about to resolve.
         availableMetrics: metricsAdapter.loading ? null : metricsAdapter.availableMetrics
     }
 

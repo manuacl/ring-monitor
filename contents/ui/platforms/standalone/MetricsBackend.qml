@@ -61,22 +61,15 @@ Item {
     // ever becomes a UX complaint.
     readonly property bool loading: backend._prev === null
 
-    // Which catalog metrics have a live data source on this host. cpu / ram
-    // / disk are always present (/proc + a discovered filesystem); cpuTemp
-    // appears once the hwmon/thermal path resolves; swap only when the
-    // kernel reports a non-zero SwapTotal (swapless host → hidden); gpu only
-    // when NVML reported a usable device, and gpuTemp additionally requires
-    // a finite temperature reading (an NVIDIA device whose temp query keeps
-    // failing keeps _gpuTempC at NaN → no dead 0°C ring; matches the Plasma
-    // adapter's separate _gpuUsageReady/_gpuTempReady gating). Mirrors the
-    // Plasma availableMetrics surface so MainContent + the picker behave
-    // identically on either host.
+    // Catalog ids with a live data source (same surface as the Plasma
+    // adapter). The map below reads as the gating; gpuTemp additionally
+    // requires a finite reading so a GPU whose temp query keeps failing shows
+    // no dead 0°C ring (matches Plasma's split usage/temp gating).
     //
-    // The binding depends only on the capability properties below — NOT on
-    // _tick. _cpuTempPath / _swapAvailable / _gpuAvailable / _gpuTempC each
-    // carry their own NOTIFY, so it re-evaluates exactly when a capability
-    // flips, not on every 500 ms poll (which would hand MainContent a fresh
-    // array identity each tick and rebuild the whole ring strip at 2 Hz).
+    // Depends ONLY on the capability properties — NOT on _tick. Each carries
+    // its own NOTIFY, so it re-evaluates when a capability flips, not every
+    // 500 ms poll (which would hand MainContent a fresh array identity each
+    // tick and rebuild the whole ring strip at 2 Hz — a fixed review bug).
     readonly property var availableMetrics: Catalog.availableMetricsFrom({
         "cpu": true,
         "cpuTemp": backend._cpuTempPath !== "",

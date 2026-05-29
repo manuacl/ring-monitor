@@ -23,10 +23,8 @@ ColumnLayout {
 
     // ── Adapter input ───────────────────────────────────────────────
     property var theme
-    // Which metric ids the backend currently has a live data source for
-    // ([...]) injected by the platform wrapper. null = availability unknown
-    // (the picker then treats every metric as enable-able). An id absent
-    // from a non-null list renders its row greyed out + annotated.
+    // Metric ids with a live data source, injected by the platform wrapper.
+    // null = unknown → every row enable-able (see isMetricAvailable).
     property var availableMetrics: null
     // Discovered disk partitions ([{id, label}]) injected by the platform
     // wrapper (Plasma: configMetrics via DiskPartitions; standalone:

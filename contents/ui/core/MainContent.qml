@@ -39,14 +39,10 @@ GridLayout {
     // sides are enabled (a merge with nothing to merge into stays a
     // standalone temperature ring).
     readonly property var _rawEnabledList: Catalog.filterByOrder(Catalog.parseCsv(content.configStore.enabledMetrics), Catalog.parseCsv(content.configStore.metricOrder))
-    // Drop metrics with no live data source (GPU on a non-NVIDIA box, swap
-    // on a swapless host, an unresolved CPU-temp sensor) — but only once
-    // `loading` is false. During warm-up the backend hasn't resolved every
-    // sensor yet, so keep showing the full configured strip (the 100%
-    // "warming up" sweep) and let the unavailable rings drop on settle.
-    // Runs BEFORE applyMergedTempMode so split-mode never engages on an
-    // unavailable temperature metric (a gpu+gpuTemp merge with no GPU temp
-    // would otherwise render a split ring whose right half is dead).
+    // Drop metrics with no live data source, but only after warm-up
+    // (`loading` keeps the full strip during the 100% sweep), and BEFORE
+    // applyMergedTempMode so split-mode never engages on an unavailable temp
+    // metric. Full derivation chain: docs/components.md § MainContent.
     readonly property var _availableEnabledList: content.metrics.loading ? content._rawEnabledList : Catalog.filterByAvailable(content._rawEnabledList, content.metrics.availableMetrics)
     readonly property var enabledList: Catalog.applyMergedTempMode(content._availableEnabledList, content.configStore.mergeCpuTemp, content.configStore.mergeGpuTemp)
     readonly property bool vertical: content.configStore.orientation === "vertical"

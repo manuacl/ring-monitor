@@ -58,20 +58,13 @@ Item {
 
     readonly property bool loading: cpuTotal.status !== Sensors.Sensor.Ready || ramSensor.status !== Sensors.Sensor.Ready
 
-    // Which catalog metrics have a live data source right now — a metric
-    // whose Sensor hasn't reached Ready (no such sensor on this host, or
-    // still resolving) is omitted. MainContent drops the dead 0% ring and
-    // the config picker greys the row out. Re-evaluates on each universal
-    // sensor's status (Sensor.status carries a NOTIFY) and on the gpu ticks
-    // bumped by the per-GPU Instantiators' status changes. Order follows
-    // Catalog.METRIC_IDS for readability; the consumer (filterByAvailable)
-    // keeps the user's order, not this one.
+    // Catalog ids whose Sensor has reached Ready (see docs/components.md
+    // § MetricsBackend for how the consumers use it).
     readonly property var availableMetrics: {
-        // Reading the gpu ticks first makes the binding re-evaluate when a
-        // per-GPU Instantiator's status changes (the readiness helpers walk
-        // those instances, which QML can't otherwise track). The universal
-        // sensors' status reads below are tracked directly (Sensor.status
-        // carries a NOTIFY).
+        // Read the gpu ticks first so the binding re-evaluates when a per-GPU
+        // Instantiator's status changes — the readiness helpers walk those
+        // instances, which QML can't track otherwise. The universal sensors'
+        // .status reads below are tracked directly (Sensor.status has NOTIFY).
         backend._gpuUsageTick;
         backend._gpuTempTick;
         return Catalog.availableMetricsFrom({

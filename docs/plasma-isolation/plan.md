@@ -2,6 +2,11 @@
 
 ## Status
 
+**Phase 1 — Plasma-isolation refactor (PRs 1–6): ✅ complete.**
+**Phase 2 — standalone build (issue #7, PRs A–H): MVP shipped v0.6.0;
+2 stages remain (C2 + H)** — see the
+[standalone progress tracker](#standalone-implementation-sequence) below.
+
 | PR | Goal | State |
 |---|---|---|
 | 1 | Theme adapter (`platforms/plasma/Theme.qml` + `ThemedIcon.qml`) | merged (#8) |
@@ -352,6 +357,25 @@ that drives the whole isolation refactor.
 Eight PRs, delivered one at a time. Each one stops and waits for
 manual validation before the next starts. The Plasma build must keep
 working at every step.
+
+**Live status (updated 2026-05-30):** the MVP (A–G) shipped in **v0.6.0**,
+and every post-MVP metric is done too. **2 stages remain: C2 + H.**
+
+| Stage | State |
+|---|---|
+| A — picking helper | ✅ #25 |
+| B — build infrastructure | ✅ #26 |
+| C — window integration (X11 / XWayland subset) | ✅ #27, #63 |
+| D — CPU backend (`/proc/stat`) | ✅ #29 |
+| E — RAM + disk backend | ✅ #30 |
+| F — config store + Settings dialog | ✅ #31, #32 |
+| G — right-click menu + lifecycle + autostart | ✅ #35 |
+| post-MVP — GPU (NVML + sysfs) / CPU temp / swap / multi-partition disk | ✅ #43, #44, #46, #47, #50, #82, #84 |
+| **C2 — native Wayland layer-shell** (split out of C) | ⬜ **remaining** |
+| **H — release pipeline (AppImage)** | ⬜ **remaining** |
+
+The detailed A–H breakdown below is the original plan (historical reference);
+the C row there bundled the Wayland-native path that's now tracked as C2.
 
 | # | Goal | What changes | Risk |
 |---|---|---|---|

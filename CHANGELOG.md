@@ -21,10 +21,13 @@ user-facing only.
   `linuxdeploy-plugin-qt` to emit `Ring_Monitor-<version>-x86_64.AppImage`. CI
   builds and offscreen-smoke-tests it on ubuntu-22.04 (glibc 2.35, for broad
   distro compatibility) with Qt 6.5 from aqtinstall; `release.yml` builds it via
-  the same script and attaches it to the same GitHub Release as the `.plasmoid`.
-  `main.cpp` now calls `setDesktopFileName` so Wayland compositors map the window
-  to the installed desktop entry. The standalone build is now installable without
-  a toolchain.
+  the same script, smoke-tests it, and attaches it to the same GitHub Release as
+  the `.plasmoid`. Because `core/` imports `org.kde.kirigami` (which
+  `linuxdeploy-plugin-qt` does not ship and neither aqt nor apt provides for
+  Qt 6), `scripts/build-kirigami6.sh` compiles Kirigami 6 + ECM from source into
+  the Qt prefix so it gets bundled. `main.cpp` now calls `setDesktopFileName` so
+  Wayland compositors map the window to the installed desktop entry. The
+  standalone build is now installable without a toolchain.
 
 - (Part of #7) Fix the standalone AMD/Intel GPU sysfs retry gate closing too
   early (#83): the two-path gate used `&&`, so it stopped retrying the moment

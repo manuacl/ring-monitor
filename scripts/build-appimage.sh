@@ -44,8 +44,15 @@ cmake --install build --prefix AppDir/usr
 # 3. Fetch linuxdeploy + the qt plugin (cached between runs).
 TOOLS="$ROOT/.appimage-tools"
 mkdir -p "$TOOLS"
+# Download to a temp path and only move into place on success, so an
+# interrupted/partial download never leaves a corrupt file that the
+# existence-only cache guard would then trust forever.
 fetch() {
-    [ -x "$TOOLS/$1" ] || { curl -fsSL "$2" -o "$TOOLS/$1"; chmod +x "$TOOLS/$1"; }
+    local dest="$TOOLS/$1"
+    [ -x "$dest" ] && return 0
+    curl -fsSL "$2" -o "$dest.part"
+    chmod +x "$dest.part"
+    mv "$dest.part" "$dest"
 }
 fetch linuxdeploy-x86_64.AppImage \
     https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
@@ -59,16 +66,26 @@ fetch linuxdeploy-plugin-qt-x86_64.AppImage \
 # (qt_add_qml_module + loadFromModule), so it is NOT on disk for the
 # plugin's qmlimportscanner to find — without this it bundles zero QML
 # plugins and the app dies at runtime with `module "QtQuick" is not
-# installed`. Point it at the real QML source tree.
-export QML_SOURCES_PATHS="$ROOT/contents/ui"
+# installed`. Scan ONLY the dirs the standalone binary actually loads
+# (core + standalone); pointing it at platforms/plasma/ would feed the
+# scanner org.kde.plasma.* / ksysguard imports the standalone build
+# never uses (and the CI Qt can't resolve). Kirigami imports here are
+# satisfied by the Kirigami installed into the Qt prefix
+# (scripts/build-kirigami6.sh in CI; the system Kirigami locally).
+export QML_SOURCES_PATHS="$ROOT/contents/ui/core:$ROOT/contents/ui/platforms/standalone"
 # Run the helper AppImages without FUSE (CI containers / minimal hosts
 # often lack it; harmless when FUSE is present).
 export APPIMAGE_EXTRACT_AND_RUN=1
-export OUTPUT="Ring_Monitor-${VERSION}-x86_64.AppImage"
+# LDAI_OUTPUT is the current name the appimage output plugin reads for
+# the target filename; OUTPUT is its legacy alias. Set both so the
+# upload globs (Ring_Monitor-*-x86_64.AppImage) match regardless of
+# which the pinned-to-`continuous` plugin honors.
+export LDAI_OUTPUT="Ring_Monitor-${VERSION}-x86_64.AppImage"
+export OUTPUT="$LDAI_OUTPUT"
 
 "$TOOLS/linuxdeploy-x86_64.AppImage" \
     --appdir AppDir \
     --plugin qt \
     --output appimage
 
-echo "Built $OUTPUT"
+echo "Built $LDAI_OUTPUT"

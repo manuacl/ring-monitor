@@ -256,7 +256,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            cmake g++ make pkg-config \
+            cmake g++ make pkg-config git \
             libxcb1-dev libgl1-mesa-dev libfontconfig1 libfuse2
 
       - name: Install Qt 6.5
@@ -267,6 +267,13 @@ jobs:
           target: desktop
           arch: gcc_64
           modules: qtimageformats
+
+      # core/ imports org.kde.kirigami, which linuxdeploy-plugin-qt does
+      # NOT ship (it bundles Qt's own QML modules only) and neither aqt
+      # nor apt provides for Qt 6 — compile it into the Qt prefix so the
+      # AppImage can bundle it. See scripts/build-kirigami6.sh.
+      - name: Build + install Kirigami 6
+        run: scripts/build-kirigami6.sh
 
       - name: Build the AppImage
         run: scripts/build-appimage.sh

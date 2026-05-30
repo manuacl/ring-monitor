@@ -201,7 +201,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            cmake g++ make pkg-config \
+            cmake g++ make pkg-config git \
             libxcb1-dev libgl1-mesa-dev libfontconfig1 libfuse2
 
       - name: Install Qt 6.5
@@ -213,8 +213,27 @@ jobs:
           arch: gcc_64
           modules: qtimageformats
 
+      # Bundle Kirigami 6 (core/ imports org.kde.kirigami) — same as the
+      # ci.yml appimage job. See scripts/build-kirigami6.sh.
+      - name: Build + install Kirigami 6
+        run: scripts/build-kirigami6.sh
+
       - name: Build the AppImage
         run: scripts/build-appimage.sh
+
+      # Gate the release on the SAME offscreen smoke-test the PR runs, so
+      # a broken AppImage (e.g. an unbundled QML module) can never be
+      # published to a tag — release.yml has no other guard against it.
+      - name: Offscreen smoke-test
+        run: |
+          set +e
+          QT_QPA_PLATFORM=offscreen timeout 4 ./Ring_Monitor-*-x86_64.AppImage
+          code=$?
+          if [ "$code" -ne 124 ]; then
+            echo "::error::AppImage smoke-test failed (exit $code; expected 124) — refusing to publish"
+            exit 1
+          fi
+          echo "Smoke-test OK (exit 124 = QML root loaded)"
 
       - name: Attach to the release
         env:

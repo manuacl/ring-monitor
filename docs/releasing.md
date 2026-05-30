@@ -40,9 +40,17 @@ bundle Qt and emit the AppImage. It runs on **ubuntu-22.04 (glibc
 2.35)**, not the `fedora:41` container the C++ build job uses — a
 Fedora-41 glibc (2.40) AppImage would refuse to start on older targets
 (Linux Lite / Ubuntu 24.04). Ubuntu 22.04 ships Qt 6.2 (< the 6.5
-`CMakeLists.txt` requires), so Qt 6.5 comes from `aqtinstall`. The CI
-job additionally runs the bundled binary offscreen as a portability
-smoke-test (exit 124 = the QML root loaded).
+`CMakeLists.txt` requires), so Qt 6.5 comes from `aqtinstall`.
+
+Because the shared `core/` layer imports `org.kde.kirigami` — which
+`linuxdeploy-plugin-qt` does **not** bundle (it ships Qt's own QML
+modules only) and which neither aqtinstall nor ubuntu-22.04's apt
+provides for Qt 6 — a prior step runs `scripts/build-kirigami6.sh` to
+compile Kirigami 6 + ECM from source into the Qt prefix, so the bundling
+step can pick it up. Both the `ci.yml` and `release.yml` AppImage jobs
+run the bundled binary offscreen as a portability smoke-test (exit 124 =
+the QML root loaded) — the release job refuses to publish on any other
+exit code.
 
 - `bump:major|minor|patch` → SemVer bump as expected.
 - No `bump:*` label on the merged PR → `version.yml` exits cleanly, no

@@ -2,3 +2,8 @@
 *.swo
 .DS_Store
 build/
+
+# Standalone AppImage build artifacts (scripts/build-appimage.sh)
+/AppDir/
+/.appimage-tools/
+/Ring_Monitor-*-x86_64.AppImage

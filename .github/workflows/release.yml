@@ -257,27 +257,10 @@ jobs:
           fi
           echo "Smoke-test OK (exit 124 = QML root loaded)"
 
-      # Same native-Wayland bundling assertion as the PR CI — never
-      # publish a tag whose AppImage silently dropped the Wayland path.
+      # Same native-Wayland bundling assertion as the PR CI (shared
+      # script) — never publish a tag whose AppImage dropped the Wayland path.
       - name: Verify native-Wayland bundling
-        run: |
-          ./Ring_Monitor-*-x86_64.AppImage --appimage-extract >/dev/null
-          missing=0
-          # generic + egl wayland platform plugins (both requested in
-          # build-appimage.sh) + layer-shell-qt's shell-integration plugin.
-          # egl is the GPU-accelerated path Qt picks on most KWin/sway boxes.
-          for f in \
-            usr/plugins/platforms/libqwayland-generic.so \
-            usr/plugins/platforms/libqwayland-egl.so \
-            usr/plugins/wayland-shell-integration/libqt-shell-integration-layer.so; do
-            if ! ls squashfs-root/"$f" >/dev/null 2>&1; then
-              echo "::error::missing from AppImage: $f"
-              missing=1
-            fi
-          done
-          rm -rf squashfs-root
-          [ "$missing" -eq 0 ] && echo "Native-Wayland plugins bundled OK"
-          exit $missing
+        run: scripts/verify-wayland-bundling.sh
 
       - name: Attach to the release
         env:

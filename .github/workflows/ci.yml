@@ -303,29 +303,10 @@ jobs:
 
       # The offscreen smoke-test runs the xcb/offscreen path, so it can't
       # catch a missing Wayland plugin. Assert the native-Wayland pieces
-      # (PR C2) are actually in the bundle — the wayland platform plugin
-      # and layer-shell-qt's shell-integration plugin.
+      # (PR C2) are in the bundle. Logic lives in the script (shared with
+      # release.yml) so the plugin list is maintained in one place.
       - name: Verify native-Wayland bundling
-        run: |
-          ./Ring_Monitor-*-x86_64.AppImage --appimage-extract >/dev/null
-          missing=0
-          # Both wayland platform plugins requested in build-appimage.sh
-          # (EXTRA_PLATFORM_PLUGINS) plus layer-shell-qt's shell-integration
-          # plugin. Checking egl too: Qt picks it on GPU-accelerated Wayland
-          # (the common KWin/sway case), so a silently-dropped egl plugin
-          # would fail at startup there while generic-only still passed.
-          for f in \
-            usr/plugins/platforms/libqwayland-generic.so \
-            usr/plugins/platforms/libqwayland-egl.so \
-            usr/plugins/wayland-shell-integration/libqt-shell-integration-layer.so; do
-            if ! ls squashfs-root/"$f" >/dev/null 2>&1; then
-              echo "::error::missing from AppImage: $f"
-              missing=1
-            fi
-          done
-          rm -rf squashfs-root
-          [ "$missing" -eq 0 ] && echo "Native-Wayland plugins bundled OK"
-          exit $missing
+        run: scripts/verify-wayland-bundling.sh
 
       - name: Upload artifact (PR inspection)
         uses: actions/upload-artifact@v4

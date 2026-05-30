@@ -15,9 +15,10 @@ import "../../core" as Core
 // side reuses — opened via the right-click context menu or the
 // update-available badge.
 //
-// Compositor-specific behaviour (always-on-bottom, EWMH hints,
-// click-through input region) sits in `standalone/desktop_hints.cpp`
-// — see PR C.
+// Compositor-specific behaviour sits in C++: the X11/XWayland EWMH
+// hints in `standalone/desktop_hints.cpp` (PR C) and the native
+// wlr-layer-shell bottom-layer surface in `standalone/wayland_layer_shell.cpp`
+// (PR C2). `WaylandLayerShell.active` selects which path `_anchor()` takes.
 
 Window {
     id: root
@@ -52,7 +53,13 @@ Window {
     readonly property int _windowMargin: (configStoreAdapter.windowMargin !== undefined) ? configStoreAdapter.windowMargin : 0
     readonly property int _targetWidth: Math.min(content.vertical ? _ringSize : _stripLength, Screen.width - 2 * _windowMargin)
     readonly property int _targetHeight: Math.min(content.vertical ? _stripLength : _ringSize, Screen.height - 2 * _windowMargin)
-    visible: true
+    // On the native-Wayland (layer-shell) path the window must stay
+    // hidden until its layer surface is configured — the wlr-layer-shell
+    // role is assigned when the wl_surface is created on show(), so
+    // `_anchor()` configures first and flips `visible` true afterwards.
+    // On X11 / XWayland (active === false) this is a constant `true`, so
+    // the window shows during load exactly as before.
+    visible: !WaylandLayerShell.active
 
     // Top-right anchored at the very edge of the screen (y = 0) — the
     // window is always-on-bottom so any Plasma panel at the top draws
@@ -76,6 +83,18 @@ Window {
     // StaticGravity. Qt.callLater coalesces consecutive slider
     // firings so we send exactly one update per tick.
     function _anchor() {
+        if (WaylandLayerShell.active) {
+            // Native Wayland: the compositor positions the surface from
+            // the layer-shell anchors + margins, so there's no x/y and
+            // none of the QTBUG-57608 atomic-setGeometry gravity dance
+            // (that's an X11-only problem). Configure while still hidden,
+            // then show. Re-runs (margin-slider drag, screen reconfig)
+            // re-commit margins + size live — `visible = true` is then a
+            // harmless no-op.
+            WaylandLayerShell.configure(root, root._windowMargin, root._windowMargin, root._targetWidth, root._targetHeight);
+            root.visible = true;
+            return;
+        }
         WindowAnchor.setGeometry(root, Screen.width - root._targetWidth - root._windowMargin, root._windowMargin, root._targetWidth, root._targetHeight);
     }
     // Defer the first anchor so `applyDesktopWindowHints` (called

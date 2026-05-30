@@ -261,14 +261,65 @@ registration file includes our headers via `<proc_reader.h>`
 |---|---|---|
 | **Plasma-X11**, XFCE, Cinnamon, MATE, LXQt | ✓ native | Qt::FramelessWindowHint + Qt::WindowStaysOnBottomHint + xcb EWMH hints (sticky, skip-taskbar, skip-pager); window type forced to `_NET_WM_WINDOW_TYPE_NORMAL` to undo Qt's `_KDE_NET_WM_WINDOW_TYPE_OVERRIDE` default |
 | **Plasma-Wayland** | ✓ via auto-XWayland | `forceXWaylandUnderWayland` in `desktop_hints.cpp` force-sets `QT_QPA_PLATFORM=xcb` before `QGuiApplication`, gated on `QStandardPaths::findExecutable("Xwayland")` so the app falls back to native Wayland (no Conky hints) if XWayland is missing rather than crashing. STICKY + BELOW + SKIP_TASKBAR + SKIP_PAGER are all declared as a `_NET_WM_STATE` property pre-map (not via ClientMessage — see § below); STICKY may not surface in `xprop` on a single-virtual-desktop session but the hint is still set |
-| **GNOME-Wayland (mutter)** | ✓ via auto-XWayland | Same path as Plasma-Wayland; mutter ships XWayland by default, so the probe always succeeds |
-| **sway / Hyprland (wlroots-Wayland)** | ✓ via auto-XWayland (if `xwayland` package installed) or degraded native otherwise | Same probe — if the user installed XWayland they get the Conky behaviour; minimal installs fall back to native Wayland with the EWMH hints no-op'd. Layer-shell-qt-based native integration lands in a future PR |
-| **KWin-Wayland native** | ⚠ degraded — same as sway above | Layer-shell-qt path same as above |
+| **GNOME-Wayland (mutter)** | ✓ via auto-XWayland | Same path as Plasma-Wayland; mutter ships XWayland by default, so the probe always succeeds. mutter has no wlr-layer-shell, so it deliberately stays on the XWayland path even when layer-shell-qt is compiled in (`decideWindowStrategy` excludes `XDG_CURRENT_DESKTOP=*GNOME*`) |
+| **KWin-Wayland / sway / Hyprland (wlroots-Wayland)** | ✓ native layer-shell (PR C2) when layer-shell-qt is bundled; else ✓ via auto-XWayland | `decideWindowStrategy` returns `WaylandLayerShell` → `wayland_layer_shell.cpp` makes the window a `wlr-layer-shell` **bottom-layer** surface (anchored top-right, `KeyboardInteractivityOnDemand`, exclusive zone 0). No Alt+Tab, no input capture, survives a desktop click — fixes all the XWayland warts below. When layer-shell-qt isn't compiled in (`HAVE_LAYER_SHELL_QT` undefined, e.g. a dev box without the lib) the same session falls back to the XWayland EWMH path |
 
-The "native Wayland layer-shell" path is deferred to a future PR
-(scoped as PR C2 in [plan.md](../../../../docs/plasma-isolation/plan.md))
-because installing `layer-shell-qt-devel` on the dev box requires an
-`rpm-ostree install + reboot` cycle.
+PR C2 added the native `wlr-layer-shell` path via KDE's **layer-shell-qt**, an
+**optional** build dep (`find_package(LayerShellQt QUIET)`). The AppImage CI
+compiles it from source into the Qt prefix (`scripts/build-layer-shell-qt.sh`,
+mirroring the Kirigami build, pinned to the **v6.0.x** tag = Qt 6.6 floor) and
+bundles the wayland platform plugin + layer-shell shell-integration plugin
+(`scripts/build-appimage.sh`). On the maintainer's box, getting the headers is an
+`rpm-ostree install layer-shell-qt-devel` + reboot (note: Fedora's package has no
+`kf6-` prefix); without them the build is X11/XWayland-only and byte-for-byte the
+pre-C2 behaviour.
+
+Four load-bearing decisions, the last three settled by **live testing** under
+KWin-Wayland (none are surfaced by the offscreen CI smoke-test, so don't "tidy"
+them away):
+
+1. **Per-window opt-in, NOT the global `useLayerShell()`.** `wayland_layer_shell.cpp`
+   calls `LayerShellQt::Window::get(window)` on the rings window only. The global
+   `LayerShellQt::Shell::useLayerShell()` sets `QT_WAYLAND_SHELL_INTEGRATION`
+   process-wide, which turned the **right-click menu's popup and the settings
+   dialog into fullscreen, un-dismissable layer surfaces**. The per-window
+   `setShellIntegration()` mechanism has existed since layer-shell-qt v6.0.0 (it's
+   why `useLayerShell()` is deprecated since 6.6 / Qt 6.5) — so v6.0.x on the
+   AppImage's Qt 6.6 supports it too. main.cpp must never call `useLayerShell()`.
+2. **`bottom` layer, NOT `background`.** SCENARIO: on `background` a left-click on
+   the desktop raised Plasma's wallpaper/desktop containment over the widget and it
+   **vanished** — the exact occlusion the X11 `_NET_WM_WINDOW_TYPE_DESKTOP` had.
+   `bottom` sits above the wallpaper/containment, below normal windows.
+3. **`KeyboardInteractivityOnDemand`, NOT `None`.** SCENARIO: the context menu is an
+   `xdg_popup`; the compositor only installs the popup grab (which sizes/positions
+   it and lets click-away / Escape dismiss it) when the parent surface can take
+   seat focus. `None` left the menu fullscreen + un-closeable. `OnDemand` takes
+   focus only while interacting; the widget still never enters a switcher.
+4. **Configure before show.** The layer-shell role is assigned at `wl_surface`
+   creation, so `Main.qml` keeps the root `visible: !WaylandLayerShell.active`
+   (hidden on the layer path) and `_anchor()` calls `WaylandLayerShell.configure(...)`
+   then flips `visible = true`. Anchors + margins are live-settable, so the
+   window-margin slider works at runtime (`configure` re-commits on every
+   re-anchor). Positioning is anchors+margins, not `WindowAnchor.setGeometry`
+   (an X11 QTBUG-57608 workaround, irrelevant on Wayland).
+
+The GNOME exclusion is an `XDG_CURRENT_DESKTOP` heuristic, not a runtime registry
+probe — cheap, and a wlroots compositor that mis-reports it only degrades to
+XWayland, never breaks.
+
+### Window-integration changes need a live compositor test
+
+The offscreen CI smoke-test (`QT_QPA_PLATFORM=offscreen`, exit 124 = pass)
+**cannot** see compositor behaviour: layer-shell layer / keyboard-interactivity,
+EWMH hints, popup sizing, and desktop-click survival are all invisible to it — it
+exits green regardless. PR C2's two worst bugs (vanish-on-desktop-click from the
+wrong layer, fullscreen un-closeable menu from the global `useLayerShell()`) both
+passed the smoke-test and were caught **only** by running on a real KWin-Wayland
+session. So: before merging any change to `desktop_hints.cpp`,
+`wayland_layer_shell.cpp`, or `Main.qml`'s window flags / `visible` / `_anchor()`,
+run the binary on a real compositor and verify the behaviour by eye (rings
+placement, Alt+Tab absence, desktop-click survival, right-click menu, settings
+dialog). CI green is necessary, not sufficient.
 
 ### Alt+Tab visibility under Plasma — known trade-off
 
@@ -282,11 +333,15 @@ default for `FramelessWindowHint` windows) tells KWin not to manage
 the window at all — which strips input events and would break the
 right-click context menu landing in PR G.
 
-User-side workaround: KWin → Window Rules → add a rule matching the
+This wart is specific to the **XWayland / X11** path. The native
+layer-shell path (PR C2) fixes it: a wlr-layer-shell bottom-layer
+surface never participates in any switcher by design, so on
+wlroots / KWin Wayland with layer-shell-qt bundled the widget is
+already absent from Alt+Tab. The note remains for the XWayland
+fallback (GNOME-Wayland, or a build without layer-shell-qt) — there
+the user-side workaround still applies: KWin → Window Rules → match
 window class `ring-monitor-standalone` with **"Skip switcher: Force
-Yes"**. App-side, the fix is the native layer-shell path: a
-wlr-layer-shell "background" layer surface never participates in
-any switcher by design. That's covered by PR C2.
+Yes"**.
 
 ### Window type is `_NET_WM_WINDOW_TYPE_NORMAL` + `_NET_WM_STATE_BELOW`
 
@@ -380,12 +435,15 @@ xfwm4 — all EWMH stacking WMs); see the `project-standalone-target-des`
 memory.
 
 The only path that gives **both** (visible on a desktop click AND
-click pass-through) is the wlr-layer-shell `background` layer — it
-doesn't participate in window restacking and isn't a normal input
-target. That's PR C2 in
-[`docs/plasma-isolation/plan.md`](../../../../docs/plasma-isolation/plan.md).
-Don't keep flip-flopping DESKTOP ↔ NORMAL to "fix" one symptom; NORMAL
-is the committed stopgap until C2. Full live-test notes in the
+click pass-through) is a wlr-layer-shell surface — it doesn't
+participate in window restacking and isn't a normal input target.
+**PR C2 added that path** (`wayland_layer_shell.cpp`, on the `bottom`
+layer — `background` reproduced the very vanish-on-desktop-click this
+section is about), so on wlroots / KWin Wayland with layer-shell-qt
+bundled neither trade-off applies. This X11/XWayland `NORMAL` analysis still governs the
+XWayland fallback (GNOME-Wayland, or any build without layer-shell-qt):
+there `NORMAL` remains the committed choice — don't flip-flop DESKTOP ↔
+NORMAL to "fix" one symptom. Full live-test notes in the
 `project-standalone-window-type-desktop-click` memory.
 
 ### Initial `_anchor()` must be deferred via `Qt.callLater`
@@ -639,9 +697,13 @@ protocol bits qt6 doesn't expose):
 | sway / Hyprland | same as KWin |
 | GNOME-Wayland (mutter) | force XWayland via `QT_QPA_PLATFORM=xcb` env injection at startup, then EWMH hints |
 
-PR C wires this up. Until then, `Main.qml` just sets
-`Qt.FramelessWindowHint | Qt.WindowStaysOnBottomHint` — works on most
-compositors as a degraded-but-visible baseline.
+PR C wired up the X11/XWayland rows (`desktop_hints.cpp`); PR C2 wired
+the KWin/sway/Hyprland rows natively (`wayland_layer_shell.cpp`, gated on
+the optional layer-shell-qt). `decideWindowStrategy` (`desktop_hints.cpp`)
+is the single dispatcher that maps the session to one of the three
+mechanisms above. `Main.qml`'s `Qt.FramelessWindowHint |
+Qt.WindowStaysOnBottomHint` flags remain as the cross-compositor baseline
+underneath whichever path is selected.
 
 ## Maximize what lives in `core/`
 

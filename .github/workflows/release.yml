@@ -215,7 +215,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             cmake g++ make pkg-config git \
-            libxcb1-dev libgl1-mesa-dev libfontconfig1 libfuse2
+            libxcb1-dev libgl1-mesa-dev libfontconfig1 libfuse2 \
+            libwayland-dev wayland-protocols libxkbcommon-dev
 
       - name: Install Qt 6.6
         uses: jurplel/install-qt-action@v4
@@ -225,13 +226,21 @@ jobs:
           target: desktop
           arch: gcc_64
           # qtshadertools: required by the Kirigami 6 build (find_package
-          # Qt6 ShaderTools); not in the aqt base set.
+          # Qt6 ShaderTools), not in the aqt base set. Qt6WaylandClient +
+          # the wayland platform plugins are already in the base gcc_64
+          # package — there is no separate `qtwayland` aqt module (only
+          # qtwaylandcompositor, the server side, which we don't use).
           modules: qtimageformats qtshadertools
 
       # Bundle Kirigami 6 (core/ imports org.kde.kirigami) — same as the
       # ci.yml appimage job. See scripts/build-kirigami6.sh.
       - name: Build + install Kirigami 6
         run: scripts/build-kirigami6.sh
+
+      # layer-shell-qt for the native wlr-layer-shell path (PR C2) — same
+      # as ci.yml; reuses the ECM the Kirigami step installed.
+      - name: Build + install layer-shell-qt
+        run: scripts/build-layer-shell-qt.sh
 
       - name: Build the AppImage
         run: scripts/build-appimage.sh
@@ -249,6 +258,11 @@ jobs:
             exit 1
           fi
           echo "Smoke-test OK (exit 124 = QML root loaded)"
+
+      # Same native-Wayland bundling assertion as the PR CI (shared
+      # script) — never publish a tag whose AppImage dropped the Wayland path.
+      - name: Verify native-Wayland bundling
+        run: scripts/verify-wayland-bundling.sh
 
       - name: Attach to the release
         env:

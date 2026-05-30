@@ -14,6 +14,32 @@ user-facing only.
 
 ### Technical
 
+- (Part of #7) Native Wayland window path via KDE's **layer-shell-qt** (PR C2).
+  On wlroots / KWin Wayland the standalone widget is now a `wlr-layer-shell`
+  **bottom-layer** surface (anchored top-right, `KeyboardInteractivityOnDemand`,
+  exclusive zone 0) instead of the XWayland fallback — so it no longer shows in
+  Alt+Tab and no longer captures clicks over its area, the two warts the
+  `NORMAL`+`BELOW` X11 window can't shed. `standalone/desktop_hints.cpp` gains
+  `decideWindowStrategy()`, a single selector returning X11Ewmh / WaylandLayerShell
+  / Floating from the session env; GNOME/mutter (no wlr-layer-shell) and the X11
+  path are untouched. The layer role is opted into **per window** via
+  `LayerShellQt::Window::get()` — deliberately NOT the global
+  `LayerShellQt::Shell::useLayerShell()`, which would turn the context menu and
+  settings dialog into fullscreen layer surfaces too. Two choices were settled by
+  live testing: the `bottom` layer (not `background`, which is occluded by Plasma's
+  desktop containment on a desktop click) and `OnDemand` keyboard interactivity
+  (the context menu's `xdg_popup` needs the surface to take seat focus for its grab
+  to install). layer-shell-qt is an **optional** build dep
+  (`find_package(LayerShellQt QUIET)` → `HAVE_LAYER_SHELL_QT`): without it the
+  build is byte-for-byte the pre-C2 X11/XWayland behaviour, and the new
+  `WaylandLayerShell` QML singleton degrades to a no-op. The AppImage gets the
+  path via `scripts/build-layer-shell-qt.sh` (compiles layer-shell-qt from source
+  into the Qt prefix, like Kirigami) plus wayland-plugin bundling in
+  `build-appimage.sh`; CI asserts the wayland plugins land in the AppDir. Because
+  the layer-shell role is assigned at `wl_surface` creation, `Main.qml` keeps the
+  root hidden (`visible: !WaylandLayerShell.active`) until `_anchor()` configures
+  the surface, then shows it.
+
 - (Part of #7, #89) Platform-scoped update notifications. The Plasma widget and
   the standalone build share one version counter and one GitHub release stream,
   so the "update available" badge would otherwise ping a Plasma user for a

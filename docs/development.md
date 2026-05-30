@@ -98,22 +98,42 @@ the window behaves Conky-style — sits on the wallpaper, not in the
 taskbar/pager, visible across workspaces. The actual metric
 rendering arrives in PR D / E.
 
-On any Wayland session that doesn't yet have native layer-shell
-support in our build, the binary auto-forces XWayland: at startup
-`forceXWaylandUnderWayland` (in `standalone/desktop_hints.cpp`)
-checks `XDG_SESSION_TYPE=wayland`, probes for the `Xwayland`
-executable on `$PATH`, and if found sets `QT_QPA_PLATFORM=xcb`
-before `QGuiApplication` constructs. No manual `QT_QPA_PLATFORM`
-needed.
+`decideWindowStrategy` (in `standalone/desktop_hints.cpp`) picks the
+window path. On a Wayland session, if the build has layer-shell-qt
+compiled in (`HAVE_LAYER_SHELL_QT`) and the desktop isn't GNOME, it
+takes the **native wlr-layer-shell** path (`wayland_layer_shell.cpp`,
+PR C2) — a bottom-layer surface, no Alt+Tab, click pass-through.
 
-If `Xwayland` is not installed (minimal Sway/Hyprland install, a
+Otherwise (GNOME-Wayland, or a build without layer-shell-qt) it
+auto-forces XWayland: `forceXWaylandUnderWayland` probes for the
+`Xwayland` executable on `$PATH` and, if found, sets
+`QT_QPA_PLATFORM=xcb` before `QGuiApplication` constructs. No manual
+`QT_QPA_PLATFORM` needed.
+
+If `Xwayland` is also not installed (minimal Sway/Hyprland install, a
 user who removed `xorg-x11-server-Xwayland`), the binary falls
 back to native Wayland — the EWMH hints in `applyDesktopWindowHints`
 no-op (the X11 native interface returns nullptr), so the window
 shows up as an ordinary frameless `WindowStaysOnBottomHint` Qt
 window without the Conky integration. Install the `Xwayland`
-package or wait for the layer-shell native path (PR C2) to get
-the full behaviour.
+package, or build with layer-shell-qt for the native path.
+
+**Testing the native layer-shell path locally.** It's only compiled
+in when `find_package(LayerShellQt)` succeeds. On Bazzite that's an
+rpm-ostree layer + reboot:
+
+```bash
+rpm-ostree install layer-shell-qt-devel       # then reboot (no kf6- prefix)
+cmake -B build -S . -DCMAKE_BUILD_TYPE=Release # logs "native Wayland path ENABLED"
+cmake --build build --parallel 2               # bounded — see the OOM note above
+QT_QPA_PLATFORM=wayland ./build/ring-monitor-standalone
+```
+
+Under KWin/sway/Hyprland-Wayland, confirm: rings on the wallpaper layer
+anchored top-right, **absent from Alt+Tab**, clicks pass through, survives
+a desktop click, right-click still opens the menu, the margin slider moves
+it live. The AppImage gets this path via `scripts/build-layer-shell-qt.sh`
+(CI compiles layer-shell-qt from source into the Qt prefix, same as Kirigami).
 
 Both no-op branches (Xwayland missing on $PATH, and X11 native
 interface returning null) emit a `qWarning(…)` on stderr / the

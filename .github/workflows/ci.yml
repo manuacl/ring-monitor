@@ -66,7 +66,7 @@ jobs:
               - 'contents/ui/platforms/standalone/**'
             packaging:
               - 'packaging/**'
-              - 'scripts/build-appimage.sh'
+              - 'scripts/**'
               - '.github/workflows/ci.yml'
               - '.github/workflows/release.yml'
             changelog:
@@ -257,7 +257,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             cmake g++ make pkg-config git \
-            libxcb1-dev libgl1-mesa-dev libfontconfig1 libfuse2
+            libxcb1-dev libgl1-mesa-dev libfontconfig1 libfuse2 \
+            libwayland-dev wayland-protocols libxkbcommon-dev
 
       - name: Install Qt 6.6
         uses: jurplel/install-qt-action@v4
@@ -267,7 +268,11 @@ jobs:
           target: desktop
           arch: gcc_64
           # qtshadertools: required by the Kirigami 6 build (find_package
-          # Qt6 ShaderTools); not in the aqt base set.
+          # Qt6 ShaderTools), not in the aqt base set. Qt6WaylandClient +
+          # the wayland platform plugins (needed by layer-shell-qt and the
+          # native-Wayland bundle) are ALREADY in the base gcc_64 package —
+          # there is no separate `qtwayland` aqt module (only
+          # qtwaylandcompositor, the server side, which we don't use).
           modules: qtimageformats qtshadertools
 
       # core/ imports org.kde.kirigami, which linuxdeploy-plugin-qt does
@@ -276,6 +281,13 @@ jobs:
       # AppImage can bundle it. See scripts/build-kirigami6.sh.
       - name: Build + install Kirigami 6
         run: scripts/build-kirigami6.sh
+
+      # layer-shell-qt enables the native wlr-layer-shell window path
+      # (PR C2). Same story as Kirigami — not shipped by aqt/apt for
+      # Qt 6, so compile it into the Qt prefix. Reuses the ECM the
+      # Kirigami step installed; must run after it.
+      - name: Build + install layer-shell-qt
+        run: scripts/build-layer-shell-qt.sh
 
       - name: Build the AppImage
         run: scripts/build-appimage.sh
@@ -290,6 +302,13 @@ jobs:
             exit 1
           fi
           echo "Smoke-test OK (exit 124 = QML root loaded, app stayed up)"
+
+      # The offscreen smoke-test runs the xcb/offscreen path, so it can't
+      # catch a missing Wayland plugin. Assert the native-Wayland pieces
+      # (PR C2) are in the bundle. Logic lives in the script (shared with
+      # release.yml) so the plugin list is maintained in one place.
+      - name: Verify native-Wayland bundling
+        run: scripts/verify-wayland-bundling.sh
 
       - name: Upload artifact (PR inspection)
         uses: actions/upload-artifact@v4

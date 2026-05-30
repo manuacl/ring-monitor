@@ -89,6 +89,18 @@ Always pair the derivation with a sanity assertion (e.g. "≥20 keys
 found") so a regex/path regression that empties the set fails loudly
 instead of making every downstream assertion vacuously pass.
 
+### A `doesNotMatch` guard targets the *call*, not the bare symbol
+
+A negative guard (`assert.doesNotMatch`) must match the actual code
+construct it forbids — `/setKeyboardInteractivity\([^)]*None/`, not a
+bare `/KeyboardInteractivityNone/`. The comment that explains *why* a
+value is rejected almost always names that value ("SCENARIO: `None`
+left the menu fullscreen…"), so a bare-symbol regex matches the prose
+and fails spuriously even though no forbidden call exists. Hit twice in
+PR C2 (the `KeyboardInteractivityNone` and `useLayerShell` guards both
+matched their own explanatory comments). Anchor on the call shape or a
+fully-qualified `Class::method(`.
+
 ## Where the runner / CI bits live
 
 - `tests/run-all.sh` — local convenience: Node tests → QML tests,

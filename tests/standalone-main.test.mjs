@@ -77,10 +77,15 @@ test("Main.qml is the widget-only root (no recovery-mode threading)", () => {
         /_settingsOnly/,
         "Main.qml must NOT carry a _settingsOnly property",
     );
+    // Visibility is gated ONLY by the native-Wayland path (PR C2): the
+    // layer-shell surface stays hidden until `_anchor()` configures it,
+    // then shows. On X11 `WaylandLayerShell.active` is constant-false, so
+    // this is effectively `visible: true` as before. It must NOT be gated
+    // on any recovery flag — recovery is a separate root.
     assert.match(
         SRC,
-        /visible\s*:\s*true/,
-        "the rings Window must be unconditionally visible (recovery is a separate root)",
+        /visible\s*:\s*!WaylandLayerShell\.active/,
+        "the rings Window's visibility must be gated only by WaylandLayerShell.active, never by a recovery flag",
     );
 });
 

@@ -85,20 +85,37 @@ test("main.cpp ties the app to its desktop entry (Wayland app_id)", () => {
     );
 });
 
-test("settings-only mode skips EWMH hints and XWayland forcing", () => {
-    // The settings dialog is a normal floating window — applying the
-    // BELOW state (with skip-taskbar / skip-pager) to it would push the
-    // recovery UI behind other windows, defeating the whole point.
-    // Same for QT_QPA_PLATFORM=xcb force: the settings dialog
-    // doesn't need X11.
+test("main.cpp picks a window strategy and gates both X11 calls on X11Ewmh (PR C2)", () => {
+    // One decideWindowStrategy() call drives the pre-app platform setup
+    // and the post-load per-window integration.
     assert.match(
         SRC,
-        /if\s*\(\s*!openSettings\s*\)[\s\S]{0,200}?forceXWaylandUnderWayland\(\)/,
-        "forceXWaylandUnderWayland must be gated on !openSettings",
+        /decideWindowStrategy\(\s*openSettings\s*\)/,
+        "main.cpp must call decideWindowStrategy(openSettings) once",
+    );
+    // PER-WINDOW layer-shell: main.cpp must NOT call the global
+    // useLayerShell() — that sets QT_WAYLAND_SHELL_INTEGRATION process-wide
+    // and turns every window (context menu popup, settings dialog) into a
+    // fullscreen layer surface. The layer role is opted into per-window via
+    // WaylandLayerShell::configure() (LayerShellQt::Window::get) instead,
+    // so popups/dialogs stay normal xdg-shell. SCENARIO: the fullscreen,
+    // un-closeable right-click menu the global call produced.
+    assert.doesNotMatch(
+        SRC,
+        /LayerShellQt::Shell::useLayerShell\s*\(/,
+        "main.cpp must NOT call LayerShellQt::Shell::useLayerShell() — per-window opt-in keeps popups/dialogs normal (fullscreen-menu regression guard)",
+    );
+    // Both X11-only calls are gated on strategy == X11Ewmh, so the
+    // WaylandLayerShell and Floating (recovery) paths get neither: no
+    // QT_QPA_PLATFORM force, no EWMH hints.
+    assert.match(
+        SRC,
+        /strategy\s*==\s*ringmonitor::WindowStrategy::X11Ewmh\s*\)\s*ringmonitor::forceXWaylandUnderWayland\(\)/,
+        "forceXWaylandUnderWayland must be gated on strategy == X11Ewmh",
     );
     assert.match(
         SRC,
-        /if\s*\(\s*!openSettings\s*\)\s*\{[\s\S]*?applyDesktopWindowHints/,
-        "applyDesktopWindowHints must be gated on !openSettings",
+        /if\s*\(\s*strategy\s*==\s*ringmonitor::WindowStrategy::X11Ewmh\s*\)\s*\{[\s\S]*?applyDesktopWindowHints/,
+        "applyDesktopWindowHints must be gated on strategy == X11Ewmh",
     );
 });

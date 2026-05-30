@@ -65,9 +65,11 @@ on non-KDE desktops, with no Plasma shell, `libksysguard`, or `KConfig`
 dependency (issue [#7](https://github.com/manuacl/ring-monitor/issues/7)).
 It reads metrics directly from `/proc`, sysfs, and NVML.
 
-> **Status: work in progress.** Supported desktops are EWMH stacking
-> environments (KDE/KWin, GNOME/Mutter, XFCE/Xfwm4); tiling WMs and
-> pure-Wayland compositors are out of scope for now.
+> **Status: work in progress.** On wlroots / KWin Wayland the widget runs
+> as a native `wlr-layer-shell` bottom-layer surface (no Alt+Tab, click
+> pass-through, survives a desktop click); on X11, GNOME-Wayland, XFCE, and
+> other EWMH stacking WMs it runs as a Conky-style always-on-bottom window
+> (via XWayland on Wayland-GNOME). Tiling WMs are out of scope for now.
 
 #### Install via AppImage (any Linux)
 

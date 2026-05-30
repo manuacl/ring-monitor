@@ -108,6 +108,39 @@ test("SCENARIO desktop-click vanish: window type is NORMAL, not DESKTOP", () => 
     );
 });
 
+test("decideWindowStrategy: recovery mode is a Floating window", () => {
+    // --open-settings must never get layer-shell or EWMH hints — the
+    // recovery dialog is a normal managed window.
+    assert.match(
+        SRC,
+        /decideWindowStrategy[\s\S]*?if\s*\(\s*openSettings\s*\)[\s\S]{0,80}?WindowStrategy::Floating/,
+        "openSettings must map to WindowStrategy::Floating",
+    );
+});
+
+test("decideWindowStrategy: GNOME stays on XWayland, other Wayland gets layer-shell", () => {
+    // mutter has no wlr-layer-shell, so GNOME must keep the XWayland
+    // fallback; everything else under Wayland takes the native path.
+    assert.match(
+        SRC,
+        /!\s*desktop\.contains\(\s*"GNOME"\s*\)[\s\S]{0,80}?WindowStrategy::WaylandLayerShell/,
+        "must select WaylandLayerShell only when the desktop is not GNOME",
+    );
+});
+
+test("decideWindowStrategy: the layer-shell branch is guarded by HAVE_LAYER_SHELL_QT", () => {
+    // When layer-shell-qt isn't compiled in, WaylandLayerShell must be
+    // unreachable so the binary behaves identically to the X11-only build.
+    // Assert every WaylandLayerShell mention sits after an #ifdef guard.
+    const guardIdx = SRC.indexOf("#ifdef HAVE_LAYER_SHELL_QT");
+    assert.ok(guardIdx !== -1, "decideWindowStrategy must use an #ifdef HAVE_LAYER_SHELL_QT guard");
+    const firstSelect = SRC.indexOf("WindowStrategy::WaylandLayerShell");
+    assert.ok(
+        firstSelect !== -1 && firstSelect > guardIdx,
+        "the WaylandLayerShell selection must be inside the HAVE_LAYER_SHELL_QT guard",
+    );
+});
+
 test("forceXWaylandUnderWayland probes for Xwayland before forcing xcb", () => {
     // Regression guard for the earlier 🟠 fix (PR #27 → fixed in PR #35):
     // on Plasma-Wayland with `xorg-x11-server-Xwayland` removed,

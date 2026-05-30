@@ -41,6 +41,29 @@ cmake --build build --parallel "${CMAKE_BUILD_PARALLEL_LEVEL:-$(nproc)}"
 rm -rf AppDir
 cmake --install build --prefix AppDir/usr
 
+# 2b. Make layer-shell-qt's interface lib discoverable to linuxdeploy
+# (PR C2, native Wayland). We use the PER-WINDOW path
+# (LayerShellQt::Window::get → setShellIntegration), whose wlr-layer-shell
+# integration is compiled INTO libLayerShellQtInterface.so — NOT the
+# dlopened `liblayer-shell.so` shell-integration plugin (that's only for
+# the global QT_WAYLAND_SHELL_INTEGRATION=layer-shell path, which we don't
+# use). So the load-bearing artifact is the interface lib, a NEEDED dep of
+# our binary that linuxdeploy resolves automatically — EXCEPT
+# build-layer-shell-qt.sh installs it under the Qt prefix's lib/<triplet>/
+# subdir (KDE_INSTALL_USE_QT_SYS_PATHS layout) that linuxdeploy doesn't
+# search. Point LD_LIBRARY_PATH at its real dir so the NEEDED-dep lookup
+# finds it. No-op locally (QT_ROOT_DIR unset → the system lib is on the
+# default search path, and an X11-only build links no such lib anyway).
+if [ -n "${QT_ROOT_DIR:-}" ]; then
+    iface="$(find "$QT_ROOT_DIR/lib" -name 'libLayerShellQtInterface.so.6' 2>/dev/null | head -1)"
+    if [ -n "$iface" ]; then
+        export LD_LIBRARY_PATH="$(dirname "$iface"):${LD_LIBRARY_PATH:-}"
+        echo "layer-shell-qt interface lib: $iface (added to LD_LIBRARY_PATH for linuxdeploy)"
+    else
+        echo "build-appimage: libLayerShellQtInterface.so.6 not found under $QT_ROOT_DIR/lib — AppImage will be X11/XWayland-only"
+    fi
+fi
+
 # 3. Fetch linuxdeploy + the qt plugin (cached between runs).
 TOOLS="$ROOT/.appimage-tools"
 mkdir -p "$TOOLS"
@@ -82,6 +105,17 @@ export APPIMAGE_EXTRACT_AND_RUN=1
 # which the pinned-to-`continuous` plugin honors.
 export LDAI_OUTPUT="Ring_Monitor-${VERSION}-x86_64.AppImage"
 export OUTPUT="$LDAI_OUTPUT"
+
+# Native Wayland (PR C2): linuxdeploy-plugin-qt bundles only the xcb
+# platform plugin by default. EXTRA_PLATFORM_PLUGINS adds the wayland
+# platform plugins (so QT_QPA_PLATFORM=wayland works), and EXTRA_QT_MODULES
+# pulls in libQt6WaylandClient (+ the wayland integration plugins it needs)
+# — which libLayerShellQtInterface.so also links. With the interface lib
+# itself resolved via LD_LIBRARY_PATH (step 2b), this lets the AppImage run
+# as a wlr-layer-shell surface on KWin/sway/Hyprland. Harmless on an
+# X11-only host: the plugins ride along unused.
+export EXTRA_PLATFORM_PLUGINS="libqwayland-generic.so;libqwayland-egl.so"
+export EXTRA_QT_MODULES="waylandclient"
 
 "$TOOLS/linuxdeploy-x86_64.AppImage" \
     --appdir AppDir \

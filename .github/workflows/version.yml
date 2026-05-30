@@ -112,7 +112,9 @@ jobs:
           # HEAD is the merge commit — the version-bump commit isn't made
           # yet — so metadata.json is not in the range. First-ever release
           # (no previous tag) gets no suffix → notify both platforms.
-          LAST_TAG=$(git describe --tags --abbrev=0 HEAD 2>/dev/null || echo "")
+          # --match 'v[0-9]*' pins this to release tags, so a stray
+          # non-release tag can't become the diff base and skew the scope.
+          LAST_TAG=$(git describe --tags --abbrev=0 --match 'v[0-9]*' HEAD 2>/dev/null || echo "")
           if [ -n "$LAST_TAG" ]; then
             SUFFIX=$(git diff --name-only "$LAST_TAG"..HEAD | scripts/infer-release-scope.sh)
           else

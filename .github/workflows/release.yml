@@ -182,6 +182,12 @@ jobs:
           VERSION: ${{ steps.meta.outputs.version }}
           TAG_NAME: ${{ steps.tag.outputs.name }}
         run: |
+          # Do NOT pass --prerelease here. A scope-suffixed tag (vX.Y.Z-p /
+          # -s, issue #89) is a SemVer pre-release string, but the release
+          # must stay prerelease:false: the in-widget update check
+          # (core/UpdateCheck.js pickRelevantRelease) skips releases flagged
+          # prerelease, so marking these would silently suppress every
+          # scoped notification. gh leaves the flag false by default.
           gh release create "$TAG_NAME" \
             "$ARTIFACT" \
             --title "$NAME v$VERSION" \

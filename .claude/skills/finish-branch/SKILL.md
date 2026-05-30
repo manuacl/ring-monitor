@@ -182,23 +182,7 @@ for js in contents/ui/core/*.js \
 done
 ```
 
-**3b. No nested ternaries in source/tests.**
-
-Heuristic: a line with two `?` and two `:` is suspect. False positives
-possible (e.g. `foo ? 'a:b' : 'c'`) — re-read each match.
-
-```bash
-grep -nE '\?[^?]*\?[^:]*:[^:]*:' \
-    contents/ui/*.qml contents/ui/*.js \
-    contents/ui/core/*.qml contents/ui/core/*.js \
-    contents/ui/platforms/plasma/*.qml contents/ui/platforms/plasma/*.js \
-    contents/ui/platforms/standalone/*.qml contents/ui/platforms/standalone/*.js \
-    standalone/*.cpp \
-    tests/*.test.mjs tests/qml/*.qml \
-    2>/dev/null && echo "FAIL: possibly nested ternaries (re-read matches)"
-```
-
-**3c. No `Plasmoid.configuration` read in a leaf component.**
+**3b. No `Plasmoid.configuration` read in a leaf component.**
 
 DIP rule from the SOLID grid (CLAUDE.md). Leaves take props + emit
 signals; wiring lives in the parent.
@@ -554,7 +538,6 @@ else
 - [x] `node --test` (<N/N>)
 - [x] `qmltestrunner-qt6` headless (<N/N>)
 - [x] `.js` modules / tests paired
-- [x] No nested ternaries
 - [x] DIP (leaves don't read `Plasmoid.configuration`)
 - [x] Tests & docs consistent with diff
 - [ ] <visual check if UI: refresh-plasma-widget + eye>

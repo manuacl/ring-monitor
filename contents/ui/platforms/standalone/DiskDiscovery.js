@@ -22,7 +22,9 @@
 //   parseMounts(content)                 - [{device, mountpoint, fstype}]
 //                                          for real block-device filesystems
 //                                          only (drops composefs/overlay/
-//                                          tmpfs/fuse/squashfs pseudo mounts).
+//                                          tmpfs/fuse/squashfs pseudo mounts,
+//                                          and the EFI System Partition —
+//                                          see _isEfiSystemPartition, #66).
 //   buildPartitions(mounts, blockInfo)   - dedup by device → [{id, label,
 //                                          mountpoint, device}]; id = fs UUID
 //                                          (falls back to device), label =
@@ -38,6 +40,28 @@
 // (loop-mounted read-only system images — snaps, etc.). composefs/overlay/
 // tmpfs/fuse are already excluded by the "/dev/" device prefix check.
 var _SKIP_FSTYPES = { squashfs: true };
+
+// The EFI System Partition (ESP) is a real block device — a FAT-family
+// filesystem mounted at the firmware boot path — so the "/dev/" + fstype
+// rules above don't catch it. ksystemstats exposes no usedPercent sensor
+// for the ESP, so the Plasma picker omits it; we mirror that so the two
+// builds' partition sets agree (issue #66).
+//
+// We match on BOTH an EFI mountpoint AND a FAT fstype, deliberately narrow:
+//   - DON'T drop the xbootldr /boot partition (typically ext4) — it is NOT
+//     the ESP and Plasma DOES show it. An earlier "/boot prefix" rule
+//     wrongly hid it.
+//   - DON'T drop a user's FAT data disk mounted elsewhere (e.g. a vfat USB
+//     under /run/media) — it's not on an EFI mountpoint.
+// /boot is included in the mountpoint set only for the no-xbootldr layout
+// where the ESP itself is mounted straight at /boot (then it IS vfat, so the
+// fstype gate still fires); an ext4 /boot fails the fstype gate and stays.
+var _EFI_MOUNTS = { "/boot/efi": true, "/efi": true, "/boot": true };
+var _FAT_FSTYPES = { vfat: true, msdos: true, fat: true };
+
+function _isEfiSystemPartition(mountpoint, fstype) {
+    return _EFI_MOUNTS[mountpoint] === true && _FAT_FSTYPES[fstype] === true;
+}
 
 // /proc/mounts octal-escapes space (\040), tab (\011), newline (\012) and
 // backslash (\134) in the device and mountpoint fields.
@@ -71,6 +95,8 @@ function parseMounts(content) {
         if (device.indexOf("/dev/") !== 0)
             continue;
         if (_SKIP_FSTYPES[fstype])
+            continue;
+        if (_isEfiSystemPartition(mountpoint, fstype))
             continue;
         out.push({ device: device, mountpoint: mountpoint, fstype: fstype });
     }

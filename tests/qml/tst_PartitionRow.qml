@@ -14,7 +14,7 @@ Item {
 
     Ui.PartitionRow {
         id: rowAvailable
-        partLabel: "bazzite"
+        partLabel: "root"
         available: true
         checked: true
     }
@@ -33,7 +33,7 @@ Item {
             verify(rowAvailable._checkBox.visible, "checkbox visible when available");
             verify(!rowAvailable._unavailableLabel.visible, "no 'not connected' tag when available");
             verify(!rowAvailable._removeButton.visible, "no trash button when available");
-            compare(rowAvailable._checkBox.text, "bazzite");
+            compare(rowAvailable._checkBox.text, "root");
             verify(rowAvailable._checkBox.checked);
         }
 

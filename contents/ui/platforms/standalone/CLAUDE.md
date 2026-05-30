@@ -197,17 +197,17 @@ Identity + labels: each partition's **id** is its fs UUID and its
 `ProcReader.blockDeviceInfo()` (walks `/dev/disk/by-uuid` +
 `/dev/disk/by-label`, readlinks to the device). This mirrors ksysguard's
 Plasma-side keying (UUID + volume name), so the two platforms label the
-same filesystem identically (e.g. "bazzite").
+same filesystem identically (e.g. the root volume's label).
 
 **Why dedup by device matters (the composefs trap, now fixed).** The old
 `statvfs("/")` hardcode was *actively wrong* on every rpm-ostree host:
-on Bazzite `/` is a **composefs read-only overlay** (~47M, always
+there `/` is a **composefs read-only overlay** (~47M, always
 ~100% full), while real storage is the btrfs root mounted at `/var`,
 `/var/home`, `/etc`, `/sysroot`, … — **one device, five mountpoints**.
 `DiskDiscovery.parseMounts` drops the overlay (its device field isn't a
 `/dev` path, so the `/dev/` prefix test excludes composefs/tmpfs/fuse in
 one rule), and `buildPartitions` collapses the five sda3 mounts into a
-single "bazzite" partition — exactly what ksysguard shows. `squashfs` is
+single root partition — exactly what ksysguard shows. `squashfs` is
 additionally skipped (loop-mounted system images).
 
 Remaining `statvfs` caveats we accept: it follows symlinks and reports

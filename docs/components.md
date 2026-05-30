@@ -712,7 +712,7 @@ The standalone build ships a parallel
 surface, backed by direct kernel reads through the `ProcReader` /
 `NvmlReader` C++ helpers instead of ksysguard: `/proc/stat` (CPU
 usage + per-core), `/proc/meminfo` (RAM + swap — `SwapTotal`/`SwapFree`,
-which covers zram on Bazzite),
+which covers zram),
 `/sys/class/hwmon` + `/sys/class/thermal` (CPU temperature, via
 `CpuTempDiscovery.js`), per-filesystem `statvfs` for the disk
 multi-ring (`/proc/mounts` + `DiskDiscovery.js`, deduped by device,

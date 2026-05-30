@@ -115,6 +115,14 @@ editing.
   Don't default everything to `core/`. Full rule + the current split:
   [`contents/ui/core/CLAUDE.md`](contents/ui/core/CLAUDE.md) §
   "Logic in dedicated `.js` files".
+- **Distro-agnostic content.** The widget installs on **any** Linux — so
+  don't name a specific distro in code, comments, or test fixtures when
+  the underlying *technology* is the real subject (`composefs` /
+  `rpm-ostree` / `zram`, not "Bazzite"; a root volume label is `root`, not
+  a distro name). A distro name is acceptable only as *one example among
+  several*, or in `docs/development.md` documenting the maintainer's actual
+  dev box. Same "runs on any Linux" spirit as the no-absolute-paths rule
+  above.
 
 ## Design principles (SOLID, QML-adapted)
 

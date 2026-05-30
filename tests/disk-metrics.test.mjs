@@ -43,11 +43,11 @@ test("averagePercent: any non-finite member → 0 (no NaN sweep)", () => {
 test("sortByLabel: alphabetical, case-insensitive, does not mutate input", () => {
     const input = [
         { id: "u3", label: "sync" },
-        { id: "u1", label: "BAZZITE" },
+        { id: "u1", label: "ROOT" },
         { id: "u2", label: "photos" },
     ];
     const out = Disk.sortByLabel(input);
-    assert.deepEqual(out.map((p) => p.label), ["BAZZITE", "photos", "sync"]);
+    assert.deepEqual(out.map((p) => p.label), ["photos", "ROOT", "sync"]);
     // input untouched
     assert.equal(input[0].label, "sync");
 });
@@ -55,33 +55,33 @@ test("sortByLabel: alphabetical, case-insensitive, does not mutate input", () =>
 // ── orderPartitions ──────────────────────────────────────────────────
 
 const AVAIL = [
-    { id: "u-bazzite", label: "bazzite" },
+    { id: "u-root", label: "root" },
     { id: "u-photos", label: "photos" },
     { id: "u-sync", label: "sync" },
 ];
 
 test("orderPartitions: empty saved order → alphabetical by label (default)", () => {
     const out = Disk.orderPartitions("", AVAIL);
-    assert.deepEqual(out.map((p) => p.label), ["bazzite", "photos", "sync"]);
+    assert.deepEqual(out.map((p) => p.label), ["photos", "root", "sync"]);
 });
 
 test("orderPartitions: saved order respected, kept first", () => {
-    const out = Disk.orderPartitions("u-sync,u-bazzite,u-photos", AVAIL);
-    assert.deepEqual(out.map((p) => p.id), ["u-sync", "u-bazzite", "u-photos"]);
+    const out = Disk.orderPartitions("u-sync,u-root,u-photos", AVAIL);
+    assert.deepEqual(out.map((p) => p.id), ["u-sync", "u-root", "u-photos"]);
 });
 
 test("orderPartitions: newly-discovered (not in saved) appended alphabetically", () => {
-    // SCENARIO: user had saved [sync, bazzite]; a new disk "photos" appears.
+    // SCENARIO: user had saved [sync, root]; a new disk "photos" appears.
     // It must land after the saved ones, alphabetically among new arrivals.
-    const out = Disk.orderPartitions("u-sync,u-bazzite", AVAIL);
-    assert.deepEqual(out.map((p) => p.id), ["u-sync", "u-bazzite", "u-photos"]);
+    const out = Disk.orderPartitions("u-sync,u-root", AVAIL);
+    assert.deepEqual(out.map((p) => p.id), ["u-sync", "u-root", "u-photos"]);
 });
 
 test("orderPartitions: stale saved ids (unplugged) are excluded from the draggable list", () => {
     // The draggable list shows only discovered partitions; stale ids are
     // surfaced separately via stalePartitions() (see below), not here.
     const out = Disk.orderPartitions("u-gone,u-photos", AVAIL);
-    assert.deepEqual(out.map((p) => p.id), ["u-photos", "u-bazzite", "u-sync"]);
+    assert.deepEqual(out.map((p) => p.id), ["u-photos", "u-root", "u-sync"]);
 });
 
 test("orderPartitions: tolerates empty available", () => {
@@ -92,7 +92,7 @@ test("orderPartitions: tolerates empty available", () => {
 // ── stalePartitions ──────────────────────────────────────────────────
 
 test("stalePartitions: none when every configured id is discovered", () => {
-    assert.deepEqual(Disk.stalePartitions("u-bazzite,u-photos", "u-photos,u-bazzite", AVAIL, ""), []);
+    assert.deepEqual(Disk.stalePartitions("u-root,u-photos", "u-photos,u-root", AVAIL, ""), []);
 });
 
 test("stalePartitions: an unplugged enabled id surfaces as stale", () => {
@@ -215,8 +215,8 @@ test("serializeLabelCache: sorted keys → stable output regardless of insertion
 });
 
 test("mergeLabelCache: fresh discovered labels win, bounded to referenced ids", () => {
-    const out = Disk.mergeLabelCache("{}", AVAIL, ["u-bazzite", "u-photos"]);
-    assert.deepEqual(JSON.parse(out), { "u-bazzite": "bazzite", "u-photos": "photos" });
+    const out = Disk.mergeLabelCache("{}", AVAIL, ["u-root", "u-photos"]);
+    assert.deepEqual(JSON.parse(out), { "u-root": "root", "u-photos": "photos" });
     // u-sync discovered but not referenced → not cached.
     assert.equal(JSON.parse(out)["u-sync"], undefined);
 });
@@ -225,20 +225,20 @@ test("mergeLabelCache: preserves last-known label for a referenced-but-undiscove
     // SCENARIO (#49): u-usb was cached while plugged; now unplugged (not in
     // AVAIL) but still referenced → keep its friendly name for the stale row.
     const prev = JSON.stringify({ "u-usb": "backups" });
-    const out = Disk.mergeLabelCache(prev, AVAIL, ["u-usb", "u-bazzite"]);
-    assert.deepEqual(JSON.parse(out), { "u-usb": "backups", "u-bazzite": "bazzite" });
+    const out = Disk.mergeLabelCache(prev, AVAIL, ["u-usb", "u-root"]);
+    assert.deepEqual(JSON.parse(out), { "u-usb": "backups", "u-root": "root" });
 });
 
 test("mergeLabelCache: drops entries for ids no longer referenced", () => {
-    const prev = JSON.stringify({ "u-old": "gone", "u-bazzite": "stale-name" });
-    const out = Disk.mergeLabelCache(prev, AVAIL, ["u-bazzite"]);
-    // u-old dropped (unreferenced); u-bazzite refreshed from discovery.
-    assert.deepEqual(JSON.parse(out), { "u-bazzite": "bazzite" });
+    const prev = JSON.stringify({ "u-old": "gone", "u-root": "stale-name" });
+    const out = Disk.mergeLabelCache(prev, AVAIL, ["u-root"]);
+    // u-old dropped (unreferenced); u-root refreshed from discovery.
+    assert.deepEqual(JSON.parse(out), { "u-root": "root" });
 });
 
 test("mergeLabelCache: stable output → unchanged cache round-trips identically", () => {
-    const first = Disk.mergeLabelCache("{}", AVAIL, ["u-photos", "u-bazzite"]);
-    const second = Disk.mergeLabelCache(first, AVAIL, ["u-bazzite", "u-photos"]);
+    const first = Disk.mergeLabelCache("{}", AVAIL, ["u-photos", "u-root"]);
+    const second = Disk.mergeLabelCache(first, AVAIL, ["u-root", "u-photos"]);
     assert.equal(first, second);
 });
 
@@ -373,13 +373,13 @@ test("resolveDiskRingIds: a manual id NOT in the live mounted set is dropped (se
     // still lists its frozen UUID, but the live mount table (mountedIds) does
     // not — the ring must disappear.
     const out = Disk.resolveDiskRingIds(["samsung", "photos", "usb-bios"], [], [], [], MAX,
-        ["samsung", "photos", "bazzite"]);
+        ["samsung", "photos", "root"]);
     assert.deepEqual(out, ["samsung", "photos"]);
 });
 
 test("resolveDiskRingIds: manual ids present in the mounted set are all kept", () => {
     const out = Disk.resolveDiskRingIds(["samsung", "sync", "photos"], [], [], [], MAX,
-        ["samsung", "sync", "photos", "bazzite", "boot"]);
+        ["samsung", "sync", "photos", "root", "boot"]);
     assert.deepEqual(out, ["samsung", "sync", "photos"]);
 });
 

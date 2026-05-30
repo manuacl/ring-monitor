@@ -64,6 +64,10 @@ user-facing only.
   FAILs (was a WARN) if `CHANGELOG.md` is untouched, a CI `changelog` job
   mirrors it, and the skill's doc-consistency audit also flags `README.md`.
 
+- Tooling: drop the nested-ternary check (3b) from the `finish-branch` skill —
+  the `grep` heuristic false-positived on regex strings like `'a:b'` inside
+  test files and had no CI mirror, so it was noise.
+
 ## [0.7.1] — 2026-05-29
 
 ### Added

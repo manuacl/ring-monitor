@@ -23,8 +23,9 @@ set -euo pipefail
 : "${QT_ROOT_DIR:?QT_ROOT_DIR must point at the Qt prefix (set by install-qt-action)}"
 
 # KF6 tags: ECM and Kirigami release together under the same version.
-# v6.0.0 targets Qt 6.5 (the floor CMakeLists.txt requires); bump in
-# lockstep with the aqt Qt version in the workflows if raising Qt.
+# v6.0.0's floor is Qt 6.5 and it builds fine against the Qt 6.6 the
+# workflows install (the app needs 6.6 for Shape.CurveRenderer). Bump in
+# lockstep if the aqt Qt version in the workflows is raised further.
 KIRIGAMI_VERSION="${KIRIGAMI_VERSION:-v6.0.0}"
 JOBS="${CMAKE_BUILD_PARALLEL_LEVEL:-$(nproc)}"
 

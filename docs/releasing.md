@@ -39,8 +39,9 @@ source of truth, also run by the `appimage` smoke-build job in
 bundle Qt and emit the AppImage. It runs on **ubuntu-22.04 (glibc
 2.35)**, not the `fedora:41` container the C++ build job uses — a
 Fedora-41 glibc (2.40) AppImage would refuse to start on older targets
-(Linux Lite / Ubuntu 24.04). Ubuntu 22.04 ships Qt 6.2 (< the 6.5
-`CMakeLists.txt` requires), so Qt 6.5 comes from `aqtinstall`.
+(Linux Lite / Ubuntu 24.04). Ubuntu 22.04 ships Qt 6.2 (< the 6.6
+`CMakeLists.txt` requires — the rings use `Shape.CurveRenderer`, added
+in Qt 6.6), so Qt 6.6 comes from `aqtinstall`.
 
 Because the shared `core/` layer imports `org.kde.kirigami` — which
 `linuxdeploy-plugin-qt` does **not** bundle (it ships Qt's own QML

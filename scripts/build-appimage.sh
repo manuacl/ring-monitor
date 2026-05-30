@@ -8,9 +8,9 @@
 # the repo root.
 #
 # Prereqs on PATH: cmake (>= 3.16), a C++17 compiler, pkg-config, the
-# xcb dev headers, and a Qt >= 6.5 install exposing qmake +
-# qmlimportscanner (distro Qt locally; aqtinstall in CI). curl for the
-# linuxdeploy download.
+# xcb dev headers, and a Qt >= 6.6 install (the rings need
+# Shape.CurveRenderer) exposing qmake + qmlimportscanner (distro Qt
+# locally; aqtinstall in CI). curl for the linuxdeploy download.
 #
 # Portability note: the resulting AppImage is only as portable as the
 # glibc of the build host — build on the OLDEST target glibc (CI uses

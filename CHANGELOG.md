@@ -27,7 +27,10 @@ user-facing only.
   Qt 6), `scripts/build-kirigami6.sh` compiles Kirigami 6 + ECM from source into
   the Qt prefix so it gets bundled. `main.cpp` now calls `setDesktopFileName` so
   Wayland compositors map the window to the installed desktop entry. The
-  standalone build is now installable without a toolchain.
+  standalone build is now installable without a toolchain. Also corrects the
+  stated Qt minimum to **6.6** (CMakeLists + README): the rings use
+  `Shape.CurveRenderer`, added in Qt 6.6 — the old "6.5" claim was a latent
+  inaccuracy the AppImage build (pinned to a clean Qt) surfaced.
 
 - (Part of #7) Fix the standalone AMD/Intel GPU sysfs retry gate closing too
   early (#83): the two-path gate used `&&`, so it stopped retrying the moment

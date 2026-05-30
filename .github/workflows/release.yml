@@ -204,10 +204,10 @@ jobs:
             cmake g++ make pkg-config git \
             libxcb1-dev libgl1-mesa-dev libfontconfig1 libfuse2
 
-      - name: Install Qt 6.5
+      - name: Install Qt 6.6
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.5.*'
+          version: '6.6.*'
           host: linux
           target: desktop
           arch: gcc_64

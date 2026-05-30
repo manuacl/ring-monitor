@@ -237,8 +237,8 @@ jobs:
   # ubuntu-22.04 (glibc 2.35), NOT the fedora:41 container the
   # standalone-build job uses: a Fedora-41 glibc (2.40) AppImage refuses
   # to start on the target boxes (Linux Lite 7.8 / Ubuntu 24.04, glibc
-  # 2.39). Ubuntu 22.04 ships Qt 6.2 (< the 6.5 CMakeLists requires), so
-  # Qt 6.5 comes from aqtinstall. Honors CLAUDE.md "runs on any Linux".
+  # 2.39). Ubuntu 22.04 ships Qt 6.2 (< the 6.6 CMakeLists requires), so
+  # Qt 6.6 comes from aqtinstall. Honors CLAUDE.md "runs on any Linux".
   #
   # Smoke-test runs the AppImage itself (not build/) so it exercises the
   # bundled Qt — the real portability check. Per docs/development.md,
@@ -259,10 +259,10 @@ jobs:
             cmake g++ make pkg-config git \
             libxcb1-dev libgl1-mesa-dev libfontconfig1 libfuse2
 
-      - name: Install Qt 6.5
+      - name: Install Qt 6.6
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.5.*'
+          version: '6.6.*'
           host: linux
           target: desktop
           arch: gcc_64

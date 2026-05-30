@@ -90,8 +90,9 @@ NVIDIA GPU support works out of the box (the binary `dlopen`s
 
 Prefer building yourself (or your system lacks FUSE for AppImages)?
 
-**Build dependencies:** CMake ≥ 3.16, a C++17 compiler, Qt 6.5+
-(`Core Gui Qml Quick QuickControls2`), `xcb` (dev headers) and
+**Build dependencies:** CMake ≥ 3.16, a C++17 compiler, Qt 6.6+
+(`Core Gui Qml Quick QuickControls2`; 6.6 for the `Shape.CurveRenderer`
+the rings use), `xcb` (dev headers) and
 `pkg-config`. NVIDIA GPU support needs no build dependency — the standalone
 binary `dlopen`s `libnvidia-ml.so.1` at runtime (absent → the GPU ring
 simply stays at 0, so the build runs on AMD/Intel boxes too).

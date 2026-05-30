@@ -14,6 +14,15 @@ user-facing only.
 
 ### Technical
 
+- (Part of #7) Fix the standalone AMD/Intel GPU sysfs retry gate closing too
+  early (#83): the two-path gate used `&&`, so it stopped retrying the moment
+  *either* `gpu_busy_percent` or the hwmon temp file resolved — stranding the
+  other path for the whole session. On an AMD host where `gpu_busy_percent`
+  exists at boot but the `amdgpu` hwmon driver settles a few seconds later, the
+  temperature ring never appeared. Changed to `||` so discovery keeps retrying
+  while *either* path is still empty, stopping only once both resolve (or the
+  30 s window closes).
+
 - (Part of #7) Three correctness fixes to the AMD/Intel GPU sysfs path (found
   by code review of the initial implementation): (1) AMD/Intel sysfs reads now
   run ONLY when `nvml.available` is false — on a hybrid NVIDIA+AMD host a

@@ -262,10 +262,12 @@ test("standalone MetricsBackend wires AMD/Intel GPU via GpuDiscovery sysfs", () 
     assert.match(SOURCE, /property\s+bool\s+_gpuTempAvailable/, "must declare _gpuTempAvailable for the gpuTemp availability gate");
     assert.match(SOURCE, /sysfsTempValid\s*=\s*true/, "must set sysfsTempValid when AMD/Intel sysfs temp read succeeds (liveness gate for _gpuTempAvailable)");
     assert.match(SOURCE, /_gpuTempAvailable\s*=\s*nvml\.available\s*\|\|\s*sysfsTempValid/, "must derive _gpuTempAvailable from liveness (sysfsTempValid), not path non-emptiness");
-    // Resolve loop: runs only on non-NVIDIA hosts; retries while BOTH paths are still
-    // empty (mirrors !_cpuTempPath gate) so a late-loaded hwmon is picked up.
+    // Resolve loop: runs only on non-NVIDIA hosts; retries while EITHER path is still
+    // empty so a late-loaded hwmon is picked up after the other path already resolved.
+    // Fixes (#83): && closed the gate the moment one path landed (AMD gpu_busy_percent
+    // present at boot but amdgpu hwmon settling seconds later → temp ring lost all session).
     // Fixes: Intel card found without hwmon permanently closed the gate via _gpuVendor.
-    assert.match(SOURCE, /!backend\._gpuBusyPath\s*&&\s*!backend\._gpuTempPath/, "resolve gate must retry while BOTH paths are empty, not just while _gpuVendor is unset");
+    assert.match(SOURCE, /!backend\._gpuBusyPath\s*\|\|\s*!backend\._gpuTempPath/, "resolve gate must retry while EITHER path is still empty (||), so a late path is picked up after the other resolved (#83)");
     assert.match(SOURCE, /!nvml\.available[\s\S]{0,200}_gpuResolveAttempts\s*<\s*backend\._gpuMaxResolveAttempts/, "resolve gate must require both !nvml.available AND the attempt bound");
 });
 

@@ -23,6 +23,12 @@ user-facing only.
   (`BAZZITE_MOUNTS`→`OSTREE_MOUNTS`, labels `bazzite`→`root`) per the new
   "distro-agnostic content" CLAUDE rule.
 
+### Other
+
+- Tooling: enforce the per-PR CHANGELOG policy — `finish-branch` check 4h now
+  FAILs (was a WARN) if `CHANGELOG.md` is untouched, a CI `changelog` job
+  mirrors it, and the skill's doc-consistency audit also flags `README.md`.
+
 ## [0.7.1] — 2026-05-29
 
 ### Added

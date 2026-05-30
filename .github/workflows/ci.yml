@@ -40,6 +40,7 @@ jobs:
       js: ${{ steps.filter.outputs.js }}
       qml: ${{ steps.filter.outputs.qml }}
       standalone: ${{ steps.filter.outputs.standalone }}
+      changelog: ${{ steps.filter.outputs.changelog }}
     steps:
       - uses: actions/checkout@v6
       - uses: dorny/paths-filter@v3
@@ -62,6 +63,28 @@ jobs:
               - 'metadata.json'
               - 'contents/ui/core/**'
               - 'contents/ui/platforms/standalone/**'
+            changelog:
+              - 'CHANGELOG.md'
+
+  # ── CHANGELOG entry required on every PR ─────────────────────────────
+  #
+  # Policy (2026-05-30): every PR touches CHANGELOG.md — a `### Technical`
+  # entry under `## [Unreleased]` for a code change (plus the user-facing
+  # summary when the PR is bump-labelled), or a single `### Other` one-liner
+  # for a docs/CI-only PR. This is the CI mirror of finish-branch check 4h.
+  # Pull-request only: a push to main is post-merge (the entry already
+  # landed), and the paths-filter needs a base ref to diff against anyway.
+  changelog:
+    name: CHANGELOG entry present
+    needs: changes
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require a CHANGELOG.md entry
+        if: ${{ needs.changes.outputs.changelog != 'true' }}
+        run: |
+          echo "::error file=CHANGELOG.md::Every PR must touch CHANGELOG.md — add a '### Technical' entry under '## [Unreleased]' (a code change), or a single '### Other' line (a docs/CI-only PR)."
+          exit 1
 
   # ── File-size gate ──────────────────────────────────────────────────
   #

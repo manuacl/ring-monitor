@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- Ring Monitor — three concentric 270deg sweeps (90deg gap at the
+       bottom), rounded caps, single teal highlight family by opacity.
+       Mirrors the widget aesthetic: "anneaux modernes epures". -->
+  <title>Ring Monitor</title>
+  <g fill="none" stroke="#2dd4bf" stroke-linecap="round">
+    <path d="M 28.64 99.36 A 50 50 0 1 1 99.36 99.36" stroke-width="9" stroke-opacity="1.0"/>
+    <path d="M 37.13 90.87 A 38 38 0 1 1 90.87 90.87" stroke-width="8" stroke-opacity="0.66"/>
+    <path d="M 45.62 82.38 A 26 26 0 1 1 82.38 82.38" stroke-width="7" stroke-opacity="0.4"/>
+  </g>
+</svg>

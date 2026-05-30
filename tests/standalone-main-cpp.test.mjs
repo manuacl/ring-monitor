@@ -73,6 +73,18 @@ test("main.cpp loads SettingsOnlyRoot in recovery mode, Main otherwise", () => {
     );
 });
 
+test("main.cpp ties the app to its desktop entry (Wayland app_id)", () => {
+    // PR H (AppImage): setDesktopFileName makes the Wayland compositor
+    // map the surface to packaging/dev.manuacl.ringmonitor.desktop, so
+    // the bundled icon + taskbar grouping resolve. The id must match
+    // the .desktop basename and the autostart desktop id verbatim.
+    assert.match(
+        SRC,
+        /setDesktopFileName\(\s*["']dev\.manuacl\.ringmonitor["']\s*\)/,
+        "main.cpp must call setDesktopFileName(\"dev.manuacl.ringmonitor\")",
+    );
+});
+
 test("settings-only mode skips EWMH hints and XWayland forcing", () => {
     // The settings dialog is a normal floating window — applying the
     // BELOW state (with skip-taskbar / skip-pager) to it would push the

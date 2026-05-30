@@ -143,3 +143,30 @@ target_compile_definitions(ring-monitor-standalone PRIVATE
 target_include_directories(ring-monitor-standalone PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/standalone
 )
+
+# ── Install rules (AppImage / AppDir layout) ────────────────────────
+#
+# `cmake --install build --prefix AppDir/usr` lays out the FHS tree an
+# AppImage expects:
+#   AppDir/usr/bin/ring-monitor-standalone
+#   AppDir/usr/share/applications/dev.manuacl.ringmonitor.desktop
+#   AppDir/usr/share/icons/hicolor/scalable/apps/dev.manuacl.ringmonitor.svg
+# linuxdeploy + linuxdeploy-plugin-qt then consume that AppDir
+# (scripts/build-appimage.sh). The qt plugin reads the .desktop's
+# Icon= field to find the icon, and bundles the Qt QML plugins
+# (QtQuick, QtQuick.Controls, Qt.labs.settings, ...) that
+# loadFromModule pulls in at runtime — only OUR QML is in the compiled
+# resource, the Qt modules are not. The .desktop + icon live in
+# packaging/ (outside contents/) so they never ride along in the
+# Plasma .plasmoid zip.
+include(GNUInstallDirs)
+
+install(TARGETS ring-monitor-standalone
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+install(FILES packaging/dev.manuacl.ringmonitor.desktop
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/applications
+)
+install(FILES packaging/dev.manuacl.ringmonitor.svg
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
+)

@@ -15,13 +15,34 @@ PR merged with bump:* label
         │  pushes both to main
         ▼
 .github/workflows/release.yml
-        │  builds <plugin-id>-X.Y.Z.plasmoid
-        │  smoke-tests the package
-        │  publishes a GitHub Release with auto-generated notes
+        │  release job:  builds <plugin-id>-X.Y.Z.plasmoid,
+        │                 smoke-tests it, publishes a GitHub Release
+        │  appimage job: builds Ring_Monitor-X.Y.Z-x86_64.AppImage,
+        │                 attaches it to that same Release
         ▼
 KDE Store upload (manual)
    https://www.opendesktop.org/p/2360410
 ```
+
+So each tagged release carries **two artifacts**: the `.plasmoid` (for
+KDE Plasma, also uploaded to the store) and the standalone AppImage (for
+every other Linux desktop — issue #7). They split into two jobs so the
+fast `.plasmoid` publish isn't coupled to the slower Qt + linuxdeploy
+toolchain; the `appimage` job `needs: release` and uploads into the
+Release the first job created (`gh release upload … --clobber`, so a
+`workflow_dispatch` re-run is idempotent).
+
+**AppImage build.** Driven by `scripts/build-appimage.sh` (the single
+source of truth, also run by the `appimage` smoke-build job in
+`ci.yml`): CMake `install()` rules stage an AppDir (binary + `.desktop`
++ icon from `packaging/`), then `linuxdeploy` + `linuxdeploy-plugin-qt`
+bundle Qt and emit the AppImage. It runs on **ubuntu-22.04 (glibc
+2.35)**, not the `fedora:41` container the C++ build job uses — a
+Fedora-41 glibc (2.40) AppImage would refuse to start on older targets
+(Linux Lite / Ubuntu 24.04). Ubuntu 22.04 ships Qt 6.2 (< the 6.5
+`CMakeLists.txt` requires), so Qt 6.5 comes from `aqtinstall`. The CI
+job additionally runs the bundled binary offscreen as a portability
+smoke-test (exit 124 = the QML root loaded).
 
 - `bump:major|minor|patch` → SemVer bump as expected.
 - No `bump:*` label on the merged PR → `version.yml` exits cleanly, no

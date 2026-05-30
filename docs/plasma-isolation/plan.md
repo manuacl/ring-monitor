@@ -359,7 +359,9 @@ manual validation before the next starts. The Plasma build must keep
 working at every step.
 
 **Live status (updated 2026-05-30):** the MVP (A–G) shipped in **v0.6.0**,
-and every post-MVP metric is done too. **2 stages remain: C2 + H.**
+and every post-MVP metric is done too. The AppImage pipeline (H) has
+landed, so the standalone build is now installable without a toolchain.
+**1 stage remains: C2 (native Wayland layer-shell).**
 
 | Stage | State |
 |---|---|
@@ -372,7 +374,7 @@ and every post-MVP metric is done too. **2 stages remain: C2 + H.**
 | G — right-click menu + lifecycle + autostart | ✅ #35 |
 | post-MVP — GPU (NVML + sysfs) / CPU temp / swap / multi-partition disk | ✅ #43, #44, #46, #47, #50, #82, #84 |
 | **C2 — native Wayland layer-shell** (split out of C) | ⬜ **remaining** |
-| **H — release pipeline (AppImage)** | ⬜ **remaining** |
+| H — release pipeline (AppImage) | ✅ #87 |
 
 The detailed A–H breakdown below is the original plan (historical reference);
 the C row there bundled the Wayland-native path that's now tracked as C2.

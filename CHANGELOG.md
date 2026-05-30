@@ -14,6 +14,18 @@ user-facing only.
 
 ### Technical
 
+- (Part of #7) AppImage packaging pipeline for the standalone build. CMake
+  `install()` rules stage an AppDir (binary + `.desktop` + ring-themed SVG icon,
+  both committed under `packaging/` so they never leak into the Plasma
+  `.plasmoid`), and `scripts/build-appimage.sh` drives `linuxdeploy` +
+  `linuxdeploy-plugin-qt` to emit `Ring_Monitor-<version>-x86_64.AppImage`. CI
+  builds and offscreen-smoke-tests it on ubuntu-22.04 (glibc 2.35, for broad
+  distro compatibility) with Qt 6.5 from aqtinstall; `release.yml` builds it via
+  the same script and attaches it to the same GitHub Release as the `.plasmoid`.
+  `main.cpp` now calls `setDesktopFileName` so Wayland compositors map the window
+  to the installed desktop entry. The standalone build is now installable without
+  a toolchain.
+
 - (Part of #7) Fix the standalone AMD/Intel GPU sysfs retry gate closing too
   early (#83): the two-path gate used `&&`, so it stopped retrying the moment
   *either* `gpu_busy_percent` or the hwmon temp file resolved — stranding the

@@ -65,11 +65,30 @@ on non-KDE desktops, with no Plasma shell, `libksysguard`, or `KConfig`
 dependency (issue [#7](https://github.com/manuacl/ring-monitor/issues/7)).
 It reads metrics directly from `/proc`, sysfs, and NVML.
 
-> **Status: work in progress.** There is no packaged release yet — build
-> from source as below. Supported desktops are EWMH stacking environments
-> (KDE/KWin, GNOME/Mutter, XFCE/Xfwm4); tiling WMs and pure-Wayland
-> compositors are out of scope for now. GPU is NVIDIA-only so far
-> (AMD/Intel via sysfs is planned).
+> **Status: work in progress.** Supported desktops are EWMH stacking
+> environments (KDE/KWin, GNOME/Mutter, XFCE/Xfwm4); tiling WMs and
+> pure-Wayland compositors are out of scope for now.
+
+#### Install via AppImage (any Linux)
+
+The easiest path — one file, no toolchain, no runtime dependencies
+(Qt 6 + Kirigami are bundled, and it's built on an older glibc for broad
+distro compatibility). Download `Ring_Monitor-<version>-x86_64.AppImage`
+from the
+[latest release](https://github.com/manuacl/ring-monitor/releases/latest),
+then:
+
+```bash
+chmod +x Ring_Monitor-*-x86_64.AppImage
+./Ring_Monitor-*-x86_64.AppImage
+```
+
+NVIDIA GPU support works out of the box (the binary `dlopen`s
+`libnvidia-ml.so.1` at runtime); AMD/Intel GPUs are read from sysfs.
+
+#### Build from source
+
+Prefer building yourself (or your system lacks FUSE for AppImages)?
 
 **Build dependencies:** CMake ≥ 3.16, a C++17 compiler, Qt 6.5+
 (`Core Gui Qml Quick QuickControls2`), `xcb` (dev headers) and

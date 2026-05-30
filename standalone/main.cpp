@@ -82,6 +82,12 @@ int main(int argc, char *argv[])
     QGuiApplication::setOrganizationName("dev.manuacl");
     QGuiApplication::setApplicationName("ring-monitor");
     QGuiApplication::setApplicationVersion(QStringLiteral(RING_MONITOR_VERSION));
+    // Tie the running app to its installed desktop entry. Under Wayland
+    // this sets the surface app_id, so the compositor maps the window
+    // to packaging/dev.manuacl.ringmonitor.desktop (correct icon +
+    // taskbar grouping). No-op when the entry isn't installed (a
+    // build-from-source run), so it's harmless outside the AppImage.
+    QGuiApplication::setDesktopFileName("dev.manuacl.ringmonitor");
 
     QQmlApplicationEngine engine;
     // Two physically separate roots (no `_settingsOnly` flag threaded

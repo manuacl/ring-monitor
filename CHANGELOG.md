@@ -5,7 +5,9 @@ per-PR implementation log. When a release is **tagged** (a `bump:*`-labelled
 PR merges), its **user-facing** summary (Added / Changed / Fixed — what
 changed for someone running the widget) is written at the top of the new
 version section, **grouping all changes since the last tag**, with the
-accumulated Technical detail moved underneath. Entries before 0.7.0 are
+accumulated Technical detail moved underneath. A PR that changes only docs
+or CI (nothing to log technically) adds a single `### Other` one-liner
+instead — neither user-facing nor technical. Entries before 0.7.0 are
 user-facing only.
 
 ## [Unreleased]

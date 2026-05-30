@@ -34,7 +34,10 @@ Item {
     // The /releases LIST, not /releases/latest: with one shared version
     // counter the highest tag may be scoped to the other platform, so we
     // scan the list and pick the newest scope-relevant release (issue #89).
-    readonly property url releasesApiUrl: "https://api.github.com/repos/manuacl/ring-monitor/releases"
+    // per_page=100 (GitHub's max) so a scope-relevant release can't be
+    // pushed off the first page by other-platform releases above it —
+    // /releases/latest never paginated, the list defaults to 30.
+    readonly property url releasesApiUrl: "https://api.github.com/repos/manuacl/ring-monitor/releases?per_page=100"
     // User-facing "where to update from" page. The KDE Store is where
     // most users installed the widget originally, so that's the
     // natural place to send them for an update — the page carries the

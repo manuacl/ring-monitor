@@ -14,6 +14,19 @@ user-facing only.
 
 ### Technical
 
+- (Part of #7) Standalone backend gains AMD and Intel GPU support via sysfs.
+  New `GpuDiscovery.js` module (pure JS, Node-tested, injected I/O like
+  `CpuTempDiscovery.js`) walks `/sys/class/drm/card*` to detect the vendor and
+  resolve the per-tick sysfs paths: `device/gpu_busy_percent` for AMD utilisation
+  (kernel 4.19+) and `device/hwmon/hwmonN/temp1_input` for the junction/die
+  temperature of AMD and Intel cards. Intel GPU utilisation is deferred (i915-perf
+  requires elevated perms). NVIDIA is unchanged (NvmlReader / NVML path). The
+  `availableMetrics` gating splits into `_gpuAvailable` (usage source — NVML or
+  AMD busy path) and `_gpuTempAvailable` (temperature source — NVML, AMD, or Intel
+  hwmon), so an Intel-only host shows a GPU temperature ring without a spurious
+  usage ring. Discovery runs once on the first non-NVIDIA tick with the same
+  bounded-retry pattern as CPU temp (~30s window for late-modprobed drivers).
+
 - (#80) Standalone `DiskDiscovery.parseMounts` now filters the EFI System
   Partition — a FAT-family fstype (`vfat`/`msdos`/`fat`) on an EFI mountpoint
   (`/boot/efi`, `/efi`, or a no-xbootldr `/boot`) — so the standalone disk

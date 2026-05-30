@@ -196,18 +196,21 @@ test("standalone MetricsBackend exposes availableMetrics gating swap + gpu on th
     // Same-surface with the Plasma adapter (availableMetrics in PUBLIC_PROPS
     // above). The list is built through the shared Catalog.availableMetricsFrom
     // helper from a per-metric flag map: cpu/ram/disk always; cpuTemp once the
-    // sysfs path resolves; swap only when SwapTotal > 0 (swapless host hides
-    // it); gpu only when NVML reported a device, and gpuTemp additionally
-    // requires a finite reading (matches the Plasma adapter's separate
-    // usage/temp gating — no dead 0°C ring when the temp query keeps failing).
+    // sysfs path resolves; swap only when SwapTotal > 0; gpu when NVML (NVIDIA)
+    // or sysfs gpu_busy_percent (AMD) reports a device; gpuTemp when there is a
+    // temp source (NVML or sysfs hwmon, includes Intel-temp-only) AND a finite
+    // reading — no dead 0°C ring while the temp query keeps failing.
     assert.match(SOURCE, /property\s+var\s+availableMetrics\s*:/, "must declare readonly property var availableMetrics");
     assert.match(SOURCE, /Catalog\.availableMetricsFrom\s*\(/, "availableMetrics must build the list via the shared Catalog.availableMetricsFrom helper");
     assert.match(SOURCE, /_swapAvailable\s*=\s*mem\.swapTotal\s*>\s*0/, "must set _swapAvailable from mem.swapTotal > 0");
-    assert.match(SOURCE, /_gpuAvailable\s*=\s*gpu\.available/, "must set _gpuAvailable from the NVML sample's available flag");
+    // _gpuAvailable is set from NVML.available OR the sysfs busy-path being non-empty (AMD).
+    assert.match(SOURCE, /_gpuAvailable\s*=\s*nvml\.available/, "must set _gpuAvailable from the NVML sample's available flag (NVIDIA path)");
+    assert.match(SOURCE, /_gpuAvailable\s*=.*_gpuBusyPath\s*!==\s*""/, "must also set _gpuAvailable when _gpuBusyPath resolves (AMD sysfs path)");
     assert.match(SOURCE, /"cpuTemp":\s*backend\._cpuTempPath\s*!==\s*""/, 'availableMetrics map must gate "cpuTemp" on _cpuTempPath resolving');
     assert.match(SOURCE, /"swap":\s*backend\._swapAvailable/, 'availableMetrics map must gate "swap" on _swapAvailable');
     assert.match(SOURCE, /"gpu":\s*backend\._gpuAvailable/, 'availableMetrics map must gate "gpu" on _gpuAvailable');
-    assert.match(SOURCE, /"gpuTemp":\s*backend\._gpuAvailable\s*&&\s*isFinite\(\s*backend\._gpuTempC\s*\)/, 'availableMetrics map must gate "gpuTemp" on _gpuAvailable AND a finite _gpuTempC');
+    // gpuTemp now gates on _gpuTempAvailable (not _gpuAvailable) so Intel temp-only shows.
+    assert.match(SOURCE, /"gpuTemp":\s*backend\._gpuTempAvailable\s*&&\s*isFinite\(\s*backend\._gpuTempC\s*\)/, 'availableMetrics map must gate "gpuTemp" on _gpuTempAvailable AND a finite _gpuTempC');
 });
 
 test("standalone availableMetrics binding does not depend on _tick (no per-poll churn)", () => {
@@ -233,6 +236,29 @@ test("standalone MetricsBackend exposes removablePartitions + mountedPartitionId
     assert.match(SOURCE, /property\s+var\s+removablePartitions\s*:/, "must declare a removablePartitions property");
     assert.match(SOURCE, /property\s+var\s+mountedPartitionIds\s*:/, "must declare a mountedPartitionIds property");
     assert.match(SOURCE, /DiskMetrics\.isRemovableMount\s*\(/, "removablePartitions must classify mounts via DiskMetrics.isRemovableMount");
+});
+
+test("standalone MetricsBackend wires AMD/Intel GPU via GpuDiscovery sysfs", () => {
+    // AMD: gpu_busy_percent (usage) + hwmon temp. Intel: hwmon temp only
+    // (i915-perf usage deferred — elevated perms). Discovery deferred to
+    // the first non-NVIDIA tick via _resolveGpuPaths() with the same
+    // bounded-retry pattern as CPU temp.
+    assert.match(SOURCE, /import\s+["']GpuDiscovery\.js["']\s+as\s+GpuDisc/, "must import GpuDiscovery.js");
+    assert.match(SOURCE, /GpuDisc\.discoverGpu\s*\(/, "must call GpuDisc.discoverGpu to resolve AMD/Intel sysfs paths");
+    assert.match(SOURCE, /function\s+_resolveGpuPaths\s*\(/, "must declare _resolveGpuPaths() to wire the sysfs paths on startup");
+    assert.match(SOURCE, /property\s+string\s+_gpuBusyPath/, "must declare _gpuBusyPath for the gpu_busy_percent sysfs file");
+    assert.match(SOURCE, /property\s+string\s+_gpuTempPath/, "must declare _gpuTempPath for the hwmon temp sysfs file");
+    assert.match(SOURCE, /property\s+string\s+_gpuVendor/, "must declare _gpuVendor to gate the resolve loop once a card is found");
+    // Sysfs reads happen only after the path is resolved and non-empty.
+    assert.match(SOURCE, /backend\._gpuBusyPath[\s\S]{0,200}reader\.read\(\s*backend\._gpuBusyPath\s*\)/, "must read gpu_busy_percent when _gpuBusyPath is set");
+    assert.match(SOURCE, /backend\._gpuTempPath[\s\S]{0,200}reader\.read\(\s*backend\._gpuTempPath\s*\)/, "must read the hwmon temp file when _gpuTempPath is set");
+    assert.match(SOURCE, /GpuDisc\.parseTempCelsius\s*\(/, "must parse the sysfs temp via GpuDisc.parseTempCelsius (millidegrees → °C)");
+    // _gpuTempAvailable is the gate for gpuTemp (allows Intel-temp-only).
+    assert.match(SOURCE, /property\s+bool\s+_gpuTempAvailable/, "must declare _gpuTempAvailable for the gpuTemp availability gate");
+    assert.match(SOURCE, /_gpuTempAvailable\s*=.*_gpuTempPath\s*!==\s*""/, "_gpuTempAvailable must be set from _gpuTempPath being non-empty");
+    // Resolve loop runs only on non-NVIDIA hosts (skip the /sys/class/drm
+    // walk entirely when NVML already found a GPU).
+    assert.match(SOURCE, /!nvml\.available[\s\S]{0,100}_gpuResolveAttempts\s*<\s*backend\._gpuMaxResolveAttempts/, "resolve gate must require both !nvml.available AND the attempt bound");
 });
 
 test("standalone MetricsBackend polls on a Timer", () => {

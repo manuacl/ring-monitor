@@ -50,7 +50,7 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(XCB REQUIRED IMPORTED_TARGET xcb)
 
 # Optional native Wayland integration. layer-shell-qt (KDE) lets the
-# standalone window become a wlr-layer-shell `background` surface on
+# standalone window become a wlr-layer-shell `bottom`-layer surface on
 # wlroots / KWin Wayland — no Alt+Tab, no input capture, unlike the
 # XWayland-fallback NORMAL window. OPTIONAL on purpose: a dev box without
 # layer-shell-qt (it's an rpm-ostree layer + reboot on the maintainer's

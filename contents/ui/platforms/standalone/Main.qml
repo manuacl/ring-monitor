@@ -17,7 +17,7 @@ import "../../core" as Core
 //
 // Compositor-specific behaviour sits in C++: the X11/XWayland EWMH
 // hints in `standalone/desktop_hints.cpp` (PR C) and the native
-// wlr-layer-shell background surface in `standalone/wayland_layer_shell.cpp`
+// wlr-layer-shell bottom-layer surface in `standalone/wayland_layer_shell.cpp`
 // (PR C2). `WaylandLayerShell.active` selects which path `_anchor()` takes.
 
 Window {

@@ -3,7 +3,7 @@
 // Native wlr-layer-shell integration via KDE's layer-shell-qt, exposed
 // to QML as a singleton (same registration shape as WindowAnchor /
 // ProcReader). On a wlroots / KWin Wayland session this turns the
-// standalone window into a `background` layer surface — which, unlike
+// standalone window into a `bottom`-layer surface — which, unlike
 // the XWayland-fallback NORMAL window, never enters Alt+Tab and doesn't
 // capture input (the two documented warts the EWMH path can't shed).
 //

@@ -31,9 +31,15 @@ WindowStrategy decideWindowStrategy(bool openSettings)
     // plain xdg-toplevel. Keep GNOME on the XWayland fallback (EWMH
     // hints) and take the native path everywhere else under Wayland —
     // KWin, sway, Hyprland, and the rest of wlroots all implement it.
-    // Heuristic, not a runtime registry probe: cheap, and a wlroots
-    // compositor that mis-reports XDG_CURRENT_DESKTOP only falls back
-    // to XWayland (degraded, not broken).
+    // Heuristic, not a runtime registry probe (Qt binds the shell
+    // integration before a Wayland registry round-trip, so there's no
+    // clean pre-window probe). Cheap, and correct for every mainstream
+    // compositor — only mutter lacks wlr-layer-shell. The one bad case is
+    // a NON-GNOME Wayland compositor that ALSO lacks wlr-layer-shell
+    // (exotic): there the surface degrades to a plain xdg-toplevel with no
+    // desktop integration (NOT an XWayland fallback — that path was already
+    // skipped). Acceptable for the target; revisit with a runtime probe if
+    // such a compositor shows up.
     const QByteArray desktop = qgetenv("XDG_CURRENT_DESKTOP").toUpper();
     if (!desktop.contains("GNOME"))
         return WindowStrategy::WaylandLayerShell;
@@ -44,8 +50,14 @@ WindowStrategy decideWindowStrategy(bool openSettings)
 
 bool layerShellActive()
 {
-    return decideWindowStrategy(/*openSettings=*/false) ==
-           WindowStrategy::WaylandLayerShell;
+    // The strategy is a process-lifetime constant (it reads only env +
+    // the build flag), and this is the hot path — WaylandLayerShell::active()
+    // and configure() call it, the latter on every re-anchor (margin-slider
+    // drag). Compute once, then it's O(1).
+    static const bool active =
+        decideWindowStrategy(/*openSettings=*/false) ==
+        WindowStrategy::WaylandLayerShell;
+    return active;
 }
 
 void forceXWaylandUnderWayland()

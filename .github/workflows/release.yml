@@ -263,8 +263,12 @@ jobs:
         run: |
           ./Ring_Monitor-*-x86_64.AppImage --appimage-extract >/dev/null
           missing=0
+          # generic + egl wayland platform plugins (both requested in
+          # build-appimage.sh) + layer-shell-qt's shell-integration plugin.
+          # egl is the GPU-accelerated path Qt picks on most KWin/sway boxes.
           for f in \
             usr/plugins/platforms/libqwayland-generic.so \
+            usr/plugins/platforms/libqwayland-egl.so \
             usr/plugins/wayland-shell-integration/libqt-shell-integration-layer.so; do
             if ! ls squashfs-root/"$f" >/dev/null 2>&1; then
               echo "::error::missing from AppImage: $f"

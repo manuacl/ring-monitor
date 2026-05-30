@@ -203,9 +203,12 @@ test("standalone MetricsBackend exposes availableMetrics gating swap + gpu on th
     assert.match(SOURCE, /property\s+var\s+availableMetrics\s*:/, "must declare readonly property var availableMetrics");
     assert.match(SOURCE, /Catalog\.availableMetricsFrom\s*\(/, "availableMetrics must build the list via the shared Catalog.availableMetricsFrom helper");
     assert.match(SOURCE, /_swapAvailable\s*=\s*mem\.swapTotal\s*>\s*0/, "must set _swapAvailable from mem.swapTotal > 0");
-    // _gpuAvailable is set from NVML.available OR the sysfs busy-path being non-empty (AMD).
+    // _gpuAvailable: liveness model — derived from this tick's read success, not path non-emptiness.
+    // Fixes: AMD eGPU hot-unplug freezes ring at last-good value (ring must disappear ≤1 tick).
+    // Fixes: hybrid NVIDIA+AMD — AMD sysfs shadowing NVML after a transient NVML failure.
     assert.match(SOURCE, /_gpuAvailable\s*=\s*nvml\.available/, "must set _gpuAvailable from the NVML sample's available flag (NVIDIA path)");
-    assert.match(SOURCE, /_gpuAvailable\s*=.*_gpuBusyPath\s*!==\s*""/, "must also set _gpuAvailable when _gpuBusyPath resolves (AMD sysfs path)");
+    assert.match(SOURCE, /sysfsUsageValid\s*=\s*true/, "must set sysfsUsageValid when AMD sysfs busy read succeeds (liveness gate for _gpuAvailable)");
+    assert.match(SOURCE, /_gpuAvailable\s*=\s*nvml\.available\s*\|\|\s*sysfsUsageValid/, "must derive _gpuAvailable from liveness (sysfsUsageValid), not path non-emptiness");
     assert.match(SOURCE, /"cpuTemp":\s*backend\._cpuTempPath\s*!==\s*""/, 'availableMetrics map must gate "cpuTemp" on _cpuTempPath resolving');
     assert.match(SOURCE, /"swap":\s*backend\._swapAvailable/, 'availableMetrics map must gate "swap" on _swapAvailable');
     assert.match(SOURCE, /"gpu":\s*backend\._gpuAvailable/, 'availableMetrics map must gate "gpu" on _gpuAvailable');
@@ -248,17 +251,22 @@ test("standalone MetricsBackend wires AMD/Intel GPU via GpuDiscovery sysfs", () 
     assert.match(SOURCE, /function\s+_resolveGpuPaths\s*\(/, "must declare _resolveGpuPaths() to wire the sysfs paths on startup");
     assert.match(SOURCE, /property\s+string\s+_gpuBusyPath/, "must declare _gpuBusyPath for the gpu_busy_percent sysfs file");
     assert.match(SOURCE, /property\s+string\s+_gpuTempPath/, "must declare _gpuTempPath for the hwmon temp sysfs file");
-    assert.match(SOURCE, /property\s+string\s+_gpuVendor/, "must declare _gpuVendor to gate the resolve loop once a card is found");
+    assert.match(SOURCE, /property\s+string\s+_gpuVendor/, "must declare _gpuVendor (diagnostic: 'amd'|'intel'|'')");
     // Sysfs reads happen only after the path is resolved and non-empty.
     assert.match(SOURCE, /backend\._gpuBusyPath[\s\S]{0,200}reader\.read\(\s*backend\._gpuBusyPath\s*\)/, "must read gpu_busy_percent when _gpuBusyPath is set");
     assert.match(SOURCE, /backend\._gpuTempPath[\s\S]{0,200}reader\.read\(\s*backend\._gpuTempPath\s*\)/, "must read the hwmon temp file when _gpuTempPath is set");
     assert.match(SOURCE, /GpuDisc\.parseTempCelsius\s*\(/, "must parse the sysfs temp via GpuDisc.parseTempCelsius (millidegrees → °C)");
-    // _gpuTempAvailable is the gate for gpuTemp (allows Intel-temp-only).
+    // _gpuTempAvailable: liveness model — derived from this tick's sysfs read success.
+    // Fixes: Intel temp-only host shows gpuTemp ring without spurious usage ring.
+    // Fixes: AMD eGPU hot-unplug — ring must disappear, not freeze at last-good value.
     assert.match(SOURCE, /property\s+bool\s+_gpuTempAvailable/, "must declare _gpuTempAvailable for the gpuTemp availability gate");
-    assert.match(SOURCE, /_gpuTempAvailable\s*=.*_gpuTempPath\s*!==\s*""/, "_gpuTempAvailable must be set from _gpuTempPath being non-empty");
-    // Resolve loop runs only on non-NVIDIA hosts (skip the /sys/class/drm
-    // walk entirely when NVML already found a GPU).
-    assert.match(SOURCE, /!nvml\.available[\s\S]{0,100}_gpuResolveAttempts\s*<\s*backend\._gpuMaxResolveAttempts/, "resolve gate must require both !nvml.available AND the attempt bound");
+    assert.match(SOURCE, /sysfsTempValid\s*=\s*true/, "must set sysfsTempValid when AMD/Intel sysfs temp read succeeds (liveness gate for _gpuTempAvailable)");
+    assert.match(SOURCE, /_gpuTempAvailable\s*=\s*nvml\.available\s*\|\|\s*sysfsTempValid/, "must derive _gpuTempAvailable from liveness (sysfsTempValid), not path non-emptiness");
+    // Resolve loop: runs only on non-NVIDIA hosts; retries while BOTH paths are still
+    // empty (mirrors !_cpuTempPath gate) so a late-loaded hwmon is picked up.
+    // Fixes: Intel card found without hwmon permanently closed the gate via _gpuVendor.
+    assert.match(SOURCE, /!backend\._gpuBusyPath\s*&&\s*!backend\._gpuTempPath/, "resolve gate must retry while BOTH paths are empty, not just while _gpuVendor is unset");
+    assert.match(SOURCE, /!nvml\.available[\s\S]{0,200}_gpuResolveAttempts\s*<\s*backend\._gpuMaxResolveAttempts/, "resolve gate must require both !nvml.available AND the attempt bound");
 });
 
 test("standalone MetricsBackend polls on a Timer", () => {

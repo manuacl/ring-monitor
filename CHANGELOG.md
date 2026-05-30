@@ -14,6 +14,19 @@ user-facing only.
 
 ### Technical
 
+- (Part of #7) Three correctness fixes to the AMD/Intel GPU sysfs path (found
+  by code review of the initial implementation): (1) AMD/Intel sysfs reads now
+  run ONLY when `nvml.available` is false — on a hybrid NVIDIA+AMD host a
+  transient NVML failure no longer latches AMD paths and shadows NVML values
+  for the rest of the session. (2) The retry gate switches from `!_gpuVendor`
+  to `!_gpuBusyPath && !_gpuTempPath` (mirrors the `!_cpuTempPath` CPU-temp
+  pattern), so a DRM card found without a hwmon entry (late-loading Intel i915
+  driver) is re-walked until a real path lands within the 30 s window. (3)
+  `_gpuAvailable`/`_gpuTempAvailable` now derive from this-tick read success
+  (liveness model matching NVML's `available` flag), not from path non-emptiness
+  — an AMD eGPU hot-unplug causes the ring to disappear within one tick instead
+  of freezing at the last-good value.
+
 - (Part of #7) Standalone backend gains AMD and Intel GPU support via sysfs.
   New `GpuDiscovery.js` module (pure JS, Node-tested, injected I/O like
   `CpuTempDiscovery.js`) walks `/sys/class/drm/card*` to detect the vendor and

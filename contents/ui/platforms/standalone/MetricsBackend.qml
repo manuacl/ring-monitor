@@ -410,18 +410,19 @@ Item {
         if (backend._cpuTempPath)
             backend._cpuTempC = CpuTemp.parseTempCelsius(reader.read(backend._cpuTempPath));
         // ── GPU: NVML (NVIDIA) + sysfs (AMD/Intel) ──────────────────
-        // NVML is a synchronous per-tick read on the GUI thread (microseconds
-        // via dlopen'd libnvidia-ml, no spawn, no frame drop). AMD reads go
-        // through ProcReader to gpu_busy_percent + hwmon temp (also
-        // microseconds). Intel ships temp-only (i915-perf usage deferred).
+        // NVML: synchronous per-tick read (microseconds via dlopen'd libnvidia-ml).
+        // AMD/Intel sysfs reads run ONLY when nvml.available is false this tick —
+        // preventing a hybrid NVIDIA+AMD host from having a transient NVML failure
+        // latch AMD paths and permanently shadow NVML readings with AMD values.
+        // Retry gate uses !_gpuBusyPath && !_gpuTempPath (mirrors !_cpuTempPath)
+        // so a late-loaded hwmon (Intel i915 / udev settle) is discovered within
+        // the 30 s window even after the DRM card was found without paths.
+        // Availability derives from this tick's read success (liveness model):
+        // an AMD eGPU hot-unplug makes reads fail → ring disappears ≤1 tick,
+        // matching NVML's per-tick available flag behaviour for NVIDIA.
         //
-        // Sysfs path resolution runs once on startup with a bounded retry
-        // window (same bounded-retry pattern as CPU temp), but only on
-        // non-NVIDIA hosts to avoid a pointless /sys/class/drm walk each tick.
-        //
-        // sample() OMITS a field whose NVML query failed this tick, so we
-        // commit only present keys — a transient failure keeps the last-good
-        // value (or the NaN sentinel) instead of snapping the ring to 0.
+        // sample() OMITS a field whose NVML query failed this tick — commit only
+        // present keys so a transient failure keeps the last-good value.
         var nvml = gpuReader.sample();
         if (nvml.available) {
             if (nvml.usage !== undefined)
@@ -429,22 +430,30 @@ Item {
             if (nvml.tempC !== undefined)
                 backend._gpuTempC = nvml.tempC;
         }
-        if (!nvml.available && !backend._gpuVendor && backend._gpuResolveAttempts < backend._gpuMaxResolveAttempts) {
-            backend._gpuResolveAttempts++;
-            backend._resolveGpuPaths();
+        var sysfsUsageValid = false;
+        var sysfsTempValid = false;
+        if (!nvml.available) {
+            if (!backend._gpuBusyPath && !backend._gpuTempPath && backend._gpuResolveAttempts < backend._gpuMaxResolveAttempts) {
+                backend._gpuResolveAttempts++;
+                backend._resolveGpuPaths();
+            }
+            if (backend._gpuBusyPath) {
+                var gpuUsage = parseInt(reader.read(backend._gpuBusyPath).trim(), 10);
+                if (isFinite(gpuUsage)) {
+                    backend._gpuUsage = gpuUsage;
+                    sysfsUsageValid = true;
+                }
+            }
+            if (backend._gpuTempPath) {
+                var sysfsTemp = GpuDisc.parseTempCelsius(reader.read(backend._gpuTempPath));
+                if (isFinite(sysfsTemp)) {
+                    backend._gpuTempC = sysfsTemp;
+                    sysfsTempValid = true;
+                }
+            }
         }
-        if (backend._gpuBusyPath) {
-            var amdUsage = parseInt(reader.read(backend._gpuBusyPath).trim(), 10);
-            if (isFinite(amdUsage))
-                backend._gpuUsage = amdUsage;
-        }
-        if (backend._gpuTempPath) {
-            var sysfsTemp = GpuDisc.parseTempCelsius(reader.read(backend._gpuTempPath));
-            if (isFinite(sysfsTemp))
-                backend._gpuTempC = sysfsTemp;
-        }
-        backend._gpuAvailable = nvml.available || backend._gpuBusyPath !== "";
-        backend._gpuTempAvailable = nvml.available || backend._gpuTempPath !== "";
+        backend._gpuAvailable = nvml.available || sysfsUsageValid;
+        backend._gpuTempAvailable = nvml.available || sysfsTempValid;
         // Bump _tick last so all readonly properties depending on it
         // re-evaluate together after every metric has its fresh value.
         backend._tick++;

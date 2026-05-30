@@ -799,20 +799,31 @@ wiring in `core/UpdateChecker.qml`, the UI in `core/AboutBody.qml`
 ### `UpdateChecker.qml`
 
 Portable runtime (pure QtQuick — no Plasma imports) that fires
-`XMLHttpRequest` to `api.github.com/repos/manuacl/ring-monitor/releases/latest`
-on Component completion, gates the call with a 24h TTL via
-`UpdateCheck.shouldRecheck`, and persists the result through the
+`XMLHttpRequest` to the `api.github.com/repos/manuacl/ring-monitor/releases`
+**list** on Component completion, gates the call with a 24h TTL via
+`UpdateCheck.shouldRecheck`, picks the newest scope-relevant release via
+`UpdateCheck.pickRelevantRelease`, and persists the result through the
 injected `configStore` (so a standalone build can back the same
 public surface with a different write layer).
 
 | Public surface | What it exposes |
 |---|---|
 | `localVersion` / `remoteVersion` / `acknowledgedVersion` (readonly) | mirrored from `configStore` — single source of truth |
-| `updateAvailable` (readonly bool) | drives the badge and the AboutBody status block; computed via `UpdateCheck.shouldNotify` |
+| `platform` (string) | which build is running — `"plasma"` / `"standalone"`, wired by each adapter. Gates which releases notify (issue #89); empty disables the filter |
+| `updateAvailable` (readonly bool) | drives the badge and the AboutBody status block; computed via `UpdateCheck.shouldNotify` (scope-filtered by `platform`) |
 | `check()` (function) | force a network probe, bypassing the TTL gate |
 | `acknowledge()` (function) | persists "Got it" — sets `acknowledgedVersion = remoteVersion` |
 | `openStorePage()` (function) | `Qt.openUrlExternally` to the KDE Store entry (where the user-facing changelog lives) |
 | `releasesApiUrl` / `storePageUrl` / `cacheTtlMs` (readonly) | overridable knobs (the standalone build could repoint the URLs) |
+
+`platform` makes each build notify only on releases scoped to it (tag
+suffix `-p` / `-s`, appended at release time by `version.yml` — see
+[issue #89](logic-modules.md#updatecheckjs) and
+[releasing.md](releasing.md)). Every adapter sets it: `"plasma"` from
+`main.qml` / `configAbout.qml` (and the config-sidebar gate in
+`config.qml`), `"standalone"` from the standalone `Main.qml` /
+`SettingsOnlyRoot.qml`. Until a release happens to be single-scope,
+tags are unsuffixed and every build is notified, as before.
 
 The XHR handler is intentionally silent on failure — a network blip
 or a malformed JSON response leaves the cached state untouched and

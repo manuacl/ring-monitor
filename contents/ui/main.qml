@@ -49,6 +49,7 @@ PlasmoidItem {
     Core.UpdateChecker {
         id: updateCheckerAdapter
         configStore: configStoreAdapter
+        platform: "plasma"
     }
 
     // ── Portable body ───────────────────────────────────────────────

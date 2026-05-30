@@ -99,6 +99,30 @@ jobs:
           # Strip jq's trailing newline → match the file's original style
           # (already 4-space indented, ends without a trailing blank line).
 
+      # Platform scope of this release (issue #89): suffix the tag with
+      # -p / -s / nothing so the in-widget update check notifies only the
+      # platform(s) the release actually changed. metadata.json stays a
+      # clean X.Y.Z — the suffix is on the tag/release name ONLY.
+      - name: Infer release scope
+        if: steps.check.outputs.skip == 'false' && steps.bump.outputs.type != 'none'
+        id: scope
+        run: |
+          # Cumulative diff since the previous tag: a release bundles the
+          # labelled PR plus every bump:none PR merged since the last tag.
+          # HEAD is the merge commit — the version-bump commit isn't made
+          # yet — so metadata.json is not in the range. First-ever release
+          # (no previous tag) gets no suffix → notify both platforms.
+          # --match 'v[0-9]*' pins this to release tags, so a stray
+          # non-release tag can't become the diff base and skew the scope.
+          LAST_TAG=$(git describe --tags --abbrev=0 --match 'v[0-9]*' HEAD 2>/dev/null || echo "")
+          if [ -n "$LAST_TAG" ]; then
+            SUFFIX=$(git diff --name-only "$LAST_TAG"..HEAD | scripts/infer-release-scope.sh)
+          else
+            SUFFIX=""
+          fi
+          echo "suffix=$SUFFIX" >> $GITHUB_OUTPUT
+          echo "Release scope suffix: '${SUFFIX:-<none>}' (since ${LAST_TAG:-<no previous tag>})"
+
       - name: Configure git
         if: steps.check.outputs.skip == 'false' && steps.bump.outputs.type != 'none'
         run: |
@@ -110,9 +134,13 @@ jobs:
         env:
           NEW_VERSION: ${{ steps.version.outputs.new }}
           BUMP_TYPE: ${{ steps.bump.outputs.type }}
+          SCOPE_SUFFIX: ${{ steps.scope.outputs.suffix }}
         run: |
+          # metadata.json keeps the clean X.Y.Z; the tag carries the scope
+          # suffix (release.yml strips it back off to match metadata).
+          TAG="v${NEW_VERSION}${SCOPE_SUFFIX}"
           git add metadata.json
           git commit -m "chore: bump version to $NEW_VERSION ($BUMP_TYPE)"
-          git tag -a "v$NEW_VERSION" -m "Release v$NEW_VERSION"
+          git tag -a "$TAG" -m "Release $TAG"
           git push origin HEAD:main --no-verify
-          git push origin "v$NEW_VERSION" --no-verify
+          git push origin "$TAG" --no-verify

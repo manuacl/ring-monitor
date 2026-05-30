@@ -56,6 +56,7 @@ Item {
             mockStore.acknowledgedVersion = "";
             mockStore.lastRecordCall = null;
             mockStore.lastAcknowledgeCall = null;
+            checker.platform = "";
         }
 
         function test_initial_state_no_update() {
@@ -92,6 +93,18 @@ Item {
             // No remote known → don't persist a phantom acknowledgement.
             checker.acknowledge();
             compare(mockStore.lastAcknowledgeCall, null);
+        }
+
+        function test_platform_scope_gates_the_badge() {
+            // issue #89: a release scoped to the other platform must not
+            // light the badge once `platform` is wired by the adapter.
+            checker.platform = "plasma";
+            mockStore.latestKnownVersion = "v0.5.0-s";
+            verify(!checker.updateAvailable);
+            mockStore.latestKnownVersion = "v0.5.0-p";
+            verify(checker.updateAvailable);
+            mockStore.latestKnownVersion = "v0.5.0";
+            verify(checker.updateAvailable);
         }
 
         function test_public_url_properties_are_exposed() {

@@ -19,7 +19,13 @@ ConfigModel {
     // verbatim ("v0.4.0") while Plasmoid.metaData.version drops the
     // leading "v" ("0.4.0"). UC.shouldNotify parses both sides as
     // semver and only returns true when the remote is strictly newer.
-    readonly property bool _hasUnseenUpdate: UC.shouldNotify(Plasmoid.metaData.version, Plasmoid.configuration.latestKnownVersion, Plasmoid.configuration.acknowledgedVersion)
+    //
+    // The "plasma" 4th arg keeps this sidebar gate scope-filtered in
+    // lockstep with the badge (UpdateChecker.updateAvailable, also
+    // "plasma" here) — a standalone-scoped release (tag `-s`) must not
+    // float the "New release" tab to the top of a Plasma config dialog
+    // (issue #89).
+    readonly property bool _hasUnseenUpdate: UC.shouldNotify(Plasmoid.metaData.version, Plasmoid.configuration.latestKnownVersion, Plasmoid.configuration.acknowledgedVersion, "plasma")
 
     ConfigCategory {
         // Same source as the bottom-position "Release" below; the

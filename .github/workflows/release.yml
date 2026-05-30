@@ -47,7 +47,14 @@ jobs:
         env:
           TAG_NAME: ${{ steps.tag.outputs.name }}
         run: |
+          # Strip the leading v AND the platform-scope suffix (issue #89:
+          # tags are vX.Y.Z, vX.Y.Z-p, or vX.Y.Z-s). metadata.json holds
+          # the clean X.Y.Z, so the suffix must come off here — otherwise
+          # the "version matches tag" check below fails the release, and
+          # the .plasmoid name / title / KDE Store version would carry it.
           VERSION="${TAG_NAME#v}"
+          VERSION="${VERSION%-p}"
+          VERSION="${VERSION%-s}"
           PLUGIN_ID=$(jq -r .KPlugin.Id metadata.json)
           NAME=$(jq -r .KPlugin.Name metadata.json)
           ARTIFACT="${PLUGIN_ID}-${VERSION}.plasmoid"
@@ -175,6 +182,12 @@ jobs:
           VERSION: ${{ steps.meta.outputs.version }}
           TAG_NAME: ${{ steps.tag.outputs.name }}
         run: |
+          # Do NOT pass --prerelease here. A scope-suffixed tag (vX.Y.Z-p /
+          # -s, issue #89) is a SemVer pre-release string, but the release
+          # must stay prerelease:false: the in-widget update check
+          # (core/UpdateCheck.js pickRelevantRelease) skips releases flagged
+          # prerelease, so marking these would silently suppress every
+          # scoped notification. gh leaves the flag false by default.
           gh release create "$TAG_NAME" \
             "$ARTIFACT" \
             --title "$NAME v$VERSION" \

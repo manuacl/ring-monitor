@@ -130,3 +130,112 @@ test("shouldNotify: acknowledged is OLDER than newly published — should still 
 test("shouldNotify: malformed acknowledgement is treated as no-ack", () => {
     assert.equal(UC.shouldNotify("v0.4.0", "v0.5.0", "garbage"), true);
 });
+
+// ── releaseScope (issue #89) ───────────────────────────────────────────
+
+test("releaseScope: -p suffix → plasma", () => {
+    assert.equal(UC.releaseScope("v0.8.0-p"), "plasma");
+    assert.equal(UC.releaseScope("0.8.0-p"), "plasma");
+});
+
+test("releaseScope: -s suffix → standalone", () => {
+    assert.equal(UC.releaseScope("v0.8.0-s"), "standalone");
+});
+
+test("releaseScope: no suffix → both", () => {
+    assert.equal(UC.releaseScope("v0.8.0"), "both");
+    assert.equal(UC.releaseScope("1.2.3"), "both");
+});
+
+test("releaseScope: a non-scope trailer (-rc1, +build) → both (notify everyone)", () => {
+    assert.equal(UC.releaseScope("v0.8.0-rc1"), "both");
+    assert.equal(UC.releaseScope("0.8.0+build42"), "both");
+});
+
+test("releaseScope: malformed / non-string → both (safe default)", () => {
+    assert.equal(UC.releaseScope(""), "both");
+    assert.equal(UC.releaseScope("garbage-p"), "both");
+    assert.equal(UC.releaseScope(null), "both");
+    assert.equal(UC.releaseScope(42), "both");
+});
+
+// ── pickRelevantRelease (issue #89) ────────────────────────────────────
+
+const REL = (tag, extra) => Object.assign({ tag_name: tag }, extra);
+
+test("pickRelevantRelease: picks the newest scope-relevant tag", () => {
+    const list = [REL("v0.8.0"), REL("v0.9.0"), REL("v0.7.0")];
+    assert.equal(UC.pickRelevantRelease(list, "plasma"), "v0.9.0");
+});
+
+test("pickRelevantRelease: standalone skips a newer plasma-only release for an intermediate standalone one", () => {
+    // The motivating case from issue #89: the highest tag is -p, but a
+    // standalone user needs the intermediate -s release below it — which
+    // /releases/latest would never surface.
+    const list = [REL("v0.9.0-p"), REL("v0.8.0-s"), REL("v0.7.0")];
+    assert.equal(UC.pickRelevantRelease(list, "standalone"), "v0.8.0-s");
+    assert.equal(UC.pickRelevantRelease(list, "plasma"), "v0.9.0-p");
+});
+
+test("pickRelevantRelease: a 'both' release is relevant to either platform", () => {
+    const list = [REL("v0.9.0"), REL("v0.8.0-s")];
+    assert.equal(UC.pickRelevantRelease(list, "plasma"), "v0.9.0");
+    assert.equal(UC.pickRelevantRelease(list, "standalone"), "v0.9.0");
+});
+
+test("pickRelevantRelease: skips drafts and prereleases", () => {
+    const list = [
+        REL("v0.9.0", { draft: true }),
+        REL("v0.8.5", { prerelease: true }),
+        REL("v0.8.0"),
+    ];
+    assert.equal(UC.pickRelevantRelease(list, "plasma"), "v0.8.0");
+});
+
+test("pickRelevantRelease: no platform → newest non-draft/prerelease overall", () => {
+    const list = [REL("v0.9.0-p"), REL("v0.8.0-s")];
+    assert.equal(UC.pickRelevantRelease(list, ""), "v0.9.0-p");
+});
+
+test("pickRelevantRelease: nothing relevant / malformed input → empty string", () => {
+    assert.equal(UC.pickRelevantRelease([REL("v0.9.0-p")], "standalone"), "");
+    assert.equal(UC.pickRelevantRelease([REL("garbage")], "plasma"), "");
+    assert.equal(UC.pickRelevantRelease([], "plasma"), "");
+    assert.equal(UC.pickRelevantRelease(null, "plasma"), "");
+    assert.equal(UC.pickRelevantRelease({ tag_name: "v0.9.0" }, "plasma"), "");
+});
+
+test("pickRelevantRelease: a release object with no tag_name is skipped, not crashed on", () => {
+    const list = [{ draft: false }, REL("v0.8.0"), { tag_name: null }];
+    assert.equal(UC.pickRelevantRelease(list, "plasma"), "v0.8.0");
+});
+
+// ── shouldNotify: platform scope gate (issue #89) ──────────────────────
+
+test("shouldNotify: a both-scoped release notifies any platform", () => {
+    assert.equal(UC.shouldNotify("v0.4.0", "v0.5.0", "", "plasma"), true);
+    assert.equal(UC.shouldNotify("v0.4.0", "v0.5.0", "", "standalone"), true);
+});
+
+test("shouldNotify: a release scoped to the other platform never notifies", () => {
+    assert.equal(UC.shouldNotify("v0.4.0", "v0.5.0-s", "", "plasma"), false);
+    assert.equal(UC.shouldNotify("v0.4.0", "v0.5.0-p", "", "standalone"), false);
+});
+
+test("shouldNotify: a release scoped to my platform notifies", () => {
+    assert.equal(UC.shouldNotify("v0.4.0", "v0.5.0-p", "", "plasma"), true);
+    assert.equal(UC.shouldNotify("v0.4.0", "v0.5.0-s", "", "standalone"), true);
+});
+
+test("shouldNotify: no platform arg → scope filter disabled (back-compat)", () => {
+    // The pre-#89 3-arg call must keep notifying regardless of suffix.
+    assert.equal(UC.shouldNotify("v0.4.0", "v0.5.0-p"), true);
+    assert.equal(UC.shouldNotify("v0.4.0", "v0.5.0-s"), true);
+});
+
+test("shouldNotify: a scope suffix on the acknowledged version doesn't break the ack gate", () => {
+    // Acknowledged v0.5.0-p (in scope), remote leapt to v0.6.0-p → re-notify.
+    assert.equal(UC.shouldNotify("v0.4.0", "v0.6.0-p", "v0.5.0-p", "plasma"), true);
+    // Same acknowledged version still snoozes its own release.
+    assert.equal(UC.shouldNotify("v0.4.0", "v0.5.0-p", "v0.5.0-p", "plasma"), false);
+});

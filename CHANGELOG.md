@@ -14,6 +14,28 @@ user-facing only.
 
 ### Technical
 
+- (Part of #7, #89) Platform-scoped update notifications. The Plasma widget and
+  the standalone build share one version counter and one GitHub release stream,
+  so the "update available" badge would otherwise ping a Plasma user for a
+  standalone-only release and vice-versa. **Client:** `UpdateCheck.js` gains
+  `releaseScope(tag)` (reads a `-p` / `-s` / no-suffix scope marker off the
+  release tag — never `metadata.json`, so `parseSemver` is undisturbed) and
+  `pickRelevantRelease(releases, platform)`; `shouldNotify` takes a `platform`
+  and skips releases scoped to the other build. `UpdateChecker.qml` gains a
+  `platform` property (wired `"plasma"` / `"standalone"` by each adapter) and
+  queries the `/releases` **list** (`per_page=100`) instead of `/releases/latest`
+  — with a shared counter the highest tag may be scoped to the other platform,
+  hiding an intermediate release the running build actually needs. The Plasma
+  config-sidebar "New release" gate (`config.qml`) is scope-filtered in lockstep
+  with the badge. **Pipeline:** `version.yml` infers the release scope from the
+  cumulative diff since the last tag (`scripts/infer-release-scope.sh`) and
+  suffixes the git tag (`v0.8.0-p` / `-s` / none); `release.yml` strips the
+  suffix back off so the `.plasmoid`, the title, and the KDE Store version stay
+  clean `X.Y.Z`. Safety bias: a release is suffixed only when confident it is
+  single-platform (anything touching shared `core/`, both platforms, or only
+  neutral files stays unsuffixed → notifies both), since a wrong suffix would
+  hide a real update while an extra notification is harmless.
+
 - (Part of #7) AppImage packaging pipeline for the standalone build. CMake
   `install()` rules stage an AppDir (binary + `.desktop` + ring-themed SVG icon,
   both committed under `packaging/` so they never leak into the Plasma

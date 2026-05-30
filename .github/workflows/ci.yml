@@ -266,7 +266,9 @@ jobs:
           host: linux
           target: desktop
           arch: gcc_64
-          modules: qtimageformats
+          # qtshadertools: required by the Kirigami 6 build (find_package
+          # Qt6 ShaderTools); not in the aqt base set.
+          modules: qtimageformats qtshadertools
 
       # core/ imports org.kde.kirigami, which linuxdeploy-plugin-qt does
       # NOT ship (it bundles Qt's own QML modules only) and neither aqt

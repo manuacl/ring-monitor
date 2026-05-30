@@ -41,29 +41,27 @@ cmake --build build --parallel "${CMAKE_BUILD_PARALLEL_LEVEL:-$(nproc)}"
 rm -rf AppDir
 cmake --install build --prefix AppDir/usr
 
-# 2b. Stage layer-shell-qt's shell-integration plugin (PR C2, native
-# Wayland). linuxdeploy-plugin-qt bundles the wayland PLATFORM plugin
-# (requested via EXTRA_* below) but NOT this one: Qt's wayland plugin
-# dlopens it at runtime, so it's not a NEEDED lib and the scanner can't
-# see it. Copy it into the AppDir before linuxdeploy runs so linuxdeploy
-# patches its rpath and pulls its NEEDED libs (libLayerShellQtInterface,
-# QtWaylandClient) along. Best-effort: absent on a local X11-only build
-# (no layer-shell-qt) → skip, and the AppImage is X11/XWayland-only.
-QT_PLUGINS_DIR=""
-if [ -n "${QT_ROOT_DIR:-}" ] && [ -d "$QT_ROOT_DIR/plugins" ]; then
-    QT_PLUGINS_DIR="$QT_ROOT_DIR/plugins"
-elif command -v qmake6 >/dev/null 2>&1; then
-    QT_PLUGINS_DIR="$(qmake6 -query QT_INSTALL_PLUGINS 2>/dev/null || true)"
-elif command -v qmake >/dev/null 2>&1; then
-    QT_PLUGINS_DIR="$(qmake -query QT_INSTALL_PLUGINS 2>/dev/null || true)"
-fi
-layer_plugin="${QT_PLUGINS_DIR:+$QT_PLUGINS_DIR/wayland-shell-integration/libqt-shell-integration-layer.so}"
-if [ -n "$layer_plugin" ] && [ -f "$layer_plugin" ]; then
-    mkdir -p AppDir/usr/plugins/wayland-shell-integration
-    cp -v "$layer_plugin" AppDir/usr/plugins/wayland-shell-integration/
-    echo "Staged layer-shell shell-integration plugin — native Wayland path bundled"
-else
-    echo "build-appimage: layer-shell-qt plugin not found (looked in '${QT_PLUGINS_DIR:-<no Qt plugins dir>}') — AppImage will be X11/XWayland-only"
+# 2b. Make layer-shell-qt's interface lib discoverable to linuxdeploy
+# (PR C2, native Wayland). We use the PER-WINDOW path
+# (LayerShellQt::Window::get → setShellIntegration), whose wlr-layer-shell
+# integration is compiled INTO libLayerShellQtInterface.so — NOT the
+# dlopened `liblayer-shell.so` shell-integration plugin (that's only for
+# the global QT_WAYLAND_SHELL_INTEGRATION=layer-shell path, which we don't
+# use). So the load-bearing artifact is the interface lib, a NEEDED dep of
+# our binary that linuxdeploy resolves automatically — EXCEPT
+# build-layer-shell-qt.sh installs it under the Qt prefix's lib/<triplet>/
+# subdir (KDE_INSTALL_USE_QT_SYS_PATHS layout) that linuxdeploy doesn't
+# search. Point LD_LIBRARY_PATH at its real dir so the NEEDED-dep lookup
+# finds it. No-op locally (QT_ROOT_DIR unset → the system lib is on the
+# default search path, and an X11-only build links no such lib anyway).
+if [ -n "${QT_ROOT_DIR:-}" ]; then
+    iface="$(find "$QT_ROOT_DIR/lib" -name 'libLayerShellQtInterface.so.6' 2>/dev/null | head -1)"
+    if [ -n "$iface" ]; then
+        export LD_LIBRARY_PATH="$(dirname "$iface"):${LD_LIBRARY_PATH:-}"
+        echo "layer-shell-qt interface lib: $iface (added to LD_LIBRARY_PATH for linuxdeploy)"
+    else
+        echo "build-appimage: libLayerShellQtInterface.so.6 not found under $QT_ROOT_DIR/lib — AppImage will be X11/XWayland-only"
+    fi
 fi
 
 # 3. Fetch linuxdeploy + the qt plugin (cached between runs).
@@ -110,12 +108,12 @@ export OUTPUT="$LDAI_OUTPUT"
 
 # Native Wayland (PR C2): linuxdeploy-plugin-qt bundles only the xcb
 # platform plugin by default. EXTRA_PLATFORM_PLUGINS adds the wayland
-# platform plugins, and EXTRA_QT_MODULES pulls in libQt6WaylandClient
-# (+ the wayland-graphics/decoration integration plugins it needs).
-# Together with the shell-integration plugin staged in step 2b, this
-# lets the AppImage run as a wlr-layer-shell surface on KWin/sway/
-# Hyprland Wayland. Harmless on an X11-only host: the plugins ride
-# along unused.
+# platform plugins (so QT_QPA_PLATFORM=wayland works), and EXTRA_QT_MODULES
+# pulls in libQt6WaylandClient (+ the wayland integration plugins it needs)
+# — which libLayerShellQtInterface.so also links. With the interface lib
+# itself resolved via LD_LIBRARY_PATH (step 2b), this lets the AppImage run
+# as a wlr-layer-shell surface on KWin/sway/Hyprland. Harmless on an
+# X11-only host: the plugins ride along unused.
 export EXTRA_PLATFORM_PLUGINS="libqwayland-generic.so;libqwayland-egl.so"
 export EXTRA_QT_MODULES="waylandclient"
 

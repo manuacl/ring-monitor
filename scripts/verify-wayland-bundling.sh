@@ -29,24 +29,29 @@ appimage="${appimages[0]}"
 rm -rf squashfs-root
 "./$appimage" --appimage-extract >/dev/null
 
-# The two wayland platform plugins requested in build-appimage.sh
-# (EXTRA_PLATFORM_PLUGINS) plus layer-shell-qt's shell-integration plugin
-# (dlopen'd at runtime, staged by hand in build-appimage.sh because
-# linuxdeploy can't see it). egl is checked too: Qt picks it on
-# GPU-accelerated Wayland (the common KWin/sway case), so a silently
-# dropped egl plugin must fail HERE, not at the user's first launch.
+# The load-bearing native-Wayland artifacts. Checked by basename (find,
+# not a fixed path) so the lib-vs-lib/<triplet> layout doesn't matter:
+#   - libqwayland-generic.so   the wayland QPA platform plugin (so
+#                              QT_QPA_PLATFORM=wayland works at all)
+#   - libqwayland-egl.so       the GPU-accelerated variant Qt picks on
+#                              most KWin/sway boxes — a silently dropped
+#                              egl plugin must fail HERE, not at launch
+#   - libLayerShellQtInterface.so.6  the per-window wlr-layer-shell
+#                              integration (compiled in, NOT the dlopened
+#                              `liblayer-shell.so` plugin, which the global
+#                              useLayerShell path would use — we don't)
 required=(
-    usr/plugins/platforms/libqwayland-generic.so
-    usr/plugins/platforms/libqwayland-egl.so
-    usr/plugins/wayland-shell-integration/libqt-shell-integration-layer.so
+    libqwayland-generic.so
+    libqwayland-egl.so
+    libLayerShellQtInterface.so.6
 )
 missing=0
-for f in "${required[@]}"; do
-    if ! ls "squashfs-root/$f" >/dev/null 2>&1; then
-        echo "::error::missing from AppImage: $f"
+for n in "${required[@]}"; do
+    if ! find squashfs-root -name "$n" 2>/dev/null | grep -q .; then
+        echo "::error::missing from AppImage: $n"
         missing=1
     fi
 done
 rm -rf squashfs-root
-[ "$missing" -eq 0 ] && echo "Native-Wayland plugins bundled OK"
+[ "$missing" -eq 0 ] && echo "Native-Wayland artifacts bundled OK"
 exit "$missing"

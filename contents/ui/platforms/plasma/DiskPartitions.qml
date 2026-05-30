@@ -10,7 +10,7 @@ import "../../core/MetricsCatalog.js" as Catalog
 //
 // ksysguard keys each mounted filesystem by UUID (disk/<uuid>/usedPercent)
 // and labels the parent node (disk/<uuid>) with the volume label
-// ("bazzite", "photos", …). We walk the SensorTreeModel, classify the
+// (e.g. "root", "photos", …). We walk the SensorTreeModel, classify the
 // usedPercent leaves via the pure Catalog helper, and pair each with its
 // parent's display name.
 //
@@ -67,7 +67,7 @@ Item {
     }
 
     // Walk every node, returning { ids: [...], labelByUuid: {uuid: label} }.
-    // The FS label ("bazzite", "photos", …) lives on the parent node
+    // The FS label (e.g. "root", "photos", …) lives on the parent node
     // (disk/<uuid>), whose own SensorId role can be empty (it's a grouping
     // node), so we can't look it up by id afterwards. Instead we carry each
     // node's display name down the recursion as `parentName`, and when we

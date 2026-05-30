@@ -35,8 +35,9 @@
 //                                   missing/malformed input. swap* are
 //                                   the SwapTotal/SwapFree lines, fed to
 //                                   usagePercent for the swap ring (zram
-//                                   on Bazzite counts here — the kernel
-//                                   reports it as swap in /proc/meminfo).
+//                                   counts here — it's the default swap on
+//                                   many distros and the kernel reports it
+//                                   as swap in /proc/meminfo).
 //   usagePercent(total, available) - (1 - available/total) * 100,
 //                                    clamped to [0, 100]; 0 when total
 //                                    is missing/zero. Used by the RAM

@@ -26,7 +26,7 @@ test("DiskPartitions walks the SensorTreeModel and classifies via the pure helpe
 });
 
 test("DiskPartitions takes the label from the parent node display name", () => {
-    // The FS volume label ("bazzite") lives on the parent disk/<uuid> node,
+    // The FS volume label ("root") lives on the parent disk/<uuid> node,
     // whose SensorId role can be empty — so the label must come from the
     // parent's Qt.DisplayRole carried down the walk (parentName), not a
     // SensorId-keyed lookup. Regression: labels showed raw UUIDs.

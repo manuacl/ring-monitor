@@ -29,7 +29,7 @@ test("parseMemInfo extracts MemTotal and MemAvailable in kB", () => {
 });
 
 test("parseMemInfo extracts SwapTotal and SwapFree (incl. zram)", () => {
-    // Real Bazzite zram sample: 7.8 GiB swap, ~2 GiB used → ~26%.
+    // Real zram swap sample: 7.8 GiB swap, ~2 GiB used → ~26%.
     const sample =
         "MemTotal:       16275216 kB\n" +
         "MemAvailable:    9029768 kB\n" +
@@ -111,7 +111,7 @@ test("usagePercent: swap usage reuses the RAM formula (zram ~26%)", () => {
     // SCENARIO: standalone swap ring read 0 on a host with active zram
     // (the metricValue("swap") path was hardcoded to 0). Swap usage is
     // (SwapTotal - SwapFree) / SwapTotal — exactly usagePercent with
-    // available = SwapFree. Real Bazzite sample: 8137212 / 6026436.
+    // available = SwapFree. Real zram sample: 8137212 / 6026436.
     const pct = Parser.usagePercent(8137212, 6026436);
     assert.ok(Math.abs(pct - 25.94) < 0.1, `expected ~26%, got ${pct}`);
 });

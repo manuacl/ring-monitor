@@ -27,9 +27,9 @@ const QML = readFileSync(
 // uppercase vfat serial (EFI), and the removable key under /run/media.
 const SAMPLE =
     'UUID="" TARGET="/" LABEL=""\n' +
-    'UUID="6286e04e-b217-43bf-834f-d6a054ac4376" TARGET="/etc" LABEL="bazzite"\n' +
-    'UUID="6286e04e-b217-43bf-834f-d6a054ac4376" TARGET="/var/home" LABEL="bazzite"\n' +
-    'UUID="dc3453e6-4610-4b89-b66c-82c29195ab01" TARGET="/boot" LABEL="bazzite_xboot"\n' +
+    'UUID="6286e04e-b217-43bf-834f-d6a054ac4376" TARGET="/etc" LABEL="root"\n' +
+    'UUID="6286e04e-b217-43bf-834f-d6a054ac4376" TARGET="/var/home" LABEL="root"\n' +
+    'UUID="dc3453e6-4610-4b89-b66c-82c29195ab01" TARGET="/boot" LABEL="xboot"\n' +
     'UUID="ADD0-32B6" TARGET="/boot/efi" LABEL=""\n' +
     'UUID="81af2d89-3967-403a-8f96-643b32f1620f" TARGET="/var/mnt/photos" LABEL="photos"\n' +
     'UUID="6F45-2B2F" TARGET="/run/media/manu/BIOS" LABEL="BIOS"\n' +
@@ -37,7 +37,7 @@ const SAMPLE =
 
 test("parseMountPairs: parses each mounted filesystem (deduped, no-UUID dropped)", () => {
     const rows = MountInfo.parseMountPairs(SAMPLE);
-    assert.equal(rows.length, 5); // bazzite, bazzite_xboot, efi, photos, BIOS
+    assert.equal(rows.length, 5); // root, xboot, efi, photos, BIOS
     const usb = rows.find((r) => r.uuid === "6f45-2b2f");
     assert.deepEqual(usb, {
         uuid: "6f45-2b2f",

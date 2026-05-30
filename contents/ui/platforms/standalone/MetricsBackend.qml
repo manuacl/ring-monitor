@@ -213,9 +213,10 @@ Item {
     property var _coreUsage: []
     property real _ramUsage: 0
     property real _swapUsage: 0
-    // Whether the kernel reports any swap (SwapTotal > 0). zram (Bazzite's
-    // default) counts, so this is true on a typical desktop; false only on
-    // a genuinely swapless host, where availableMetrics then drops "swap".
+    // Whether the kernel reports any swap (SwapTotal > 0). zram (the default
+    // swap on many distros) counts, so this is true on a typical desktop;
+    // false only on a genuinely swapless host, where availableMetrics then
+    // drops "swap".
     property bool _swapAvailable: false
     // Discovered filesystems (rebuilt only when /proc/mounts changes).
     // _partitions: [{id, label, mountpoint, device}]; _mountForId maps a
@@ -351,8 +352,8 @@ Item {
         var mem = MemInfoParser.parseMemInfo(memRaw);
         backend._ramUsage = MemInfoParser.usagePercent(mem.total, mem.available);
         // Swap usage shares the RAM formula: used = total - free. zram
-        // (Bazzite's default) is reported as swap by the kernel, so this
-        // is non-zero on a typical desktop; 0 only on a genuinely
+        // (the default swap on many distros) is reported as swap by the
+        // kernel, so this is non-zero on a typical desktop; 0 only on a genuinely
         // swapless host (usagePercent returns 0 when swapTotal is 0).
         backend._swapUsage = MemInfoParser.usagePercent(mem.swapTotal, mem.swapFree);
         backend._swapAvailable = mem.swapTotal > 0;

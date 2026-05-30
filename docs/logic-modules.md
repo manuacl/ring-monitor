@@ -275,13 +275,14 @@ name.
 
 | Function | Purpose |
 |---|---|
-| `parseMounts(content)` | `/proc/mounts` → `[{device, mountpoint, fstype}]` for real block-device filesystems only. The `device.startsWith("/dev/")` test drops composefs/overlay/tmpfs/fuse in one rule (their device field isn't a `/dev` path); `squashfs` is additionally skipped (loop-mounted system images). Un-escapes octal `\040`-style mountpoints. |
+| `parseMounts(content)` | `/proc/mounts` → `[{device, mountpoint, fstype}]` for real block-device filesystems only. The `device.startsWith("/dev/")` test drops composefs/overlay/tmpfs/fuse in one rule (their device field isn't a `/dev` path); `squashfs` is additionally skipped (loop-mounted system images); and the EFI System Partition is filtered — a FAT-family fstype (`vfat`/`msdos`/`fat`) on an EFI mountpoint (`/boot/efi`, `/efi`, or a no-xbootldr `/boot`), since the ESP is a real `/dev` block device the rules above don't catch. The match is deliberately narrow: an ext4 `/boot` (a separate xbootldr partition) and a FAT data disk mounted elsewhere both survive — matching ksystemstats, which omits only the ESP, so the two builds' pickers agree (issue #66). Un-escapes octal `\040`-style mountpoints. |
 | `buildPartitions(mounts, blockInfo)` | Dedup by device → `[{id, label, mountpoint, device}]`. `id` = fs UUID (falls back to the device path), `label` = volume label (falls back to the device basename), `mountpoint` = the shortest mount of that device (any works for `statvfs` — same filesystem). Collapses the 5 mounts of an rpm-ostree btrfs root into one entry. |
 | `defaultSelection(mounts, partitions, canonicalHome)` | `[id]` of the filesystem bearing `$HOME` — the longest mountpoint that is a prefix of the resolved home path (e.g. `/var/home` over `/var` over `/`). `[]` when home can't be matched. |
 
-Covered by `tests/disk-discovery.test.mjs` (real Bazzite `/proc/mounts`
-SCENARIO: sda3 mounted 5× → one "bazzite" partition; composefs / tmpfs /
-fuse dropped; `$HOME=/home/manu` → `/var/home` → sda3).
+Covered by `tests/disk-discovery.test.mjs` (real rpm-ostree `/proc/mounts`
+SCENARIO: sda3 mounted 5× → one root partition; composefs / tmpfs /
+fuse dropped; the vfat ESP at `/boot/efi` dropped while ext4 `/boot`
+(xbootldr) stays; `$HOME=/home/user` → `/var/home` → sda3).
 
 ## `DiskMetrics.js`
 

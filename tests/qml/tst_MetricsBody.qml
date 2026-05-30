@@ -162,7 +162,7 @@ Item {
             body.diskPartitions = [
                 {
                     id: "uuid-a",
-                    label: "bazzite"
+                    label: "root"
                 },
                 {
                     id: "uuid-b",
@@ -170,7 +170,7 @@ Item {
                 }
             ];
             compare(body.diskPartitions.length, 2);
-            compare(body.diskPartitions[0].label, "bazzite");
+            compare(body.diskPartitions[0].label, "root");
         }
 
         // ── Partition order model: default alphabetical + reorder commit ──
@@ -181,8 +181,8 @@ Item {
                     label: "sync"
                 },
                 {
-                    id: "u-baz",
-                    label: "bazzite"
+                    id: "u-root",
+                    label: "root"
                 },
                 {
                     id: "u-ph",
@@ -192,9 +192,9 @@ Item {
             body.partitionOrderCsv = "";
             wait(20);
             compare(body._partitionOrderModel.count, 3);
-            // Alphabetical by label: bazzite, photos, sync.
-            compare(body._partitionOrderModel.get(0).partId, "u-baz");
-            compare(body._partitionOrderModel.get(1).partId, "u-ph");
+            // Alphabetical by label: photos, root, sync.
+            compare(body._partitionOrderModel.get(0).partId, "u-ph");
+            compare(body._partitionOrderModel.get(1).partId, "u-root");
             compare(body._partitionOrderModel.get(2).partId, "u-sync");
         }
 
@@ -205,18 +205,18 @@ Item {
                     label: "sync"
                 },
                 {
-                    id: "u-baz",
-                    label: "bazzite"
+                    id: "u-root",
+                    label: "root"
                 },
                 {
                     id: "u-ph",
                     label: "photos"
                 }
             ];
-            body.partitionOrderCsv = "u-sync,u-baz,u-ph";
+            body.partitionOrderCsv = "u-sync,u-root,u-ph";
             wait(20);
             compare(body._partitionOrderModel.get(0).partId, "u-sync");
-            compare(body._partitionOrderModel.get(1).partId, "u-baz");
+            compare(body._partitionOrderModel.get(1).partId, "u-root");
         }
 
         function test_empty_selection_seeds_the_default() {
@@ -227,17 +227,17 @@ Item {
             body.enabledPartitionsCsv = "";
             body.diskPartitions = [
                 {
-                    id: "u-baz",
-                    label: "bazzite"
+                    id: "u-root",
+                    label: "root"
                 },
                 {
                     id: "u-ph",
                     label: "photos"
                 }
             ];
-            body.defaultPartitionIds = ["u-baz"];
+            body.defaultPartitionIds = ["u-root"];
             wait(20);
-            verify(body.isPartitionEnabled("u-baz"), "the default partition must be seeded as enabled");
+            verify(body.isPartitionEnabled("u-root"), "the default partition must be seeded as enabled");
         }
 
         function test_empty_default_does_not_seed() {
@@ -246,8 +246,8 @@ Item {
             body.enabledPartitionsCsv = "";
             body.diskPartitions = [
                 {
-                    id: "u-baz",
-                    label: "bazzite"
+                    id: "u-root",
+                    label: "root"
                 }
             ];
             body.defaultPartitionIds = [];
@@ -258,8 +258,8 @@ Item {
         function test_commitPartitionOrder_writes_csv_in_model_order() {
             body.diskPartitions = [
                 {
-                    id: "u-baz",
-                    label: "bazzite"
+                    id: "u-root",
+                    label: "root"
                 },
                 {
                     id: "u-ph",
@@ -269,8 +269,8 @@ Item {
             body.partitionOrderCsv = "";
             wait(20);
             body.commitPartitionOrder();
-            // Model is alphabetical (bazzite, photos) → CSV reflects it.
-            compare(body.partitionOrderCsv, "u-baz,u-ph");
+            // Model is alphabetical (photos, root) → CSV reflects it.
+            compare(body.partitionOrderCsv, "u-ph,u-root");
         }
 
         // ── Stale (unplugged) partitions (#49) ──────────────────────
@@ -282,11 +282,11 @@ Item {
             body.partitionsReady = false;
             body.diskPartitions = [
                 {
-                    id: "u-baz",
-                    label: "bazzite"
+                    id: "u-root",
+                    label: "root"
                 }
             ];
-            body.enabledPartitionsCsv = "u-baz,u-usb";
+            body.enabledPartitionsCsv = "u-root,u-usb";
             compare(body.stalePartitionList.length, 0, "no stale rows while discovery is not ready");
             body.partitionsReady = true;
             compare(body.stalePartitionList.length, 1, "u-usb surfaces once ready");
@@ -298,7 +298,7 @@ Item {
             // even when ready.
             body.partitionsReady = true;
             body.diskPartitions = [];
-            body.enabledPartitionsCsv = "u-baz,u-usb";
+            body.enabledPartitionsCsv = "u-root,u-usb";
             compare(body.stalePartitionList.length, 0);
         }
 
@@ -307,15 +307,15 @@ Item {
             // then unplugged → it must surface as a stale row keeping the
             // friendly name, not vanish silently.
             body.partitionsReady = true;
-            body.enabledPartitionsCsv = "u-usb,u-baz";
+            body.enabledPartitionsCsv = "u-usb,u-root";
             body.diskPartitions = [
                 {
                     id: "u-usb",
                     label: "backups"
                 },
                 {
-                    id: "u-baz",
-                    label: "bazzite"
+                    id: "u-root",
+                    label: "root"
                 }
             ];
             // Both discovered → nothing stale.
@@ -324,8 +324,8 @@ Item {
             // Unplug u-usb.
             body.diskPartitions = [
                 {
-                    id: "u-baz",
-                    label: "bazzite"
+                    id: "u-root",
+                    label: "root"
                 }
             ];
             compare(body.stalePartitionList.length, 1);
@@ -340,14 +340,14 @@ Item {
         // toggles the manual selection only.
         function test_removable_is_checked_by_default_auto_show() {
             body.removablePartitions = [{ id: "u-usb", label: "MYUSB" }];
-            body.enabledPartitionsCsv = "u-baz";
+            body.enabledPartitionsCsv = "u-root";
             verify(body.isPartitionEnabled("u-usb"), "auto-shown removable → box checked");
-            verify(body.isPartitionEnabled("u-baz"), "manually-enabled fixed disk → box checked");
+            verify(body.isPartitionEnabled("u-root"), "manually-enabled fixed disk → box checked");
         }
 
         function test_uncheck_removable_opts_it_out_and_stays_out_of_manual() {
             body.removablePartitions = [{ id: "u-usb", label: "MYUSB" }];
-            body.enabledPartitionsCsv = "u-baz";
+            body.enabledPartitionsCsv = "u-root";
             body.setPartitionEnabled("u-usb", false);
             verify(!body.isPartitionEnabled("u-usb"), "unchecked removable → box unchecked");
             verify(body.partitionOptOutCsv.split(",").indexOf("u-usb") !== -1, "u-usb added to the opt-out list");
@@ -360,12 +360,12 @@ Item {
         function test_fixed_disk_toggle_uses_manual_selection_not_optout() {
             body.removablePartitions = [];
             body.enabledPartitionsCsv = "";
-            body.setPartitionEnabled("u-baz", true);
-            verify(body.isPartitionEnabled("u-baz"));
-            verify(body.enabledPartitionsCsv.split(",").indexOf("u-baz") !== -1, "fixed disk → manual selection");
+            body.setPartitionEnabled("u-root", true);
+            verify(body.isPartitionEnabled("u-root"));
+            verify(body.enabledPartitionsCsv.split(",").indexOf("u-root") !== -1, "fixed disk → manual selection");
             compare(body.partitionOptOutCsv, "", "fixed disk toggle must not touch the opt-out list");
-            body.setPartitionEnabled("u-baz", false);
-            verify(!body.isPartitionEnabled("u-baz"));
+            body.setPartitionEnabled("u-root", false);
+            verify(!body.isPartitionEnabled("u-root"));
         }
 
         function test_SCENARIO_check_a_partition_then_unplug_greys_it() {
@@ -373,13 +373,13 @@ Item {
             // MetricsBackend.mountedAvailablePartitions does live on unmount)
             // must surface as a greyed stale row, not vanish.
             body.partitionsReady = true;
-            body.enabledPartitionsCsv = "u-baz";
-            body.diskPartitions = [{ id: "u-baz", label: "bazzite" }, { id: "u-usb", label: "MYUSB" }];
+            body.enabledPartitionsCsv = "u-root";
+            body.diskPartitions = [{ id: "u-root", label: "root" }, { id: "u-usb", label: "MYUSB" }];
             wait(20);
             body.setPartitionEnabled("u-usb", true);
             verify(body.isPartitionEnabled("u-usb"), "checking persists to enabledPartitions");
             compare(body.stalePartitionList.length, 0, "still mounted → not stale");
-            body.diskPartitions = [{ id: "u-baz", label: "bazzite" }]; // unplug
+            body.diskPartitions = [{ id: "u-root", label: "root" }]; // unplug
             wait(20);
             compare(body.stalePartitionList.length, 1, "checked-then-unplugged → greyed stale row");
             compare(body.stalePartitionList[0].id, "u-usb");
@@ -391,36 +391,36 @@ Item {
             // with no stale row (nothing to clean up). This is what the live
             // test actually exercised — hence "no greyed row" was correct there.
             body.partitionsReady = true;
-            body.enabledPartitionsCsv = "u-baz"; // u-usb deliberately NOT checked
+            body.enabledPartitionsCsv = "u-root"; // u-usb deliberately NOT checked
             body.diskPartitions = [
-                { id: "u-baz", label: "bazzite" },
+                { id: "u-root", label: "root" },
                 { id: "u-usb", label: "MYUSB" }
             ];
             wait(20);
             compare(body.stalePartitionList.length, 0);
-            body.diskPartitions = [{ id: "u-baz", label: "bazzite" }]; // unplug
+            body.diskPartitions = [{ id: "u-root", label: "root" }]; // unplug
             wait(20);
             compare(body.stalePartitionList.length, 0, "an unchecked auto-shown removable leaves no stale row");
         }
 
         function test_removeStalePartition_clears_csvs_and_cache() {
             body.partitionsReady = true;
-            body.enabledPartitionsCsv = "u-usb,u-baz";
-            body.partitionOrderCsv = "u-usb,u-baz";
+            body.enabledPartitionsCsv = "u-usb,u-root";
+            body.partitionOrderCsv = "u-usb,u-root";
             body.diskPartitions = [
                 {
                     id: "u-usb",
                     label: "backups"
                 },
                 {
-                    id: "u-baz",
-                    label: "bazzite"
+                    id: "u-root",
+                    label: "root"
                 }
             ];
             body.diskPartitions = [
                 {
-                    id: "u-baz",
-                    label: "bazzite"
+                    id: "u-root",
+                    label: "root"
                 }
             ];
             verify(body.stalePartitionList.length === 1, "u-usb must be stale before removal");
@@ -440,8 +440,8 @@ Item {
             body.partitionOrderCsv = "";
             body.diskPartitions = [
                 {
-                    id: "u-baz",
-                    label: "bazzite"
+                    id: "u-root",
+                    label: "root"
                 }
             ];
             wait(20);

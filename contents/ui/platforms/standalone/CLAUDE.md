@@ -307,6 +307,20 @@ The GNOME exclusion is an `XDG_CURRENT_DESKTOP` heuristic, not a runtime registr
 probe — cheap, and a wlroots compositor that mis-reports it only degrades to
 XWayland, never breaks.
 
+### Window-integration changes need a live compositor test
+
+The offscreen CI smoke-test (`QT_QPA_PLATFORM=offscreen`, exit 124 = pass)
+**cannot** see compositor behaviour: layer-shell layer / keyboard-interactivity,
+EWMH hints, popup sizing, and desktop-click survival are all invisible to it — it
+exits green regardless. PR C2's two worst bugs (vanish-on-desktop-click from the
+wrong layer, fullscreen un-closeable menu from the global `useLayerShell()`) both
+passed the smoke-test and were caught **only** by running on a real KWin-Wayland
+session. So: before merging any change to `desktop_hints.cpp`,
+`wayland_layer_shell.cpp`, or `Main.qml`'s window flags / `visible` / `_anchor()`,
+run the binary on a real compositor and verify the behaviour by eye (rings
+placement, Alt+Tab absence, desktop-click survival, right-click menu, settings
+dialog). CI green is necessary, not sufficient.
+
 ### Alt+Tab visibility under Plasma — known trade-off
 
 Under Plasma-X11 / Plasma-Wayland-XWayland, the window appears in

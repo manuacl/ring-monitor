@@ -1,9 +1,25 @@
 # Changelog
 
-Each release leads with the **user-facing** changes (what changed for
-someone running the widget), followed by a **Technical** section with the
-implementation detail underneath. Entries before 0.7.0 are user-facing
-only.
+**Every PR** adds a `### Technical` entry under `## [Unreleased]` — the
+per-PR implementation log. When a release is **tagged** (a `bump:*`-labelled
+PR merges), its **user-facing** summary (Added / Changed / Fixed — what
+changed for someone running the widget) is written at the top of the new
+version section, **grouping all changes since the last tag**, with the
+accumulated Technical detail moved underneath. Entries before 0.7.0 are
+user-facing only.
+
+## [Unreleased]
+
+### Technical
+
+- (#80) Standalone `DiskDiscovery.parseMounts` now filters the EFI System
+  Partition — a FAT-family fstype (`vfat`/`msdos`/`fat`) on an EFI mountpoint
+  (`/boot/efi`, `/efi`, or a no-xbootldr `/boot`) — so the standalone disk
+  picker matches the Plasma/ksystemstats set, which omits the ESP (issue #66).
+  Deliberately narrow: an ext4 `/boot` xbootldr and a FAT data disk mounted
+  elsewhere both survive. Also de-branded the test fixtures + comments
+  (`BAZZITE_MOUNTS`→`OSTREE_MOUNTS`, labels `bazzite`→`root`) per the new
+  "distro-agnostic content" CLAUDE rule.
 
 ## [0.7.1] — 2026-05-29
 

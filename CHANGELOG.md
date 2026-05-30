@@ -68,6 +68,11 @@ user-facing only.
   the `grep` heuristic false-positived on regex strings like `'a:b'` inside
   test files and had no CI mirror, so it was noise.
 
+- Docs: (Part of #7) add a live progress tracker for the standalone build to
+  `docs/plasma-isolation/plan.md` — the A–H sequence now shows merged-PR state,
+  the top Status calls out that the MVP shipped in v0.6.0, and the 2 remaining
+  stages (C2 native Wayland layer-shell, H AppImage packaging) are marked.
+
 ## [0.7.1] — 2026-05-29
 
 ### Added

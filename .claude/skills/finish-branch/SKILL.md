@@ -375,26 +375,22 @@ for d in $candidate_dirs; do
     fi
 done
 
-# 4h. User-facing change (feat:/fix: commit) without a CHANGELOG entry.
-# CHANGELOG.md documents user-facing changes only (its header says
-# internal refactors / tests / tooling are intentionally omitted), so a
-# branch carrying a feat:/fix: commit almost always owes it an entry.
-# WARN, not FAIL: some fix: commits are internal-only (a test or build
-# fix), which the author can judge. Motivated by v0.7.0 shipping the
-# removable-disk auto-tracking feature with NO changelog entry — the
-# release went out, the changelog didn't, and nothing flagged it.
-#
-# `command grep -E` bypasses any grep shim defaulting to basic regex —
-# the `(feat|fix)` alternation would silently never match under it (the
-# bump-label "none" heuristic got bitten the same way once).
-userfacing_commits=$(git log --format='%s' origin/main..HEAD | \
-    command grep -E '^(feat|fix)(\([^)]+\))?!?:' || true)
-if [ -n "$userfacing_commits" ]; then
-    if ! echo "$changed" | grep -qx "CHANGELOG.md"; then
-        echo "WARN: branch has feat:/fix: commit(s) but CHANGELOG.md was not touched:"
-        echo "$userfacing_commits" | sed 's/^/    /'
-        echo "  → add a user-facing entry under a new version heading, or confirm the change is internal-only"
-    fi
+# 4h. CHANGELOG entry is MANDATORY on every PR — FAIL if missing (policy
+# 2026-05-30). The two-tier cadence (see CHANGELOG.md header):
+#   - Every PR adds a `### Technical` entry under `## [Unreleased]`.
+#   - A tagged (bump:*-labelled) release ALSO writes the user-facing summary
+#     (Added/Changed/Fixed) grouping all changes since the last tag.
+#   - A docs-only / CI-only PR (no code change, nothing to log technically)
+#     adds a single `### Other` one-liner instead — neither user nor technical.
+# So CHANGELOG.md MUST appear in the branch diff, no exceptions. Motivated by
+# v0.7.0 shipping the removable-disk feature with NO changelog entry — a WARN
+# let it slip; a FAIL won't. (Was previously a WARN keyed on feat:/fix:
+# commits only.) Mirrored by the CI `changelog` job in ci.yml.
+if ! echo "$changed" | command grep -qx "CHANGELOG.md"; then
+    echo "FAIL: CHANGELOG.md not touched — every PR owes an entry under ## [Unreleased]:"
+    echo "  - code change      → a ### Technical entry (+ user-facing summary if bump-labelled)"
+    echo "  - docs-only / CI    → a single ### Other one-liner (neither user nor technical)"
+    status=1
 fi
 
 # 4i. Manual audit prompt — these can't be greped reliably. Always
@@ -405,6 +401,7 @@ echo "  - CLAUDE.md 'Where to look' if a new doc file lives outside the listed o
 echo "  - Existing usage examples in docs/ that may reference an obsolete API"
 echo "  - docs/adding-a-metric.md if a new metric or sensor pattern was introduced"
 echo "  - docs/testing.md if a new test layout / runner / pattern was introduced"
+echo "  - README.md if install steps, the metrics list, or the features section changed"
 ```
 
 **Stub shapes** (what the Write/Edit tool should produce):

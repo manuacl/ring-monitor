@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Ring Monitor
+Comment=Modern minimal circular system monitor
+Exec=ring-monitor-standalone
+Icon=dev.manuacl.ringmonitor
+Categories=System;Monitor;
+Terminal=false

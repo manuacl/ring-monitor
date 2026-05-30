@@ -179,3 +179,68 @@ jobs:
             "$ARTIFACT" \
             --title "$NAME v$VERSION" \
             --notes-file /tmp/release-body.md
+
+  # Build the standalone AppImage and attach it to the SAME Release the
+  # job above created. A separate job (needs: release) keeps the fast
+  # .plasmoid publish decoupled from the slower Qt + linuxdeploy
+  # toolchain. ubuntu-22.04 (glibc 2.35) + Qt 6.5 from aqtinstall for
+  # portability — see the appimage job in ci.yml for the rationale.
+  appimage:
+    needs: release
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+
+      - name: Resolve tag
+        id: tag
+        run: echo "name=${{ inputs.tag || github.ref_name }}" >> $GITHUB_OUTPUT
+
+      - name: Install build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake g++ make pkg-config git \
+            libxcb1-dev libgl1-mesa-dev libfontconfig1 libfuse2
+
+      - name: Install Qt 6.6
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.6.*'
+          host: linux
+          target: desktop
+          arch: gcc_64
+          # qtshadertools: required by the Kirigami 6 build (find_package
+          # Qt6 ShaderTools); not in the aqt base set.
+          modules: qtimageformats qtshadertools
+
+      # Bundle Kirigami 6 (core/ imports org.kde.kirigami) — same as the
+      # ci.yml appimage job. See scripts/build-kirigami6.sh.
+      - name: Build + install Kirigami 6
+        run: scripts/build-kirigami6.sh
+
+      - name: Build the AppImage
+        run: scripts/build-appimage.sh
+
+      # Gate the release on the SAME offscreen smoke-test the PR runs, so
+      # a broken AppImage (e.g. an unbundled QML module) can never be
+      # published to a tag — release.yml has no other guard against it.
+      - name: Offscreen smoke-test
+        run: |
+          set +e
+          QT_QPA_PLATFORM=offscreen timeout 4 ./Ring_Monitor-*-x86_64.AppImage
+          code=$?
+          if [ "$code" -ne 124 ]; then
+            echo "::error::AppImage smoke-test failed (exit $code; expected 124) — refusing to publish"
+            exit 1
+          fi
+          echo "Smoke-test OK (exit 124 = QML root loaded)"
+
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ steps.tag.outputs.name }}
+        run: |
+          # --clobber makes a workflow_dispatch re-run idempotent.
+          gh release upload "$TAG_NAME" Ring_Monitor-*-x86_64.AppImage --clobber

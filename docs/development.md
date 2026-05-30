@@ -50,9 +50,21 @@ plasmashell — it's the future cross-distro target documented in
 
 ```bash
 cmake -B build
-cmake --build build
+cmake --build build -j2   # bound the jobs — see the OOM note below
 ./build/ring-monitor-standalone
 ```
+
+> **Bound the parallelism.** `qt_add_qml_module` emits one C++ TU per
+> QML file (~40), so `cmake --build --parallel` with a bare `-j`
+> (unbounded) can spawn dozens of `cc1plus` at once and OOM a
+> memory-tight box. Pass an explicit `-jN` (e.g. `-j2` with a browser /
+> IDE open). The release script `scripts/build-appimage.sh` does this
+> for you (caps at `nproc`, honors `CMAKE_BUILD_PARALLEL_LEVEL`).
+
+To produce a local **AppImage** end-to-end (configure → build → AppDir
+→ linuxdeploy), run `scripts/build-appimage.sh` — the same script CI and
+the release pipeline use (see [`releasing.md`](releasing.md)). It needs
+a Qt ≥ 6.5 with `qmlimportscanner` on `PATH` plus `curl`.
 
 Headless smoke test (no display required — confirms the QML root
 loads, e.g. after relocating a module or editing `QML_FILES`):

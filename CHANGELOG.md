@@ -14,6 +14,24 @@ user-facing only.
 
 ### Technical
 
+- (Part of #7) AppImage packaging pipeline for the standalone build. CMake
+  `install()` rules stage an AppDir (binary + `.desktop` + ring-themed SVG icon,
+  both committed under `packaging/` so they never leak into the Plasma
+  `.plasmoid`), and `scripts/build-appimage.sh` drives `linuxdeploy` +
+  `linuxdeploy-plugin-qt` to emit `Ring_Monitor-<version>-x86_64.AppImage`. CI
+  builds and offscreen-smoke-tests it on ubuntu-22.04 (glibc 2.35, for broad
+  distro compatibility) with Qt 6.5 from aqtinstall; `release.yml` builds it via
+  the same script, smoke-tests it, and attaches it to the same GitHub Release as
+  the `.plasmoid`. Because `core/` imports `org.kde.kirigami` (which
+  `linuxdeploy-plugin-qt` does not ship and neither aqt nor apt provides for
+  Qt 6), `scripts/build-kirigami6.sh` compiles Kirigami 6 + ECM from source into
+  the Qt prefix so it gets bundled. `main.cpp` now calls `setDesktopFileName` so
+  Wayland compositors map the window to the installed desktop entry. The
+  standalone build is now installable without a toolchain. Also corrects the
+  stated Qt minimum to **6.6** (CMakeLists + README): the rings use
+  `Shape.CurveRenderer`, added in Qt 6.6 — the old "6.5" claim was a latent
+  inaccuracy the AppImage build (pinned to a clean Qt) surfaced.
+
 - (Part of #7) Fix the standalone AMD/Intel GPU sysfs retry gate closing too
   early (#83): the two-path gate used `&&`, so it stopped retrying the moment
   *either* `gpu_busy_percent` or the hwmon temp file resolved — stranding the

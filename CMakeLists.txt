@@ -33,11 +33,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # `QObject` + `QML_ELEMENT` for QML registration.
 set(CMAKE_AUTOMOC ON)
 
-# Qt 6.5+ ships qt_add_qml_module and loadFromModule(), which is the
-# modern idiomatic way to ship QML in an executable — no filesystem
-# path resolution at runtime, the QML is compiled into the binary as
-# a resource.
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2)
+# Qt 6.6 minimum: the rings render with Shape.CurveRenderer /
+# preferredRendererType (core/Ring.qml, core/ConcentricArc.qml), both
+# added in Qt 6.6 — on 6.5 the QML fails to load ("Cannot assign to
+# non-existent property preferredRendererType"). qt_add_qml_module +
+# loadFromModule() (the compile-QML-into-the-binary path used below)
+# are 6.5, but CurveRenderer is the binding floor.
+find_package(Qt6 6.6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2)
 
 # XCB is used by desktop_hints.cpp for the X11/XWayland EWMH hints
 # (sticky, skip-taskbar, skip-pager). The Qt 6 native interface gives
@@ -47,7 +49,7 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(XCB REQUIRED IMPORTED_TARGET xcb)
 
-qt_standard_project_setup(REQUIRES 6.5)
+qt_standard_project_setup(REQUIRES 6.6)
 
 # ── Standalone executable ───────────────────────────────────────────
 #
@@ -142,4 +144,31 @@ target_compile_definitions(ring-monitor-standalone PRIVATE
 # include directories so the generated file resolves them.
 target_include_directories(ring-monitor-standalone PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/standalone
+)
+
+# ── Install rules (AppImage / AppDir layout) ────────────────────────
+#
+# `cmake --install build --prefix AppDir/usr` lays out the FHS tree an
+# AppImage expects:
+#   AppDir/usr/bin/ring-monitor-standalone
+#   AppDir/usr/share/applications/dev.manuacl.ringmonitor.desktop
+#   AppDir/usr/share/icons/hicolor/scalable/apps/dev.manuacl.ringmonitor.svg
+# linuxdeploy + linuxdeploy-plugin-qt then consume that AppDir
+# (scripts/build-appimage.sh). The qt plugin reads the .desktop's
+# Icon= field to find the icon, and bundles the Qt QML plugins
+# (QtQuick, QtQuick.Controls, Qt.labs.settings, ...) that
+# loadFromModule pulls in at runtime — only OUR QML is in the compiled
+# resource, the Qt modules are not. The .desktop + icon live in
+# packaging/ (outside contents/) so they never ride along in the
+# Plasma .plasmoid zip.
+include(GNUInstallDirs)
+
+install(TARGETS ring-monitor-standalone
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+install(FILES packaging/dev.manuacl.ringmonitor.desktop
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/applications
+)
+install(FILES packaging/dev.manuacl.ringmonitor.svg
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
 )

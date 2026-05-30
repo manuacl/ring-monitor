@@ -14,6 +14,32 @@ user-facing only.
 
 ### Technical
 
+- (Part of #7) Three correctness fixes to the AMD/Intel GPU sysfs path (found
+  by code review of the initial implementation): (1) AMD/Intel sysfs reads now
+  run ONLY when `nvml.available` is false — on a hybrid NVIDIA+AMD host a
+  transient NVML failure no longer latches AMD paths and shadows NVML values
+  for the rest of the session. (2) The retry gate switches from `!_gpuVendor`
+  to `!_gpuBusyPath && !_gpuTempPath` (mirrors the `!_cpuTempPath` CPU-temp
+  pattern), so a DRM card found without a hwmon entry (late-loading Intel i915
+  driver) is re-walked until a real path lands within the 30 s window. (3)
+  `_gpuAvailable`/`_gpuTempAvailable` now derive from this-tick read success
+  (liveness model matching NVML's `available` flag), not from path non-emptiness
+  — an AMD eGPU hot-unplug causes the ring to disappear within one tick instead
+  of freezing at the last-good value.
+
+- (Part of #7) Standalone backend gains AMD and Intel GPU support via sysfs.
+  New `GpuDiscovery.js` module (pure JS, Node-tested, injected I/O like
+  `CpuTempDiscovery.js`) walks `/sys/class/drm/card*` to detect the vendor and
+  resolve the per-tick sysfs paths: `device/gpu_busy_percent` for AMD utilisation
+  (kernel 4.19+) and `device/hwmon/hwmonN/temp1_input` for the junction/die
+  temperature of AMD and Intel cards. Intel GPU utilisation is deferred (i915-perf
+  requires elevated perms). NVIDIA is unchanged (NvmlReader / NVML path). The
+  `availableMetrics` gating splits into `_gpuAvailable` (usage source — NVML or
+  AMD busy path) and `_gpuTempAvailable` (temperature source — NVML, AMD, or Intel
+  hwmon), so an Intel-only host shows a GPU temperature ring without a spurious
+  usage ring. Discovery runs once on the first non-NVIDIA tick with the same
+  bounded-retry pattern as CPU temp (~30s window for late-modprobed drivers).
+
 - (#80) Standalone `DiskDiscovery.parseMounts` now filters the EFI System
   Partition — a FAT-family fstype (`vfat`/`msdos`/`fat`) on an EFI mountpoint
   (`/boot/efi`, `/efi`, or a no-xbootldr `/boot`) — so the standalone disk

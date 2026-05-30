@@ -537,6 +537,55 @@ When implementing an adapter here, the contract is:
    from `/proc`, `/sys/class/hwmon`, `/sys/class/drm`, and
    `nvidia-smi` subprocess.
 
+### Sysfs availability flags must use a liveness model, not path non-emptiness
+
+When a metric caches a sysfs path at startup (discovery), derive its
+`_available` flag from **whether this tick's read succeeded**, not from
+the cached path being non-empty. A path string never self-clears when a
+device is removed (eGPU Thunderbolt unplug, `rmmod amdgpu`, driver
+reload); only a failed read reveals the loss.
+
+Pattern (canonical example: `_gpuAvailable` / `_gpuTempAvailable` in
+`MetricsBackend.qml`):
+
+```javascript
+var valid = false;
+if (backend._somePath) {
+    var raw = reader.read(backend._somePath);
+    if (isFinite(parse(raw))) {
+        backend._someValue = parse(raw);
+        valid = true;            // ← liveness flag, not path check
+    }
+}
+backend._someAvailable = valid; // disappears in ≤1 tick on device removal
+```
+
+**Anti-pattern** (do not use): `backend._someAvailable = backend._somePath !== ""`
+— the path stays non-empty forever after discovery, so the ring shows
+stale frozen values after device removal. Caught in PR #82.
+
+### Sysfs discovery retry gate: use the resolved output, not a detection sentinel
+
+When re-trying sysfs discovery within a bounded window (e.g. a kernel
+module that loads a few seconds after the widget autostarts), gate the
+retry on **whether the resolved output is still empty** — not on a
+"chip/card was detected" flag. A device can be found early without any
+usable paths (Intel DRM node present before the i915 hwmon settles); a
+detection flag would close the retry window before the path lands.
+
+Canonical pattern (mirrors the CPU temp gate):
+
+```
+// CPU temp:  !backend._cpuTempPath && attempts < max
+// GPU sysfs: !backend._gpuBusyPath && !backend._gpuTempPath && attempts < max
+```
+
+Retry stops as soon as at least one useful path resolves — not as soon
+as the chip is identified. If no path ever lands within the window, the
+retry stops at the cap and the metric stays hidden (correct for a
+genuinely absent sensor). Caught in PR #82 (`!_gpuVendor` closed the
+gate before hwmon loaded on an Intel host with a late-settling driver).
+
 ### Same surface, intentionally different *values* — don't "fix" these
 
 The same-surface rule is about the property/function **shape**, not the

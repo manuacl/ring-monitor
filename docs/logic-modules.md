@@ -262,6 +262,32 @@ Covered by `tests/cpu-temp-discovery.test.mjs` (includes a real-layout
 scenario: `coretemp` / `Package id 0` chosen over nvme / chipset / wmi
 / battery hwmons).
 
+## `GpuDiscovery.js`
+
+Standalone-only sysfs-based AMD/Intel GPU discovery (in
+`platforms/standalone/`, beside the adapter — same placement rationale as
+`CpuTempDiscovery.js`). Mirrors the same I/O-injected pure-module pattern:
+`MetricsBackend.qml` passes `listDir` / `read` closures so this module
+never touches sysfs directly and is fully Node-testable.
+
+Walks `/sys/class/drm/card*`, reads the vendor id, and returns the sysfs
+paths the backend should poll each tick. NVIDIA (`0x10de`) is excluded —
+handled by `NvmlReader` / NVML. AMD utilisation needs kernel 4.19+
+(`amdgpu` driver); Intel utilisation is deferred (i915-perf needs elevated
+perms); temperature works for both via the DRM card's `device/hwmon`
+entry.
+
+| Function | Purpose |
+|---|---|
+| `discoverGpu(listDir, read)` | Main entry. Returns `{ vendor, busyPath, tempPath }` for the first AMD or Intel DRM card (lowest card number wins), or `null` when none exists. `vendor` is `"amd"` or `"intel"`; `busyPath` is the `gpu_busy_percent` sysfs file or `null` (Intel, or AMD on older kernels); `tempPath` is `device/hwmon/hwmonN/temp1_input` or `null`. |
+| `parseTempCelsius(raw)` | Millidegrees-C sysfs reading → °C. Same formula as `CpuTempDiscovery.parseTempCelsius`; duplicated here to keep `GpuDiscovery.js` self-contained without a cross-module import. |
+| `_sortedDrmCards(entries)` | Filter a `listDir("/sys/class/drm")` result to `card\d+` entries, sorted numerically (card0 < card1) for a stable pick across boots. |
+| `_drmHwmonTempPath(hwmonBase, listDir)` | Walk a card's `device/hwmon/` directory and return the `temp1_input` path inside the first `hwmonN` found, or `null`. |
+
+Covered by `tests/gpu-discovery.test.mjs` (AMD with/without `gpu_busy_percent`,
+Intel temp-only, NVIDIA excluded, card-order stability, NVIDIA+AMD mixed
+host, case-insensitive vendor match).
+
 ## `DiskDiscovery.js`
 
 Standalone-only filesystem discovery for the disk multi-partition ring

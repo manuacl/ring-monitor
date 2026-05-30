@@ -48,10 +48,15 @@ Because the shared `core/` layer imports `org.kde.kirigami` — which
 modules only) and which neither aqtinstall nor ubuntu-22.04's apt
 provides for Qt 6 — a prior step runs `scripts/build-kirigami6.sh` to
 compile Kirigami 6 + ECM from source into the Qt prefix, so the bundling
-step can pick it up. Both the `ci.yml` and `release.yml` AppImage jobs
+step can pick it up. A second source-build step, `scripts/build-layer-shell-qt.sh`,
+does the same for **layer-shell-qt** (the native wlr-layer-shell window
+path, PR C2) — reusing the ECM the Kirigami step installed — and
+`build-appimage.sh` then bundles the Qt wayland platform plugin
+(`EXTRA_PLATFORM_PLUGINS` / `EXTRA_QT_MODULES`) plus layer-shell-qt's
+shell-integration plugin. Both the `ci.yml` and `release.yml` AppImage jobs
 run the bundled binary offscreen as a portability smoke-test (exit 124 =
-the QML root loaded) — the release job refuses to publish on any other
-exit code.
+the QML root loaded) and then assert the wayland plugins are present in the
+AppDir — the release job refuses to publish on any other outcome.
 
 - `bump:major|minor|patch` → SemVer bump as expected.
 - No `bump:*` label on the merged PR → `version.yml` exits cleanly, no

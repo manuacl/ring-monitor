@@ -3,9 +3,11 @@
 ## Status
 
 **Phase 1 — Plasma-isolation refactor (PRs 1–6): ✅ complete.**
-**Phase 2 — standalone build (issue #7, PRs A–H): MVP shipped v0.6.0;
-2 stages remain (C2 + H)** — see the
+**Phase 2 — standalone build (issue #7, PRs A–H + C2): MVP shipped v0.6.0;
+all roadmap stages now landed** — see the
 [standalone progress tracker](#standalone-implementation-sequence) below.
+Issue #7 itself stays open until AMD/Intel GPU sysfs support lands (the one
+post-MVP item still outstanding); C2 was the last *window/build* stage.
 
 | PR | Goal | State |
 |---|---|---|
@@ -359,9 +361,11 @@ manual validation before the next starts. The Plasma build must keep
 working at every step.
 
 **Live status (updated 2026-05-30):** the MVP (A–G) shipped in **v0.6.0**,
-and every post-MVP metric is done too. The AppImage pipeline (H) has
-landed, so the standalone build is now installable without a toolchain.
-**1 stage remains: C2 (native Wayland layer-shell).**
+every post-MVP metric is done, the AppImage pipeline (H) landed, and
+**C2 (native Wayland layer-shell) is done** — so all A–H + C2 window/build
+stages are complete. Issue #7 stays open only for **AMD/Intel GPU sysfs**
+support (the last post-MVP metric); per `feedback-part-of-7-on-standalone-prs`,
+`Closes #7` waits for that.
 
 | Stage | State |
 |---|---|
@@ -373,7 +377,7 @@ landed, so the standalone build is now installable without a toolchain.
 | F — config store + Settings dialog | ✅ #31, #32 |
 | G — right-click menu + lifecycle + autostart | ✅ #35 |
 | post-MVP — GPU (NVML + sysfs) / CPU temp / swap / multi-partition disk | ✅ #43, #44, #46, #47, #50, #82, #84 |
-| **C2 — native Wayland layer-shell** (split out of C) | ⬜ **remaining** |
+| **C2 — native Wayland layer-shell** (split out of C) | ✅ #<PR> |
 | H — release pipeline (AppImage) | ✅ #87 |
 
 The detailed A–H breakdown below is the original plan (historical reference);

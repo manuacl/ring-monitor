@@ -7,9 +7,11 @@
 // CMakeLists.txt registered at build time.
 //
 // Compositor integration (Conky-style desktop widget — sticky,
-// below, no taskbar, no pager) lives in `desktop_hints.{h,cpp}`.
-// X11 / XWayland is the only path implemented today; native Wayland
-// (layer-shell-qt) lands in a follow-up PR. See
+// below, no taskbar, no pager) lives in `desktop_hints.{h,cpp}`, which
+// also picks the window strategy (`decideWindowStrategy`): X11 / Wayland
+// -GNOME use the EWMH-over-XWayland path; wlroots / KWin Wayland use a
+// native wlr-layer-shell bottom-layer surface (standalone/wayland_layer_shell.*,
+// only when layer-shell-qt is compiled in). See
 // `docs/plasma-isolation/plan.md` "Window model" and
 // `contents/ui/platforms/standalone/CLAUDE.md`.
 
@@ -68,10 +70,25 @@ int main(int argc, char *argv[])
         }
     }
 
-    // MUST run before QGuiApplication: Qt reads QT_QPA_PLATFORM at
-    // app init. Skipped in recovery mode — the settings dialog is a
-    // normal floating window, not a wallpaper-layer widget.
-    if (!openSettings)
+    // Pick the window strategy once. Only X11Ewmh needs pre-QGuiApplication
+    // setup — the QT_QPA_PLATFORM=xcb force for Wayland-GNOME, which Qt
+    // reads at platform init.
+    //
+    // WaylandLayerShell does NOT call the global LayerShellQt::Shell::
+    // useLayerShell() on purpose: that sets QT_WAYLAND_SHELL_INTEGRATION
+    // process-wide, turning EVERY window — including the right-click
+    // context menu's popup and the settings dialog — into a full-output
+    // layer surface (fullscreen, un-dismissable). Instead the layer role
+    // is opted into PER WINDOW via LayerShellQt::Window::get() in
+    // WaylandLayerShell::configure() (Main.qml's _anchor()), so only the
+    // rings window is a layer surface and popups/dialogs stay normal
+    // xdg-shell windows. Qt's Wayland plugin supports this per-window
+    // selection since 6.5 (which is why useLayerShell() is deprecated).
+    //
+    // Floating (recovery) is a normal managed window — nothing to force.
+    const ringmonitor::WindowStrategy strategy =
+        ringmonitor::decideWindowStrategy(openSettings);
+    if (strategy == ringmonitor::WindowStrategy::X11Ewmh)
         ringmonitor::forceXWaylandUnderWayland();
 
     QGuiApplication app(argc, argv);
@@ -99,14 +116,14 @@ int main(int argc, char *argv[])
     if (engine.rootObjects().isEmpty())
         return 1;
 
-    // The QML root is a `Window`, which maps to a QWindow at the
-    // C++ level. Apply the EWMH hints Qt can't express directly
-    // (sticky, skip-taskbar, skip-pager). PRE-MAP only — must run
-    // before app.exec(); see desktop_hints.h. No-op off X11. The
-    // recovery root (SettingsOnlyRoot) doesn't need these hints:
-    // its only window is the dialog itself, drawn as a normal
-    // floating window.
-    if (!openSettings) {
+    // Per-window integration for the chosen strategy. X11Ewmh applies
+    // the EWMH hints Qt can't express directly (sticky, skip-taskbar,
+    // skip-pager) — PRE-MAP only, before app.exec(); see desktop_hints.h.
+    // WaylandLayerShell configures + shows its layer surface from
+    // Main.qml's `_anchor()` (which owns the ring-derived size and
+    // margins), so there's nothing to do here for it. Floating (recovery)
+    // is a normal window and needs no hints.
+    if (strategy == ringmonitor::WindowStrategy::X11Ewmh) {
         if (auto *window = qobject_cast<QWindow *>(engine.rootObjects().first())) {
             ringmonitor::applyDesktopWindowHints(window);
         }

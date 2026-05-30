@@ -49,6 +49,23 @@ find_package(Qt6 6.6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(XCB REQUIRED IMPORTED_TARGET xcb)
 
+# Optional native Wayland integration. layer-shell-qt (KDE) lets the
+# standalone window become a wlr-layer-shell `background` surface on
+# wlroots / KWin Wayland — no Alt+Tab, no input capture, unlike the
+# XWayland-fallback NORMAL window. OPTIONAL on purpose: a dev box without
+# layer-shell-qt (it's an rpm-ostree layer + reboot on the maintainer's
+# host) still builds an X11/XWayland-only binary that behaves identically
+# (HAVE_LAYER_SHELL_QT undefined → WaylandLayerShell::active() is false →
+# the layer path is never taken). The AppImage CI compiles it from source
+# into the Qt prefix (scripts/build-layer-shell-qt.sh) so the shipped
+# artifact carries the native path.
+find_package(LayerShellQt QUIET)
+if(LayerShellQt_FOUND)
+    message(STATUS "ring-monitor: layer-shell-qt found — native Wayland (wlr-layer-shell) path ENABLED")
+else()
+    message(STATUS "ring-monitor: layer-shell-qt NOT found — building X11/XWayland-only (native Wayland path disabled)")
+endif()
+
 qt_standard_project_setup(REQUIRES 6.6)
 
 # ── Standalone executable ───────────────────────────────────────────
@@ -85,6 +102,8 @@ qt_add_qml_module(ring-monitor-standalone
         standalone/window_anchor.h
         standalone/nvml_reader.cpp
         standalone/nvml_reader.h
+        standalone/wayland_layer_shell.cpp
+        standalone/wayland_layer_shell.h
     QML_FILES
         contents/ui/platforms/standalone/Main.qml
         contents/ui/platforms/standalone/SettingsOnlyRoot.qml
@@ -129,6 +148,15 @@ target_link_libraries(ring-monitor-standalone PRIVATE
     # platforms where dl* live in libc — portable either way.
     ${CMAKE_DL_LIBS}
 )
+
+# Native Wayland (wlr-layer-shell) when layer-shell-qt is present. The
+# WaylandLayerShell QML singleton is always compiled (so QML always
+# loads); HAVE_LAYER_SHELL_QT switches its body + main.cpp's
+# useLayerShell() call from no-ops to the real layer-shell calls.
+if(LayerShellQt_FOUND)
+    target_link_libraries(ring-monitor-standalone PRIVATE LayerShellQt::Interface)
+    target_compile_definitions(ring-monitor-standalone PRIVATE HAVE_LAYER_SHELL_QT)
+endif()
 
 # Hand the metadata.json version to the C++ side so
 # QGuiApplication::setApplicationVersion() (→ Qt.application.version

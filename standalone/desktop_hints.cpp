@@ -13,6 +13,41 @@
 
 namespace ringmonitor {
 
+WindowStrategy decideWindowStrategy(bool openSettings)
+{
+    // Recovery dialog is a normal managed window — no Conky hints, no
+    // layer surface.
+    if (openSettings)
+        return WindowStrategy::Floating;
+
+    const QByteArray session = qgetenv("XDG_SESSION_TYPE").toLower();
+    if (session != "wayland")
+        return WindowStrategy::X11Ewmh; // real X11 (or unset → assume X11)
+
+#ifdef HAVE_LAYER_SHELL_QT
+    // GNOME/mutter has refused to implement wlr-layer-shell
+    // (gitlab.gnome.org/GNOME/mutter#973), so on a Wayland-GNOME
+    // session the native layer surface would silently degrade to a
+    // plain xdg-toplevel. Keep GNOME on the XWayland fallback (EWMH
+    // hints) and take the native path everywhere else under Wayland —
+    // KWin, sway, Hyprland, and the rest of wlroots all implement it.
+    // Heuristic, not a runtime registry probe: cheap, and a wlroots
+    // compositor that mis-reports XDG_CURRENT_DESKTOP only falls back
+    // to XWayland (degraded, not broken).
+    const QByteArray desktop = qgetenv("XDG_CURRENT_DESKTOP").toUpper();
+    if (!desktop.contains("GNOME"))
+        return WindowStrategy::WaylandLayerShell;
+#endif
+
+    return WindowStrategy::X11Ewmh; // Wayland-GNOME, or no layer-shell-qt
+}
+
+bool layerShellActive()
+{
+    return decideWindowStrategy(/*openSettings=*/false) ==
+           WindowStrategy::WaylandLayerShell;
+}
+
 void forceXWaylandUnderWayland()
 {
     // Reads at startup (before QGuiApplication) so Qt picks up the

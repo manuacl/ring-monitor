@@ -1,32 +1,50 @@
 #pragma once
 
 // Compositor integration for the standalone binary — Conky-style
-// desktop widget behaviour on Linux. Two entry points:
+// desktop widget behaviour on Linux. Three window strategies, picked
+// by `decideWindowStrategy()`:
 //
-//   forceXWaylandUnderWayland()     — pre-QGuiApplication env-var
-//                                     injection. No mainstream Wayland
-//                                     compositor exposes layer-shell
-//                                     via a Qt-native surface today
-//                                     (mutter refuses, KWin's module
-//                                     is unstable), so we fall back
-//                                     to XWayland uniformly and rely
-//                                     on EWMH hints — same trade-off
-//                                     Conky takes.
-//   applyDesktopWindowHints(window) — **PRE-MAP** EWMH hint setter
-//                                     (sticky / below / skip-taskbar /
-//                                     skip-pager). See the explicit
-//                                     contract on the declaration
-//                                     below before calling it.
+//   X11Ewmh          — real X11, or Wayland forced onto XWayland.
+//                      `forceXWaylandUnderWayland()` does the env-var
+//                      force (pre-QGuiApplication); `applyDesktopWindowHints()`
+//                      sets the PRE-MAP EWMH hints (sticky / below /
+//                      skip-taskbar / skip-pager).
+//   WaylandLayerShell — native wlr-layer-shell `bottom`-layer surface via
+//                      `layer-shell-qt` (see standalone/wayland_layer_shell.*).
+//                      Only on wlroots / KWin Wayland; the layer surface
+//                      never enters Alt+Tab and doesn't capture input —
+//                      fixing the two NORMAL-window warts of the XWayland
+//                      fallback.
+//   Floating         — recovery mode (`--open-settings`): a normal
+//                      managed window, no hints, no layer-shell.
 //
-// X11 / XWayland is the only fully-implemented path for now. Native
-// Wayland (KWin / sway / Hyprland) via `layer-shell-qt` lands in a
-// follow-up PR. See `docs/plasma-isolation/plan.md` "Window model"
-// table and `contents/ui/platforms/standalone/CLAUDE.md` for the
-// roadmap.
+// GNOME/mutter refuses to implement wlr-layer-shell
+// (gitlab.gnome.org/GNOME/mutter#973), so a Wayland-GNOME session keeps
+// using X11Ewmh-via-XWayland. When `layer-shell-qt` isn't compiled in
+// (HAVE_LAYER_SHELL_QT undefined) WaylandLayerShell is never selected,
+// so the behaviour is identical to the X11/XWayland-only build.
 
 class QWindow;
 
 namespace ringmonitor {
+
+enum class WindowStrategy {
+    X11Ewmh,
+    WaylandLayerShell,
+    Floating,
+};
+
+// Single source of truth for which window strategy this process uses.
+// Reads the session env (XDG_SESSION_TYPE / XDG_CURRENT_DESKTOP) and
+// the HAVE_LAYER_SHELL_QT build flag; pure and idempotent (no env
+// mutation), so main.cpp and the WaylandLayerShell QML singleton can
+// both call it and agree. `openSettings` (recovery) always maps to
+// Floating.
+WindowStrategy decideWindowStrategy(bool openSettings);
+
+// Convenience predicate for the normal (non-recovery) widget path —
+// what the WaylandLayerShell QML singleton's `active` property reads.
+bool layerShellActive();
 
 void forceXWaylandUnderWayland();
 

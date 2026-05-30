@@ -106,6 +106,7 @@ KCM.SimpleKCM {
     Core.UpdateChecker {
         id: updateChecker
         configStore: configStoreAdapter
+        platform: "plasma"
     }
 
     Core.AboutBody {

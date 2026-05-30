@@ -23,9 +23,18 @@ Item {
 
     // ── Inputs (injected by the parent) ─────────────────────────────
     property var configStore
+    // Which build is running — "plasma" / "standalone" — wired by each
+    // platform adapter. Gates which releases notify (issue #89): a release
+    // scoped to the other platform (tag suffix `-p` / `-s`) is skipped.
+    // Empty (the default) disables the filter, so an adapter that forgets
+    // to set it falls back to "notify on any newest release".
+    property string platform: ""
 
     // ── Tunables ────────────────────────────────────────────────────
-    readonly property url releasesApiUrl: "https://api.github.com/repos/manuacl/ring-monitor/releases/latest"
+    // The /releases LIST, not /releases/latest: with one shared version
+    // counter the highest tag may be scoped to the other platform, so we
+    // scan the list and pick the newest scope-relevant release (issue #89).
+    readonly property url releasesApiUrl: "https://api.github.com/repos/manuacl/ring-monitor/releases"
     // User-facing "where to update from" page. The KDE Store is where
     // most users installed the widget originally, so that's the
     // natural place to send them for an update — the page carries the
@@ -42,7 +51,7 @@ Item {
     readonly property string localVersion: checker.configStore ? checker.configStore.localVersion : ""
     readonly property string remoteVersion: checker.configStore ? checker.configStore.latestKnownVersion : ""
     readonly property string acknowledgedVersion: checker.configStore ? checker.configStore.acknowledgedVersion : ""
-    readonly property bool updateAvailable: UC.shouldNotify(localVersion, remoteVersion, acknowledgedVersion)
+    readonly property bool updateAvailable: UC.shouldNotify(localVersion, remoteVersion, acknowledgedVersion, checker.platform)
 
     // ── Public functions ────────────────────────────────────────────
     function acknowledge() {
@@ -75,7 +84,7 @@ Item {
                 // Malformed JSON — ignore, retry next TTL cycle.
                 return;
             }
-            var tag = data && data.tag_name;
+            var tag = UC.pickRelevantRelease(data, checker.platform);
             if (typeof tag === "string" && tag.length > 0) {
                 checker.configStore.recordUpdateCheck(tag, Date.now());
             }

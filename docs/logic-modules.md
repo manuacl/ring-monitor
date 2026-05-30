@@ -133,13 +133,29 @@ gate, ConfigStore writes) lives in `core/UpdateChecker.qml`.
 | `compareSemver(a, b)` | 3-way numeric compare on `[maj,min,pat]`. Null inputs → `0` (safe default; the caller can short-circuit on `isNewerVersion`). |
 | `isNewerVersion(local, remote)` | both strings; `true` iff remote strictly > local. False for malformed input — the badge stays hidden rather than crying wolf. |
 | `shouldRecheck(lastCheckMs, nowMs, ttlMs)` | gate before the XHR fires. `lastCheckMs === 0` (never checked) always returns `true`. |
-| `shouldNotify(local, remote, acknowledged)` | the badge-visibility test: `isNewerVersion(local, remote) && !acknowledged`. A malformed acknowledged value is treated as no-ack (defensive). |
+| `releaseScope(tag)` | the release-scope suffix (issue #89): `-p` → `"plasma"`, `-s` → `"standalone"`, no suffix → `"both"`. Any non-scope trailer (`-rc1`, …) or malformed input → `"both"`, the safe default that notifies every platform. The suffix lives on the **tag only**, never in `metadata.json`, so `parseSemver` still compares the numeric core. |
+| `pickRelevantRelease(releases, platform)` | newest scope-relevant `tag_name` from a GitHub **`/releases` list**, skipping drafts, prereleases, and releases scoped to the other platform. `""` when nothing qualifies. The list (not `/releases/latest`) is queried because the highest tag may be scoped to the other platform — a `-p` release above an intermediate `-s` one a standalone user needs. |
+| `shouldNotify(local, remote, acknowledged, platform)` | the badge-visibility test: `isNewerVersion(local, remote)`, the release in scope for `platform`, AND `!acknowledged`. A malformed acknowledged value is treated as no-ack (defensive); an empty `platform` disables the scope filter (the dormant pre-#89 behaviour). |
 
 The two-step gate (`shouldRecheck` for the network call, `shouldNotify`
 for the UI) keeps the two concerns independent: a successful fetch with
 a remote == local doesn't surface a badge, and an unacknowledged update
 keeps showing the badge across widget restarts without re-hitting the
 network. Encoded as tests in `tests/update-check.test.mjs`.
+
+### Platform-scoped notifications (issue #89)
+
+The Plasma widget and the standalone build share one version counter
+and one GitHub release stream, so a naive "remote is newer" check would
+ping a Plasma user for a standalone-only release and vice-versa. The
+fix is a **scope suffix on the release tag** — `-p` (Plasma-only), `-s`
+(standalone-only), none (both) — read by `releaseScope` and enforced by
+`pickRelevantRelease` (selection) + `shouldNotify` (badge). The
+`platform` flows in from each adapter via `UpdateChecker.platform`. The
+client side ships **dormant**: while no tag carries a suffix every scope
+is `"both"`, so behaviour is unchanged until the pipeline starts
+emitting `-p` / `-s` tags (deferred until the standalone build takes its
+own release cadence). Full rationale: issue #89.
 
 ## `SensorPicking.js`
 

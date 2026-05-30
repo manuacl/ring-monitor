@@ -161,6 +161,7 @@ Window {
     Core.UpdateChecker {
         id: updateCheckerAdapter
         configStore: configStoreAdapter
+        platform: "standalone"
     }
 
     SettingsDialog {

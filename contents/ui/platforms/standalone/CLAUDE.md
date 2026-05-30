@@ -577,14 +577,23 @@ Canonical pattern (mirrors the CPU temp gate):
 
 ```
 // CPU temp:  !backend._cpuTempPath && attempts < max
-// GPU sysfs: !backend._gpuBusyPath && !backend._gpuTempPath && attempts < max
+// GPU sysfs: (!backend._gpuBusyPath || !backend._gpuTempPath) && attempts < max
 ```
 
-Retry stops as soon as at least one useful path resolves — not as soon
-as the chip is identified. If no path ever lands within the window, the
-retry stops at the cap and the metric stays hidden (correct for a
-genuinely absent sensor). Caught in PR #82 (`!_gpuVendor` closed the
-gate before hwmon loaded on an Intel host with a late-settling driver).
+For a **multi-path** metric like the GPU (usage + temp), the gate is
+`||`, not `&&`: keep retrying while **any** expected path is still empty.
+`&&` would close the window the moment the *first* path resolved,
+stranding the second for the whole session — the AMD case where
+`gpu_busy_percent` exists at boot but the `amdgpu` hwmon registers a few
+seconds later (issue #83). Single-path metrics (CPU temp) have only one
+term, so the distinction doesn't arise there.
+
+Retry stops once **all** expected paths resolve — not as soon as the
+chip is identified, and not as soon as the first path lands. If no path
+ever lands within the window, the retry stops at the cap and the metric
+stays hidden (correct for a genuinely absent sensor). Caught in PR #82
+(`!_gpuVendor` closed the gate before hwmon loaded on an Intel host with
+a late-settling driver) and #83 (the `&&` two-path variant).
 
 ### Same surface, intentionally different *values* — don't "fix" these
 

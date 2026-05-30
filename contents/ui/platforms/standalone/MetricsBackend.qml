@@ -414,9 +414,12 @@ Item {
         // AMD/Intel sysfs reads run ONLY when nvml.available is false this tick —
         // preventing a hybrid NVIDIA+AMD host from having a transient NVML failure
         // latch AMD paths and permanently shadow NVML readings with AMD values.
-        // Retry gate uses !_gpuBusyPath && !_gpuTempPath (mirrors !_cpuTempPath)
-        // so a late-loaded hwmon (Intel i915 / udev settle) is discovered within
-        // the 30 s window even after the DRM card was found without paths.
+        // Retry gate keeps retrying while EITHER path is still empty
+        // (!_gpuBusyPath || !_gpuTempPath) so a late-loaded hwmon (Intel i915 /
+        // udev settle, or amdgpu's hwmon registering a few seconds after the DRM
+        // node) is discovered within the 30 s window even after the first path
+        // already resolved. && would close the gate the moment one path landed,
+        // stranding the other for the whole session (issue #83).
         // Availability derives from this tick's read success (liveness model):
         // an AMD eGPU hot-unplug makes reads fail → ring disappears ≤1 tick,
         // matching NVML's per-tick available flag behaviour for NVIDIA.
@@ -433,7 +436,7 @@ Item {
         var sysfsUsageValid = false;
         var sysfsTempValid = false;
         if (!nvml.available) {
-            if (!backend._gpuBusyPath && !backend._gpuTempPath && backend._gpuResolveAttempts < backend._gpuMaxResolveAttempts) {
+            if ((!backend._gpuBusyPath || !backend._gpuTempPath) && backend._gpuResolveAttempts < backend._gpuMaxResolveAttempts) {
                 backend._gpuResolveAttempts++;
                 backend._resolveGpuPaths();
             }

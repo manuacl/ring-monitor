@@ -47,7 +47,14 @@ jobs:
         env:
           TAG_NAME: ${{ steps.tag.outputs.name }}
         run: |
+          # Strip the leading v AND the platform-scope suffix (issue #89:
+          # tags are vX.Y.Z, vX.Y.Z-p, or vX.Y.Z-s). metadata.json holds
+          # the clean X.Y.Z, so the suffix must come off here — otherwise
+          # the "version matches tag" check below fails the release, and
+          # the .plasmoid name / title / KDE Store version would carry it.
           VERSION="${TAG_NAME#v}"
+          VERSION="${VERSION%-p}"
+          VERSION="${VERSION%-s}"
           PLUGIN_ID=$(jq -r .KPlugin.Id metadata.json)
           NAME=$(jq -r .KPlugin.Name metadata.json)
           ARTIFACT="${PLUGIN_ID}-${VERSION}.plasmoid"

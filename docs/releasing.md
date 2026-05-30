@@ -11,7 +11,7 @@ PR merged with bump:* label
 .github/workflows/version.yml
         │  bumps metadata.json → KPlugin.Version
         │  commits "chore: bump version to X.Y.Z (<type>)"
-        │  tags vX.Y.Z
+        │  infers the platform scope → tags vX.Y.Z[-p|-s]
         │  pushes both to main
         ▼
 .github/workflows/release.yml
@@ -80,6 +80,52 @@ to also upload the store in the same pass.
 The `bump:*` label is applied at PR-creation time by the
 `bump-label` skill (auto-picked from commit subjects). Override with
 `gh pr edit <n> --remove-label bump:X --add-label bump:Y` if needed.
+
+## Platform-scoped release tags (`-p` / `-s`)
+
+The Plasma widget and the standalone AppImage ship from **one** version
+counter and **one** GitHub Release, but the in-widget update check
+notifies per platform (issue #89). To tell the two apart without
+splitting the version line, `version.yml` suffixes the **git tag** (and
+hence the Release name) with the release's platform scope:
+
+| Tag | Scope | Who gets the "update available" badge |
+|---|---|---|
+| `vX.Y.Z-p` | Plasma-only changes | Plasma users only |
+| `vX.Y.Z-s` | standalone-only changes | standalone (AppImage) users only |
+| `vX.Y.Z` | both / shared / mixed | everyone |
+
+**The suffix is on the tag/Release only — never in `metadata.json`.**
+`KPlugin.Version` stays a clean `X.Y.Z`, so the `.plasmoid` name, the
+Release title, the KDE Store version, and both "About" panes are
+unaffected. `release.yml` strips the suffix back off when it reads the
+version from the tag (`${TAG#v}` then trim `-p`/`-s`); the client
+(`core/UpdateCheck.js` `releaseScope`) parses it off the tag at notify
+time. The numeric comparison is unaffected either way — `parseSemver`'s
+regex isn't end-anchored.
+
+**Scope inference** is `scripts/infer-release-scope.sh`, fed the
+cumulative diff since the previous tag (`git diff --name-only
+<last-tag>..HEAD` — a release bundles the labelled PR plus every
+`bump:none` PR merged since the last tag). It classifies each path:
+`platforms/plasma/` + `main.qml` + `config*.qml` + `contents/config/` →
+Plasma; `standalone/` + `platforms/standalone/` + `CMakeLists.txt` +
+`scripts/build-*` + `packaging/` → standalone; `contents/ui/core/` →
+both; everything else (docs, CI, tests, `metadata.json`) → neutral.
+
+**Safety bias.** A suffix is emitted only when the release is
+*confidently* single-platform — anything touching shared `core/`, both
+platforms, or only neutral files stays **unsuffixed** (notifies
+everyone). The rationale: a wrong `-p`/`-s` would *hide* a real update
+from the other platform (bad), whereas a missing suffix merely
+over-notifies (harmless). The classifier is unit-tested in
+`tests/infer-release-scope.test.mjs`.
+
+Today most releases touch `core/` or both adapters, so they stay
+unsuffixed and behave exactly as before; the suffix kicks in the first
+time a release happens to be single-platform (e.g. a Plasma-only
+config-dialog fix → `-p`, and AppImage users aren't pinged for a build
+whose standalone code didn't change).
 
 ## The `BUMP_TOKEN` secret
 

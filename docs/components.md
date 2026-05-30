@@ -817,11 +817,13 @@ public surface with a different write layer).
 | `releasesApiUrl` / `storePageUrl` / `cacheTtlMs` (readonly) | overridable knobs (the standalone build could repoint the URLs) |
 
 `platform` makes each build notify only on releases scoped to it (tag
-suffix `-p` / `-s`, see [issue #89](logic-modules.md#updatecheckjs)).
-Dormant until release tags carry a suffix — every adapter sets it now
-(`"plasma"` from `main.qml` / `configAbout.qml`, `"standalone"` from the
-standalone `Main.qml` / `SettingsOnlyRoot.qml`) so the path is live the
-moment the pipeline starts emitting scoped tags.
+suffix `-p` / `-s`, appended at release time by `version.yml` — see
+[issue #89](logic-modules.md#updatecheckjs) and
+[releasing.md](releasing.md)). Every adapter sets it: `"plasma"` from
+`main.qml` / `configAbout.qml` (and the config-sidebar gate in
+`config.qml`), `"standalone"` from the standalone `Main.qml` /
+`SettingsOnlyRoot.qml`. Until a release happens to be single-scope,
+tags are unsuffixed and every build is notified, as before.
 
 The XHR handler is intentionally silent on failure — a network blip
 or a malformed JSON response leaves the cached state untouched and

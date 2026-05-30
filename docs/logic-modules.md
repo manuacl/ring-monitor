@@ -152,10 +152,17 @@ fix is a **scope suffix on the release tag** — `-p` (Plasma-only), `-s`
 (standalone-only), none (both) — read by `releaseScope` and enforced by
 `pickRelevantRelease` (selection) + `shouldNotify` (badge). The
 `platform` flows in from each adapter via `UpdateChecker.platform`. The
-client side ships **dormant**: while no tag carries a suffix every scope
-is `"both"`, so behaviour is unchanged until the pipeline starts
-emitting `-p` / `-s` tags (deferred until the standalone build takes its
-own release cadence). Full rationale: issue #89.
+suffix is appended at release time by `version.yml`, which infers the
+scope from the cumulative diff since the last tag via
+[`scripts/infer-release-scope.sh`](../scripts/infer-release-scope.sh)
+(`release.yml` strips it back off so `metadata.json` / the `.plasmoid`
+stay clean `X.Y.Z`). The classifier is biased toward *no* suffix: it
+marks a release single-platform only when nothing shared (`core/`), no
+second platform, and no ambiguity is involved — a wrong suffix would
+hide a real update, whereas an extra notification is harmless. Until a
+release happens to be single-scope, every tag is unsuffixed (`"both"`)
+and behaviour matches the pre-#89 widget. Full rationale: issue #89; the
+release-flow details live in [`releasing.md`](releasing.md).
 
 ## `SensorPicking.js`
 

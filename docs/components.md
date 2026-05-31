@@ -838,29 +838,42 @@ Text-guarded by `tests/mount-info.test.mjs` (alongside the pure
 `parseMountPairs` tests) — same reason as the other Plasma adapters: its
 plasma5support import keeps it out of `qmltestrunner`.
 
-### `ProcessSampler.qml` (standalone)
+### `ProcessSampler.qml` (one per platform)
 
-The standalone source for the CPU-ring **process tooltip** (issue #69):
-top processes by CPU%, with a load-average footer. Lives in
-`platforms/standalone/`, instantiated by the standalone `MetricsBackend`
-which forwards its surface (`processSamplingActive` / `topProcesses()` /
-`loadAverages`). The Plasma adapter satisfies the same surface from
-`org.kde.ksysguard.process` `ProcessDataModel` instead.
+The source for the CPU-ring **process tooltip** (issue #69): top
+processes by CPU%, with a load-average footer. There are **two** —
+`platforms/standalone/ProcessSampler.qml` and
+`platforms/plasma/ProcessSampler.qml` — each instantiated by its
+`MetricsBackend`, which forwards the surface (`processSamplingActive`,
+`topProcesses`, `loadAverages`). `topProcesses` is a **property** (not a
+function) so the tooltip's binding tracks it and the list refreshes live.
+Both rank through the shared
+[`core/ProcessRanking.js`](logic-modules.md#processrankingjs); CPU% is
+**total-normalised** (0-100%, rows sum toward the aggregate ring), not
+per-core. Both gate sampling on `active` so there's **no background
+process polling** — the tooltip flips it true on hover.
 
-It owns its own `ProcReader` + 500 ms `Timer`, but the Timer's
-`running` is bound to `active` — so `/proc` enumeration happens **only
-while the tooltip is hovered** (the heaviest read path this build has;
-no background process polling, per the issue). Each tick reads
-`/proc/stat` (the system-wide jiffy denominator), lists `/proc` for pid
-dirs, reads each `/proc/<pid>/stat`, then ranks via
-[`ProcParser.js`](logic-modules.md#procparserjs) +
-[`core/ProcessRanking.js`](logic-modules.md#processrankingjs). CPU% is
-**total-normalised** (0-100%, summing toward the aggregate ring), not
-per-core. The previous snapshot is dropped when `active` flips off so a
-later re-open starts from a fresh baseline (a stale snapshot would yield
-a bogus first delta). Text-guarded by
-`tests/standalone-process-sampler.test.mjs` (its `RingMonitor.Standalone`
-import keeps it out of `qmltestrunner`).
+- **Standalone** owns its own `ProcReader` + 500 ms `Timer`
+  (`running: active`). Each tick reads `/proc/stat` (the system-wide
+  jiffy denominator), lists `/proc` for pid dirs, reads each
+  `/proc/<pid>/stat`, parses via
+  [`ProcParser.js`](logic-modules.md#procparserjs). The total
+  normalisation is intrinsic (process jiffy delta over the system-wide
+  delta). The prev snapshot is dropped when `active` flips off so a
+  re-open starts fresh (a stale snapshot would yield a bogus first
+  delta). Guard: `tests/standalone-process-sampler.test.mjs`.
+- **Plasma** uses `org.kde.ksysguard.process` `ProcessDataModel`
+  (`enabled: active`, `flatList`, `enabledAttributes: [name, pid,
+  usage]`), reading the raw `Value` role per row. ksysguard's `usage` is
+  **per-core** (a thread reads ~100%, total can reach `coreCount*100` —
+  confirmed in libksysguard `processes.cpp`), so the sampler **divides by
+  `coreCount`** (injected = `coreValues.length`) to reach the same total
+  semantics. Load averages come from `cpu/loadaverages/loadaverage{1,5,15}`
+  sensors. Guard: `tests/plasma-process-sampler.test.mjs`.
+
+Both files import a host-only module (`RingMonitor.Standalone` /
+`org.kde.ksysguard.*`) absent from the CI container, so they're
+text-guarded rather than run under `qmltestrunner`.
 
 ## Update-notification flow
 

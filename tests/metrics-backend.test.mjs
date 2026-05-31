@@ -20,7 +20,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms", "plasma", "MetricsBackend.qml"), "utf8");
 
 // Public surface main.qml consumes.
-const PUBLIC_PROPS = ["coreValues", "loading", "availableMetrics", "availablePartitions", "defaultPartitionIds", "removablePartitions", "removableTrackingActive", "mountedPartitionIds", "mountedAvailablePartitions"];
+const PUBLIC_PROPS = ["coreValues", "loading", "availableMetrics", "availablePartitions", "defaultPartitionIds", "removablePartitions", "removableTrackingActive", "mountedPartitionIds", "mountedAvailablePartitions", "processSamplingActive", "topProcesses", "loadAverages"];
 const PUBLIC_FUNCS = ["metricValue", "metricRawTemp", "metricTempPercent", "partitionValue"];
 
 // Universal-id sensor instances — sensors whose ksysguard id is the
@@ -214,4 +214,17 @@ test("loading binding watches the universal aggregates' status", () => {
     // before the first valid tick.
     assert.match(SOURCE, /loading:\s*cpuTotal\.status\s*!==\s*Sensors\.Sensor\.Ready/, "loading must depend on cpuTotal.status");
     assert.match(SOURCE, /ramSensor\.status\s*!==\s*Sensors\.Sensor\.Ready/, "loading must also depend on ramSensor.status");
+});
+
+test("MetricsBackend forwards the CPU process tooltip to ProcessSampler (#69)", () => {
+    // The ProcessDataModel enumeration lives in the ProcessSampler child so
+    // this adapter stays under the 500-line cap; the backend just forwards the
+    // same-surface bits (mirrors the standalone adapter's split).
+    assert.match(SOURCE, /ProcessSampler\s*{/, "must instantiate the ProcessSampler child");
+    assert.match(SOURCE, /property\s+alias\s+processSamplingActive\s*:\s*processSampler\.active/, "processSamplingActive must alias the sampler's active gate");
+    assert.match(SOURCE, /topProcesses\s*:\s*processSampler\.topProcesses/, "topProcesses must forward the sampler's ranked list (a property, for binding reactivity)");
+    assert.match(SOURCE, /loadAverages\s*:\s*processSampler\.loadAverages/, "loadAverages must forward the sampler's value");
+    // ksysguard "usage" is per-core → the sampler must be told the core count
+    // so it can divide to the chosen "total 0-100%" semantics.
+    assert.match(SOURCE, /coreCount:\s*backend\.coreValues\.length/, "must pass coreCount (coreValues.length) so the sampler can normalise per-core usage to total");
 });

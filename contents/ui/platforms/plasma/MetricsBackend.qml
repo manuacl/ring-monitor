@@ -120,6 +120,22 @@ Item {
         return Catalog.tempToPercent(metricRawTemp(id));
     }
 
+    // ── CPU process tooltip (issue #69) ──────────────────────────────
+    // Same surface as the standalone adapter; the ProcessDataModel enumeration
+    // lives in the ProcessSampler child (running only while active) so this
+    // adapter stays under the 500-line cap. topProcesses is a property (not a
+    // function) so a UI binding tracks it and the tooltip list refreshes live.
+    property alias processSamplingActive: processSampler.active
+    readonly property var topProcesses: processSampler.topProcesses
+    readonly property var loadAverages: processSampler.loadAverages
+
+    ProcessSampler {
+        id: processSampler
+        // ksysguard "usage" is per-core; the sampler divides by this to hit the
+        // "total 0-100%" tooltip semantics. coreValues.length = discovered cores.
+        coreCount: backend.coreValues.length
+    }
+
     // ── Disk partitions (multi-ring) ─────────────────────────────────
     //
     // Discovery + labels come from the shared DiskPartitions adapter (also

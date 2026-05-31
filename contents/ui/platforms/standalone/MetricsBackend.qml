@@ -140,12 +140,11 @@ Item {
     // Same surface as the Plasma adapter; the /proc enumeration lives in the
     // ProcessSampler child (own ProcReader + Timer, running only while active)
     // so this adapter stays under the 500-line cap. We just forward.
+    // topProcesses is a property (not a function) so a UI binding tracks it
+    // and the tooltip list refreshes live as the sampler re-ranks.
     property alias processSamplingActive: processSampler.active
+    readonly property var topProcesses: processSampler.topProcesses
     readonly property var loadAverages: processSampler.loadAverages
-
-    function topProcesses() {
-        return processSampler.topProcesses;
-    }
 
     ProcessSampler {
         id: processSampler

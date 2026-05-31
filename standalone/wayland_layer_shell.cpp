@@ -19,8 +19,8 @@ bool WaylandLayerShell::active() const
     return ringmonitor::layerShellActive();
 }
 
-void WaylandLayerShell::configure(QObject *window, int marginTop, int marginRight,
-                                  int width, int height)
+void WaylandLayerShell::configure(QObject *window, bool anchorLeft, bool anchorTop,
+                                  int marginX, int marginY, int width, int height)
 {
 #ifdef HAVE_LAYER_SHELL_QT
     if (!active())
@@ -50,11 +50,18 @@ void WaylandLayerShell::configure(QObject *window, int marginTop, int marginRigh
     // wallpaper/containment and BELOW normal windows — the Conky-style slot:
     // the widget survives a desktop click yet never covers app windows.
     layer->setLayer(LayerShellQt::Window::LayerBottom);
-    layer->setAnchors(LayerShellQt::Window::Anchors(
-        LayerShellQt::Window::AnchorTop | LayerShellQt::Window::AnchorRight));
-    // QMargins(left, top, right, bottom): anchored top-right, so only
-    // the top + right insets are meaningful.
-    layer->setMargins(QMargins(0, marginTop, marginRight, 0));
+    const auto horizontal = anchorLeft ? LayerShellQt::Window::AnchorLeft
+                                       : LayerShellQt::Window::AnchorRight;
+    const auto vertical = anchorTop ? LayerShellQt::Window::AnchorTop
+                                    : LayerShellQt::Window::AnchorBottom;
+    layer->setAnchors(LayerShellQt::Window::Anchors(horizontal | vertical));
+    // QMargins(left, top, right, bottom): only the two anchored edges'
+    // insets are meaningful — the X/Y margins map to whichever edge the
+    // corner anchors to.
+    layer->setMargins(QMargins(anchorLeft ? marginX : 0,
+                               anchorTop ? marginY : 0,
+                               anchorLeft ? 0 : marginX,
+                               anchorTop ? 0 : marginY));
     // 0 = reserve no screen space / don't push other surfaces around —
     // a wallpaper widget, not a panel.
     layer->setExclusiveZone(0);
@@ -74,8 +81,10 @@ void WaylandLayerShell::configure(QObject *window, int marginTop, int marginRigh
         w->resize(width, height);
 #else
     Q_UNUSED(window);
-    Q_UNUSED(marginTop);
-    Q_UNUSED(marginRight);
+    Q_UNUSED(anchorLeft);
+    Q_UNUSED(anchorTop);
+    Q_UNUSED(marginX);
+    Q_UNUSED(marginY);
     Q_UNUSED(width);
     Q_UNUSED(height);
 #endif

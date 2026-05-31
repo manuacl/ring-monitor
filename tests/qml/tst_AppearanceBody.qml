@@ -50,7 +50,9 @@ Item {
             body.orientation = "horizontal";
             body.ringSize = 180;
             body.ringSpacingPercent = 7;
-            body.windowMargin = 0;
+            body.windowAnchorCorner = "top-right";
+            body.windowMarginX = 0;
+            body.windowMarginY = 0;
             body.textOpacity = 1.0;
             body.trackOpacity = 0.15;
             body.arcOpacity = 1.0;
@@ -103,30 +105,48 @@ Item {
             compare(body._ringSpacingSlider.from, 0);
             compare(body._ringSpacingSlider.to, 25);
         }
-        function test_windowMargin_default_is_0() {
-            compare(body.windowMargin, 0);
-            compare(body._windowMarginSlider.value, 0);
+        function test_windowMargins_default_is_0() {
+            compare(body.windowMarginX, 0);
+            compare(body.windowMarginY, 0);
+            compare(body._windowMarginXSlider.value, 0);
+            compare(body._windowMarginYSlider.value, 0);
         }
-        function test_windowMargin_drives_slider_value() {
-            body.windowMargin = 60;
-            compare(body._windowMarginSlider.value, 60);
+        function test_windowMarginX_drives_slider_value() {
+            body.windowMarginX = 60;
+            compare(body._windowMarginXSlider.value, 60);
         }
-        function test_windowMargin_slider_range_0_to_200() {
-            compare(body._windowMarginSlider.from, 0);
-            compare(body._windowMarginSlider.to, 200);
+        function test_windowMarginY_drives_slider_value() {
+            body.windowMarginY = 40;
+            compare(body._windowMarginYSlider.value, 40);
         }
-        // The Plasma host never reads `windowMargin` (only the
-        // standalone Window-anchor code does), so the slider's row
-        // is hidden by default. Standalone SettingsDialog opts in by
-        // flipping the flag — same gating pattern as
-        // AboutBody.autostartAvailable.
-        function test_windowMarginVisible_defaults_false_hides_slider() {
-            body.windowMarginVisible = false;
-            compare(body._windowMarginSlider.parent.visible, false);
+        function test_windowMargin_sliders_range_0_to_200() {
+            compare(body._windowMarginXSlider.from, 0);
+            compare(body._windowMarginXSlider.to, 200);
+            compare(body._windowMarginYSlider.from, 0);
+            compare(body._windowMarginYSlider.to, 200);
         }
-        function test_windowMarginVisible_true_shows_slider() {
-            body.windowMarginVisible = true;
-            compare(body._windowMarginSlider.parent.visible, true);
+        // ── Anchor corner: property → combo selection ─────────────────
+        function test_windowAnchorCorner_default_is_top_right() {
+            compare(body.windowAnchorCorner, "top-right");
+            compare(body._cornerValues[body._anchorCornerCombo.currentIndex], "top-right");
+        }
+        function test_windowAnchorCorner_drives_combo_selection() {
+            body.windowAnchorCorner = "bottom-left";
+            compare(body._cornerValues[body._anchorCornerCombo.currentIndex], "bottom-left");
+        }
+        // The Plasma host never reads the placement keys (only the
+        // standalone Window-anchor code does), so the rows are hidden by
+        // default. Standalone SettingsDialog opts in by flipping the flag
+        // — same gating pattern as AboutBody.autostartAvailable.
+        function test_windowPlacementVisible_defaults_false_hides_rows() {
+            body.windowPlacementVisible = false;
+            compare(body._anchorCornerCombo.parent.visible, false);
+            compare(body._windowMarginXSlider.parent.visible, false);
+        }
+        function test_windowPlacementVisible_true_shows_rows() {
+            body.windowPlacementVisible = true;
+            compare(body._anchorCornerCombo.parent.visible, true);
+            compare(body._windowMarginXSlider.parent.visible, true);
         }
         // Same gating pattern for `ringSpacing` — on Plasma, the
         // desktop frame is user-dragged-fixed and rings shrink to
@@ -144,7 +164,7 @@ Item {
         // ── Round trip: write → read each property name ───────────────
         // Catches a typo in any of the 4 property declarations.
         function test_all_bridged_properties_readwrite() {
-            const keys = ["orientation", "ringSize", "ringSpacingPercent", "windowMargin", "textOpacity", "trackOpacity", "arcOpacity", "textColorMode", "customTextColorLight", "customTextColorDark"];
+            const keys = ["orientation", "ringSize", "ringSpacingPercent", "windowAnchorCorner", "windowMarginX", "windowMarginY", "textOpacity", "trackOpacity", "arcOpacity", "textColorMode", "customTextColorLight", "customTextColorDark"];
             for (const k of keys) {
                 verify(k in body, "AppearanceBody must expose property " + k);
             }

@@ -20,7 +20,9 @@ KCM.SimpleKCM {
     property alias cfg_orientation: body.orientation
     property alias cfg_ringSize: body.ringSize
     property alias cfg_ringSpacingPercent: body.ringSpacingPercent
-    property alias cfg_windowMargin: body.windowMargin
+    property alias cfg_windowAnchorCorner: body.windowAnchorCorner
+    property alias cfg_windowMarginX: body.windowMarginX
+    property alias cfg_windowMarginY: body.windowMarginY
     property alias cfg_textOpacity: body.textOpacity
     property alias cfg_trackOpacity: body.trackOpacity
     property alias cfg_arcOpacity: body.arcOpacity
@@ -58,7 +60,9 @@ KCM.SimpleKCM {
     property var cfg_orientationDefault
     property var cfg_ringSizeDefault
     property var cfg_ringSpacingPercentDefault
-    property var cfg_windowMarginDefault
+    property var cfg_windowAnchorCornerDefault
+    property var cfg_windowMarginXDefault
+    property var cfg_windowMarginYDefault
     property var cfg_textOpacityDefault
     property var cfg_trackOpacityDefault
     property var cfg_arcOpacityDefault

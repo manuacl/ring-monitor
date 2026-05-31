@@ -34,17 +34,17 @@ Kirigami.FormLayout {
     // `platforms/standalone/ColorPicker.qml` honour this.
     property Component colorPickerComponent
 
-    // `windowMargin` is only consumed by the standalone Window
-    // anchoring code (platforms/standalone/Main.qml). Inside a Plasma
-    // panel the slot position is set by plasmashell, so the slider is
-    // dead UI there — hide it by default, and let the standalone
-    // SettingsDialog flip it on. Same pattern as AboutBody's
-    // `autostartAvailable`.
-    property bool windowMarginVisible: false
+    // The window-placement controls (anchor corner + per-axis margins)
+    // are only consumed by the standalone Window anchoring code
+    // (platforms/standalone/Main.qml). Inside a Plasma panel the slot
+    // position is set by plasmashell, so they are dead UI there — hide
+    // by default, and let the standalone SettingsDialog flip them on.
+    // Same pattern as AboutBody's `autostartAvailable`.
+    property bool windowPlacementVisible: false
 
     // Hidden by default (standalone SettingsDialog flips it on), same gate
-    // as windowMarginVisible: the slider is a near-no-op on Plasma where the
-    // fixed frame dominates the layout. Full rationale: docs/components.md
+    // as windowPlacementVisible: the slider is a near-no-op on Plasma where
+    // the fixed frame dominates the layout. Full rationale: docs/components.md
     // § AppearanceBody.
     property bool ringSpacingVisible: false
 
@@ -52,7 +52,7 @@ Kirigami.FormLayout {
     // drives the rings' implicit size, but on the Plasma desktop containment
     // the user sizes the widget by dragging the frame — which overrides the
     // implicit size — so the slider looks like it does nothing once placed.
-    // Unlike ringSpacing/windowMargin, the value stays bound (not hardcoded)
+    // Unlike ringSpacing/window-placement, the value stays bound (not hardcoded)
     // on Plasma: it's a legitimate implicit size, just frame-overridden, not
     // an actively-wrong value. Standalone (frameless auto-sized window) is the
     // host where the slider has visible effect.
@@ -62,7 +62,9 @@ Kirigami.FormLayout {
     property string orientation: "horizontal"
     property int ringSize: 180
     property int ringSpacingPercent: 7
-    property int windowMargin: 0
+    property string windowAnchorCorner: "top-right"
+    property int windowMarginX: 0
+    property int windowMarginY: 0
     property real textOpacity: 1.0
     property real trackOpacity: 0.15
     property real arcOpacity: 1.0
@@ -82,6 +84,13 @@ Kirigami.FormLayout {
             text: qsTr(t.label)
         };
     })
+
+    // The four standalone-window anchor corner values, parallel to the
+    // combo's qsTr() label list below — keep both in the same order. Must
+    // stay a subset of platforms/standalone/WindowPlacement.js `CORNERS`
+    // (a flat string array so qmlformat keeps it inline; an object {value,
+    // text} model would expand past the 500-line cap).
+    readonly property var _cornerValues: ["top-left", "top-right", "bottom-left", "bottom-right"]
 
     RowLayout {
         Kirigami.FormData.label: qsTr("Orientation:")
@@ -158,28 +167,64 @@ Kirigami.FormLayout {
         }
     }
 
-    // Screen margin — pixels between the rings and the nearest screen
-    // edge. Only consumed by the standalone Window anchor; inside a
-    // Plasma panel the slot position is plasmashell's job, so this
-    // whole row is hidden via `windowMarginVisible` (set true only
-    // by the standalone SettingsDialog).
+    // Window placement — anchor corner + per-axis inset from that
+    // corner's edges. Standalone-only (Plasma slot position is
+    // plasmashell's job), so hidden via `windowPlacementVisible`.
+    // Margin semantics: platforms/standalone/WindowPlacement.js.
     RowLayout {
-        Kirigami.FormData.label: qsTr("Screen margin:")
+        Kirigami.FormData.label: qsTr("Anchor corner:")
         Layout.fillWidth: true
-        visible: body.windowMarginVisible
+        visible: body.windowPlacementVisible
+
+        QQC2.ComboBox {
+            id: anchorCornerCombo
+            Layout.fillWidth: true
+            // Labels parallel body._cornerValues — same order.
+            model: [qsTr("Top left"), qsTr("Top right"), qsTr("Bottom left"), qsTr("Bottom right")]
+            currentIndex: Math.max(0, body._cornerValues.indexOf(body.windowAnchorCorner))
+            onActivated: body.windowAnchorCorner = body._cornerValues[currentIndex]
+        }
+    }
+
+    RowLayout {
+        Kirigami.FormData.label: qsTr("Horizontal margin:")
+        Layout.fillWidth: true
+        visible: body.windowPlacementVisible
 
         QQC2.Slider {
-            id: windowMarginSlider
+            id: windowMarginXSlider
             from: 0
             to: 200
             stepSize: 10
             snapMode: QQC2.Slider.SnapAlways
-            value: body.windowMargin
-            onMoved: body.windowMargin = value
+            value: body.windowMarginX
+            onMoved: body.windowMarginX = value
             Layout.fillWidth: true
         }
         QQC2.Label {
-            text: body.windowMargin + " px"
+            text: body.windowMarginX + " px"
+            Layout.minimumWidth: Kirigami.Units.gridUnit * 3
+            horizontalAlignment: Text.AlignRight
+        }
+    }
+
+    RowLayout {
+        Kirigami.FormData.label: qsTr("Vertical margin:")
+        Layout.fillWidth: true
+        visible: body.windowPlacementVisible
+
+        QQC2.Slider {
+            id: windowMarginYSlider
+            from: 0
+            to: 200
+            stepSize: 10
+            snapMode: QQC2.Slider.SnapAlways
+            value: body.windowMarginY
+            onMoved: body.windowMarginY = value
+            Layout.fillWidth: true
+        }
+        QQC2.Label {
+            text: body.windowMarginY + " px"
             Layout.minimumWidth: Kirigami.Units.gridUnit * 3
             horizontalAlignment: Text.AlignRight
         }
@@ -425,7 +470,9 @@ Kirigami.FormLayout {
     // ── Test hooks ──────────────────────────────────────────────────
     readonly property alias _ringSizeSlider: ringSizeSlider
     readonly property alias _ringSpacingSlider: ringSpacingSlider
-    readonly property alias _windowMarginSlider: windowMarginSlider
+    readonly property alias _anchorCornerCombo: anchorCornerCombo
+    readonly property alias _windowMarginXSlider: windowMarginXSlider
+    readonly property alias _windowMarginYSlider: windowMarginYSlider
     readonly property alias _textSlider: textSlider
     readonly property alias _trackSlider: trackSlider
     readonly property alias _arcSlider: arcSlider

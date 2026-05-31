@@ -198,7 +198,9 @@ that interacts with the GridLayout's metrics (extra padding,
 inter-section gaps, etc.).
 
 When a setting falls into this profile, use the two-step pattern
-documented inline on `ringSpacingPercent` (PR #40) and `windowMargin`:
+documented inline on `ringSpacingPercent` (PR #40) and the
+window-placement keys (`windowAnchorCorner` / `windowMarginX` /
+`windowMarginY`, issue #98):
 
 1. **Hide the UI** — add a `property bool <key>Visible: false` to
    `core/AppearanceBody.qml`, wrap the slider row in

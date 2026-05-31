@@ -51,7 +51,7 @@ test("ConfigStore properties are readonly (reads-only-by-design contract)", () =
 // Keys deliberately overridden in the Plasma adapter rather than
 // bound through to `Plasmoid.configuration`. Each entry must come
 // with a dedicated test below explaining the override.
-const HARDCODED_OVERRIDES = new Set(["ringSpacingPercent", "windowMargin"]);
+const HARDCODED_OVERRIDES = new Set(["ringSpacingPercent", "windowAnchorCorner", "windowMarginX", "windowMarginY"]);
 
 test("ConfigStore binds each property to the matching Plasmoid.configuration key", () => {
     for (const key of EXPECTED_KEYS) {
@@ -82,22 +82,35 @@ test("ConfigStore hardcodes ringSpacingPercent to 0 on Plasma (frame-fixed widge
     );
 });
 
-test("ConfigStore hardcodes windowMargin to 0 on Plasma (unused — plasmashell positions the slot)", () => {
-    // windowMargin is only consumed by the standalone Window
-    // anchoring code (Main.qml::WindowAnchor.setGeometry). On Plasma
-    // the slot position is plasmashell's job and AppearanceBody hides
-    // the slider via `windowMarginVisible`. Hardcoding to 0 makes
-    // the "unused on Plasma" intent explicit and prevents a stray
-    // Plasmoid.configuration value from leaking into a future
-    // Plasma-side consumer.
+test("ConfigStore hardcodes the window-placement keys on Plasma (unused — plasmashell positions the slot)", () => {
+    // windowAnchorCorner / windowMarginX / windowMarginY are only
+    // consumed by the standalone Window anchoring code (Main.qml's
+    // WindowAnchor.setGeometry / WaylandLayerShell.configure). On Plasma
+    // the slot position is plasmashell's job and AppearanceBody hides the
+    // controls via `windowPlacementVisible`. Hardcoding makes the "unused
+    // on Plasma" intent explicit and prevents a stray
+    // Plasmoid.configuration value from leaking into a future Plasma-side
+    // consumer.
     assert.match(
         SOURCE,
-        /readonly\s+property\s+int\s+windowMargin\s*:\s*0\b/,
-        "ConfigStore must hardcode windowMargin to 0 (Plasma-specific override)",
+        /readonly\s+property\s+string\s+windowAnchorCorner\s*:\s*"top-right"/,
+        "ConfigStore must hardcode windowAnchorCorner to \"top-right\" (Plasma-specific override)",
     );
-    assert.doesNotMatch(
+    assert.match(
         SOURCE,
-        /windowMargin\s*:\s*Plasmoid\.configuration\.windowMargin/,
-        "ConfigStore must NOT bind windowMargin through to Plasmoid.configuration (unused on Plasma)",
+        /readonly\s+property\s+int\s+windowMarginX\s*:\s*0\b/,
+        "ConfigStore must hardcode windowMarginX to 0 (Plasma-specific override)",
     );
+    assert.match(
+        SOURCE,
+        /readonly\s+property\s+int\s+windowMarginY\s*:\s*0\b/,
+        "ConfigStore must hardcode windowMarginY to 0 (Plasma-specific override)",
+    );
+    for (const key of ["windowAnchorCorner", "windowMarginX", "windowMarginY"]) {
+        assert.doesNotMatch(
+            SOURCE,
+            new RegExp(`${key}\\s*:\\s*Plasmoid\\.configuration\\.${key}`),
+            `ConfigStore must NOT bind ${key} through to Plasmoid.configuration (unused on Plasma)`,
+        );
+    }
 });

@@ -39,8 +39,12 @@ KCM.SimpleKCM {
     property var cfg_ringSizeDefault
     property var cfg_ringSpacingPercent
     property var cfg_ringSpacingPercentDefault
-    property var cfg_windowMargin
-    property var cfg_windowMarginDefault
+    property var cfg_windowAnchorCorner
+    property var cfg_windowAnchorCornerDefault
+    property var cfg_windowMarginX
+    property var cfg_windowMarginXDefault
+    property var cfg_windowMarginY
+    property var cfg_windowMarginYDefault
     property var cfg_textOpacity
     property var cfg_textOpacityDefault
     property var cfg_trackOpacity

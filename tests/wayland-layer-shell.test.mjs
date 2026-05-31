@@ -6,11 +6,11 @@
 //
 // The contract these guards lock in:
 //
-//   1. The layer surface is a BACKGROUND layer, anchored top-right, with
-//      no keyboard interactivity and zero exclusive zone — a wallpaper
-//      widget that never enters Alt+Tab and never reserves screen space.
-//      This is the whole reason C2 exists (the XWayland NORMAL window
-//      can't shed those two warts).
+//   1. The layer surface is a BOTTOM layer, anchored to a caller-chosen
+//      corner (issue #98), with no keyboard interactivity and zero
+//      exclusive zone — a wallpaper widget that never enters Alt+Tab and
+//      never reserves screen space. This is the whole reason C2 exists
+//      (the XWayland NORMAL window can't shed those two warts).
 //   2. Every layer-shell-qt call is behind `#ifdef HAVE_LAYER_SHELL_QT`,
 //      and the class is otherwise a no-op — so the binary still builds
 //      and the QML singleton still registers when layer-shell-qt is
@@ -51,11 +51,30 @@ test("configures a BOTTOM layer surface (not background)", () => {
     );
 });
 
-test("anchors the surface top-right", () => {
+test("anchors the surface to the caller-chosen corner", () => {
+    // Issue #98: the corner is configurable. The .cpp picks the horizontal
+    // edge from `anchorLeft` (AnchorLeft else AnchorRight) and the vertical
+    // from `anchorTop` (AnchorTop else AnchorBottom), then ORs them — so all
+    // four corner enums must appear and the choice flows from the booleans.
+    for (const anchor of ["AnchorLeft", "AnchorRight", "AnchorTop", "AnchorBottom"]) {
+        assert.match(SRC, new RegExp(`LayerShellQt::Window::${anchor}\\b`), `must reference ${anchor} for corner mapping`);
+    }
+    assert.match(SRC, /anchorLeft\s*\?/, "horizontal anchor must be driven by anchorLeft");
+    assert.match(SRC, /anchorTop\s*\?/, "vertical anchor must be driven by anchorTop");
     assert.match(
         SRC,
-        /setAnchors\([\s\S]*?AnchorTop[\s\S]*?AnchorRight[\s\S]*?\)/,
-        "must anchor Top|Right (matches the X11 top-right anchor)",
+        /setAnchors\([\s\S]*?horizontal[\s\S]*?vertical[\s\S]*?\)/,
+        "must OR the chosen horizontal + vertical anchors into setAnchors",
+    );
+});
+
+test("insets the X/Y margins from the anchored edges", () => {
+    // QMargins(left, top, right, bottom): the X margin maps to left OR
+    // right per anchorLeft, the Y margin to top OR bottom per anchorTop.
+    assert.match(
+        SRC,
+        /setMargins\(QMargins\([\s\S]*?anchorLeft\s*\?\s*marginX[\s\S]*?anchorTop\s*\?\s*marginY[\s\S]*?\)\)/,
+        "must route marginX/marginY to the anchored edges",
     );
 });
 

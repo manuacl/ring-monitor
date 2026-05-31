@@ -213,11 +213,12 @@ Window {
                     id: appearanceBody
                     width: appearanceScroll.availableWidth
                     colorPickerComponent: colorPickerComponent
-                    // Only the standalone host shows these three sliders:
+                    // Only the standalone host shows these controls:
                     //
-                    //   `windowMargin` is consumed by the standalone
-                    //   Window anchoring code only (plasmashell
-                    //   positions the Plasma panel slot itself).
+                    //   window placement (anchor corner + X/Y margins)
+                    //   is consumed by the standalone Window anchoring
+                    //   code only (plasmashell positions the Plasma panel
+                    //   slot itself).
                     //
                     //   `ringSpacing` IS read on both hosts, but on
                     //   Plasma the desktop frame is user-dragged-fixed
@@ -235,7 +236,7 @@ Window {
                     //
                     // Same gate convention as `autostartAvailable` on
                     // AboutBody.
-                    windowMarginVisible: true
+                    windowPlacementVisible: true
                     ringSpacingVisible: true
                     ringSizeVisible: true
                 }
@@ -280,7 +281,7 @@ Window {
         // MetricsBody
         [metricsBody, "metricOrderCsv", "metricOrder"], [metricsBody, "enabledMetricsCsv", "enabledMetrics"], [metricsBody, "enabledPartitionsCsv", "enabledPartitions"], [metricsBody, "partitionOrderCsv", "partitionOrder"], [metricsBody, "partitionLabelsJson", "partitionLabels"], [metricsBody, "partitionOptOutCsv", "partitionOptOut"], [metricsBody, "partitionColorsJson", "diskPartitionColors"], [metricsBody, "showCpuCores", "showCpuCores"], [metricsBody, "mergeCpuTemp", "mergeCpuTemp"], [metricsBody, "mergeGpuTemp", "mergeGpuTemp"], [metricsBody, "tempUnit", "tempUnit"],
         // AppearanceBody
-        [appearanceBody, "orientation", "orientation"], [appearanceBody, "ringSize", "ringSize"], [appearanceBody, "ringSpacingPercent", "ringSpacingPercent"], [appearanceBody, "windowMargin", "windowMargin"], [appearanceBody, "textOpacity", "textOpacity"], [appearanceBody, "trackOpacity", "trackOpacity"], [appearanceBody, "arcOpacity", "arcOpacity"], [appearanceBody, "colorTheme", "colorTheme"], [appearanceBody, "colorMode", "colorMode"], [appearanceBody, "customColorLight", "customColorLight"], [appearanceBody, "customColorDark", "customColorDark"], [appearanceBody, "textColorMode", "textColorMode"], [appearanceBody, "customTextColorLight", "customTextColorLight"], [appearanceBody, "customTextColorDark", "customTextColorDark"]]
+        [appearanceBody, "orientation", "orientation"], [appearanceBody, "ringSize", "ringSize"], [appearanceBody, "ringSpacingPercent", "ringSpacingPercent"], [appearanceBody, "windowAnchorCorner", "windowAnchorCorner"], [appearanceBody, "windowMarginX", "windowMarginX"], [appearanceBody, "windowMarginY", "windowMarginY"], [appearanceBody, "textOpacity", "textOpacity"], [appearanceBody, "trackOpacity", "trackOpacity"], [appearanceBody, "arcOpacity", "arcOpacity"], [appearanceBody, "colorTheme", "colorTheme"], [appearanceBody, "colorMode", "colorMode"], [appearanceBody, "customColorLight", "customColorLight"], [appearanceBody, "customColorDark", "customColorDark"], [appearanceBody, "textColorMode", "textColorMode"], [appearanceBody, "customTextColorLight", "customTextColorLight"], [appearanceBody, "customTextColorDark", "customTextColorDark"]]
 
     function _wireBridges() {
         if (!dialog.configStore)

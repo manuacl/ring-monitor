@@ -1,0 +1,116 @@
+# Daily snapshot of GitHub traffic into a `stats` orphan branch.
+#
+# Why an orphan branch: ci.yml / version.yml only trigger on `main`, release.yml
+# only on tags, and `pull_request` never fires for a direct push — so committing
+# the CSVs to `stats` triggers NONE of them. That matters here specifically: each
+# `actions/checkout` counts as a clone in the traffic numbers, so an archiver that
+# triggered CI would inflate the very metric it records.
+#
+# GitHub purges traffic data after 14 days, so this keeps the long-term series.
+# The 14-day window is re-fetched every run and upserted by date, so a few missed
+# days (the runner being down) self-heal on the next successful run.
+name: traffic-stats
+
+on:
+  schedule:
+    # 06:00 UTC daily — after midnight UTC so the previous day's bucket is closed.
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+# contents:write pushes to the stats branch; actions:read is for the per-day
+# CI-run counts. The traffic endpoints (/traffic/*) need repo *admin* access,
+# which GITHUB_TOKEN cannot be granted via this block — so a TRAFFIC_TOKEN PAT
+# is REQUIRED (see the checkout step), not optional.
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: traffic-stats
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      # TRAFFIC_TOKEN (a PAT) is REQUIRED: the /traffic/* endpoints need repo
+      # admin access, which GITHUB_TOKEN cannot hold, so it would 403. Use a
+      # classic PAT (scope `repo`) or a fine-grained one (Administration: read
+      # + Contents: write). The `|| github.token` fallback only keeps non-traffic
+      # steps working if the secret is unset — the traffic calls still fail then.
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.TRAFFIC_TOKEN || github.token }}
+
+      - name: Snapshot traffic into the stats branch
+        env:
+          GH_TOKEN: ${{ secrets.TRAFFIC_TOKEN || github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          SINCE=$(date -d '14 days ago' +%F)
+          TODAY=$(date +%F)
+
+          views_json=$(gh api "repos/$REPO/traffic/views")
+          clones_json=$(gh api "repos/$REPO/traffic/clones")
+          downloads_total=$(gh api "repos/$REPO/releases" \
+            --jq '[.[].assets[].download_count] | add // 0')
+
+          # Per-day CI run counts over the same 14-day window — the column that
+          # lets a reader tell bot clones (CI checkouts) from human ones.
+          runs_by_day=$(gh api --paginate \
+            "repos/$REPO/actions/runs?per_page=100&created=>=$SINCE" \
+            --jq '.workflow_runs[].created_at[0:10]' | sort | uniq -c \
+            | awk '{print $2","$1}')
+
+          # One unquoted CSV line per day in the window. Views and clones are
+          # keyed into date->row maps (not iterated with select) so a date that
+          # appears in only one of the two series still emits a row.
+          window_rows=$(jq -nr \
+            --argjson v "$views_json" --argjson c "$clones_json" \
+            --arg runs "$runs_by_day" '
+            ($runs | split("\n") | map(select(length>0) | split(",")
+              | {(.[0]): (.[1]|tonumber)}) | add // {}) as $rmap
+            | (reduce $v.views[]  as $x ({}; .[$x.timestamp[0:10]] = {vc: $x.count, vu: $x.uniques})) as $vmap
+            | (reduce $c.clones[] as $x ({}; .[$x.timestamp[0:10]] = {cc: $x.count, cu: $x.uniques})) as $cmap
+            | (($vmap | keys) + ($cmap | keys) | unique)[] as $d
+            | "\($d),\($vmap[$d].vc//0),\($vmap[$d].vu//0),\($cmap[$d].cc//0),\($cmap[$d].cu//0),\($rmap[$d]//0)"
+          ')
+
+          # Resolve the stats branch via ls-remote: actions/checkout sets a
+          # narrow refspec (origin/main only), so `git fetch origin stats` would
+          # update FETCH_HEAD but NOT refs/remotes/origin/stats — checking that
+          # ref would always miss and re-orphan the branch, wiping history every
+          # run. Check the remote directly, then check out FETCH_HEAD.
+          if git ls-remote --exit-code --heads origin stats >/dev/null 2>&1; then
+            git fetch origin stats
+            git checkout -B stats FETCH_HEAD
+          else
+            git checkout --orphan stats
+            git rm -rf . >/dev/null 2>&1 || true
+          fi
+
+          # Upsert by date: keep the LAST row per date, so the freshly-fetched
+          # window overrides any stale rows and older history is preserved.
+          T_HEADER="date,views,views_unique,clones,clones_unique,ci_runs"
+          {
+            echo "$T_HEADER"
+            { tail -n +2 traffic.csv 2>/dev/null || true; echo "$window_rows"; } \
+              | awk -F, 'NF>=6 && $1!="" {row[$1]=$0} END {for (d in row) print row[d]}' \
+              | sort
+          } > traffic.csv.tmp && mv traffic.csv.tmp traffic.csv
+
+          D_HEADER="date,downloads_total"
+          {
+            echo "$D_HEADER"
+            { tail -n +2 downloads.csv 2>/dev/null || true; echo "$TODAY,$downloads_total"; } \
+              | awk -F, 'NF>=2 && $1!="" {row[$1]=$0} END {for (d in row) print row[d]}' \
+              | sort
+          } > downloads.csv.tmp && mv downloads.csv.tmp downloads.csv
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add traffic.csv downloads.csv
+          git commit -m "chore(stats): traffic snapshot $TODAY" || { echo "no changes"; exit 0; }
+          git push origin stats

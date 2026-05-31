@@ -12,6 +12,13 @@ user-facing only.
 
 ## [Unreleased]
 
+### Other
+
+- ci(release): the GitHub Release body now leads with the version's
+  user-facing CHANGELOG summary (the `## [X.Y.Z]` Added/Changed/Fixed block)
+  above GitHub's auto-generated PR list, and the manual "KDE Store upload"
+  helper block was dropped from the body.
+
 ## [0.8.0] — 2026-05-31
 
 ### Added

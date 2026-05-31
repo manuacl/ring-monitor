@@ -26,8 +26,23 @@ user-facing only.
   corner plus horizontal/vertical margins. An existing custom margin is not
   migrated — re-set the position with the new controls after updating.
 
+### Fixed
+
+- Standalone: picking a custom text colour (light or dark) now takes effect —
+  the colour swatch and the ring text update on confirm. Previously the
+  selection was silently dropped and the swatch never changed.
+
 ### Technical
 
+- fix(standalone): ColorPicker dropped the user's selection because the
+  dialog's `selectedColor` was permanently bound to `color` (`selectedColor:
+  root.color`); the live binding re-pinned the selection to the old colour, so
+  `onAccepted` re-read it and `color` never changed (the swatch never
+  updated). Seed `selectedColor` imperatively on open instead. Adds
+  `tests/qml/tst_ColorPicker.qml` (the `selectedColor`-not-live-bound guard
+  fails on the old binding) plus accept→model→swatch round-trip tests for both
+  text-colour pickers in `tst_AppearanceBody.qml` (shared core wiring, so the
+  same path is exercised for the Plasma host).
 - feat(standalone): configurable window placement (#98). Replaced the single
   `windowMargin` key with `windowAnchorCorner` (top-left / top-right /
   bottom-left / bottom-right, default top-right) + `windowMarginX` /

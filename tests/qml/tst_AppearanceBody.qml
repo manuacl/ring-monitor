@@ -197,6 +197,36 @@ Item {
             compare(body._darkTextColorButton.item.color.toString().toLowerCase(), "#112233");
         }
 
+        // ── Picker accept → model → swatch (the direction the standalone
+        // ColorPicker bug broke: the dark swatch never reflected the pick).
+        // The shared AppearanceBody wiring (accepted handler + Binding) is
+        // host-agnostic — identical on standalone and Plasma — so a green
+        // here means any adapter that honours the (color, accepted) contract
+        // updates the swatch. tst_ColorPicker.qml proves the standalone
+        // adapter honours it; the Plasma kquickcontrols adapter is verified
+        // at runtime (it can't load under qmltestrunner).
+        function test_dark_text_picker_accept_updates_model_and_swatch() {
+            body.textColorMode = "custom";
+            body.customTextColorDark = "#000000";
+            const sw = body._darkTextColorButton.item;
+            verify(sw !== null, "dark text swatch must load");
+            // The picker self-assigns the chosen colour, then fires accepted.
+            sw.color = "#1188ff";
+            sw.accepted();
+            compare(body.customTextColorDark.toString().toLowerCase(), "#1188ff", "model takes the picked dark colour");
+            tryCompare(sw, "color", "#1188ff", 1000, "dark swatch reflects the picked colour");
+        }
+        function test_light_text_picker_accept_updates_model_and_swatch() {
+            body.textColorMode = "custom";
+            body.customTextColorLight = "#000000";
+            const sw = body._lightTextColorButton.item;
+            verify(sw !== null, "light text swatch must load");
+            sw.color = "#22cc44";
+            sw.accepted();
+            compare(body.customTextColorLight.toString().toLowerCase(), "#22cc44", "model takes the picked light colour");
+            tryCompare(sw, "color", "#22cc44", 1000, "light swatch reflects the picked colour");
+        }
+
         // SCENARIO: the ColorPicker self-assigns `color = selectedColor` on
         // accept, which clobbers an imperative `item.color = Qt.binding(...)`.
         // A Binding element re-applies, so a LATER source change still reaches

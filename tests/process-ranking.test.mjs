@@ -63,9 +63,25 @@ test('rankByCpu: missing name becomes empty string', () => {
     assert.equal(out[0].name, '');
 });
 
-test('rankByCpu: carries rssKb through (RAM-tooltip forward hook)', () => {
+test('rankByCpu: carries rssKb through when present (RAM-tooltip forward hook)', () => {
     const out = PR.rankByCpu([rec(1, 'a', 5, 123456)]);
     assert.equal(out[0].rssKb, 123456);
+});
+
+test('rankByCpu: omits rssKb when absent (preserves not-sampled vs 0 KB)', () => {
+    // v1 producers never set rssKb; it must stay undefined, NOT be fabricated
+    // to 0 — else a future rankByMemory can't tell unsampled from genuine 0 KB.
+    const out = PR.rankByCpu([{ pid: 1, name: 'a', cpuPercent: 5 }]);
+    assert.equal('rssKb' in out[0], false);
+    assert.equal(out[0].rssKb, undefined);
+});
+
+test('rankByCpu: coerces a string pid to a number so the tiebreak stays numeric', () => {
+    // The Plasma ProcessDataModel Value role isn't guaranteed numeric; a string
+    // pid must not turn the a.pid - b.pid tiebreak into NaN (unstable sort).
+    const out = PR.rankByCpu([rec('9', 'late', 10), rec('2', 'early', 10), rec('5', 'mid', 10)]);
+    assert.deepEqual(out.map(r => r.pid), [2, 5, 9]);
+    assert.equal(typeof out[0].pid, 'number');
 });
 
 test('rankByCpu: non-array / non-positive limit → empty array', () => {

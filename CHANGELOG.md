@@ -134,6 +134,11 @@ user-facing only.
 - Tests: `process-ranking`, `proc-parser`, `proc-reader` (/proc root guard),
   `standalone`/`plasma`-`process-sampler` guards, backend surface mirrors,
   `tst_ProcessTooltip.qml`.
+- Review hardening: load-average sensors gated on `active` (no background
+  ksysguard subscription); tooltip drops below the ring right-aligned (was
+  running off the right screen edge on the standalone top-right anchor);
+  `rankByCpu` coerces `pid` to a number (robust tiebreak) and carries `rssKb`
+  only when present (preserves the not-sampled signal).
 
 ### Other
 

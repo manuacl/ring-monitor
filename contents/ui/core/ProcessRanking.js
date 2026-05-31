@@ -40,12 +40,21 @@ function rankByCpu(records, limit) {
         var r = records[i];
         if (!r || r.pid === undefined || r.pid === null)
             continue;
-        cleaned.push({
-            pid: r.pid,
+        // Coerce pid to a Number so the tiebreak (a.pid - b.pid) stays numeric
+        // even if a backend hands it as a string (the Plasma ProcessDataModel
+        // Value role isn't guaranteed numeric); a NaN compare there would make
+        // the sort non-deterministic — the flicker the tiebreak exists to stop.
+        var rec = {
+            pid: Number(r.pid),
             name: (r.name === undefined || r.name === null) ? "" : String(r.name),
-            cpuPercent: _toNonNegative(r.cpuPercent),
-            rssKb: _toNonNegative(r.rssKb)
-        });
+            cpuPercent: _toNonNegative(r.cpuPercent)
+        };
+        // rssKb is the optional RAM-tooltip forward hook — carry it ONLY when
+        // the producer actually set it, so a future rankByMemory can tell
+        // "not sampled" (absent) from a genuine 0 KB. v1 never sets it.
+        if (r.rssKb !== undefined && r.rssKb !== null)
+            rec.rssKb = _toNonNegative(r.rssKb);
+        cleaned.push(rec);
     }
     cleaned.sort(function (a, b) {
         if (b.cpuPercent !== a.cpuPercent)

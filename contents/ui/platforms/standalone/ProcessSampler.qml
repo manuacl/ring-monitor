@@ -39,6 +39,13 @@ Item {
     // Reads its OWN /proc/stat (independent of MetricsBackend's ring sampling)
     // so the per-process numerator and the system-wide denominator come from
     // the same interval. The extra read only happens while hovering — cheap.
+    //
+    // NOTE: the per-pid loop below does one synchronous reader.read() per
+    // process on the GUI thread each tick. For typical desktop process counts
+    // (~hundreds) that's a few ms, and it's gated on hover — acceptable for v1.
+    // On a server-class host (thousands of processes) it could jank; moving the
+    // enumeration to a worker thread (like statvfs, issue #48) is the follow-up
+    // if that ever bites.
     function _sample() {
         var stat = ProcStatParser.parseProcStat(reader.read("/proc/stat"));
         var totalDelta = (stat.all && sampler._prevAll) ? (ProcParser.sumJiffies(stat.all) - ProcParser.sumJiffies(sampler._prevAll)) : 0;

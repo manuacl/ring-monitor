@@ -50,4 +50,10 @@ test("Plasma ProcessSampler wires the load-average sensors for the footer", () =
     assert.match(SRC, /sensorId:\s*"cpu\/loadaverages\/loadaverage1"/, "must read cpu/loadaverages/loadaverage1");
     assert.match(SRC, /sensorId:\s*"cpu\/loadaverages\/loadaverage5"/, "must read cpu/loadaverages/loadaverage5");
     assert.match(SRC, /sensorId:\s*"cpu\/loadaverages\/loadaverage15"/, "must read cpu/loadaverages/loadaverage15");
+    // The load sensors must also be active-gated — otherwise they subscribe to
+    // ksysguard for the whole app lifetime even when the tooltip is never
+    // hovered (background polling the rest of the surface avoids). Four
+    // `enabled: sampler.active` total: the ProcessDataModel + the 3 sensors.
+    assert.equal((SRC.match(/enabled:\s*sampler\.active/g) || []).length, 4,
+        "the ProcessDataModel and all three load-average sensors must carry enabled: sampler.active");
 });

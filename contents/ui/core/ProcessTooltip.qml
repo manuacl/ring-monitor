@@ -63,9 +63,13 @@ Item {
         id: tip
         parent: root
         visible: root.armed && root._show
-        // Anchor near the pointer's side of the ring without overlapping it.
-        x: root.width
-        y: 0
+        // Drop below the ring, right-aligned to it. The standalone widget
+        // anchors top-RIGHT by default, so growing down-and-left keeps the
+        // tooltip on screen there; `x: root.width` (grow right) ran it off the
+        // right edge (PR #99 review). Clamp x ≥ 0 so a left-edge ring (narrow
+        // Plasma panel) doesn't push it off the left instead.
+        x: Math.max(0, root.width - width)
+        y: root.height
 
         contentItem: ColumnLayout {
             spacing: Kirigami.Units.smallSpacing

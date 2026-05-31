@@ -43,6 +43,11 @@ Item {
 
     function _collect() {
         var rows = procModel.rowCount();
+        // Math.max(1, …) guards the divide. Transient under-division if the user
+        // hovers within the first ~500 ms before per-core discovery fills
+        // coreValues (coreCount 0 → divide by 1 → per-core values shown): it
+        // self-corrects on the next 1 s tick, and the tooltip's own 500 ms
+        // show-delay makes the first-frame window practically unreachable.
         var ncores = Math.max(1, sampler.coreCount);
         var records = [];
         for (var r = 0; r < rows; r++) {
@@ -67,17 +72,23 @@ Item {
 
     // Load averages for the tooltip footer (ksysguard cpu/loadaverages/*).
     // On a host without the sensor, status stays unresolved and value || 0 → 0.
+    // `enabled: active` so ksysguard isn't subscribed in the background when the
+    // tooltip is never hovered — matches the ProcessDataModel gate and the
+    // standalone path (which reads /proc/loadavg only while sampling).
     Sensors.Sensor {
         id: _load1
         sensorId: "cpu/loadaverages/loadaverage1"
+        enabled: sampler.active
     }
     Sensors.Sensor {
         id: _load5
         sensorId: "cpu/loadaverages/loadaverage5"
+        enabled: sampler.active
     }
     Sensors.Sensor {
         id: _load15
         sensorId: "cpu/loadaverages/loadaverage15"
+        enabled: sampler.active
     }
 
     // ProcessDataModel self-updates at its own interval while enabled; this

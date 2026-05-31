@@ -305,13 +305,21 @@ Kirigami.FormLayout {
             onLoaded: {
                 if (!item)
                     return;
-                item.color = Qt.binding(function () {
-                    return body.customColorLight;
-                });
                 item.accepted.connect(function () {
                     body.customColorLight = item.color;
                 });
             }
+        }
+        // Drive the swatch via a Binding element, NOT an imperative
+        // `item.color = Qt.binding(...)`: the ColorPicker self-assigns
+        // `color = selectedColor` on accept, which clobbers an imperative
+        // binding. See core/CLAUDE.md § Component-side gotchas.
+        Binding {
+            target: lightColorButton.item
+            property: "color"
+            value: body.customColorLight
+            when: lightColorButton.item !== null
+            restoreMode: Binding.RestoreBindingOrValue
         }
     }
 
@@ -325,13 +333,17 @@ Kirigami.FormLayout {
             onLoaded: {
                 if (!item)
                     return;
-                item.color = Qt.binding(function () {
-                    return body.customColorDark;
-                });
                 item.accepted.connect(function () {
                     body.customColorDark = item.color;
                 });
             }
+        }
+        Binding {
+            target: darkColorButton.item
+            property: "color"
+            value: body.customColorDark
+            when: darkColorButton.item !== null
+            restoreMode: Binding.RestoreBindingOrValue
         }
     }
 
@@ -372,13 +384,17 @@ Kirigami.FormLayout {
             onLoaded: {
                 if (!item)
                     return;
-                item.color = Qt.binding(function () {
-                    return body.customTextColorLight;
-                });
                 item.accepted.connect(function () {
                     body.customTextColorLight = item.color;
                 });
             }
+        }
+        Binding {
+            target: lightTextColorButton.item
+            property: "color"
+            value: body.customTextColorLight
+            when: lightTextColorButton.item !== null
+            restoreMode: Binding.RestoreBindingOrValue
         }
     }
 
@@ -392,13 +408,17 @@ Kirigami.FormLayout {
             onLoaded: {
                 if (!item)
                     return;
-                item.color = Qt.binding(function () {
-                    return body.customTextColorDark;
-                });
                 item.accepted.connect(function () {
                     body.customTextColorDark = item.color;
                 });
             }
+        }
+        Binding {
+            target: darkTextColorButton.item
+            property: "color"
+            value: body.customTextColorDark
+            when: darkTextColorButton.item !== null
+            restoreMode: Binding.RestoreBindingOrValue
         }
     }
 

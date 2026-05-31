@@ -209,20 +209,25 @@ shipped. Pling administrators confirmed this most recently in
 and the OCS API documentation page makes the same point. No GitHub
 Action exists for this reason — the root cause is server-side.
 
-What `.github/workflows/release.yml` does instead: enrich each GitHub
-Release body with a **"KDE Store upload" helper block** containing the
-direct download link, the version string, and a click-through to the
-store entry. The manual procedure shrinks to three clicks:
+So the upload is a manual three-click procedure (no longer echoed as a
+helper block into the release body — see the note below):
 
 1. Open the GitHub Release for the version (e.g.
    `https://github.com/manuacl/ring-monitor/releases/tag/vX.Y.Z`).
-2. Download the `.plasmoid` from the assets, follow the link to
+2. Download the `.plasmoid` from the assets, go to
    `https://www.opendesktop.org/p/2360410`, log in, click **Edit**.
-3. Upload the file, set version = `X.Y.Z`, paste the **What's
-   Changed** section from the GitHub Release into the changelog field.
-   Save.
+3. Upload the file, set version = `X.Y.Z`, paste the release notes (the
+   user-facing summary at the top of the GitHub Release) into the
+   changelog field. Save.
+
+The **release body** (`release.yml` § "Compose release body") leads with
+the version's **user-facing CHANGELOG summary** — the `## [X.Y.Z]`
+Added/Changed/Fixed block, extracted from `CHANGELOG.md` (everything
+above its `### Technical`/`### Other` detail) — followed by GitHub's
+auto-generated "What's Changed" PR list. So the bump-labelled PR must
+carry that `## [X.Y.Z]` section (see [config-dialog / changelog cadence];
+a missing summary leaves the release body with only the PR list). The
+KDE Store helper block was removed from the body (2026-05-31).
 
 If Pling ships write endpoints in the future, replace the "Compose
-release body" step in `release.yml` with a real upload call. The
-artifact path, version, and changelog are already computed there —
-only the final POST changes.
+release body" step in `release.yml` with a real upload call.

@@ -377,6 +377,42 @@ if ! echo "$changed" | command grep -qx "CHANGELOG.md"; then
     status=1
 fi
 
+# 4h-bis. A TAGGED (bump-labelled) PR owes a USER-FACING CHANGELOG summary
+# (### Added / ### Changed / ### Fixed), not only ### Technical. The release
+# pipeline promotes that block to the ## [X.Y.Z] section and now LEADS the
+# GitHub Release body with it; a missing summary ships the release with its
+# changes stranded under [Unreleased] → forces a re-cut (delete tag+release,
+# roll metadata back, re-merge). Cost a full re-cut on v0.8.0: PR #91 was
+# bump:minor with only ### Technical → had to re-cut via PR #92.
+# Reproduce the bump-label heuristic (same as the bump-label skill) to predict
+# whether this PR cuts a release, then require the user-facing block. FAIL for
+# minor/major (a clear user-facing release — the case #91 hit); WARN for patch
+# (often overridden to bump:none for standalone-only/internal work, see the
+# bump-during-mvp rule).
+_bump_commits=$(git log --format='%B' origin/main..HEAD)
+if   echo "$_bump_commits" | grep -qE '(BREAKING CHANGE|^[a-z]+(\([^)]+\))?!:)'; then _bump=major
+elif echo "$_bump_commits" | grep -qE '^feat(\([^)]+\))?:'; then _bump=minor
+elif ! echo "$changed" | grep -qvE '^(docs/|README\.md|CLAUDE\.md|\.claude/)'; then _bump=none
+elif echo "$_bump_commits" | grep -qE '^(fix|perf|refactor)(\([^)]+\))?:'; then _bump=patch
+else _bump=patch; fi
+_userfacing=$(git diff origin/main...HEAD -- CHANGELOG.md | command grep -cE '^\+### (Added|Changed|Fixed)\b')
+if [ "$_bump" = "major" ] || [ "$_bump" = "minor" ]; then
+    if [ "$_userfacing" -eq 0 ]; then
+        echo "FAIL: this PR looks like bump:$_bump (a tagged, user-facing release) but its CHANGELOG"
+        echo "      diff adds no ### Added / ### Changed / ### Fixed — only ### Technical. A tagged"
+        echo "      release owes the user-facing summary (it becomes the ## [X.Y.Z] section at tag time"
+        echo "      and leads the GitHub Release body); without it the release ships with its changes"
+        echo "      stranded under [Unreleased] and needs a re-cut (cost a re-cut on v0.8.0 / PR #91)."
+        status=1
+    else
+        echo "PASS: bump:$_bump PR adds a user-facing CHANGELOG section"
+    fi
+elif [ "$_bump" = "patch" ] && [ "$_userfacing" -eq 0 ]; then
+    echo "WARN: commits suggest bump:patch — if you apply a bump:* label (cut a release), it owes a"
+    echo "      user-facing ### Added/Changed/Fixed summary, not just ### Technical. Skip if you'll"
+    echo "      mark it bump:none (standalone-only / internal, per the bump-during-mvp rule)."
+fi
+
 # 4i. Manual audit prompt — these can't be greped reliably. Always
 # print, so the user sees the checklist before phase B.
 echo ""

@@ -181,7 +181,13 @@ Kirigami.FormLayout {
             Layout.fillWidth: true
             // Labels parallel body._cornerValues — same order.
             model: [qsTr("Top left"), qsTr("Top right"), qsTr("Bottom left"), qsTr("Bottom right")]
-            currentIndex: Math.max(0, body._cornerValues.indexOf(body.windowAnchorCorner))
+            // Unknown value (hand-edited config) → top-right, matching the
+            // WindowPlacement.js / Main.qml fallback, so the picker never
+            // disagrees with where the window actually anchors.
+            currentIndex: {
+                const i = body._cornerValues.indexOf(body.windowAnchorCorner);
+                return i >= 0 ? i : body._cornerValues.indexOf("top-right");
+            }
             onActivated: body.windowAnchorCorner = body._cornerValues[currentIndex]
         }
     }

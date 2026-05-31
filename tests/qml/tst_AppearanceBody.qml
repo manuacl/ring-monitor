@@ -134,6 +134,13 @@ Item {
             body.windowAnchorCorner = "bottom-left";
             compare(body._cornerValues[body._anchorCornerCombo.currentIndex], "bottom-left");
         }
+        // An unknown value (hand-edited config) must resolve to top-right in
+        // the picker, matching the WindowPlacement.js / Main.qml fallback —
+        // otherwise the combo shows a corner the window doesn't anchor to.
+        function test_windowAnchorCorner_unknown_falls_back_to_top_right() {
+            body.windowAnchorCorner = "middle";
+            compare(body._cornerValues[body._anchorCornerCombo.currentIndex], "top-right");
+        }
         // The Plasma host never reads the placement keys (only the
         // standalone Window-anchor code does), so the rows are hidden by
         // default. Standalone SettingsDialog opts in by flipping the flag

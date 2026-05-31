@@ -35,7 +35,7 @@ user-facing only.
   with a per-axis inset instead of being pinned top-right. The corner →
   origin (X11) and corner → anchor-edges (Wayland layer-shell) math is a new
   pure module `platforms/standalone/WindowPlacement.js`
-  (`tests/standalone-window-placement.test.mjs`), shared as the single source
+  (`tests/window-placement.test.mjs`), shared as the single source
   of truth by both host paths. `Main.qml._anchor()` reads it for
   `WindowAnchor.setGeometry`; `wayland_layer_shell.cpp` `configure()` now
   takes the chosen edges + X/Y margins and maps them to LayerShellQt anchors.

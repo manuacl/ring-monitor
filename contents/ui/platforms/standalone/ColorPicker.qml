@@ -20,6 +20,10 @@ QQC2.AbstractButton {
     property color color: "#000000"
     signal accepted
 
+    // Test hook (internal): lets tst_ColorPicker drive the dialog without
+    // showing native UI under qmltestrunner.
+    readonly property alias _dialog: dialog
+
     implicitWidth: 32
     implicitHeight: 24
 
@@ -30,14 +34,22 @@ QQC2.AbstractButton {
         radius: 2
     }
 
-    onClicked: dialog.open()
+    // Seed the dialog from the current colour on each open — imperatively,
+    // NOT via `selectedColor: root.color`. A permanent binding kept
+    // selectedColor pinned to `color`, so the user's pick was overwritten
+    // and `onAccepted` re-read the old colour → `color` never changed and
+    // the swatch never updated (the standalone dark-text-colour bug). See
+    // tests/qml/tst_ColorPicker.qml.
+    onClicked: {
+        dialog.selectedColor = root.color;
+        dialog.open();
+    }
 
     QtDialogs.ColorDialog {
         id: dialog
         // showAlphaChannel defaults false here (matches the Plasma
         // ColorButton): no transparency value that would conflict with
         // the rings' arcOpacity.
-        selectedColor: root.color
         onAccepted: {
             root.color = dialog.selectedColor;
             root.accepted();

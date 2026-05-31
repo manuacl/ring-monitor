@@ -173,13 +173,19 @@ ColumnLayout {
         body.partitionColorsJson = DiskMetrics.withoutColor(body.partitionColorsJson, id);
     }
 
-    // Bound the color map to the referenced partitions (enabled ∪ order), same
-    // as _refreshLabelCache does for the label cache — so a custom color can't
-    // outlive its partition. Unchecking keeps the color (the partition stays in
-    // `order`, still referenced); only a partition dropped from both lists (e.g.
-    // removeStalePartition) is pruned. No-op guard mirrors _refreshLabelCache.
+    // Bound the color map so a custom color can't outlive its partition. The
+    // keep-set is `enabled ∪ order ∪ discovered`: the picker lets you color ANY
+    // currently-discovered partition (orderPartitions renders newly-discovered
+    // ids before they reach partitionOrderCsv), so dropping a discovered
+    // partition's color would silently lose the user's input; the referenced
+    // half keeps the color of a configured-but-unplugged partition so a replug
+    // restores it. Only a color whose partition is BOTH gone (undiscovered) AND
+    // unreferenced is pruned. No-op guard mirrors _refreshLabelCache.
     function _refreshColorMap() {
-        const next = DiskMetrics.pruneMap(body.partitionColorsJson, body._referencedPartitionIds());
+        const discovered = (body.diskPartitions || []).map(function (p) {
+            return p.id;
+        });
+        const next = DiskMetrics.pruneMap(body.partitionColorsJson, body._referencedPartitionIds().concat(discovered));
         if (next === body.partitionColorsJson || (next === "{}" && body.partitionColorsJson === ""))
             return;
         body.partitionColorsJson = next;
@@ -244,6 +250,11 @@ ColumnLayout {
 
     // Trash action on a stale row: drop the id from the selection, the order,
     // the label cache, and any custom color so nothing lingers in the config.
+    // The explicit clearPartitionColor is load-bearing, NOT redundant with
+    // _refreshColorMap: a stale partition is undiscovered, but the
+    // enabled-change hook fires _refreshColorMap while the id is still in
+    // partitionOrderCsv (so it's still referenced → not pruned), and the
+    // order-change hook doesn't refresh the color map at all.
     function removeStalePartition(id) {
         body.enabledPartitionsCsv = Catalog.toggleEnabled(Catalog.parseCsv(body.enabledPartitionsCsv), id, false).join(",");
         body.partitionOrderCsv = Catalog.toggleEnabled(Catalog.parseCsv(body.partitionOrderCsv), id, false).join(",");

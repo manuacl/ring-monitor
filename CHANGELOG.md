@@ -30,7 +30,7 @@ user-facing only.
   delegate. The disk picker was extracted from `MetricsBody` into its own
   `core/DiskPartitionPicker.qml` (stateless view delegating to the body as
   `controller`) to keep `MetricsBody` under the 500-line cap. The color map is
-  bounded to `enabled ∪ order` via `DiskMetrics.pruneMap`
+  bounded to `enabled ∪ order ∪ discovered` via `DiskMetrics.pruneMap`
   (`MetricsBody._refreshColorMap`), mirroring the label cache, so a color can't
   outlive its partition. The picker swatch's "inherited" preview uses the
   **actual** resolved shared color (`MetricsBody.sharedRingColor`, injected by

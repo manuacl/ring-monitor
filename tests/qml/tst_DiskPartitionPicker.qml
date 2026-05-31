@@ -122,5 +122,23 @@ Item {
             tryCompare(swatch, "color", fakeTheme.highlightColor, 1000, "swatch reverts to the inherited color after clear");
             verify(!rowItem._clearColorButton.visible, "clear button hides once the override is gone");
         }
+
+        // SCENARIO: a discovered-but-unchecked/unordered partition is colorable
+        // in the picker (orderPartitions renders newly-discovered ids before they
+        // reach partitionOrderCsv). Pruning the color map to enabled ∪ order
+        // alone dropped its color on the next refresh — the keep-set must also
+        // include the discovered partitions.
+        function test_SCENARIO_color_on_discovered_unchecked_partition_survives_prune() {
+            controller.enabledPartitionsCsv = "";
+            controller.partitionOrderCsv = "";
+            controller.diskPartitions = [{ id: "u-new", label: "fresh" }];
+            wait(20);
+            controller.setPartitionColor("u-new", "#ff8800");
+            compare(controller.partitionColor("u-new"), "#ff8800");
+            // Trigger _refreshColorMap via an unrelated enabled change.
+            controller.enabledPartitionsCsv = "u-other";
+            wait(20);
+            compare(controller.partitionColor("u-new"), "#ff8800", "a discovered partition's color must survive the prune");
+        }
     }
 }

@@ -79,10 +79,11 @@ For the Metrics page, `MetricsBody` additionally owns:
   `partitionColorsJson` map (bridged to `cfg_diskPartitionColors`) and exposes
   `partitionColor` / `setPartitionColor` / `clearPartitionColor` (thin
   delegations to `DiskMetrics`' color helpers). `_refreshColorMap` bounds the
-  map to `enabled ∪ order` (via `DiskMetrics.pruneMap`) on every refresh, the
-  same way `_refreshLabelCache` bounds the label cache — so a color can't
-  outlive its partition (unchecking keeps it; a removed partition's color is
-  pruned). The picker view itself is the separate
+  map to `enabled ∪ order ∪ discovered` (via `DiskMetrics.pruneMap`) on every
+  refresh — the picker lets you color any discovered partition, so a discovered
+  one's color is kept even when unchecked/unordered; only a color whose
+  partition is both gone and unreferenced is pruned, so it can't outlive its
+  partition. The picker view itself is the separate
   [`DiskPartitionPicker.qml`](#diskpartitionpickerqml) — the body injects itself
   as that component's `controller`. The body takes a `colorPickerComponent`
   (same injection contract as `AppearanceBody`) for the per-row swatch, and a

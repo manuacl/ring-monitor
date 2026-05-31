@@ -14,6 +14,11 @@ user-facing only.
 
 ### Other
 
+- ci(stats): new `traffic-stats.yml` workflow archives a daily GitHub-traffic
+  snapshot (views, clones, per-day CI-run counts, cumulative release downloads)
+  to a `stats` orphan branch as CSV, preserving the series past GitHub's 14-day
+  window; plus a `repo-stats` skill that reports it and separates human interest
+  from CI-driven clone noise.
 - ci(release): the GitHub Release body now leads with the version's
   user-facing CHANGELOG summary (the `## [X.Y.Z]` Added/Changed/Fixed block,
   under a `## What's new` heading) above the PR list, GitHub's auto-generated

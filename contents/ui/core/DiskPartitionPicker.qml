@@ -55,12 +55,12 @@ ColumnLayout {
                 iconSize: picker._theme.iconSize
 
                 // Per-partition ring color (issue #67): swatch opens the picker,
-                // clear drops the override. inheritedColor is only the swatch's
-                // "unset" hint — the real resolved color depends on Appearance-tab
-                // settings not visible here, so the theme highlight is the seed.
+                // clear drops the override. inheritedColor is the actual shared
+                // ring color (resolved in the config wrapper) so the "unset"
+                // swatch previews exactly what the ring shows.
                 colorPickerComponent: picker.controller.colorPickerComponent
                 customColor: picker.controller.partitionColor(_partId)
-                inheritedColor: picker._theme ? picker._theme.highlightColor : "#3daee9"
+                inheritedColor: picker.controller.sharedRingColor
                 onColorPicked: color => picker.controller.setPartitionColor(_partId, color)
                 onColorCleared: picker.controller.clearPartitionColor(_partId)
             }

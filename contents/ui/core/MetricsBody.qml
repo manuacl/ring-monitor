@@ -4,7 +4,6 @@ import QtQuick.Layouts
 import "ReorderLogic.js" as Logic
 import "MetricsCatalog.js" as Catalog
 import "DiskMetrics.js" as DiskMetrics
-import "DiskColors.js" as DiskColors
 
 // Body of the Metrics config page. Owns the reorderable list, the
 // internal ListModel, and the per-row UI (CheckBox + drag handle +
@@ -27,6 +26,12 @@ ColumnLayout {
     // Platform-injected ColorPicker Component (same contract as
     // AppearanceBody.colorPickerComponent), drives the per-partition swatch.
     property Component colorPickerComponent
+    // The actual shared ring color (resolved from colorTheme/colorMode/custom in
+    // the config wrapper, which has both the Theme adapter and the color config).
+    // Seeds a partition's "inherited" swatch so the preview matches the real ring
+    // even when colorTheme != system (issue #67). Falls back to the theme
+    // highlight until a wrapper injects the resolved value.
+    property color sharedRingColor: body.theme ? body.theme.highlightColor : "#3daee9"
     // Metric ids with a live data source, injected by the platform wrapper.
     // null = unknown → every row enable-able (see isMetricAvailable).
     property var availableMetrics: null
@@ -159,13 +164,25 @@ ColumnLayout {
     // Per-partition custom ring color (issue #67). "" = no override → the
     // partition inherits the shared ring color; clearing drops it back there.
     function partitionColor(id) {
-        return DiskColors.colorFor(body.partitionColorsJson, id);
+        return DiskMetrics.colorFor(body.partitionColorsJson, id);
     }
     function setPartitionColor(id, color) {
-        body.partitionColorsJson = DiskColors.withColor(body.partitionColorsJson, id, color);
+        body.partitionColorsJson = DiskMetrics.withColor(body.partitionColorsJson, id, color);
     }
     function clearPartitionColor(id) {
-        body.partitionColorsJson = DiskColors.withoutColor(body.partitionColorsJson, id);
+        body.partitionColorsJson = DiskMetrics.withoutColor(body.partitionColorsJson, id);
+    }
+
+    // Bound the color map to the referenced partitions (enabled ∪ order), same
+    // as _refreshLabelCache does for the label cache — so a custom color can't
+    // outlive its partition. Unchecking keeps the color (the partition stays in
+    // `order`, still referenced); only a partition dropped from both lists (e.g.
+    // removeStalePartition) is pruned. No-op guard mirrors _refreshLabelCache.
+    function _refreshColorMap() {
+        const next = DiskMetrics.pruneMap(body.partitionColorsJson, body._referencedPartitionIds());
+        if (next === body.partitionColorsJson || (next === "{}" && body.partitionColorsJson === ""))
+            return;
+        body.partitionColorsJson = next;
     }
 
     function currentPartitionOrder() {
@@ -249,14 +266,19 @@ ColumnLayout {
         loadPartitionOrder();
         _seedDefaultIfEmpty();
         _refreshLabelCache();
+        _refreshColorMap();
     }
-    onEnabledPartitionsCsvChanged: _refreshLabelCache()
+    onEnabledPartitionsCsvChanged: {
+        _refreshLabelCache();
+        _refreshColorMap();
+    }
     onDefaultPartitionIdsChanged: _seedDefaultIfEmpty()
     Component.onCompleted: {
         loadOrder();
         loadPartitionOrder();
         _seedDefaultIfEmpty();
         _refreshLabelCache();
+        _refreshColorMap();
     }
 
     Layout.fillWidth: true

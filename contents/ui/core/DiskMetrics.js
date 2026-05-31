@@ -37,9 +37,17 @@
 //   stalePartitions(enabledCsv, orderCsv, discovered, labelCacheJson)
 //                                       - configured ids no longer present
 //                                         (unplugged), each {id, label}.
-//   parseLabelCache / serializeLabelCache / mergeLabelCache
-//                                       - the UUID→label cache backing the
+//   parseUuidMap / serializeUuidMap / pruneMap
+//                                       - generic tolerant UUID→string JSON map
+//                                         primitives, shared by the label cache
+//                                         AND the per-partition color map below.
+//   mergeLabelCache                     - the UUID→label cache backing the
 //                                         friendly name on stale rows.
+//   colorFor / withColor / withoutColor / resolveRingColors
+//                                       - the per-partition disk ring color map
+//                                         (UUID→#rrggbb), issue #67. A partition
+//                                         with no entry inherits the shared ring
+//                                         color (resolveRingColors' fallback).
 //   isRemovableMount(mountpoint)        - true when a filesystem's mountpoint
 //                                         marks it as user-plugged removable
 //                                         media (auto-show / auto-check).
@@ -259,7 +267,7 @@ function stalePartitions(enabledCsv, orderCsv, discovered, labelCacheJson) {
     var present = {};
     for (var i = 0; i < discovered.length; i++)
         present[discovered[i].id] = true;
-    var cache = parseLabelCache(labelCacheJson);
+    var cache = parseUuidMap(labelCacheJson);
     var seen = {};
     var out = [];
     var sources = [orderCsv, enabledCsv];
@@ -279,9 +287,10 @@ function stalePartitions(enabledCsv, orderCsv, discovered, labelCacheJson) {
     return out;
 }
 
-// Parse the persisted UUID→label cache. Tolerates empty / malformed JSON (a
-// hand-edited config or a partial write) by returning {} rather than throwing.
-function parseLabelCache(json) {
+// Parse a persisted UUID→string JSON map (label cache OR color map). Tolerates
+// empty / malformed JSON (a hand-edited config or a partial write) by returning
+// {} rather than throwing.
+function parseUuidMap(json) {
     if (!json)
         return {};
     try {
@@ -292,10 +301,10 @@ function parseLabelCache(json) {
     }
 }
 
-// Serialize with sorted keys so an unchanged cache always produces the SAME
+// Serialize with sorted keys so an unchanged map always produces the SAME
 // string — assigning it back to the bridged property is then a no-op and
 // doesn't trigger a spurious config write on every discovery pass.
-function serializeLabelCache(obj) {
+function serializeUuidMap(obj) {
     obj = obj || {};
     var keys = Object.keys(obj).sort();
     var ordered = {};
@@ -311,7 +320,7 @@ function serializeLabelCache(obj) {
 function mergeLabelCache(prevJson, discovered, referencedIds) {
     discovered = discovered || [];
     referencedIds = referencedIds || [];
-    var prev = parseLabelCache(prevJson);
+    var prev = parseUuidMap(prevJson);
     var labelOf = {};
     for (var i = 0; i < discovered.length; i++)
         labelOf[discovered[i].id] = discovered[i].label;
@@ -327,7 +336,67 @@ function mergeLabelCache(prevJson, discovered, referencedIds) {
         else if (prev.hasOwnProperty(id))
             out[id] = prev[id];
     }
-    return serializeLabelCache(out);
+    return serializeUuidMap(out);
+}
+
+// Drop every entry whose id is not in keepIds, returning the re-serialized map.
+// Bounds the per-partition color map to the referenced partitions (enabled ∪
+// order) so a custom color can't outlive its partition — same "can't grow
+// without bound" guarantee mergeLabelCache gives the label cache (issue #67).
+function pruneMap(json, keepIds) {
+    var map = parseUuidMap(json);
+    var keep = {};
+    var ids = keepIds || [];
+    for (var i = 0; i < ids.length; i++)
+        keep[ids[i]] = true;
+    var out = {};
+    var keys = Object.keys(map);
+    for (var j = 0; j < keys.length; j++) {
+        if (keep[keys[j]])
+            out[keys[j]] = map[keys[j]];
+    }
+    return serializeUuidMap(out);
+}
+
+// ── Per-partition disk ring color map (UUID→#rrggbb), issue #67 ──────────────
+// Each selected filesystem can carry its own ring color; a partition with no
+// entry inherits the shared ring color. Built on the parseUuidMap /
+// serializeUuidMap primitives above (no separate module — the dual-load
+// convention forbids a .js importing a sibling .js, so the color map lives here
+// beside the label cache it shares its plumbing with).
+
+// The stored color for `id`, or "" when none is set (caller falls back to the
+// shared ring color). Guards against a non-string value from a hand-edited config.
+function colorFor(json, id) {
+    var c = parseUuidMap(json)[id];
+    return (typeof c === "string" && c.length > 0) ? c : "";
+}
+
+function withColor(json, id, color) {
+    var map = parseUuidMap(json);
+    map[id] = String(color);
+    return serializeUuidMap(map);
+}
+
+function withoutColor(json, id) {
+    var map = parseUuidMap(json);
+    if (Object.prototype.hasOwnProperty.call(map, id))
+        delete map[id];
+    return serializeUuidMap(map);
+}
+
+// One color per id, aligned to the `ids` array (the rendered disk-ring set,
+// outermost first): the stored override when present, else `fallback` (the
+// shared ring color resolved by the caller). Drives Ring.equalColors.
+function resolveRingColors(ids, json, fallback) {
+    ids = ids || [];
+    var map = parseUuidMap(json);
+    var out = [];
+    for (var i = 0; i < ids.length; i++) {
+        var c = map[ids[i]];
+        out.push((typeof c === "string" && c.length > 0) ? c : fallback);
+    }
+    return out;
 }
 
 if (typeof module !== "undefined" && module.exports) {
@@ -339,9 +408,14 @@ if (typeof module !== "undefined" && module.exports) {
         filterToMounted: filterToMounted,
         isPartitionShown: isPartitionShown,
         stalePartitions: stalePartitions,
-        parseLabelCache: parseLabelCache,
-        serializeLabelCache: serializeLabelCache,
+        parseUuidMap: parseUuidMap,
+        serializeUuidMap: serializeUuidMap,
+        pruneMap: pruneMap,
         mergeLabelCache: mergeLabelCache,
+        colorFor: colorFor,
+        withColor: withColor,
+        withoutColor: withoutColor,
+        resolveRingColors: resolveRingColors,
         isRemovableMount: isRemovableMount,
     };
 }

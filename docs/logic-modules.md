@@ -350,31 +350,12 @@ subset in display order is done with `MetricsCatalog.filterByOrder`
 | `filterToMounted(partitions, mountedIds)` | Keep only the `partitions` whose `id` is in the live `mountedIds` set (from `findmnt`); empty/absent `mountedIds` → passthrough (no live data yet). Gates the Plasma config picker: ksysguard's `SensorTreeModel` freezes on unmount and a *fresh* instance is also stale at the daemon level ([#58](https://github.com/manuacl/ring-monitor/issues/58)), so raw `availablePartitions` would offer an unplugged disk as a live checkbox. The picker feeds the filtered list to `stalePartitions` too, so a still-configured unmounted partition then surfaces as a greyed stale row instead. Exposed as `MetricsBackend.mountedAvailablePartitions`. |
 | `isPartitionShown(id, removableIds, enabledIds, optOutIds)` | The picker checkbox's `checked` rule, so the box reflects ring **visibility**: a removable (`id ∈ removableIds`) is shown unless opted out (auto-show); a fixed disk is shown iff manually enabled. Per-partition mirror of `resolveDiskRingIds` membership for a mounted partition (no maxCount/default). The toggle is the inverse — `MetricsBody.setPartitionEnabled` writes the opt-out list for a removable, the manual selection for a fixed disk. |
 | `stalePartitions(enabledCsv, orderCsv, discovered, labelCacheJson)` | Configured ids no longer discovered (the disk was unplugged) — returned as `[{id, label}]`, order-CSV ids first then enabled-only, deduped. `label` comes from the cache, falling back to the bare UUID. Drives the greyed "no longer connected" rows in the picker (issue #49). |
-| `parseLabelCache` / `serializeLabelCache` / `mergeLabelCache` | The UUID→label cache backing the friendly name on stale rows. `mergeLabelCache(prev, discovered, referencedIds)` keeps the fresh discovered label, else the last-known one (so an unplugged partition keeps its name), and is **bounded to `enabled ∪ order`** so it can't grow unbounded. `serializeLabelCache` sorts keys so an unchanged cache round-trips to the same string — no spurious config write per discovery pass. |
+| `parseUuidMap` / `serializeUuidMap` / `pruneMap` | Generic tolerant UUID→string JSON-map primitives, shared by the label cache **and** the per-partition color map. `parseUuidMap` returns `{}` on empty/malformed input; `serializeUuidMap` sorts keys so an unchanged map round-trips to the same string (no spurious config write); `pruneMap(json, keepIds)` drops entries whose id isn't in `keepIds`, bounding a map to the referenced partitions. |
+| `mergeLabelCache(prev, discovered, referencedIds)` | The UUID→label cache backing the friendly name on stale rows: keeps the fresh discovered label, else the last-known one (so an unplugged partition keeps its name), **bounded to `enabled ∪ order`** so it can't grow unbounded. |
+| `colorFor` / `withColor` / `withoutColor` / `resolveRingColors` | The **per-partition disk ring color** map (UUID→`#rrggbb`, issue #67). `colorFor(json, id)` → the stored color or `""` (→ inherit the shared color); `withColor`/`withoutColor` are immutable set/remove (`MetricsBody.setPartitionColor`/`clearPartitionColor` write through them); `resolveRingColors(ids, json, fallback)` returns colors aligned to `ids` (outermost first), the override where set else `fallback` (the shared ring color) — drives `Ring.equalColors` via `MainContent._diskColors`. One fixed color per disk (no light/dark pair); un-overridden partitions still track light/dark through the fallback. The color map is bounded to `enabled ∪ order` via `pruneMap` (`MetricsBody._refreshColorMap`), so a color can't outlive its partition. |
 | `isRemovableMount(mountpoint)` | `true` when a filesystem's mountpoint marks it as user-plugged removable media — KDE/udisks2 auto-mounts those under `/run/media/<user>/` (older / non-KDE setups: `/media/<user>/`); fixed disks mount under `/`, `/boot`, `/var`, … It's a strict prefix test (`/var/media/...` is **not** removable). The only removable signal available on Plasma (ksysguard exposes no removable flag), and the standalone `/proc/mounts` path sees the same mountpoints, so both platforms classify identically through this one helper. |
 
-Covered by `tests/disk-metrics.test.mjs`.
-
-## `DiskColors.js`
-
-Shared (`core/`) helpers for the **per-partition disk ring color** (issue
-#67). The disk metric can give each selected filesystem its own ring color,
-stored as a JSON map of partition id (UUID) → color string. A partition with
-no entry inherits the shared ring color, so "disabling" a custom color is
-just removing its entry. One fixed color per disk (no light/dark pair) —
-partitions without an override still track the live light/dark scheme through
-the shared fallback. Same tolerant-parse / sorted-key-serialize shape as
-`DiskMetrics`' label cache, so an unchanged map round-trips to the same string
-(no spurious config write).
-
-| Function | Purpose |
-|---|---|
-| `parseColors(json)` / `serializeColors(obj)` | JSON ⇄ `{id: "#rrggbb"}` map. Parse tolerates empty/malformed input (→ `{}`); serialize sorts keys for a stable string. |
-| `colorFor(json, id)` | The stored color for `id`, or `""` when unset / non-string. |
-| `withColor(json, id, color)` / `withoutColor(json, id)` | Immutable set / remove of one partition's color, returning the new JSON. `MetricsBody.setPartitionColor` / `clearPartitionColor` write through these. |
-| `resolveRingColors(ids, json, fallback)` | Array of colors aligned to `ids` (the rendered disk-ring set, outermost first): the stored override where set, else `fallback` (the shared ring color). Drives `Ring.equalColors` via `MainContent._diskColors`. |
-
-Covered by `tests/disk-colors.test.mjs`.
+Covered by `tests/disk-metrics.test.mjs` (+ `tests/disk-colors.test.mjs` for the color-map + `pruneMap` layer). The color map lives here, not in a separate `DiskColors.js`, because the dual-load convention (Node `--test` + QML) forbids a `.js` importing a sibling `.js` — so sharing the `parseUuidMap`/`serializeUuidMap` plumbing requires living in the same file (same reason `parseCsv` is duplicated rather than imported).
 
 > New shared `core/*.{js,qml}` **and** `platforms/standalone/*.{js,qml}`
 > files must be added to the `QML_FILES` list in `CMakeLists.txt` — the

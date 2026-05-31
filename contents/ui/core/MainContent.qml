@@ -3,7 +3,6 @@ import QtQuick.Layouts
 import "MetricsCatalog.js" as Catalog
 import "ColorThemes.js" as ColorThemes
 import "DiskMetrics.js" as DiskMetrics
-import "DiskColors.js" as DiskColors
 import "RingGeometry.js" as Geom
 
 // Body of the plasmoid's fullRepresentation. Renders the active rings
@@ -95,7 +94,7 @@ GridLayout {
     // each partition's custom color, or the shared _ringColor when it has none
     // (issue #67). diskPartitionColors only exists once both adapters expose it;
     // the `|| ""` keeps older configStores rendering on the shared color.
-    readonly property var _diskColors: DiskColors.resolveRingColors(content._diskSelectedIds, content.configStore.diskPartitionColors || "", content._ringColor)
+    readonly property var _diskColors: DiskMetrics.resolveRingColors(content._diskSelectedIds, content.configStore.diskPartitionColors || "", content._ringColor)
 
     columns: vertical ? 1 : count
     // Spacing between rings is configurable as a percentage of

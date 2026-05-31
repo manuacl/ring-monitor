@@ -2,6 +2,7 @@ import QtQuick
 import org.kde.kcmutils as KCM
 import "platforms/plasma" as Platform
 import "core" as Core
+import "core/ColorThemes.js" as ColorThemes
 
 // Plasma-side wrapper for the Metrics config page. All of the
 // rendering, the orderModel, and the toggle/reorder logic live in
@@ -110,6 +111,11 @@ KCM.SimpleKCM {
         id: body
         theme: themeAdapter
         colorPickerComponent: colorPickerComponent
+        // Resolve the actual shared ring color so a partition's "inherited"
+        // swatch previews what the ring really shows. The color config lives on
+        // the Appearance page, but KDE bug 484541 means Plasma sets every cfg_*
+        // on this page too — so the placeholders above carry the live values.
+        sharedRingColor: ColorThemes.resolveColor(page.cfg_colorTheme || "system", ColorThemes.effectiveIsDark(page.cfg_colorMode || "auto", themeAdapter.isDarkMode), themeAdapter.highlightColor, page.cfg_customColorLight || "#3daee9", page.cfg_customColorDark || "#3daee9")
         // Mount-gated list (not the raw availablePartitions): an unplugged disk
         // ksysguard still lists (#58 frozen tree) drops from the selectable
         // picker and, if still configured, surfaces as a greyed stale row.

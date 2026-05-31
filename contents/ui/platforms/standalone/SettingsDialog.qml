@@ -6,6 +6,7 @@ import org.kde.kirigami as Kirigami
 import RingMonitor.Standalone
 import "DiskDiscovery.js" as DiskDiscovery
 import "../../core/DiskMetrics.js" as DiskMetrics
+import "../../core/ColorThemes.js" as ColorThemes
 import "../../core" as Core
 
 // Standalone counterpart of the Plasma config dialog
@@ -191,6 +192,9 @@ Window {
                     id: metricsBody
                     theme: dialog.theme
                     colorPickerComponent: colorPickerComponent
+                    // Actual shared ring color so an un-overridden partition's
+                    // swatch previews what the ring shows (issue #67).
+                    sharedRingColor: dialog.configStore && dialog.theme ? ColorThemes.resolveColor(dialog.configStore.colorTheme, ColorThemes.effectiveIsDark(dialog.configStore.colorMode, dialog.theme.isDarkMode), dialog.theme.highlightColor, dialog.configStore.customColorLight, dialog.configStore.customColorDark) : "#3daee9"
                     diskPartitions: dialog._diskPartitions
                     removablePartitions: dialog._removablePartitions
                     defaultPartitionIds: dialog._defaultPartitionIds

@@ -78,11 +78,17 @@ For the Metrics page, `MetricsBody` additionally owns:
 - the **per-partition disk ring color** (issue #67): the body holds the
   `partitionColorsJson` map (bridged to `cfg_diskPartitionColors`) and exposes
   `partitionColor` / `setPartitionColor` / `clearPartitionColor` (thin
-  delegations to `DiskColors`); `removeStalePartition` also forgets a removed
-  partition's color. The picker view itself is the separate
+  delegations to `DiskMetrics`' color helpers). `_refreshColorMap` bounds the
+  map to `enabled ∪ order` (via `DiskMetrics.pruneMap`) on every refresh, the
+  same way `_refreshLabelCache` bounds the label cache — so a color can't
+  outlive its partition (unchecking keeps it; a removed partition's color is
+  pruned). The picker view itself is the separate
   [`DiskPartitionPicker.qml`](#diskpartitionpickerqml) — the body injects itself
   as that component's `controller`. The body takes a `colorPickerComponent`
-  (same injection contract as `AppearanceBody`) for the per-row swatch.
+  (same injection contract as `AppearanceBody`) for the per-row swatch, and a
+  `sharedRingColor` (the resolved shared color, injected by the config wrapper
+  which has both the Theme adapter and the color config) so an un-overridden
+  partition's swatch previews the real ring color even when `colorTheme != system`.
 
 **No Plasma writes happen inside the body** — the body only ever
 writes to its own properties; the alias propagates the change to
@@ -220,7 +226,7 @@ A circular gauge: 270° arc starting at 135° (90° gap at the bottom).
 | `textOpacity` / `trackOpacity` / `arcOpacity` | `1.0` / `0.15` / `1.0` | per-layer opacity |
 | `nestedValues` | `[]` | optional 0–100 array → thin concentric rings nested *inside* the main ring (CPU cores) |
 | `equalValues` | `[]` | optional 0–100 array → equal-thickness concentric rings that *replace* the main arc, one per selected disk partition. When non-empty the main/split arcs hide and the centre shows `rawValue` (the parent passes the partition average). Distinct from `nestedValues`, which keeps the main ring. |
-| `equalColors` | `[]` | optional per-index colors aligned to `equalValues` (issue #67) — entry `i` colors ring `i`; a missing/empty entry falls back to `ringColor`. Default `[]` keeps every disk ring on the shared color. `MainContent` fills it from `DiskColors.resolveRingColors`. |
+| `equalColors` | `[]` | optional per-index colors aligned to `equalValues` (issue #67) — entry `i` colors ring `i`; a missing/empty entry falls back to `ringColor`. Default `[]` keeps every disk ring on the shared color. `MainContent` fills it from `DiskMetrics.resolveRingColors`. |
 | `rawValue` | `NaN` | optional override for the centre text — when finite, the ring shows `Math.round(rawValue) + unit` instead of `value + unit`. Used by temperature rings where `value=tempToPercent(°C)` drives the sweep but the user reads the raw °C / °F. |
 | `splitMode` | `false` | split the ring at the top into two half-arcs (see below) |
 | `splitValue` | `0` | percentage (0–100) for the right half — usually a `tempToPercent(°C)` mapping |
@@ -387,7 +393,7 @@ bolting that onto `MetricRow` would break its ISP.
 | `checked` | checkbox state (available variant only) |
 | `colorPickerComponent` | platform-injected ColorPicker `Component` for the per-partition color swatch (available variant); absent → no swatch |
 | `customColor` | the partition's stored ring color (`""` = none → inherits `inheritedColor`); issue #67 |
-| `inheritedColor` | the swatch's "unset" hint (the shared ring color, approximated by the theme highlight in the picker context) |
+| `inheritedColor` | the swatch's "unset" hint — the actual resolved shared ring color (`MetricsBody.sharedRingColor`, injected by the config wrapper), so the preview matches the real ring even when `colorTheme != system` |
 | `unit` / `smallSpacing` / `iconSize` | theme tokens injected by the parent |
 | `toggled(bool on)` | emitted on checkbox click (available variant) |
 | `removeRequested()` | emitted on the trash button (stale variant) |

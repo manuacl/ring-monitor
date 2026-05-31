@@ -18,6 +18,11 @@ user-facing only.
   user-facing CHANGELOG summary (the `## [X.Y.Z]` Added/Changed/Fixed block)
   above GitHub's auto-generated PR list, and the manual "KDE Store upload"
   helper block was dropped from the body.
+- chore(finish-branch): new check (4h-bis) — a bump-labelled (tagged) PR must
+  add a user-facing `### Added`/`### Changed`/`### Fixed` CHANGELOG summary, not
+  just `### Technical` (FAIL for minor/major, WARN for patch), so a release
+  can't ship with its changes stranded under `[Unreleased]` — the gap that
+  forced the v0.8.0 re-cut.
 
 ## [0.8.0] — 2026-05-31
 

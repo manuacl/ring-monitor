@@ -187,6 +187,17 @@ id, label = the volume name shown in the picker), and `canonicalHome()`
 resolves `/home/<user>` → `/var/home/<user>` so `DiskDiscovery` can
 match `$HOME` against the real mountpoints for the default selection.
 
+`listDir()` shares the `/proc` + `/sys` allowlist, but the **bare roots
+`/proc` and `/sys` need an explicit exact-match** alongside the
+`/proc/` / `/sys/` prefix tests: `QDir::cleanPath` strips the trailing
+slash, so both `/proc` and `/proc/` arrive as `/proc` and would miss a
+`startsWith("/proc/")` gate. Process enumeration for the CPU tooltip
+(issue #69) lists the `/proc` root to find pid dirs — without the
+exact-root clause `listDir("/proc")` silently returns `{}` (empty
+tooltip, no error). Any future sensor enumerating a root (e.g. listing
+`/sys` itself) needs the same exact-match + a `tests/proc-reader.test.mjs`
+guard.
+
 ### Disk metric: per-filesystem discovery (multi-partition ring)
 
 The disk ring is **one equal-thickness concentric ring per selected

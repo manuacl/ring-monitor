@@ -144,6 +144,19 @@ re-applies on every value change and survives the self-assign. Canonical use:
 the bug only because it had no external change). Regression-guarded by the
 `SCENARIO_swatch_*` tests in `tst_DiskPartitionPicker.qml` / `tst_AppearanceBody.qml`.
 
+### Reactive argless data: expose as a `property`, not a `function`
+
+When a component publishes data a view binds to (a list, a snapshot) and
+the getter takes **no argument**, expose it as a `readonly property`, not
+a `function foo()`. A function call is **not a tracked dependency** in a
+QML binding — `model: backend.foo()` evaluates once and never re-runs
+when the underlying data changes, so the view silently freezes. A
+property (even one forwarding a child's property) carries NOTIFY, so the
+binding updates. Bit the #69 tooltip: `topProcesses()` as a function left
+the list frozen; switching it to `readonly property var topProcesses`
+fixed it. Argument-taking getters (`metricValue(id)`) stay functions —
+the caller re-invokes them from a binding that already tracks the arg.
+
 ## Where the platform adapters live
 
 For Plasma-specific concerns (KSysGuard, KConfig, plasmashell quirks,

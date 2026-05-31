@@ -122,6 +122,28 @@ The contract:
 
   Confirmed on real hardware, issue #58.
 
+- **Per-process data is `org.kde.ksysguard.process` `ProcessDataModel`,
+  not a sensor.** Rows = processes, columns = `enabledAttributes` in
+  order; read a cell's raw number via `data(index(row, col),
+  ProcessDataModel.Value)`. Load-bearing gotchas (issue #69, cost a
+  libksysguard-source dig):
+  - The **CPU attribute id is `usage`**, not `cpuUsage` (the latter is
+    silently ignored → empty column). `name` / `pid` / `memory` are as
+    expected.
+  - Read the **`Value`** role for the raw number. The installed
+    processtable face uses `ProcessDataModel.ValueRole`, which **doesn't
+    exist** in the enum (`Value` does) — it resolves to `undefined` →
+    `DisplayRole`, the *formatted* string ("12%"). Don't copy that; use
+    `Value` so you get a number to do math on.
+  - **`usage` is per-core**: a fully-busy thread reads ~100% and the
+    total across processes reaches `coreCount*100` (libksysguard
+    `processes.cpp` divides the jiffy delta by elapsed time only, never
+    by processor count). Divide by the core count for a total 0-100%.
+  - Gate updates with `enabled` (bind it to "tooltip visible") so the
+    process table isn't polled in the background. Load averages are the
+    `cpu/loadaverages/loadaverage{1,5,15}` sensors. Canonical use:
+    `ProcessSampler.qml`.
+
 ## Live light/dark scheme detection: `Qt.styleHints`, not Kirigami
 
 `Kirigami.Theme.backgroundColor` reflects the panel's `Complementary`

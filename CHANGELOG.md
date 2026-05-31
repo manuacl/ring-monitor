@@ -39,7 +39,11 @@ user-facing only.
   six-touch-point pattern: `main.xml`, both `ConfigStore` adapters, the
   `configMetrics` cfg_* bridge (+ 484541 placeholder on `configAppearance`), and
   the standalone `SettingsDialog` `_bridgeMap`; the `ColorPicker` is injected
-  into `MetricsBody` on both hosts.
+  into `MetricsBody` on both hosts. The per-row swatch's color is driven by a
+  `Binding` element (not an imperative `item.color = Qt.binding` in `onLoaded`),
+  so clearing an override reverts the swatch even after the `ColorPicker`'s
+  on-accept `color = selectedColor` self-assignment would otherwise have
+  clobbered the binding.
 - (Part of #7) Native Wayland window path via KDE's **layer-shell-qt** (PR C2).
   On wlroots / KWin Wayland the standalone widget is now a `wlr-layer-shell`
   **bottom-layer** surface (anchored top-right, `KeyboardInteractivityOnDemand`,

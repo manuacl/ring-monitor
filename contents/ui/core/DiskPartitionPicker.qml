@@ -46,6 +46,7 @@ ColumnLayout {
 
         rowContent: Component {
             PartitionRow {
+                objectName: "diskPartitionRow"
                 readonly property string _partId: parent && parent.rowModel ? parent.rowModel.partId : ""
                 partLabel: parent && parent.rowModel ? parent.rowModel.partLabel : ""
                 available: true

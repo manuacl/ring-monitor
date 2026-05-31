@@ -81,13 +81,24 @@ Item {
             onLoaded: {
                 if (!item)
                     return;
-                item.color = Qt.binding(function () {
-                    return row._hasCustomColor ? row.customColor : row.inheritedColor;
-                });
                 item.accepted.connect(function () {
                     row.colorPicked(item.color);
                 });
             }
+        }
+        // Drive the swatch through a Binding element, NOT an imperative
+        // `item.color = Qt.binding(...)` in onLoaded. SCENARIO: the platform
+        // ColorPicker assigns `color = selectedColor` on accept, which clobbers
+        // an imperatively-installed binding — so after picking once, clearing
+        // the override (customColor → "") left the swatch frozen on the old
+        // color while the ring correctly reverted. A Binding re-applies its
+        // value whenever the source changes, surviving that self-assignment.
+        Binding {
+            target: colorButton.item
+            property: "color"
+            value: row._hasCustomColor ? row.customColor : row.inheritedColor
+            when: colorButton.item !== null
+            restoreMode: Binding.RestoreBindingOrValue
         }
         // Clear the override → back to the shared widget color. Only
         // meaningful (and visible) once a custom color is set.

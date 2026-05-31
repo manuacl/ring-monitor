@@ -43,6 +43,8 @@ Item {
     Ui.DiskPartitionPicker {
         id: picker
         controller: controller
+        width: 360
+        height: 200
     }
 
     TestCase {
@@ -88,6 +90,37 @@ Item {
             compare(controller.partitionColor("u-root"), "#ff8800");
             controller.clearPartitionColor("u-root");
             compare(controller.partitionColor("u-root"), "", "cleared → back to the general color");
+        }
+
+        // SCENARIO: after picking a color once, clearing the override updated
+        // the ring but left the picker SWATCH frozen on the old color. The
+        // platform ColorPicker assigns `color = selectedColor` on accept, which
+        // clobbered the swatch's imperatively-installed `item.color` binding — so
+        // a later external change (the clear button → customColor "") no longer
+        // reached the swatch. PartitionRow now drives the swatch via a Binding
+        // element that survives the self-assign. This walks the rendered row by
+        // objectName (immune to DraggableList's internal delegate structure).
+        function test_SCENARIO_swatch_reverts_after_pick_then_clear() {
+            controller.diskPartitions = [{ id: "u-root", label: "root" }];
+            wait(20);
+            const rowItem = findChild(picker, "diskPartitionRow");
+            verify(rowItem !== null, "the partition row must render (found by objectName)");
+            const swatch = rowItem._colorButton.item;
+            verify(swatch !== null, "the color swatch must load");
+
+            // Pick a color: the controller records it AND the real picker
+            // self-assigns swatch.color on accept — simulate that clobber here
+            // (the test stub doesn't self-assign).
+            controller.setPartitionColor("u-root", "#ff8800");
+            swatch.color = "#ff8800";
+            tryCompare(rowItem, "customColor", "#ff8800", 1000);
+
+            // Clear → the swatch MUST revert to the inherited color despite the
+            // earlier self-assign that clobbered the initial binding.
+            controller.clearPartitionColor("u-root");
+            tryCompare(rowItem, "customColor", "", 1000);
+            tryCompare(swatch, "color", fakeTheme.highlightColor, 1000, "swatch reverts to the inherited color after clear");
+            verify(!rowItem._clearColorButton.visible, "clear button hides once the override is gone");
         }
     }
 }

@@ -135,10 +135,14 @@ user-facing only.
   `standalone`/`plasma`-`process-sampler` guards, backend surface mirrors,
   `tst_ProcessTooltip.qml`.
 - Review hardening: load-average sensors gated on `active` (no background
-  ksysguard subscription); tooltip drops below the ring right-aligned (was
-  running off the right screen edge on the standalone top-right anchor);
-  `rankByCpu` coerces `pid` to a number (robust tiebreak) and carries `rssKb`
-  only when present (preserves the not-sampled signal).
+  ksysguard subscription); `rankByCpu` coerces `pid` to a number (robust
+  tiebreak) and carries `rssKb` only when present (preserves the not-sampled
+  signal).
+- Tooltip placement (standalone live-test): the tooltip is a `Window`-type
+  popup (an in-scene popup is clipped to the tiny standalone window),
+  edge-aware (flips side when it would run off the screen — the standalone
+  anchors top-right), with a content-driven width bound to the content's
+  implicit size (a Window popup doesn't auto-adopt it; capped per name).
 
 ### Other
 

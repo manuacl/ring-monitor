@@ -62,22 +62,54 @@ Item {
     QQC2.ToolTip {
         id: tip
         parent: root
+        // A Window-type popup so it ISN'T clipped to the host window. The
+        // standalone window is sized to the rings (tiny), so an in-scene
+        // (Item) popup — the pre-6.8 default — gets cropped to that rect and
+        // only a sliver shows. A Window popup is a separate surface the
+        // compositor keeps on screen. (Qt 6.8+; harmless on Plasma.)
+        popupType: QQC2.Popup.Window
         visible: root.armed && root._show
-        // Drop below the ring, right-aligned to it. The standalone widget
-        // anchors top-RIGHT by default, so growing down-and-left keeps the
-        // tooltip on screen there; `x: root.width` (grow right) ran it off the
-        // right edge (PR #99 review). Clamp x ≥ 0 so a left-edge ring (narrow
-        // Plasma panel) doesn't push it off the left instead.
-        x: Math.max(0, root.width - width)
-        y: root.height
+        // Content-driven width, bound explicitly. A Window-type popup does NOT
+        // auto-adopt its contentItem's implicitWidth the way an in-scene popup
+        // does, so the window collapsed to a sliver and names elided to "k…"
+        // (PR #99 live test). Binding width to col.implicitWidth sizes the
+        // window to the widest row (no loop: a Layout's implicitWidth is its
+        // natural content size, independent of the width we assign back). The
+        // name's maximumWidth caps how far one long name can stretch it. Height
+        // stays implicit (it sized fine).
+        width: col.implicitWidth + leftPadding + rightPadding
+        // Edge-aware placement: prefer below-and-right of the ring, but FLIP to
+        // the opposite side when that side would run off the screen, so the
+        // tooltip stays fully visible wherever the widget sits (the standalone
+        // anchors top-RIGHT by default, where growing right/down overflows).
+        // mapToGlobal gives the ring's on-screen position; Screen.virtual* +
+        // Screen.width/height bound the current monitor. (No Plasma dep — these
+        // are plain QtQuick.) Re-evaluates when the tooltip's width/height
+        // settle after layout.
+        x: {
+            var gx = root.mapToGlobal(0, 0).x;
+            var screenRight = root.Screen.virtualX + root.Screen.width;
+            if (gx + width > screenRight)
+                return root.width - width;  // overflow right → right-align (grow left)
+            return 0;                       // default → left-align (grow right)
+        }
+        y: {
+            var gy = root.mapToGlobal(0, 0).y;
+            var screenBottom = root.Screen.virtualY + root.Screen.height;
+            if (gy + root.height + height > screenBottom)
+                return -height;             // overflow bottom → above the ring
+            return root.height;             // default → below the ring
+        }
 
         contentItem: ColumnLayout {
+            id: col
             spacing: Kirigami.Units.smallSpacing
 
             QQC2.Label {
                 text: qsTr("Top processes — CPU")
                 font: Kirigami.Theme.smallFont
                 opacity: 0.7
+                Layout.fillWidth: true
                 Layout.bottomMargin: Kirigami.Units.smallSpacing
             }
 
@@ -95,7 +127,9 @@ Item {
                         text: procRow.modelData.name
                         elide: Text.ElideRight
                         Layout.fillWidth: true
-                        Layout.maximumWidth: Kirigami.Units.gridUnit * 12
+                        // Cap so one long name can't stretch the tooltip absurdly
+                        // wide; comm names are ≤15 chars so this rarely bites.
+                        Layout.maximumWidth: Kirigami.Units.gridUnit * 14
                     }
                     QQC2.Label {
                         text: "·" + procRow.modelData.pid

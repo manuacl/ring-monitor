@@ -3,6 +3,7 @@ import QtQuick.Window
 import QtQuick.Controls as QQC2
 import RingMonitor.Standalone
 import "../../core" as Core
+import "WindowPlacement.js" as WindowPlacement
 
 // Standalone root window — counterpart to the PlasmoidItem in
 // contents/ui/main.qml. Frameless, transparent, sized to the rings'
@@ -46,13 +47,16 @@ Window {
     readonly property int _ringSpacingPercent: (configStoreAdapter.ringSpacingPercent !== undefined) ? configStoreAdapter.ringSpacingPercent : 7
     readonly property int _gridSpacing: Math.round(_ringSize * _ringSpacingPercent / 100)
     readonly property int _stripLength: _ringSize * content.count + (content.count - 1) * _gridSpacing
-    // Screen-edge inset (px). Subtracts from the available cap so the
-    // window fits within `Screen - 2*margin` along each axis and the
-    // anchor leaves `margin` pixels of wallpaper between the rings and
-    // the closest screen edge (top + right).
-    readonly property int _windowMargin: (configStoreAdapter.windowMargin !== undefined) ? configStoreAdapter.windowMargin : 0
-    readonly property int _targetWidth: Math.min(content.vertical ? _ringSize : _stripLength, Screen.width - 2 * _windowMargin)
-    readonly property int _targetHeight: Math.min(content.vertical ? _stripLength : _ringSize, Screen.height - 2 * _windowMargin)
+    // Window placement: which screen corner to anchor to, plus the
+    // per-axis inset (px) from that corner's edges. The cap subtracts the
+    // anchored-axis margin so the window always fits between the corner
+    // and the opposite edge. Defaults (top-right, 0, 0) reproduce the
+    // historic anchor. Math lives in WindowPlacement.js.
+    readonly property string _corner: configStoreAdapter.windowAnchorCorner || "top-right"
+    readonly property int _marginX: (configStoreAdapter.windowMarginX !== undefined) ? configStoreAdapter.windowMarginX : 0
+    readonly property int _marginY: (configStoreAdapter.windowMarginY !== undefined) ? configStoreAdapter.windowMarginY : 0
+    readonly property int _targetWidth: Math.min(content.vertical ? _ringSize : _stripLength, Screen.width - _marginX)
+    readonly property int _targetHeight: Math.min(content.vertical ? _stripLength : _ringSize, Screen.height - _marginY)
     // On the native-Wayland (layer-shell) path the window must stay
     // hidden until its layer surface is configured — the wlr-layer-shell
     // role is assigned when the wl_surface is created on show(), so
@@ -61,10 +65,10 @@ Window {
     // the window shows during load exactly as before.
     visible: !WaylandLayerShell.active
 
-    // Top-right anchored at the very edge of the screen (y = 0) — the
-    // window is always-on-bottom so any Plasma panel at the top draws
-    // over the first few rows of pixels; the user accepted this
-    // trade-off ("toujours à 0px du haut") to maximise vertical room.
+    // Anchored to a user-chosen screen corner (default top-right) with a
+    // per-axis margin (issue #98) — the window is always-on-bottom so any
+    // Plasma panel along an anchored edge draws over the first few rows of
+    // pixels; the user accepted that trade-off to maximise room.
     //
     // Geometry has to be applied as one atomic xcb_configure_window
     // (X|Y|WIDTH|HEIGHT mask + StaticGravity) — see QTBUG-57608 and
@@ -87,15 +91,17 @@ Window {
             // Native Wayland: the compositor positions the surface from
             // the layer-shell anchors + margins, so there's no x/y and
             // none of the QTBUG-57608 atomic-setGeometry gravity dance
-            // (that's an X11-only problem). Configure while still hidden,
-            // then show. Re-runs (margin-slider drag, screen reconfig)
-            // re-commit margins + size live — `visible = true` is then a
-            // harmless no-op.
-            WaylandLayerShell.configure(root, root._windowMargin, root._windowMargin, root._targetWidth, root._targetHeight);
+            // (that's an X11-only problem). The corner picks which edges
+            // to anchor to; margins inset from them. Configure while still
+            // hidden, then show. Re-runs (slider drag, screen reconfig)
+            // re-commit live — `visible = true` is then a harmless no-op.
+            var spec = WindowPlacement.cornerToAnchorSpec(root._corner);
+            WaylandLayerShell.configure(root, spec.left, spec.top, root._marginX, root._marginY, root._targetWidth, root._targetHeight);
             root.visible = true;
             return;
         }
-        WindowAnchor.setGeometry(root, Screen.width - root._targetWidth - root._windowMargin, root._windowMargin, root._targetWidth, root._targetHeight);
+        var origin = WindowPlacement.computeX11Origin(root._corner, Screen.width, Screen.height, root._targetWidth, root._targetHeight, root._marginX, root._marginY);
+        WindowAnchor.setGeometry(root, origin.x, origin.y, root._targetWidth, root._targetHeight);
     }
     // Defer the first anchor so `applyDesktopWindowHints` (called
     // from main.cpp right after `engine.loadFromModule` returns) has
@@ -123,12 +129,18 @@ Window {
         function on_TargetHeightChanged() {
             Qt.callLater(root._anchor);
         }
-        // `_windowMargin` shifts the anchor (x/y origin) without
+        // Corner + margins shift the anchor (x/y origin) without
         // necessarily changing _target{Width,Height} — at the default
         // ringSize the screen-cap doesn't kick in, so the width/height
-        // signals never fire. Listen to the margin directly so a
-        // slider move always re-anchors.
-        function on_WindowMarginChanged() {
+        // signals never fire. Listen to each directly so a placement
+        // change always re-anchors.
+        function on_CornerChanged() {
+            Qt.callLater(root._anchor);
+        }
+        function on_MarginXChanged() {
+            Qt.callLater(root._anchor);
+        }
+        function on_MarginYChanged() {
             Qt.callLater(root._anchor);
         }
     }

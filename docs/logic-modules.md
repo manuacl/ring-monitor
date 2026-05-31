@@ -357,6 +357,26 @@ subset in display order is done with `MetricsCatalog.filterByOrder`
 
 Covered by `tests/disk-metrics.test.mjs` (+ `tests/disk-colors.test.mjs` for the color-map + `pruneMap` layer). The color map lives here, not in a separate `DiskColors.js`, because the dual-load convention (Node `--test` + QML) forbids a `.js` importing a sibling `.js` — so sharing the `parseUuidMap`/`serializeUuidMap` plumbing requires living in the same file (same reason `parseCsv` is duplicated rather than imported).
 
+## `WindowPlacement.js`
+
+Standalone-only placement math for the root window (in
+`platforms/standalone/`, beside `Main.qml` — the Plasma panel positions
+its own slot). Resolves the user's `windowAnchorCorner` + `windowMarginX`
+/ `windowMarginY` config into concrete geometry for whichever host path
+is active, and is the single tested source of truth shared by both
+(issue #98).
+
+| Function | Purpose |
+|---|---|
+| `cornerToAnchorSpec(corner)` | `corner` → `{left, top}` booleans (which screen edges the margins inset from; `false` = right / bottom). Unknown corner → top-right. Used by the Wayland layer-shell path: `Main.qml` passes the spec to `wayland_layer_shell.cpp` `configure()`, which maps it to `LayerShellQt` anchor enums + `QMargins`. |
+| `computeX11Origin(corner, screenW, screenH, winW, winH, marginX, marginY)` | Absolute top-left `{x, y}` for the X11 / XWayland path, where the window is a managed toplevel positioned via `WindowAnchor.setGeometry`. Margins inset from the anchored edge; opposite-corner cases subtract the window extent so the content stays on-screen. Callers pass an already screen-capped `winW`/`winH`. |
+
+The corner-set lives here as `CORNERS`; `AppearanceBody.qml` keeps its own
+parallel value array (a core component can't import a `platforms/*`
+module — the plasma-isolation invariant), so the two must stay in sync.
+Covered by `tests/window-placement.test.mjs` (4 corners × margins, the
+pre-#98 top-right parity case, unknown-corner fallback).
+
 > New shared `core/*.{js,qml}` **and** `platforms/standalone/*.{js,qml}`
 > files must be added to the `QML_FILES` list in `CMakeLists.txt` — the
 > standalone build compiles each one into the `RingMonitor.Standalone`

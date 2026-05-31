@@ -12,6 +12,38 @@ user-facing only.
 
 ## [Unreleased]
 
+### Added
+
+- Standalone: choose which screen corner the window anchors to — top-left,
+  top-right, bottom-left or bottom-right — with independent horizontal and
+  vertical margins, under Settings → Appearance. The window can now sit in
+  any corner instead of only top-right, and the placement persists across
+  launches (#98).
+
+### Changed
+
+- Standalone: the single "Screen margin" setting is replaced by an anchor
+  corner plus horizontal/vertical margins. An existing custom margin is not
+  migrated — re-set the position with the new controls after updating.
+
+### Technical
+
+- feat(standalone): configurable window placement (#98). Replaced the single
+  `windowMargin` key with `windowAnchorCorner` (top-left / top-right /
+  bottom-left / bottom-right, default top-right) + `windowMarginX` /
+  `windowMarginY`, so the standalone window can anchor to any screen corner
+  with a per-axis inset instead of being pinned top-right. The corner →
+  origin (X11) and corner → anchor-edges (Wayland layer-shell) math is a new
+  pure module `platforms/standalone/WindowPlacement.js`
+  (`tests/window-placement.test.mjs`), shared as the single source
+  of truth by both host paths. `Main.qml._anchor()` reads it for
+  `WindowAnchor.setGeometry`; `wayland_layer_shell.cpp` `configure()` now
+  takes the chosen edges + X/Y margins and maps them to LayerShellQt anchors.
+  `AppearanceBody` swaps the screen-margin slider for an anchor-corner combo +
+  two margin sliders, gated by the renamed `windowPlacementVisible`. Defaults
+  reproduce the pre-#98 top-right anchor byte-for-byte. **Breaking (config):**
+  a custom `windowMargin` is not migrated — re-set it via the new sliders.
+
 ### Other
 
 - docs/tooling: lift the "bump only at Plasma milestones; standalone work is

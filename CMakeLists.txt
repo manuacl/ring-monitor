@@ -118,6 +118,7 @@ qt_add_qml_module(ring-monitor-standalone
         contents/ui/platforms/standalone/CpuTempDiscovery.js
         contents/ui/platforms/standalone/GpuDiscovery.js
         contents/ui/platforms/standalone/DiskDiscovery.js
+        contents/ui/platforms/standalone/WindowPlacement.js
         contents/ui/core/Ring.qml
         contents/ui/core/ConcentricArc.qml
         contents/ui/core/MainContent.qml

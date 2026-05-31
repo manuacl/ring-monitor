@@ -112,7 +112,7 @@ panel container may ignore them):
   `true`. The Plasma wrapper leaves it default because on the desktop
   containment the user-dragged frame overrides the implicit size, so
   the slider looks inert once the widget is placed. Unlike
-  `ringSpacingPercent` / `windowMargin`, the Plasma `ConfigStore`
+  `ringSpacingPercent` / the window-placement keys, the Plasma `ConfigStore`
   keeps `ringSize` **bound** (not hardcoded): the value is a
   legitimate frame-overridden implicit size, not an actively-wrong one
   the hardcode needs to neutralise. Same opt-in pattern as
@@ -129,16 +129,26 @@ panel container may ignore them):
   eats into the available area and rings shrink to compensate, so
   the slider would be a visual no-op. Same opt-in pattern as
   `AboutBody.autostartAvailable`.
-- `windowMargin` (Int, 0-200 px) — inset between the rings and the
-  closest screen edge. Used by the standalone window to offset
-  itself from the top-right anchor; the Plasma panel ignores it.
-  The slider that drives this property is hidden by default — the
-  body exposes `windowMarginVisible` (default `false`) which the
-  standalone `SettingsDialog` flips to `true`. The Plasma wrapper
-  leaves it default AND hardcodes `configStore.windowMargin` to `0`
-  (the value is never read on the Plasma side, the hardcode makes
-  the "unused on Plasma" intent explicit). Same opt-in pattern as
-  `AboutBody.autostartAvailable`.
+- Window placement (issue #98) — three keys the standalone window
+  uses to position itself; the Plasma panel ignores all three
+  (plasmashell owns the slot). The corner → origin / anchor math is
+  the pure module `platforms/standalone/WindowPlacement.js`, shared by
+  the X11 and Wayland-layer-shell paths.
+  - `windowAnchorCorner` (String, default `"top-right"`) — which screen
+    corner to anchor to: `top-left` / `top-right` / `bottom-left` /
+    `bottom-right`.
+  - `windowMarginX` (Int, 0-200 px) — inset from the anchored
+    horizontal edge (left or right, per the corner).
+  - `windowMarginY` (Int, 0-200 px) — inset from the anchored vertical
+    edge (top or bottom).
+
+  The controls are hidden by default — the body exposes
+  `windowPlacementVisible` (default `false`) which the standalone
+  `SettingsDialog` flips to `true`. The Plasma wrapper leaves it default
+  AND hardcodes the three keys (`"top-right"`, `0`, `0`); they are never
+  read on the Plasma side, so the hardcode makes the "unused on Plasma"
+  intent explicit. Same opt-in pattern as `AboutBody.autostartAvailable`.
+  Defaults (`top-right`, 0, 0) reproduce the pre-#98 top-right anchor.
 
 ## `MainContent.qml` — implicit dimensions
 

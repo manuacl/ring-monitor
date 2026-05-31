@@ -42,15 +42,18 @@ public:
 
     bool active() const;
 
-    // Configure `window` as a top-right-anchored bottom-layer surface
-    // sized `width`×`height`, inset by `marginTop`/`marginRight`.
-    // The compositor positions the surface from the anchors + margins,
-    // so there is no x/y and no WindowAnchor atomic-setGeometry dance
-    // (that's an X11 / QTBUG-57608 concern). Idempotent and live:
-    // anchors / margins / size re-commit the existing surface, so
-    // calling it on every re-anchor (e.g. a margin-slider drag) works.
-    // No-op when `active()` is false. The FIRST call must run while the
-    // window is still hidden — see the .cpp and Main.qml `_anchor()`.
-    Q_INVOKABLE void configure(QObject *window, int marginTop, int marginRight,
-                               int width, int height);
+    // Configure `window` as a corner-anchored bottom-layer surface sized
+    // `width`×`height`. `anchorLeft`/`anchorTop` pick the anchored edges
+    // (false → right / bottom); `marginX`/`marginY` inset from them. The
+    // corner → edges decision is made in WindowPlacement.js so it stays a
+    // single tested source of truth shared with the X11 path. The
+    // compositor positions the surface from the anchors + margins, so
+    // there is no x/y and no WindowAnchor atomic-setGeometry dance (that's
+    // an X11 / QTBUG-57608 concern). Idempotent and live: anchors /
+    // margins / size re-commit the existing surface, so calling it on
+    // every re-anchor (e.g. a slider drag) works. No-op when `active()` is
+    // false. The FIRST call must run while the window is still hidden —
+    // see the .cpp and Main.qml `_anchor()`.
+    Q_INVOKABLE void configure(QObject *window, bool anchorLeft, bool anchorTop,
+                               int marginX, int marginY, int width, int height);
 };

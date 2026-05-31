@@ -77,8 +77,20 @@
             <max>25</max>
         </entry>
 
-        <entry name="windowMargin" type="Int">
-            <label>Pixels between the rings and the closest screen edge. Used by the standalone window to inset itself from the top-right anchor. No effect inside the Plasma panel (the panel container handles its own placement).</label>
+        <entry name="windowAnchorCorner" type="String">
+            <label>Screen corner the standalone window anchors to: "top-left", "top-right", "bottom-left" or "bottom-right". No effect inside the Plasma panel (the panel container handles its own placement).</label>
+            <default>top-right</default>
+        </entry>
+
+        <entry name="windowMarginX" type="Int">
+            <label>Pixels between the rings and the horizontally-anchored screen edge (left or right, per windowAnchorCorner). Standalone window only.</label>
+            <default>0</default>
+            <min>0</min>
+            <max>200</max>
+        </entry>
+
+        <entry name="windowMarginY" type="Int">
+            <label>Pixels between the rings and the vertically-anchored screen edge (top or bottom, per windowAnchorCorner). Standalone window only.</label>
             <default>0</default>
             <min>0</min>
             <max>200</max>

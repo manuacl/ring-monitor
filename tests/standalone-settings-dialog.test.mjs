@@ -43,7 +43,9 @@ const BRIDGED_KEYS = [
     ["orientation", "orientation"],
     ["ringSize", "ringSize"],
     ["ringSpacingPercent", "ringSpacingPercent"],
-    ["windowMargin", "windowMargin"],
+    ["windowAnchorCorner", "windowAnchorCorner"],
+    ["windowMarginX", "windowMarginX"],
+    ["windowMarginY", "windowMarginY"],
     ["textOpacity", "textOpacity"],
     ["trackOpacity", "trackOpacity"],
     ["arcOpacity", "arcOpacity"],
@@ -78,12 +80,13 @@ test("SettingsDialog forwards backend availableMetrics into the picker", () => {
     assert.match(SOURCE, /availableMetrics\s*:\s*dialog\.availableMetrics/, "MetricsBody.availableMetrics must be bound to the injected dialog.availableMetrics");
 });
 
-test("SettingsDialog opts in to AppearanceBody.windowMarginVisible", () => {
-    // The shared AppearanceBody hides the Screen margin slider by
-    // default — only the standalone Window consumes the property.
-    // Mirrors the autostartAvailable gate on AboutBody. Without this
-    // line the slider would never appear for standalone users.
-    assert.match(SOURCE, /windowMarginVisible\s*:\s*true/, "AppearanceBody.windowMarginVisible must be true so the Screen margin slider renders");
+test("SettingsDialog opts in to AppearanceBody.windowPlacementVisible", () => {
+    // The shared AppearanceBody hides the window-placement controls
+    // (anchor corner + X/Y margins) by default — only the standalone
+    // Window consumes them. Mirrors the autostartAvailable gate on
+    // AboutBody. Without this line the controls would never appear for
+    // standalone users.
+    assert.match(SOURCE, /windowPlacementVisible\s*:\s*true/, "AppearanceBody.windowPlacementVisible must be true so the placement controls render");
 });
 
 test("SettingsDialog opts in to AppearanceBody.ringSizeVisible", () => {

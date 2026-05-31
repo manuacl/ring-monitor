@@ -261,6 +261,26 @@ percentages from the difference between two samples.
 Covered by `tests/proc-stat-parser.test.mjs` (a `.js` keeps its test
 wherever it lives — the test stays under `tests/`).
 
+## `ProcParser.js`
+
+Lives in `contents/ui/platforms/standalone/` — **standalone-only** (the
+Plasma build sources per-process data from `org.kde.ksysguard.process`
+`ProcessDataModel`). Pure parsers for the CPU-ring process tooltip
+(issue #69): `ProcessSampler.qml` reads `/proc/<pid>/stat`,
+`/proc/loadavg`, and `/proc/stat` via `ProcReader`, hands the raw text
+here, and feeds the result to the shared `core/ProcessRanking.js`.
+Self-contained (the dual-load convention forbids importing the sibling
+`ProcStatParser.js`, so `sumJiffies` is duplicated).
+
+| Function | Purpose |
+|---|---|
+| `parsePidStat(raw)` | `/proc/<pid>/stat` → `{ pid, name, jiffies }` (jiffies = utime + stime; children excluded, matching `top`). Splits `comm` on the **last** `)` so a process name containing spaces/parens (`(Web Content)`, `((sd-pam))`) doesn't shift the field offsets. `null` on malformed / truncated input. |
+| `parseLoadAvg(raw)` | `/proc/loadavg` → `[load1, load5, load15]`; missing/malformed tokens degrade to 0. |
+| `sumJiffies(fields)` | Sum of an aggregate-cpu jiffy array — the system-wide total, the denominator for the "total 0-100%" normalisation (a process's jiffy delta over the whole machine's, so a single pegged core reads ~`100/ncores`% and the rows sum toward the aggregate ring). |
+| `computePercents(prevMap, curMap, totalJiffiesDelta)` | Per-process CPU% over the interval between two pid→record snapshots, for pids present in **both** (a new pid has no prior sample → appears next tick). Clamps a negative delta (pid reuse) to 0 and the result to `[0, 100]`. Ranking + the top-N cap are the caller's job (`core/ProcessRanking.rankByCpu`). |
+
+Covered by `tests/proc-parser.test.mjs`.
+
 ## `MemInfoParser.js`
 
 Pure parser for `/proc/meminfo` plus two percent helpers — one for

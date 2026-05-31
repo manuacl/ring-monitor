@@ -102,6 +102,17 @@ test("ProcReader::listDir shares the read() /proc-/sys allowlist", () => {
         /entryList\([^)]*QDir::NoDotAndDotDot/,
         "listDir must pass QDir::NoDotAndDotDot to entryList",
     );
+    // The bare "/proc" root must be allowed: cleanPath strips the trailing
+    // slash, so "/proc" / "/proc/" both arrive as "/proc" and would miss the
+    // "/proc/" prefix test. Process enumeration for the CPU-ring tooltip
+    // (#69) lists "/proc" itself to find the pid dirs — a future refactor
+    // that drops this exact-root clause silently re-blocks that enumeration
+    // (listDir returns {} → an empty tooltip with no error).
+    assert.match(
+        SRC,
+        /QStringList ProcReader::listDir[\s\S]*?cleaned != QStringLiteral\(\s*"\/proc"\s*\)/,
+        'listDir must allow the bare "/proc" root (pid enumeration, #69)',
+    );
 });
 
 test("ProcReader::read includes <QDir> for cleanPath", () => {

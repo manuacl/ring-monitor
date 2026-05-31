@@ -136,6 +136,21 @@ Item {
         return Catalog.tempToPercent(metricRawTemp(id));
     }
 
+    // ── CPU process tooltip (issue #69) ──────────────────────────────
+    // Same surface as the Plasma adapter; the /proc enumeration lives in the
+    // ProcessSampler child (own ProcReader + Timer, running only while active)
+    // so this adapter stays under the 500-line cap. We just forward.
+    property alias processSamplingActive: processSampler.active
+    readonly property var loadAverages: processSampler.loadAverages
+
+    function topProcesses() {
+        return processSampler.topProcesses;
+    }
+
+    ProcessSampler {
+        id: processSampler
+    }
+
     // ── Disk partitions (multi-ring) ─────────────────────────────────
     //
     // availablePartitions / defaultPartitionIds are rebuilt only when

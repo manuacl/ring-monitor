@@ -838,6 +838,30 @@ Text-guarded by `tests/mount-info.test.mjs` (alongside the pure
 `parseMountPairs` tests) — same reason as the other Plasma adapters: its
 plasma5support import keeps it out of `qmltestrunner`.
 
+### `ProcessSampler.qml` (standalone)
+
+The standalone source for the CPU-ring **process tooltip** (issue #69):
+top processes by CPU%, with a load-average footer. Lives in
+`platforms/standalone/`, instantiated by the standalone `MetricsBackend`
+which forwards its surface (`processSamplingActive` / `topProcesses()` /
+`loadAverages`). The Plasma adapter satisfies the same surface from
+`org.kde.ksysguard.process` `ProcessDataModel` instead.
+
+It owns its own `ProcReader` + 500 ms `Timer`, but the Timer's
+`running` is bound to `active` — so `/proc` enumeration happens **only
+while the tooltip is hovered** (the heaviest read path this build has;
+no background process polling, per the issue). Each tick reads
+`/proc/stat` (the system-wide jiffy denominator), lists `/proc` for pid
+dirs, reads each `/proc/<pid>/stat`, then ranks via
+[`ProcParser.js`](logic-modules.md#procparserjs) +
+[`core/ProcessRanking.js`](logic-modules.md#processrankingjs). CPU% is
+**total-normalised** (0-100%, summing toward the aggregate ring), not
+per-core. The previous snapshot is dropped when `active` flips off so a
+later re-open starts from a fresh baseline (a stale snapshot would yield
+a bogus first delta). Text-guarded by
+`tests/standalone-process-sampler.test.mjs` (its `RingMonitor.Standalone`
+import keeps it out of `qmltestrunner`).
+
 ## Update-notification flow
 
 A widget-side check against GitHub Releases drives a subtle "new

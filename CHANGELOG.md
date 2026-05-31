@@ -14,6 +14,15 @@ user-facing only.
 
 ### Other
 
+- ci: drop `ci.yml` from the `packaging` paths-filter — the AppImage build's
+  logic lives in `scripts/build-*.sh` (still filtered); `ci.yml` only
+  orchestrates them, so a CI-config tweak no longer triggers a wasteful ~6-min
+  AppImage rebuild (companion to the earlier `release.yml` drop).
+- docs(plasma-isolation): mark the standalone build (issue #7) complete in
+  `plan.md` — the "Live status" prose still claimed AMD/Intel GPU sysfs and C2
+  were outstanding, but #82/#84 (GPU), #87 (AppImage) and #88 (native Wayland
+  layer-shell) all shipped through v0.8.0; fills in the C2 PR number and drops
+  the stale `Closes #7`-waits-on note.
 - ci(stats): new `traffic-stats.yml` workflow archives a daily GitHub-traffic
   snapshot (views, clones, per-day CI-run counts, cumulative release downloads)
   to a `stats` orphan branch as CSV, preserving the series past GitHub's 14-day

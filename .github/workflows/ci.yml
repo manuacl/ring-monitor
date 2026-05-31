@@ -68,7 +68,10 @@ jobs:
               - 'packaging/**'
               - 'scripts/**'
               - '.github/workflows/ci.yml'
-              - '.github/workflows/release.yml'
+              # NOT release.yml: the CI AppImage build runs scripts/build-*.sh,
+              # never release.yml (that's tag-time orchestration), so a
+              # release.yml change can't affect this build — listing it only
+              # wasted a ~6-min AppImage rebuild on every release-body tweak.
             changelog:
               - 'CHANGELOG.md'
 

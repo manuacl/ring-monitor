@@ -19,6 +19,9 @@ user-facing only.
   under a `## What's new` heading) above the PR list, GitHub's auto-generated
   `## What's Changed` heading is relabelled `## Pull requests`, and the manual
   "KDE Store upload" helper block was dropped from the body.
+- ci: drop `release.yml` from the `packaging` paths-filter — the CI AppImage
+  build runs `scripts/build-*.sh`, never `release.yml`, so a release-body tweak
+  no longer triggers a wasteful ~6-min AppImage rebuild.
 - chore(finish-branch): new check (4h-bis) — a bump-labelled (tagged) PR must
   add a user-facing `### Added`/`### Changed`/`### Fixed` CHANGELOG summary, not
   just `### Technical` (FAIL for minor/major, WARN for patch), so a release

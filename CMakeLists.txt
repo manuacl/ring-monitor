@@ -143,6 +143,7 @@ qt_add_qml_module(ring-monitor-standalone
         contents/ui/core/RingGeometry.js
         contents/ui/core/DiskMetrics.js
         contents/ui/core/UpdateCheck.js
+        contents/ui/core/ProcessRanking.js
 )
 
 target_link_libraries(ring-monitor-standalone PRIVATE

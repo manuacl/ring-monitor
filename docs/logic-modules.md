@@ -164,6 +164,31 @@ release happens to be single-scope, every tag is unsuffixed (`"both"`)
 and behaviour matches the pre-#89 widget. Full rationale: issue #89; the
 release-flow details live in [`releasing.md`](releasing.md).
 
+## `ProcessRanking.js`
+
+Pure ranking + formatting for the CPU-ring process tooltip (issue #69),
+shared by both platform adapters. It consumes **already-normalised**
+process records and only sorts + formats — the "total 0-100%" CPU
+normalisation happens at the source (the standalone `/proc/<pid>/stat`
+delta is intrinsically total-normalised over the system-wide jiffy
+delta; the Plasma adapter divides ksysguard's reading by the core
+count), so this module stays platform-agnostic.
+
+Record shape: `{ pid, name, cpuPercent, rssKb? }`. `rssKb` is optional
+and **unused in the v1 CPU tooltip** — it's a forward hook for the
+companion RAM-ring tooltip, which will reuse this same enumeration and
+rank on memory instead (so that issue adds a `rankByMemory` here rather
+than re-plumbing both backends).
+
+| Function | Purpose |
+|---|---|
+| `DEFAULT_LIMIT` | `20` — the issue-#69 cap (top 20 processes). |
+| `rankByCpu(records, limit)` | New array sorted by `cpuPercent` desc, capped to `limit` (default `DEFAULT_LIMIT`). Ties break by `pid` asc so the order is deterministic across ticks (no tooltip flicker). Drops records with no `pid`, coerces NaN/negative/undefined `cpuPercent` to 0, never mutates the input. Non-array input or `limit ≤ 0` → `[]`. |
+| `formatCpuPercent(value)` | `12.34` → `"12.3%"` (one decimal, `top`'s precision). NaN/negative/undefined → `"0.0%"`. |
+| `formatLoadAverages(loads)` | The three kernel load averages → `"0.42  0.55  0.61"` (two decimals, double-space separated). Pads a short/missing array with `0.00`; ignores entries past the first three. The `Load average:` label is added + translated by the QML caller. |
+
+Covered by `tests/process-ranking.test.mjs`.
+
 ## `SensorPicking.js`
 
 Lives in `contents/ui/platforms/plasma/` — it's **plasma-only** (the

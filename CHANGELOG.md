@@ -19,6 +19,12 @@ user-facing only.
   vertical margins, under Settings → Appearance. The window can now sit in
   any corner instead of only top-right, and the placement persists across
   launches (#98).
+- **CPU ring tooltip — top processes.** Hover the CPU ring to see what's
+  using the most CPU right now: up to the 20 heaviest processes, each with
+  its CPU% and PID, plus a load-average footer. CPU% is the share of the
+  whole machine (so the rows sum toward the ring's value). Works on both
+  the Plasma widget and the standalone build. Process data is sampled
+  **only while the tooltip is shown** — nothing runs in the background.
 
 ### Changed
 
@@ -107,6 +113,27 @@ user-facing only.
   two margin sliders, gated by the renamed `windowPlacementVisible`. Defaults
   reproduce the pre-#98 top-right anchor byte-for-byte. **Breaking (config):**
   a custom `windowMargin` is not migrated — re-set it via the new sliders.
+- `core/ProcessRanking.js` — shared, platform-agnostic ranking + formatting
+  (sort desc, top-20 cap, deterministic pid tiebreak, `formatCpuPercent` /
+  `formatLoadAverages`). Carries an optional `rssKb` field as a forward hook
+  for the companion RAM-ring tooltip to reuse the same enumeration.
+- Standalone source `platforms/standalone/ProcessSampler.qml` + `ProcParser.js`:
+  enumerates `/proc`, deltas `utime+stime` over the system-wide jiffy delta
+  (intrinsically total-normalised), reads `/proc/loadavg`. `proc_reader.cpp`
+  now allows `listDir` on the bare `/proc` root (cleanPath stripped the
+  trailing slash) to discover pid dirs.
+- Plasma source `platforms/plasma/ProcessSampler.qml`: `org.kde.ksysguard.process`
+  `ProcessDataModel` (`enabledAttributes: name/pid/usage`, raw `Value` role).
+  ksysguard's `usage` is per-core, so it divides by `coreCount` to match the
+  total-normalised semantics; load averages from `cpu/loadaverages/loadaverage{1,5,15}`.
+- Both `MetricsBackend`s forward `processSamplingActive` / `topProcesses` /
+  `loadAverages`; sampling is gated on the tooltip's hover so neither `/proc`
+  enumeration nor `ProcessDataModel` polls in the background.
+- `core/ProcessTooltip.qml` (hover-driven `QQC2.ToolTip`, sampling starts on
+  enter, shown after a 500 ms delay) wired onto the CPU `Ring` in `MainContent`.
+- Tests: `process-ranking`, `proc-parser`, `proc-reader` (/proc root guard),
+  `standalone`/`plasma`-`process-sampler` guards, backend surface mirrors,
+  `tst_ProcessTooltip.qml`.
 
 ### Other
 

@@ -146,6 +146,7 @@ qt_add_qml_module(ring-monitor-standalone
         contents/ui/core/DiskMetrics.js
         contents/ui/core/UpdateCheck.js
         contents/ui/core/ProcessRanking.js
+        contents/ui/core/ProcessTooltip.qml
 )
 
 target_link_libraries(ring-monitor-standalone PRIVATE

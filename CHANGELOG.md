@@ -12,6 +12,22 @@ user-facing only.
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-05-31
+
+### Added
+
+- **Each disk can now have its own ring colour.** In Settings → Metrics, every
+  disk partition row gets a colour swatch — give a disk a dedicated ring colour,
+  or clear it to fall back to the widget's shared colour. One colour per disk;
+  disks you don't customise keep following your light/dark theme.
+
+### Changed
+
+- **Update notifications now match your build.** The "update available" badge no
+  longer pings you about a release that only changes the other build (Plasma vs.
+  standalone) — you only hear about updates that actually affect the version
+  you're running.
+
 ### Technical
 
 - (#67) Per-partition disk ring colors. Each selected filesystem can be given

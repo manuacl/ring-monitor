@@ -74,13 +74,27 @@ version string in `CMakeLists.txt` or `main.cpp` — it will drift
 behind the pipeline (it did, sitting at `0.5.0` while the store/tags
 moved on).
 
-**Cadence: bump only at milestones.** Intermediate PRs (cleanup,
-fix, refactor) ship with no `bump:*` label. Each bump cuts a GitHub
-release ahead of the *manually-uploaded* KDE Store, and the widget's
-update badge points users at the store — so a stream of intermediate
-bumps leaves store users staring at a perpetual "update available"
-that dead-ends on a store with nothing newer. Bump when you're ready
-to also upload the store in the same pass.
+**Cadence: bump on user-facing value, from either host.** A change a
+user notices — on the **Plasma widget OR the standalone AppImage** —
+warrants a bump (`feat:`→minor, `fix:`→patch); the pipeline tags it with
+the right platform scope (see below). Internal / tooling / CI / docs /
+pure-refactor PRs that deliver nothing to any user ship with no `bump:*`
+label.
+
+The earlier "bump only at Plasma milestones; standalone-only work always
+`bump:none`" gate is **lifted** (2026-05-31). It existed because every
+bump cut a GitHub release ahead of the *manually-uploaded* KDE Store, and
+the widget's update badge points Plasma users at that store — so a
+standalone release left Plasma store users staring at a perpetual "update
+available" that dead-ended on a store with nothing newer. The
+platform-scoped tags below (issue #89) fix that at the source: a `-s`
+release notifies only standalone users, so it no longer dead-ends Plasma
+store users, and standalone features bump normally.
+
+**One residual, Plasma-only:** the KDE Store upload is still manual, so
+when you cut a **Plasma-facing** release (`-p` or unsuffixed), plan to
+upload the store in the same pass to keep the badge honest. This is no
+longer a reason to withhold a bump from standalone work.
 
 The `bump:*` label is applied at PR-creation time by the
 `bump-label` skill (auto-picked from commit subjects). Override with

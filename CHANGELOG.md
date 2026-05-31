@@ -14,6 +14,12 @@ user-facing only.
 
 ### Other
 
+- docs/tooling: lift the "bump only at Plasma milestones; standalone work is
+  always `bump:none`" gate now that platform-scoped release tags (#89) target
+  the update notifications — a standalone release tags `-s` and notifies only
+  standalone users, so it no longer dead-ends Plasma KDE-Store users. Reworded
+  `docs/releasing.md` § Cadence and the `finish-branch` 4h-bis comments; the
+  KDE-Store-sync note narrows to Plasma-facing releases (upload still manual).
 - ci: drop `ci.yml` from the `packaging` paths-filter — the AppImage build's
   logic lives in `scripts/build-*.sh` (still filtered); `ci.yml` only
   orchestrates them, so a CI-config tweak no longer triggers a wasteful ~6-min

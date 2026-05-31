@@ -46,6 +46,19 @@ Item {
             compare(picker.background.color.toString().toLowerCase(), "#3366cc");
         }
 
+        // Opening must seed the dialog from the CURRENT colour (the other
+        // half of the fix). The old code relied on a `selectedColor: color`
+        // binding for this; the fix seeds imperatively in onClicked. Without
+        // it, reopening the picker shows the previous/default selection
+        // instead of the current colour. Drive onClicked via clicked().
+        function test_open_seeds_selection_from_current_color() {
+            picker.color = "#778899";
+            picker.clicked();
+            compare(picker._dialog.selectedColor.toString().toLowerCase(), "#778899",
+                    "dialog selection is seeded from color on open");
+            picker._dialog.reject(); // close so the open dialog doesn't leak into later tests
+        }
+
         // Confirming a pick lands the chosen colour on `color` and fires
         // `accepted` — the contract AppearanceBody's handler depends on. The
         // dialog must be open() for accept() to emit, mirroring the real flow.
@@ -68,10 +81,15 @@ Item {
         function test_selection_not_live_bound_to_color() {
             // Change color WITHOUT first touching selectedColor (an imperative
             // set would break a live binding and mask the bug). A live
-            // `selectedColor: color` binding makes selectedColor follow to
-            // #222222; the imperative-seed fix leaves it untouched.
+            // `selectedColor: color` binding makes selectedColor track each
+            // change; the imperative-seed fix leaves it untouched. Two
+            // distinct values so the guard can't pass by coinciding with the
+            // dialog's default — a live binding would match BOTH.
             pristine.color = "#222222";
-            verify(pristine._dialog.selectedColor.toString().toLowerCase() !== "#222222",
+            const after1 = pristine._dialog.selectedColor.toString().toLowerCase();
+            pristine.color = "#444444";
+            const after2 = pristine._dialog.selectedColor.toString().toLowerCase();
+            verify(after1 !== "#222222" && after2 !== "#444444",
                    "dialog.selectedColor must not track color (a live binding overwrites the user's pick)");
         }
 

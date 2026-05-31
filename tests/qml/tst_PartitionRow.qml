@@ -12,22 +12,41 @@ Item {
     width: 300
     height: 80
 
+    // Stub ColorPicker — same `color` + `accepted` surface as both real
+    // adapters, mirroring tst_AppearanceBody's stub.
+    Component {
+        id: stubColorPicker
+        Item {
+            implicitWidth: 32
+            implicitHeight: 24
+            property color color: "#000000"
+            signal accepted
+        }
+    }
+
     Ui.PartitionRow {
         id: rowAvailable
         partLabel: "root"
         available: true
         checked: true
+        colorPickerComponent: stubColorPicker
+        inheritedColor: "#3daee9"
     }
 
     Ui.PartitionRow {
         id: rowStale
         partLabel: "backups"
         available: false
+        colorPickerComponent: stubColorPicker
     }
 
     TestCase {
         name: "PartitionRow"
         when: windowShown
+
+        function init() {
+            rowAvailable.customColor = "";
+        }
 
         function test_available_shows_checkbox_only() {
             verify(rowAvailable._checkBox.visible, "checkbox visible when available");
@@ -35,6 +54,44 @@ Item {
             verify(!rowAvailable._removeButton.visible, "no trash button when available");
             compare(rowAvailable._checkBox.text, "root");
             verify(rowAvailable._checkBox.checked);
+        }
+
+        // ── Per-partition color (issue #67) ─────────────────────────────
+        function test_color_swatch_shows_when_available_with_picker() {
+            verify(rowAvailable._colorButton.visible, "swatch visible on an available row with an injected picker");
+            // No swatch on the stale variant — a disconnected partition has no
+            // ring to color.
+            verify(!rowStale._colorButton.visible, "no color swatch on the stale variant");
+        }
+
+        function test_clear_button_hidden_until_a_custom_color_is_set() {
+            rowAvailable.customColor = "";
+            verify(!rowAvailable._clearColorButton.visible, "clear hidden when inheriting the shared color");
+            rowAvailable.customColor = "#ff0000";
+            verify(rowAvailable._clearColorButton.visible, "clear shown once a custom color is set");
+        }
+
+        function test_swatch_reflects_custom_color_else_inherited() {
+            rowAvailable.customColor = "";
+            compare(rowAvailable._colorButton.item.color.toString().toLowerCase(), "#3daee9", "unset → shows the inherited color");
+            rowAvailable.customColor = "#aabbcc";
+            compare(rowAvailable._colorButton.item.color.toString().toLowerCase(), "#aabbcc", "set → shows the custom color");
+        }
+
+        function test_colorPicked_emitted_on_picker_accept() {
+            rowAvailable.customColor = "#112233";
+            let picked = null;
+            rowAvailable.colorPicked.connect(c => picked = c);
+            rowAvailable._colorButton.item.accepted();
+            compare(picked.toString().toLowerCase(), "#112233", "colorPicked carries the swatch color");
+        }
+
+        function test_colorCleared_emitted_on_clear_click() {
+            rowAvailable.customColor = "#445566";
+            let fired = 0;
+            rowAvailable.colorCleared.connect(() => fired++);
+            rowAvailable._clearColorButton.clicked();
+            compare(fired, 1, "clear button emits colorCleared");
         }
 
         function test_toggled_signal_carries_checkbox_state() {

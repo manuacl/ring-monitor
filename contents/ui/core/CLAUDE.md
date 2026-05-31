@@ -130,6 +130,20 @@ the journal, not in the QML compiler. Fix: suffix the outer id
 (`themeAdapter`, `configStoreAdapter`, …). Same trap applies to any
 parent → child id reuse inside templates.
 
+### Binding a Loader-injected child that also self-assigns → use a `Binding` element
+
+When you bind a property on a `Loader`-injected / platform child that the
+child may **self-assign**, drive it with a declarative
+`Binding { target; property; value; when: loader.item }` — NOT an imperative
+`item.prop = Qt.binding(...)` in `onLoaded`. The platform `ColorPicker` writes
+`color = selectedColor` on accept, which **clobbers** an imperatively-installed
+binding, so a later external change (a partition "clear" button, or any
+programmatic source change) stops reaching the swatch. A `Binding` element
+re-applies on every value change and survives the self-assign. Canonical use:
+`PartitionRow.qml` + `AppearanceBody.qml`'s color swatches (the latter masked
+the bug only because it had no external change). Regression-guarded by the
+`SCENARIO_swatch_*` tests in `tst_DiskPartitionPicker.qml` / `tst_AppearanceBody.qml`.
+
 ## Where the platform adapters live
 
 For Plasma-specific concerns (KSysGuard, KConfig, plasmashell quirks,

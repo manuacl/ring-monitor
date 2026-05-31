@@ -6,6 +6,7 @@ import org.kde.kirigami as Kirigami
 import RingMonitor.Standalone
 import "DiskDiscovery.js" as DiskDiscovery
 import "../../core/DiskMetrics.js" as DiskMetrics
+import "../../core/ColorThemes.js" as ColorThemes
 import "../../core" as Core
 
 // Standalone counterpart of the Plasma config dialog
@@ -190,6 +191,10 @@ Window {
                 Core.MetricsBody {
                     id: metricsBody
                     theme: dialog.theme
+                    colorPickerComponent: colorPickerComponent
+                    // Actual shared ring color so an un-overridden partition's
+                    // swatch previews what the ring shows (issue #67).
+                    sharedRingColor: dialog.configStore && dialog.theme ? ColorThemes.resolveSharedRingColor(dialog.configStore.colorTheme, dialog.configStore.colorMode, dialog.theme.isDarkMode, dialog.theme.highlightColor, dialog.configStore.customColorLight, dialog.configStore.customColorDark) : ColorThemes.DEFAULT_HIGHLIGHT
                     diskPartitions: dialog._diskPartitions
                     removablePartitions: dialog._removablePartitions
                     defaultPartitionIds: dialog._defaultPartitionIds
@@ -273,7 +278,7 @@ Window {
     // standalone-settings-dialog.test.mjs text guard for that).
     readonly property var _bridgeMap: [
         // MetricsBody
-        [metricsBody, "metricOrderCsv", "metricOrder"], [metricsBody, "enabledMetricsCsv", "enabledMetrics"], [metricsBody, "enabledPartitionsCsv", "enabledPartitions"], [metricsBody, "partitionOrderCsv", "partitionOrder"], [metricsBody, "partitionLabelsJson", "partitionLabels"], [metricsBody, "partitionOptOutCsv", "partitionOptOut"], [metricsBody, "showCpuCores", "showCpuCores"], [metricsBody, "mergeCpuTemp", "mergeCpuTemp"], [metricsBody, "mergeGpuTemp", "mergeGpuTemp"], [metricsBody, "tempUnit", "tempUnit"],
+        [metricsBody, "metricOrderCsv", "metricOrder"], [metricsBody, "enabledMetricsCsv", "enabledMetrics"], [metricsBody, "enabledPartitionsCsv", "enabledPartitions"], [metricsBody, "partitionOrderCsv", "partitionOrder"], [metricsBody, "partitionLabelsJson", "partitionLabels"], [metricsBody, "partitionOptOutCsv", "partitionOptOut"], [metricsBody, "partitionColorsJson", "diskPartitionColors"], [metricsBody, "showCpuCores", "showCpuCores"], [metricsBody, "mergeCpuTemp", "mergeCpuTemp"], [metricsBody, "mergeGpuTemp", "mergeGpuTemp"], [metricsBody, "tempUnit", "tempUnit"],
         // AppearanceBody
         [appearanceBody, "orientation", "orientation"], [appearanceBody, "ringSize", "ringSize"], [appearanceBody, "ringSpacingPercent", "ringSpacingPercent"], [appearanceBody, "windowMargin", "windowMargin"], [appearanceBody, "textOpacity", "textOpacity"], [appearanceBody, "trackOpacity", "trackOpacity"], [appearanceBody, "arcOpacity", "arcOpacity"], [appearanceBody, "colorTheme", "colorTheme"], [appearanceBody, "colorMode", "colorMode"], [appearanceBody, "customColorLight", "customColorLight"], [appearanceBody, "customColorDark", "customColorDark"], [appearanceBody, "textColorMode", "textColorMode"], [appearanceBody, "customTextColorLight", "customTextColorLight"], [appearanceBody, "customTextColorDark", "customTextColorDark"]]
 

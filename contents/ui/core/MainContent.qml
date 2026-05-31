@@ -62,6 +62,10 @@ GridLayout {
     // two delegate bindings below stay readable.
     readonly property bool _isDark: ColorThemes.effectiveIsDark(content.configStore.colorMode, content.theme.isDarkMode)
 
+    // The shared ring color, resolved once here (identical for every ring).
+    // It's also the fallback for disk partitions without a custom color.
+    readonly property color _ringColor: ColorThemes.resolveSharedRingColor(content.configStore.colorTheme, content.configStore.colorMode, content.theme.isDarkMode, content.theme.highlightColor, content.configStore.customColorLight, content.configStore.customColorDark)
+
     // Disk multi-partition selection, resolved once here and shared by the
     // disk ring delegate. Partition ids in the user's configured display
     // order (first = outermost ring); order comes from
@@ -86,6 +90,11 @@ GridLayout {
     // rendering exactly as before until Phase 4 ports them. The opt-out list comes
     // from configStore.partitionOptOut (parseCsv("") = []). See DiskMetrics.resolveDiskRingIds.
     readonly property var _diskSelectedIds: DiskMetrics.resolveDiskRingIds(content._manualPartitionIds, content.metrics.removablePartitions || [], Catalog.parseCsv(content.configStore.partitionOptOut), content.metrics.defaultPartitionIds || [], Geom.DISK_MAX_RING_COUNT, content.metrics.mountedPartitionIds)
+    // Per-partition ring colors aligned to _diskSelectedIds (outermost first):
+    // each partition's custom color, or the shared _ringColor when it has none
+    // (issue #67). diskPartitionColors only exists once both adapters expose it;
+    // the `|| ""` keeps older configStores rendering on the shared color.
+    readonly property var _diskColors: DiskMetrics.resolveRingColors(content._diskSelectedIds, content.configStore.diskPartitionColors || "", content._ringColor)
 
     columns: vertical ? 1 : count
     // Spacing between rings is configurable as a percentage of
@@ -221,6 +230,10 @@ GridLayout {
             // Equal-thickness concentric rings for the selected disk
             // partitions ([] for every other ring → normal single arc).
             equalValues: _diskValues
+            // Per-partition custom colors (aligned to equalValues); a partition
+            // without an override falls back to ringColor inside Ring. [] for
+            // every non-disk ring.
+            equalColors: ringDelegate._isDisk ? content._diskColors : []
             splitMode: _splitOn
             // splitValue stays a percentage (0-100) so the geometry math
             // and tempToPercent threshold work in °C regardless of the
@@ -228,7 +241,9 @@ GridLayout {
             splitValue: content.metrics.loading ? 100 : (_splitOn ? content.metrics.metricTempPercent(modelData) : 0)
             splitRawValue: !content.metrics.loading && _splitOn && _tempInfo ? _tempInfo.value : 0
             splitUnit: _splitOn && _tempInfo ? _tempInfo.unit : ""
-            ringColor: ColorThemes.resolveColor(content.configStore.colorTheme, content._isDark, content.theme.highlightColor, content.configStore.customColorLight, content.configStore.customColorDark)
+            // Shared color for every ring; disk partitions with a custom
+            // color override it per-ring via equalColors above.
+            ringColor: content._ringColor
             textColor: ColorThemes.resolveTextColor(content.configStore.textColorMode, content._isDark, content.theme.textColor, content.configStore.customTextColorLight, content.configStore.customTextColorDark)
             textOpacity: content.configStore.textOpacity
             trackOpacity: content.configStore.trackOpacity

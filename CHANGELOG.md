@@ -14,6 +14,36 @@ user-facing only.
 
 ### Technical
 
+- (#67) Per-partition disk ring colors. Each selected filesystem can be given
+  its own ring color from the disk row's partition picker (a color swatch per
+  row); clearing it returns that ring to the widget's shared color. One fixed
+  color per disk (no light/dark pair) — partitions without an override still
+  track the live light/dark scheme through the shared fallback. State is a JSON
+  `diskPartitionColors` map (partition UUID → `#rrggbb`, empty = none). The map
+  helpers (`colorFor`/`withColor`/`withoutColor`/`resolveRingColors`) live in
+  `core/DiskMetrics.js` beside the label cache, sharing its generic
+  `parseUuidMap`/`serializeUuidMap` primitives (the dual-load convention forbids
+  a `.js` importing a sibling `.js`, so a shared module isn't possible — same
+  reason `parseCsv` is duplicated). `Ring` gains an `equalColors` array aligned
+  to `equalValues` (entry falls back to `ringColor`); `MainContent` hoists the
+  shared color into `_ringColor` and computes `_diskColors` for the disk
+  delegate. The disk picker was extracted from `MetricsBody` into its own
+  `core/DiskPartitionPicker.qml` (stateless view delegating to the body as
+  `controller`) to keep `MetricsBody` under the 500-line cap. The color map is
+  bounded to `enabled ∪ order ∪ discovered` via `DiskMetrics.pruneMap`
+  (`MetricsBody._refreshColorMap`), mirroring the label cache, so a color can't
+  outlive its partition. The picker swatch's "inherited" preview uses the
+  **actual** resolved shared color (`MetricsBody.sharedRingColor`, injected by
+  each config wrapper) rather than the bare theme highlight, so it matches the
+  real ring when `colorTheme != system`. Config plumbing follows the
+  six-touch-point pattern: `main.xml`, both `ConfigStore` adapters, the
+  `configMetrics` cfg_* bridge (+ 484541 placeholder on `configAppearance`), and
+  the standalone `SettingsDialog` `_bridgeMap`; the `ColorPicker` is injected
+  into `MetricsBody` on both hosts. The per-row swatch's color is driven by a
+  `Binding` element (not an imperative `item.color = Qt.binding` in `onLoaded`),
+  so clearing an override reverts the swatch even after the `ColorPicker`'s
+  on-accept `color = selectedColor` self-assignment would otherwise have
+  clobbered the binding.
 - (Part of #7) Native Wayland window path via KDE's **layer-shell-qt** (PR C2).
   On wlroots / KWin Wayland the standalone widget is now a `wlr-layer-shell`
   **bottom-layer** surface (anchored top-right, `KeyboardInteractivityOnDemand`,

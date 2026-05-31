@@ -27,6 +27,19 @@ its paired `tests/<kebab>.test.mjs`, and a missing `tst_<Name>.qml`
 for a new component triggers a stub creation. Full rationale in
 [`../docs/testing.md`](../docs/testing.md).
 
+### Don't `qmlformat -i` the QML test fixtures
+
+Hand-match the surrounding style in `tests/qml/*.qml` (notably the
+**compact inline-object** literals — `[{ id: "x", label: "y" }]`); do
+**not** run `qmlformat-qt6 --inplace` on them. A newer local qmlformat
+(Qt 6.10) expands those inline objects that the committed style keeps
+inline, and the pre-commit cap check runs **before** its qmlformat pass —
+so a reflowed near-cap fixture commits over 500 lines and the next commit
+rejects it. CI's qmlformat-check covers **source** `.qml` only
+(`contents/ui/*`), not `tests/qml/`, so the compact committed style is
+what CI expects. (Bit the per-partition-color work: `qmlformat -i`
+ballooned `tst_MetricsBody.qml` 497 → 533.)
+
 ## When to add a test
 
 - **New `.js` module** → matching `tests/<kebab>.test.mjs`. This is

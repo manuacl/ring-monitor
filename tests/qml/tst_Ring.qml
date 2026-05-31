@@ -29,6 +29,8 @@ Item {
             ring.unit = "%";
             ring.nestedValues = [];
             ring.equalValues = [];
+            ring.equalColors = [];
+            ring.ringColor = "#3daee9";
             ring.splitMode = false;
             ring.splitValue = 0;
             ring.splitRawValue = 0;
@@ -219,6 +221,27 @@ Item {
             verify(!ring._equalMode, "equalMode must be off by default");
             verify(ring._fullArcVisible, "main arc must show when not in equal mode");
             compare(ring._equalRingCount, 0);
+        }
+
+        // ── Per-partition colors (issue #67) ────────────────────────────
+        function test_equal_rings_default_to_shared_ringColor() {
+            // No equalColors → every disk ring uses the shared ringColor.
+            ring.ringColor = "#112233";
+            ring.equalValues = [10, 20, 30];
+            tryCompare(ring, "_equalRingCount", 3);
+            for (let i = 0; i < 3; i++)
+                compare(ring._equalRepeater.itemAt(i).ringColor.toString().toLowerCase(), "#112233", "ring " + i + " falls back to ringColor when equalColors is empty");
+        }
+
+        function test_equalColors_override_per_index_with_fallback() {
+            ring.ringColor = "#112233";
+            ring.equalValues = [10, 20, 30];
+            // Middle ring overridden; the other two empty → fall back to ringColor.
+            ring.equalColors = ["", "#ff8800", ""];
+            tryCompare(ring, "_equalRingCount", 3);
+            compare(ring._equalRepeater.itemAt(0).ringColor.toString().toLowerCase(), "#112233", "index 0 inherits");
+            compare(ring._equalRepeater.itemAt(1).ringColor.toString().toLowerCase(), "#ff8800", "index 1 uses the override");
+            compare(ring._equalRepeater.itemAt(2).ringColor.toString().toLowerCase(), "#112233", "index 2 inherits");
         }
     }
 }

@@ -197,19 +197,19 @@ test("isPartitionShown: tolerates null/undefined arrays", () => {
     assert.equal(Disk.isPartitionShown("x", ["x"], null, null), true);
 });
 
-// ── label cache (parse / serialize / merge) ──────────────────────────
+// ── UUID→string map primitives (shared by label cache + color map) ───
 
-test("parseLabelCache: empty / malformed JSON → {}", () => {
-    assert.deepEqual(Disk.parseLabelCache(""), {});
-    assert.deepEqual(Disk.parseLabelCache(null), {});
-    assert.deepEqual(Disk.parseLabelCache("not json"), {});
-    assert.deepEqual(Disk.parseLabelCache("[1,2]"), {}); // array is not a map
-    assert.deepEqual(Disk.parseLabelCache('{"u-a":"x"}'), { "u-a": "x" });
+test("parseUuidMap: empty / malformed JSON → {}", () => {
+    assert.deepEqual(Disk.parseUuidMap(""), {});
+    assert.deepEqual(Disk.parseUuidMap(null), {});
+    assert.deepEqual(Disk.parseUuidMap("not json"), {});
+    assert.deepEqual(Disk.parseUuidMap("[1,2]"), {}); // array is not a map
+    assert.deepEqual(Disk.parseUuidMap('{"u-a":"x"}'), { "u-a": "x" });
 });
 
-test("serializeLabelCache: sorted keys → stable output regardless of insertion order", () => {
-    const a = Disk.serializeLabelCache({ z: "1", a: "2", m: "3" });
-    const b = Disk.serializeLabelCache({ a: "2", m: "3", z: "1" });
+test("serializeUuidMap: sorted keys → stable output regardless of insertion order", () => {
+    const a = Disk.serializeUuidMap({ z: "1", a: "2", m: "3" });
+    const b = Disk.serializeUuidMap({ a: "2", m: "3", z: "1" });
     assert.equal(a, b);
     assert.equal(a, '{"a":"2","m":"3","z":"1"}');
 });

@@ -44,6 +44,7 @@ Item {
             body.enabledPartitionsCsv = "";
             body.partitionOrderCsv = "";
             body.partitionOptOutCsv = "";
+            body.partitionColorsJson = "";
             body.removablePartitions = [];
             body.diskPartitions = [];
             body.defaultPartitionIds = [];
@@ -407,6 +408,10 @@ Item {
             body.partitionsReady = true;
             body.enabledPartitionsCsv = "u-usb,u-root";
             body.partitionOrderCsv = "u-usb,u-root";
+            // Per-partition color round-trip (issue #67) + cleared on removal.
+            compare(body.partitionColor("u-usb"), "", "no override by default");
+            body.setPartitionColor("u-usb", "#ff0000");
+            compare(body.partitionColor("u-usb"), "#ff0000", "setPartitionColor round-trips");
             body.diskPartitions = [
                 {
                     id: "u-usb",
@@ -430,6 +435,7 @@ Item {
             verify(body.partitionOrderCsv.split(",").indexOf("u-usb") === -1, "removed from partitionOrder");
             compare(body.stalePartitionList.length, 0, "no longer surfaced after removal");
             verify(JSON.parse(body.partitionLabelsJson || "{}")["u-usb"] === undefined, "label cache entry pruned");
+            compare(body.partitionColor("u-usb"), "", "custom color forgotten on removal → back to the general color");
         }
 
         function test_label_cache_not_written_on_open_for_empty_default() {

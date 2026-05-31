@@ -45,6 +45,7 @@ Item {
         property string textColorMode: "system"
         property color customTextColorLight: "#000000"
         property color customTextColorDark: "#ffffff"
+        property string diskPartitionColors: ""
     }
 
     QtObject {

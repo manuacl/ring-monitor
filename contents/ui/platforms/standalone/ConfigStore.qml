@@ -40,6 +40,8 @@ Settings {
     property string partitionLabels: ""
     // Removable partitions the user opted out of auto-show (CSV of UUIDs).
     property string partitionOptOut: ""
+    // JSON partition-id→custom-color map (empty = no per-partition colors).
+    property string diskPartitionColors: ""
     property bool showCpuCores: true
     property bool mergeCpuTemp: false
     property bool mergeGpuTemp: false

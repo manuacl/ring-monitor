@@ -75,6 +75,21 @@ For the Metrics page, `MetricsBody` additionally owns:
   passes `true`. Keeping the debounce in the adapter rather than this portable
   view means standalone pays no settle latency, and `availableMetrics` (a
   per-metric readiness signal) isn't misused as a partition-discovery proxy.
+- the **per-partition disk ring color** (issue #67): the body holds the
+  `partitionColorsJson` map (bridged to `cfg_diskPartitionColors`) and exposes
+  `partitionColor` / `setPartitionColor` / `clearPartitionColor` (thin
+  delegations to `DiskMetrics`' color helpers). `_refreshColorMap` bounds the
+  map to `enabled ∪ order ∪ discovered` (via `DiskMetrics.pruneMap`) on every
+  refresh — the picker lets you color any discovered partition, so a discovered
+  one's color is kept even when unchecked/unordered; only a color whose
+  partition is both gone and unreferenced is pruned, so it can't outlive its
+  partition. The picker view itself is the separate
+  [`DiskPartitionPicker.qml`](#diskpartitionpickerqml) — the body injects itself
+  as that component's `controller`. The body takes a `colorPickerComponent`
+  (same injection contract as `AppearanceBody`) for the per-row swatch, and a
+  `sharedRingColor` (the resolved shared color, injected by the config wrapper
+  which has both the Theme adapter and the color config) so an un-overridden
+  partition's swatch previews the real ring color even when `colorTheme != system`.
 
 **No Plasma writes happen inside the body** — the body only ever
 writes to its own properties; the alias propagates the change to
@@ -212,6 +227,7 @@ A circular gauge: 270° arc starting at 135° (90° gap at the bottom).
 | `textOpacity` / `trackOpacity` / `arcOpacity` | `1.0` / `0.15` / `1.0` | per-layer opacity |
 | `nestedValues` | `[]` | optional 0–100 array → thin concentric rings nested *inside* the main ring (CPU cores) |
 | `equalValues` | `[]` | optional 0–100 array → equal-thickness concentric rings that *replace* the main arc, one per selected disk partition. When non-empty the main/split arcs hide and the centre shows `rawValue` (the parent passes the partition average). Distinct from `nestedValues`, which keeps the main ring. |
+| `equalColors` | `[]` | optional per-index colors aligned to `equalValues` (issue #67) — entry `i` colors ring `i`; a missing/empty entry falls back to `ringColor`. Default `[]` keeps every disk ring on the shared color. `MainContent` fills it from `DiskMetrics.resolveRingColors`. |
 | `rawValue` | `NaN` | optional override for the centre text — when finite, the ring shows `Math.round(rawValue) + unit` instead of `value + unit`. Used by temperature rings where `value=tempToPercent(°C)` drives the sweep but the user reads the raw °C / °F. |
 | `splitMode` | `false` | split the ring at the top into two half-arcs (see below) |
 | `splitValue` | `0` | percentage (0–100) for the right half — usually a `tempToPercent(°C)` mapping |
@@ -376,17 +392,42 @@ bolting that onto `MetricRow` would break its ISP.
 | `partLabel` | the volume label to render (or the cached last-known label / UUID for a stale row) |
 | `available` | `true` → a toggle `CheckBox`; `false` → the greyed "not connected" stale variant |
 | `checked` | checkbox state (available variant only) |
+| `colorPickerComponent` | platform-injected ColorPicker `Component` for the per-partition color swatch (available variant); absent → no swatch |
+| `customColor` | the partition's stored ring color (`""` = none → inherits `inheritedColor`); issue #67 |
+| `inheritedColor` | the swatch's "unset" hint — the actual resolved shared ring color (`MetricsBody.sharedRingColor`, injected by the config wrapper), so the preview matches the real ring even when `colorTheme != system` |
 | `unit` / `smallSpacing` / `iconSize` | theme tokens injected by the parent |
 | `toggled(bool on)` | emitted on checkbox click (available variant) |
 | `removeRequested()` | emitted on the trash button (stale variant) |
+| `colorPicked(color)` / `colorCleared()` | emitted when the user confirms a color in the swatch / clears the override back to the shared color |
 
-Used by `MetricsBody` in both the draggable picker (the `DraggableList`
-`rowContent`, `available: true`) and the stale-row `Repeater`
-(`available: false`). The parent owns the partition id and wires the signals to
-`setPartitionEnabled` / `removeStalePartition` (DIP: the leaf takes a label and
-emits, never reaches for the id or the config). Test hooks: `_checkBox`,
-`_staleLabel`, `_unavailableLabel`, `_removeButton`. Covered by
-`tests/qml/tst_PartitionRow.qml`.
+Used by `DiskPartitionPicker` in both the draggable picker (`available: true`,
+with the color swatch) and the stale-row `Repeater` (`available: false`, no
+swatch). The parent owns the partition id and wires the signals to
+`setPartitionEnabled` / `removeStalePartition` / `setPartitionColor` /
+`clearPartitionColor` (DIP: the leaf takes a label + color and emits, never
+reaches for the id or the config). Test hooks: `_checkBox`, `_colorButton`,
+`_clearColorButton`, `_staleLabel`, `_unavailableLabel`, `_removeButton`.
+Covered by `tests/qml/tst_PartitionRow.qml`.
+
+## `DiskPartitionPicker.qml`
+
+The disk-partition picker, extracted from `MetricsBody` so that file stays
+focused (and under the 500-line cap). A stateless view: it renders the
+controller's partition model and forwards every action back through its single
+`controller` property (the `MetricsBody`) — toggle, reorder, per-partition
+color set/clear, and stale removal. Composition:
+
+- a `DraggableList` of `PartitionRow`s (`available: true`) in ring-nesting order
+  (top = outermost); reordering commits `partitionOrder`. The list auto-scopes
+  its drag keys, so nesting inside the metrics `DraggableList` doesn't cross-fire.
+- a "No partitions detected." hint when the model is empty.
+- a `Repeater` of stale `PartitionRow`s (`available: false`) below, for
+  configured-but-unplugged filesystems (issue #49).
+
+Each available row carries the per-partition color swatch + clear button
+(issue #67); the picker wires them to `controller.setPartitionColor` /
+`clearPartitionColor`. Test hooks: `_emptyLabel`, `_partitionList`. Covered by
+`tests/qml/tst_DiskPartitionPicker.qml`.
 
 ## `DraggableList.qml`
 
@@ -584,6 +625,7 @@ future reader) consumes `configStore.X` instead of reaching into
 | `enabledPartitions` | `string` | `Plasmoid.configuration.enabledPartitions` (checked disk partitions; empty = aggregate ring on Plasma / `$HOME` FS on standalone) |
 | `partitionOrder` | `string` | `Plasmoid.configuration.partitionOrder` (disk partition display order; first = outermost ring; empty = alphabetical) |
 | `partitionLabels` | `string` | `Plasmoid.configuration.partitionLabels` (JSON UUID→label cache for the disconnected-partition stale rows; empty = `{}`) |
+| `diskPartitionColors` | `string` | `Plasmoid.configuration.diskPartitionColors` (JSON UUID→custom ring color `#rrggbb`; a partition with no entry inherits the shared ring color; empty = `{}`. Issue #67) |
 | `showCpuCores` | `bool` | `Plasmoid.configuration.showCpuCores` |
 | `mergeCpuTemp` | `bool` | `Plasmoid.configuration.mergeCpuTemp` (hide `cpuTemp` ring, render it as the right half of the `cpu` ring) |
 | `mergeGpuTemp` | `bool` | `Plasmoid.configuration.mergeGpuTemp` (same for the GPU pair) |

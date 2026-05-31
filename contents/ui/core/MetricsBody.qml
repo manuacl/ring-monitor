@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import "ReorderLogic.js" as Logic
 import "MetricsCatalog.js" as Catalog
 import "DiskMetrics.js" as DiskMetrics
+import "ColorThemes.js" as ColorThemes
 
 // Body of the Metrics config page. Owns the reorderable list, the
 // internal ListModel, and the per-row UI (CheckBox + drag handle +
@@ -23,6 +24,15 @@ ColumnLayout {
 
     // ── Adapter input ───────────────────────────────────────────────
     property var theme
+    // Platform-injected ColorPicker Component (same contract as
+    // AppearanceBody.colorPickerComponent), drives the per-partition swatch.
+    property Component colorPickerComponent
+    // The actual shared ring color (resolved from colorTheme/colorMode/custom in
+    // the config wrapper, which has both the Theme adapter and the color config).
+    // Seeds a partition's "inherited" swatch so the preview matches the real ring
+    // even when colorTheme != system (issue #67). Falls back to the theme
+    // highlight until a wrapper injects the resolved value.
+    property color sharedRingColor: body.theme ? body.theme.highlightColor : ColorThemes.DEFAULT_HIGHLIGHT
     // Metric ids with a live data source, injected by the platform wrapper.
     // null = unknown → every row enable-able (see isMetricAvailable).
     property var availableMetrics: null
@@ -53,6 +63,9 @@ ColumnLayout {
     // exposing the label once the filesystem is gone). Maintained by
     // _refreshLabelCache; see DiskMetrics.mergeLabelCache.
     property string partitionLabelsJson: ""
+    // JSON partition-id→custom-color map, bridged to cfg_diskPartitionColors.
+    // A partition with no entry inherits the shared ring color (issue #67).
+    property string partitionColorsJson: ""
     property bool showCpuCores: false
     property bool mergeCpuTemp: false
     property bool mergeGpuTemp: false
@@ -149,6 +162,33 @@ ColumnLayout {
         }
     }
 
+    // Per-partition custom ring color (issue #67). "" = no override → the
+    // partition inherits the shared ring color; clearing drops it back there.
+    function partitionColor(id) {
+        return DiskMetrics.colorFor(body.partitionColorsJson, id);
+    }
+    function setPartitionColor(id, color) {
+        body.partitionColorsJson = DiskMetrics.withColor(body.partitionColorsJson, id, color);
+    }
+    function clearPartitionColor(id) {
+        body.partitionColorsJson = DiskMetrics.withoutColor(body.partitionColorsJson, id);
+    }
+
+    // Bound the color map so a custom color can't outlive its partition. The
+    // keep-set is `enabled ∪ order ∪ discovered`: the picker lets you color ANY
+    // currently-discovered partition (orderPartitions renders newly-discovered
+    // ids before they reach partitionOrderCsv), so dropping a discovered
+    // partition's color would silently lose the user's input; the referenced
+    // half keeps the color of a configured-but-unplugged partition so a replug
+    // restores it. Only a color whose partition is BOTH gone (undiscovered) AND
+    // unreferenced is pruned. The _settledMap guard avoids a spurious write.
+    function _refreshColorMap() {
+        const discovered = (body.diskPartitions || []).map(function (p) {
+            return p.id;
+        });
+        body.partitionColorsJson = body._settledMap(body.partitionColorsJson, DiskMetrics.pruneMap(body.partitionColorsJson, body._referencedPartitionIds().concat(discovered)));
+    }
+
     function currentPartitionOrder() {
         const arr = [];
         for (let i = 0; i < partitionOrderModel.count; i++)
@@ -173,14 +213,11 @@ ColumnLayout {
         body.partitionOrderCsv = currentPartitionOrder().join(",");
     }
 
-    // Whether partition discovery has settled, injected by the platform wrapper.
-    // Plasma populates diskPartitions incrementally (per SensorTreeModel
-    // rowsInserted), so a non-empty list does NOT mean discovery is complete —
-    // surfacing a not-yet-enumerated partition as stale would offer a destructive
-    // trash button on a partition that's actually present. The Plasma wrapper
-    // drives this from DiskPartitions.ready (debounced there); the standalone
-    // dialog discovers synchronously and passes true. Default false → no stale
-    // rows until a wrapper confirms readiness.
+    // Wrapper-injected "discovery settled" gate. Default false → no stale
+    // rows until a wrapper confirms readiness, since the Plasma side
+    // populates diskPartitions incrementally and a not-yet-enumerated
+    // partition must not surface as stale (the trash action is destructive).
+    // Full rationale: docs/components.md § MetricsBody.
     property bool partitionsReady: false
 
     // Configured partitions that are no longer discovered (unplugged disk).
@@ -198,22 +235,33 @@ ColumnLayout {
         return Catalog.parseCsv(body.enabledPartitionsCsv).concat(Catalog.parseCsv(body.partitionOrderCsv));
     }
 
+    // Settle a recomputed UUID→string map against the current value: return the
+    // value to persist, treating the unset "" as equal to "{}" and an unchanged
+    // map as a no-op — so merely opening the dialog (or any toggle) doesn't
+    // dirty the KCM page / queue a standalone QSettings write. Assigning the
+    // returned value back is itself a no-op when unchanged (QML doesn't notify
+    // on an equal value). Shared by _refreshLabelCache and _refreshColorMap.
+    function _settledMap(current, next) {
+        if (next === current || (next === "{}" && current === ""))
+            return current;
+        return next;
+    }
+
     function _refreshLabelCache() {
-        const next = DiskMetrics.mergeLabelCache(body.partitionLabelsJson, body.diskPartitions || [], body._referencedPartitionIds());
-        // Don't write unless the cache actually changed, and treat the unset
-        // default "" as equal to an empty "{}" — otherwise merely opening the
-        // dialog (or any checkbox toggle) would dirty the KCM page / queue a
-        // standalone QSettings write for a no-op.
-        if (next === body.partitionLabelsJson || (next === "{}" && body.partitionLabelsJson === ""))
-            return;
-        body.partitionLabelsJson = next;
+        body.partitionLabelsJson = body._settledMap(body.partitionLabelsJson, DiskMetrics.mergeLabelCache(body.partitionLabelsJson, body.diskPartitions || [], body._referencedPartitionIds()));
     }
 
     // Trash action on a stale row: drop the id from the selection, the order,
-    // and the label cache so it stops lingering in the persisted config.
+    // the label cache, and any custom color so nothing lingers in the config.
+    // The explicit clearPartitionColor is load-bearing, NOT redundant with
+    // _refreshColorMap: a stale partition is undiscovered, but the
+    // enabled-change hook fires _refreshColorMap while the id is still in
+    // partitionOrderCsv (so it's still referenced → not pruned), and the
+    // order-change hook doesn't refresh the color map at all.
     function removeStalePartition(id) {
         body.enabledPartitionsCsv = Catalog.toggleEnabled(Catalog.parseCsv(body.enabledPartitionsCsv), id, false).join(",");
         body.partitionOrderCsv = Catalog.toggleEnabled(Catalog.parseCsv(body.partitionOrderCsv), id, false).join(",");
+        clearPartitionColor(id);
         _refreshLabelCache();
     }
 
@@ -232,14 +280,19 @@ ColumnLayout {
         loadPartitionOrder();
         _seedDefaultIfEmpty();
         _refreshLabelCache();
+        _refreshColorMap();
     }
-    onEnabledPartitionsCsvChanged: _refreshLabelCache()
+    onEnabledPartitionsCsvChanged: {
+        _refreshLabelCache();
+        _refreshColorMap();
+    }
     onDefaultPartitionIdsChanged: _seedDefaultIfEmpty()
     Component.onCompleted: {
         loadOrder();
         loadPartitionOrder();
         _seedDefaultIfEmpty();
         _refreshLabelCache();
+        _refreshColorMap();
     }
 
     Layout.fillWidth: true
@@ -390,78 +443,13 @@ ColumnLayout {
         }
     }
 
-    // Reorderable list of discovered filesystems — checked partitions render
-    // as equal-thickness concentric rings inside the disk gauge, in this
-    // list's order (top = outermost ring, bottom = innermost). Default order
-    // is alphabetical by label; drag the handle to reorder. Empty selection
-    // falls back to the backend default (the $HOME filesystem on standalone;
-    // the disk/all aggregate on Plasma). A hint shows when no partitions were
-    // discovered (e.g. the config dialog ran before ksysguard populated the
-    // tree). This DraggableList is nested inside the disk row's extraContent,
-    // which is itself indented inside the metrics DraggableList — the inner
-    // drag handle sits to the right of the outer one, so the two don't fight.
+    // The disk-partition picker (reorderable list + per-partition color swatch
+    // + stale rows) lives in its own DiskPartitionPicker.qml to keep this file
+    // focused; it delegates every action back to this body via `controller`.
     Component {
         id: diskPartitionsPicker
-        ColumnLayout {
-            spacing: body.theme ? body.theme.smallSpacing : 4
-            QQC2.Label {
-                visible: partitionOrderModel.count === 0
-                text: qsTr("No partitions detected.")
-                opacity: 0.7
-            }
-            DraggableList {
-                id: partitionList
-                visible: partitionOrderModel.count > 0
-                // No explicit dragKey: DraggableList auto-scopes each instance,
-                // so this nested list and the outer metrics list don't fire
-                // each other's DropAreas.
-                Layout.fillWidth: true
-                Layout.preferredHeight: implicitHeight
-                model: partitionOrderModel
-                rowHeight: body.theme ? body.theme.unit * 1.6 : 28
-                smallSpacing: body.theme ? body.theme.smallSpacing : 4
-                iconSize: body.theme ? body.theme.iconSize : 16
-                highlightColor: body.theme ? body.theme.highlightColor : "#3daee9"
-                backgroundColor: body.theme ? body.theme.backgroundColor : "#1e1e1e"
-
-                rowContent: Component {
-                    PartitionRow {
-                        readonly property string _partId: parent && parent.rowModel ? parent.rowModel.partId : ""
-                        partLabel: parent && parent.rowModel ? parent.rowModel.partLabel : ""
-                        available: true
-                        checked: body.isPartitionEnabled(_partId)
-                        onToggled: on => body.setPartitionEnabled(_partId, on)
-                        smallSpacing: body.theme.smallSpacing
-                        iconSize: body.theme.iconSize
-                    }
-                }
-
-                onReordered: function (from, to) {
-                    // ListModel.move reorders in place (keeps partId/partLabel),
-                    // then commit serializes the new model order to the CSV.
-                    partitionOrderModel.move(from, to, 1);
-                    body.commitPartitionOrder();
-                }
-            }
-
-            // Stale rows: partitions still in the config but no longer present
-            // (unplugged). Greyed, non-draggable, each with a trash button that
-            // clears it from the selection + order + label cache. Rendered below
-            // the draggable list so the ring-nesting order stays untouched.
-            // Same PartitionRow component as the draggable rows, in its
-            // !available variant.
-            Repeater {
-                model: body.stalePartitionList
-                delegate: PartitionRow {
-                    required property var modelData
-                    Layout.fillWidth: true
-                    partLabel: modelData.label
-                    available: false
-                    onRemoveRequested: body.removeStalePartition(modelData.id)
-                    smallSpacing: body.theme.smallSpacing
-                    iconSize: body.theme.iconSize
-                }
-            }
+        DiskPartitionPicker {
+            controller: body
         }
     }
 

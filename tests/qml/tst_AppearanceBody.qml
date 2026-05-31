@@ -169,5 +169,20 @@ Item {
             compare(body._lightTextColorButton.item.color.toString().toLowerCase(), "#aabbcc");
             compare(body._darkTextColorButton.item.color.toString().toLowerCase(), "#112233");
         }
+
+        // SCENARIO: the ColorPicker self-assigns `color = selectedColor` on
+        // accept, which clobbers an imperative `item.color = Qt.binding(...)`.
+        // A Binding element re-applies, so a LATER source change still reaches
+        // the swatch. Latent in AppearanceBody (no clear button), guarded for
+        // consistency with PartitionRow.
+        function test_SCENARIO_swatch_rebinds_after_picker_self_assign() {
+            body.colorTheme = "custom";
+            body.customColorLight = "#aabbcc";
+            const swatch = body._lightColorButton.item;
+            verify(swatch !== null, "the light-color swatch must load");
+            swatch.color = "#aabbcc"; // simulate the picker's on-accept self-assign
+            body.customColorLight = "#112233"; // a later source change
+            tryCompare(swatch, "color", "#112233", 1000, "Binding re-applies after the self-assign clobber");
+        }
     }
 }

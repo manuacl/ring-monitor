@@ -387,8 +387,9 @@ fi
 # Reproduce the bump-label heuristic (same as the bump-label skill) to predict
 # whether this PR cuts a release, then require the user-facing block. FAIL for
 # minor/major (a clear user-facing release — the case #91 hit); WARN for patch
-# (often overridden to bump:none for standalone-only/internal work, see the
-# bump-during-mvp rule).
+# (often overridden to bump:none for internal/tooling/docs/refactor work that
+# delivers nothing to a user — NOT for standalone features, which now bump and
+# tag -s; see the bump-during-mvp memory, Plasma-only gate lifted 2026-05-31).
 _bump_commits=$(git log --format='%B' origin/main..HEAD)
 if   echo "$_bump_commits" | grep -qE '(BREAKING CHANGE|^[a-z]+(\([^)]+\))?!:)'; then _bump=major
 elif echo "$_bump_commits" | grep -qE '^feat(\([^)]+\))?:'; then _bump=minor
@@ -410,7 +411,7 @@ if [ "$_bump" = "major" ] || [ "$_bump" = "minor" ]; then
 elif [ "$_bump" = "patch" ] && [ "$_userfacing" -eq 0 ]; then
     echo "WARN: commits suggest bump:patch — if you apply a bump:* label (cut a release), it owes a"
     echo "      user-facing ### Added/Changed/Fixed summary, not just ### Technical. Skip if you'll"
-    echo "      mark it bump:none (standalone-only / internal, per the bump-during-mvp rule)."
+    echo "      mark it bump:none (internal / tooling / docs — not standalone features, which bump)."
 fi
 
 # 4i. Manual audit prompt — these can't be greped reliably. Always

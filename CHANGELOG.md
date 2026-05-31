@@ -15,9 +15,10 @@ user-facing only.
 ### Other
 
 - ci(release): the GitHub Release body now leads with the version's
-  user-facing CHANGELOG summary (the `## [X.Y.Z]` Added/Changed/Fixed block)
-  above GitHub's auto-generated PR list, and the manual "KDE Store upload"
-  helper block was dropped from the body.
+  user-facing CHANGELOG summary (the `## [X.Y.Z]` Added/Changed/Fixed block,
+  under a `## What's new` heading) above the PR list, GitHub's auto-generated
+  `## What's Changed` heading is relabelled `## Pull requests`, and the manual
+  "KDE Store upload" helper block was dropped from the body.
 - chore(finish-branch): new check (4h-bis) — a bump-labelled (tagged) PR must
   add a user-facing `### Added`/`### Changed`/`### Fixed` CHANGELOG summary, not
   just `### Technical` (FAIL for minor/major, WARN for patch), so a release

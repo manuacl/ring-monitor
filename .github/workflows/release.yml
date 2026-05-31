@@ -151,9 +151,12 @@ jobs:
           TAG_NAME: ${{ steps.tag.outputs.name }}
           VERSION: ${{ steps.meta.outputs.version }}
         run: |
+          # Auto-generated PR list. Relabel GitHub's "## What's Changed" header
+          # to "## Pull requests" — it's ambiguous sitting under the curated
+          # "What's new" summary, which is the real "what changed".
           gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
             -f "tag_name=$TAG_NAME" \
-            --jq .body > /tmp/auto-notes.md
+            --jq .body | sed "s/^## What's Changed$/## Pull requests/" > /tmp/auto-notes.md
 
           # Extract the user-facing block for $VERSION from CHANGELOG.md:
           # everything under `## [$VERSION]` up to (not including) the
@@ -166,8 +169,9 @@ jobs:
           ' CHANGELOG.md > /tmp/user-notes.md
 
           {
-            # Prepend the user-facing block only when it has real content.
+            # Lead with the curated "What's new" summary when it has content.
             if grep -q '[^[:space:]]' /tmp/user-notes.md; then
+              echo "## What's new"
               cat /tmp/user-notes.md
               echo ""
             fi

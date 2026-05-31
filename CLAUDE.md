@@ -74,7 +74,15 @@ editing.
   extract pure logic to a `.js` module, or pull a sub-component into
   its own `.qml` file (e.g. the `MetricRow` extraction from
   `configMetrics.qml`). Don't raise the cap. Docs (`docs/*.md`, every
-  `CLAUDE.md`) are intentionally not capped.
+  `CLAUDE.md`) are intentionally not capped. Beware the cap × qmlformat
+  interaction on **source** `.qml`: qmlformat (pre-commit + CI) expands
+  an inline JS object-literal array to one property per line, so a
+  `readonly property var m: [{ value: …, text: … }, …]` model balloons
+  ~3× and can breach the cap. Near the cap, back a `ComboBox` with a
+  flat string array (`[qsTr("A"), qsTr("B")]` — qmlformat keeps those
+  inline) plus a parallel value array, not an object `{value,text}`
+  model. (The inverse fixture rule — *don't* `qmlformat -i` test
+  fixtures — is in `tests/CLAUDE.md`.)
 - **Comments: why, not what — and not a third copy.** A comment that
   restates what the code does (or paraphrases a self-evident binding)
   is noise; delete it and let the code + the symbol name carry it. Keep

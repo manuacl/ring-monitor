@@ -3,11 +3,12 @@
 ## Status
 
 **Phase 1 — Plasma-isolation refactor (PRs 1–6): ✅ complete.**
-**Phase 2 — standalone build (issue #7, PRs A–H + C2): MVP shipped v0.6.0;
-all roadmap stages now landed** — see the
+**Phase 2 — standalone build (issue #7, PRs A–H + C2): ✅ complete —
+shipped v0.6.0 (MVP) through v0.8.0 (native Wayland layer-shell).** See the
 [standalone progress tracker](#standalone-implementation-sequence) below.
-Issue #7 itself stays open until AMD/Intel GPU sysfs support lands (the one
-post-MVP item still outstanding); C2 was the last *window/build* stage.
+Every roadmap stage has landed: all post-MVP metrics (incl. AMD/Intel GPU
+sysfs, #82/#84), the AppImage pipeline (H, #87), and C2 native Wayland
+layer-shell (#88). Nothing gating `Closes #7` remains outstanding.
 
 | PR | Goal | State |
 |---|---|---|
@@ -360,12 +361,11 @@ Eight PRs, delivered one at a time. Each one stops and waits for
 manual validation before the next starts. The Plasma build must keep
 working at every step.
 
-**Live status (updated 2026-05-30):** the MVP (A–G) shipped in **v0.6.0**,
-every post-MVP metric is done, the AppImage pipeline (H) landed, and
-**C2 (native Wayland layer-shell) is done** — so all A–H + C2 window/build
-stages are complete. Issue #7 stays open only for **AMD/Intel GPU sysfs**
-support (the last post-MVP metric); per `feedback-part-of-7-on-standalone-prs`,
-`Closes #7` waits for that.
+**Live status (updated 2026-05-31):** the MVP (A–G) shipped in **v0.6.0**,
+every post-MVP metric is done (**incl. AMD/Intel GPU sysfs**, #82/#84), the
+AppImage pipeline (H) landed, and **C2 (native Wayland layer-shell) is done**
+(#88, v0.8.0). All A–H + C2 stages are complete — there is no remaining
+feature work gating `Closes #7`.
 
 | Stage | State |
 |---|---|
@@ -377,7 +377,7 @@ support (the last post-MVP metric); per `feedback-part-of-7-on-standalone-prs`,
 | F — config store + Settings dialog | ✅ #31, #32 |
 | G — right-click menu + lifecycle + autostart | ✅ #35 |
 | post-MVP — GPU (NVML + sysfs) / CPU temp / swap / multi-partition disk | ✅ #43, #44, #46, #47, #50, #82, #84 |
-| **C2 — native Wayland layer-shell** (split out of C) | ✅ #<PR> |
+| **C2 — native Wayland layer-shell** (split out of C) | ✅ #88 |
 | H — release pipeline (AppImage) | ✅ #87 |
 
 The detailed A–H breakdown below is the original plan (historical reference);

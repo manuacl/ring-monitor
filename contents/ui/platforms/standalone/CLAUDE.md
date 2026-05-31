@@ -579,6 +579,18 @@ XDG-spec escape order is load-bearing: backslash is escaped before
 `"`, `$`, and backtick (text-level-guarded by
 `tests/autostart.test.mjs`).
 
+### Don't bind `QtDialogs.ColorDialog.selectedColor` to a source property
+
+`ColorPicker.qml` wraps `QtQuick.Dialogs.ColorDialog` (the only
+`QtDialogs` user — Plasma uses kquickcontrols). Do **not** write
+`selectedColor: root.color`: the live binding re-pins the dialog's
+selection to the source, so the user's pick is overwritten and
+`onAccepted` re-reads the OLD colour → the colour silently never applies
+(the swatch never updates). Seed it imperatively on each open instead:
+`onClicked: { dialog.selectedColor = root.color; dialog.open() }`.
+Guarded by `tests/qml/tst_ColorPicker.qml` (the "selectedColor not
+live-bound to color" test fails on the binding).
+
 ## Same-surface rule
 
 When implementing an adapter here, the contract is:

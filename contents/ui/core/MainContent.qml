@@ -64,7 +64,7 @@ GridLayout {
 
     // The shared ring color, resolved once here (identical for every ring).
     // It's also the fallback for disk partitions without a custom color.
-    readonly property color _ringColor: ColorThemes.resolveColor(content.configStore.colorTheme, content._isDark, content.theme.highlightColor, content.configStore.customColorLight, content.configStore.customColorDark)
+    readonly property color _ringColor: ColorThemes.resolveSharedRingColor(content.configStore.colorTheme, content.configStore.colorMode, content.theme.isDarkMode, content.theme.highlightColor, content.configStore.customColorLight, content.configStore.customColorDark)
 
     // Disk multi-partition selection, resolved once here and shared by the
     // disk ring delegate. Partition ids in the user's configured display

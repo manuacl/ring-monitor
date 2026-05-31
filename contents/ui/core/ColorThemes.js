@@ -19,6 +19,11 @@
 // Dual-loaded by QML (`import "ColorThemes.js" as ColorThemes`) and Node
 // (via the module.exports shim at the bottom).
 
+// Kirigami's default highlight blue — the placeholder shown before a Theme
+// adapter resolves, and the custom-color default. Single source so it isn't
+// scattered as a literal across the color path.
+var DEFAULT_HIGHLIGHT = "#3daee9";
+
 var THEMES = [
     { id: "system", label: "System", lightColor: null,      darkColor: null      },
     { id: "blue",   label: "Blue",   lightColor: "#1d6fa5", darkColor: "#3daee9" },
@@ -64,6 +69,15 @@ function resolveColor(themeId, isDark, systemHighlight, customLight, customDark)
     return isDark ? theme.darkColor : theme.lightColor;
 }
 
+// Convenience wrapper bundling the effectiveIsDark + resolveColor pairing that
+// the config dialogs and the running widget all need to compute the shared ring
+// color from the raw config (colorTheme + colorMode + custom L/D) against the
+// live system state. Centralizes the resolution so a future change (a new theme
+// axis, availability gating) lands in one place instead of three call sites.
+function resolveSharedRingColor(colorTheme, colorMode, systemIsDark, systemHighlight, customLight, customDark) {
+    return resolveColor(colorTheme, effectiveIsDark(colorMode, systemIsDark), systemHighlight, customLight, customDark);
+}
+
 // Text color resolver — simpler than resolveColor (no predefined
 // palette): only "system" (forward the platform text color straight
 // through) and "custom" (pick between the user's L/D pair, gated by
@@ -83,8 +97,10 @@ if (typeof module !== "undefined" && module.exports) {
     module.exports = {
         THEMES: THEMES,
         THEMES_BY_ID: THEMES_BY_ID,
+        DEFAULT_HIGHLIGHT: DEFAULT_HIGHLIGHT,
         effectiveIsDark: effectiveIsDark,
         resolveColor: resolveColor,
+        resolveSharedRingColor: resolveSharedRingColor,
         resolveTextColor: resolveTextColor,
     };
 }

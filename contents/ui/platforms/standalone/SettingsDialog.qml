@@ -194,7 +194,7 @@ Window {
                     colorPickerComponent: colorPickerComponent
                     // Actual shared ring color so an un-overridden partition's
                     // swatch previews what the ring shows (issue #67).
-                    sharedRingColor: dialog.configStore && dialog.theme ? ColorThemes.resolveColor(dialog.configStore.colorTheme, ColorThemes.effectiveIsDark(dialog.configStore.colorMode, dialog.theme.isDarkMode), dialog.theme.highlightColor, dialog.configStore.customColorLight, dialog.configStore.customColorDark) : "#3daee9"
+                    sharedRingColor: dialog.configStore && dialog.theme ? ColorThemes.resolveSharedRingColor(dialog.configStore.colorTheme, dialog.configStore.colorMode, dialog.theme.isDarkMode, dialog.theme.highlightColor, dialog.configStore.customColorLight, dialog.configStore.customColorDark) : ColorThemes.DEFAULT_HIGHLIGHT
                     diskPartitions: dialog._diskPartitions
                     removablePartitions: dialog._removablePartitions
                     defaultPartitionIds: dialog._defaultPartitionIds

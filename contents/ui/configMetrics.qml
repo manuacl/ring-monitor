@@ -115,7 +115,7 @@ KCM.SimpleKCM {
         // swatch previews what the ring really shows. The color config lives on
         // the Appearance page, but KDE bug 484541 means Plasma sets every cfg_*
         // on this page too — so the placeholders above carry the live values.
-        sharedRingColor: ColorThemes.resolveColor(page.cfg_colorTheme || "system", ColorThemes.effectiveIsDark(page.cfg_colorMode || "auto", themeAdapter.isDarkMode), themeAdapter.highlightColor, page.cfg_customColorLight || "#3daee9", page.cfg_customColorDark || "#3daee9")
+        sharedRingColor: ColorThemes.resolveSharedRingColor(page.cfg_colorTheme || "system", page.cfg_colorMode || "auto", themeAdapter.isDarkMode, themeAdapter.highlightColor, page.cfg_customColorLight || ColorThemes.DEFAULT_HIGHLIGHT, page.cfg_customColorDark || ColorThemes.DEFAULT_HIGHLIGHT)
         // Mount-gated list (not the raw availablePartitions): an unplugged disk
         // ksysguard still lists (#58 frozen tree) drops from the selectable
         // picker and, if still configured, surfaces as a greyed stale row.

@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import "ReorderLogic.js" as Logic
 import "MetricsCatalog.js" as Catalog
 import "DiskMetrics.js" as DiskMetrics
+import "ColorThemes.js" as ColorThemes
 
 // Body of the Metrics config page. Owns the reorderable list, the
 // internal ListModel, and the per-row UI (CheckBox + drag handle +
@@ -31,7 +32,7 @@ ColumnLayout {
     // Seeds a partition's "inherited" swatch so the preview matches the real ring
     // even when colorTheme != system (issue #67). Falls back to the theme
     // highlight until a wrapper injects the resolved value.
-    property color sharedRingColor: body.theme ? body.theme.highlightColor : "#3daee9"
+    property color sharedRingColor: body.theme ? body.theme.highlightColor : ColorThemes.DEFAULT_HIGHLIGHT
     // Metric ids with a live data source, injected by the platform wrapper.
     // null = unknown → every row enable-able (see isMetricAvailable).
     property var availableMetrics: null
@@ -180,15 +181,12 @@ ColumnLayout {
     // partition's color would silently lose the user's input; the referenced
     // half keeps the color of a configured-but-unplugged partition so a replug
     // restores it. Only a color whose partition is BOTH gone (undiscovered) AND
-    // unreferenced is pruned. No-op guard mirrors _refreshLabelCache.
+    // unreferenced is pruned. The _settledMap guard avoids a spurious write.
     function _refreshColorMap() {
         const discovered = (body.diskPartitions || []).map(function (p) {
             return p.id;
         });
-        const next = DiskMetrics.pruneMap(body.partitionColorsJson, body._referencedPartitionIds().concat(discovered));
-        if (next === body.partitionColorsJson || (next === "{}" && body.partitionColorsJson === ""))
-            return;
-        body.partitionColorsJson = next;
+        body.partitionColorsJson = body._settledMap(body.partitionColorsJson, DiskMetrics.pruneMap(body.partitionColorsJson, body._referencedPartitionIds().concat(discovered)));
     }
 
     function currentPartitionOrder() {
@@ -237,15 +235,20 @@ ColumnLayout {
         return Catalog.parseCsv(body.enabledPartitionsCsv).concat(Catalog.parseCsv(body.partitionOrderCsv));
     }
 
+    // Settle a recomputed UUID→string map against the current value: return the
+    // value to persist, treating the unset "" as equal to "{}" and an unchanged
+    // map as a no-op — so merely opening the dialog (or any toggle) doesn't
+    // dirty the KCM page / queue a standalone QSettings write. Assigning the
+    // returned value back is itself a no-op when unchanged (QML doesn't notify
+    // on an equal value). Shared by _refreshLabelCache and _refreshColorMap.
+    function _settledMap(current, next) {
+        if (next === current || (next === "{}" && current === ""))
+            return current;
+        return next;
+    }
+
     function _refreshLabelCache() {
-        const next = DiskMetrics.mergeLabelCache(body.partitionLabelsJson, body.diskPartitions || [], body._referencedPartitionIds());
-        // Don't write unless the cache actually changed, and treat the unset
-        // default "" as equal to an empty "{}" — otherwise merely opening the
-        // dialog (or any checkbox toggle) would dirty the KCM page / queue a
-        // standalone QSettings write for a no-op.
-        if (next === body.partitionLabelsJson || (next === "{}" && body.partitionLabelsJson === ""))
-            return;
-        body.partitionLabelsJson = next;
+        body.partitionLabelsJson = body._settledMap(body.partitionLabelsJson, DiskMetrics.mergeLabelCache(body.partitionLabelsJson, body.diskPartitions || [], body._referencedPartitionIds()));
     }
 
     // Trash action on a stale row: drop the id from the selection, the order,

@@ -72,6 +72,22 @@ test('resolveColor unknown id: falls back to system (returns systemHighlight)', 
     assert.equal(ColorThemes.resolveColor('',            true,  SYSTEM_HIGHLIGHT, CUSTOM_LIGHT, CUSTOM_DARK), SYSTEM_HIGHLIGHT);
 });
 
+test('DEFAULT_HIGHLIGHT is the Kirigami blue', () => {
+    assert.equal(ColorThemes.DEFAULT_HIGHLIGHT, '#3daee9');
+});
+
+test('resolveSharedRingColor: system theme forwards the highlight regardless of mode/scheme', () => {
+    assert.equal(ColorThemes.resolveSharedRingColor('system', 'auto',  true,  SYSTEM_HIGHLIGHT, CUSTOM_LIGHT, CUSTOM_DARK), SYSTEM_HIGHLIGHT);
+    assert.equal(ColorThemes.resolveSharedRingColor('system', 'light', true,  SYSTEM_HIGHLIGHT, CUSTOM_LIGHT, CUSTOM_DARK), SYSTEM_HIGHLIGHT);
+});
+
+test('resolveSharedRingColor: custom theme pairs effectiveIsDark with the L/D pick', () => {
+    assert.equal(ColorThemes.resolveSharedRingColor('custom', 'auto',  false, SYSTEM_HIGHLIGHT, CUSTOM_LIGHT, CUSTOM_DARK), CUSTOM_LIGHT);
+    assert.equal(ColorThemes.resolveSharedRingColor('custom', 'auto',  true,  SYSTEM_HIGHLIGHT, CUSTOM_LIGHT, CUSTOM_DARK), CUSTOM_DARK);
+    assert.equal(ColorThemes.resolveSharedRingColor('custom', 'dark',  false, SYSTEM_HIGHLIGHT, CUSTOM_LIGHT, CUSTOM_DARK), CUSTOM_DARK);
+    assert.equal(ColorThemes.resolveSharedRingColor('custom', 'light', true,  SYSTEM_HIGHLIGHT, CUSTOM_LIGHT, CUSTOM_DARK), CUSTOM_LIGHT);
+});
+
 test('effectiveIsDark auto: returns the detected systemIsDark verbatim', () => {
     assert.equal(ColorThemes.effectiveIsDark('auto', true),  true);
     assert.equal(ColorThemes.effectiveIsDark('auto', false), false);

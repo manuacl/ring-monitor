@@ -355,6 +355,27 @@ subset in display order is done with `MetricsCatalog.filterByOrder`
 
 Covered by `tests/disk-metrics.test.mjs`.
 
+## `DiskColors.js`
+
+Shared (`core/`) helpers for the **per-partition disk ring color** (issue
+#67). The disk metric can give each selected filesystem its own ring color,
+stored as a JSON map of partition id (UUID) → color string. A partition with
+no entry inherits the shared ring color, so "disabling" a custom color is
+just removing its entry. One fixed color per disk (no light/dark pair) —
+partitions without an override still track the live light/dark scheme through
+the shared fallback. Same tolerant-parse / sorted-key-serialize shape as
+`DiskMetrics`' label cache, so an unchanged map round-trips to the same string
+(no spurious config write).
+
+| Function | Purpose |
+|---|---|
+| `parseColors(json)` / `serializeColors(obj)` | JSON ⇄ `{id: "#rrggbb"}` map. Parse tolerates empty/malformed input (→ `{}`); serialize sorts keys for a stable string. |
+| `colorFor(json, id)` | The stored color for `id`, or `""` when unset / non-string. |
+| `withColor(json, id, color)` / `withoutColor(json, id)` | Immutable set / remove of one partition's color, returning the new JSON. `MetricsBody.setPartitionColor` / `clearPartitionColor` write through these. |
+| `resolveRingColors(ids, json, fallback)` | Array of colors aligned to `ids` (the rendered disk-ring set, outermost first): the stored override where set, else `fallback` (the shared ring color). Drives `Ring.equalColors` via `MainContent._diskColors`. |
+
+Covered by `tests/disk-colors.test.mjs`.
+
 > New shared `core/*.{js,qml}` **and** `platforms/standalone/*.{js,qml}`
 > files must be added to the `QML_FILES` list in `CMakeLists.txt` — the
 > standalone build compiles each one into the `RingMonitor.Standalone`

@@ -36,6 +36,11 @@
             <default></default>
         </entry>
 
+        <entry name="diskPartitionColors" type="String">
+            <label>JSON map of disk partition id to a custom ring color (#rrggbb). A partition with no entry uses the shared ring color. Empty = no custom colors.</label>
+            <default></default>
+        </entry>
+
         <entry name="showCpuCores" type="Bool">
             <label>Show per-core CPU usage as concentric rings inside the CPU ring</label>
             <default>true</default>

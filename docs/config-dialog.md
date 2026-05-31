@@ -11,6 +11,7 @@
     <entry name="enabledPartitions" type="String"> <default></default> </entry>
     <entry name="partitionOrder"    type="String"> <default></default> </entry>
     <entry name="partitionLabels"   type="String"> <default></default> </entry>
+    <entry name="diskPartitionColors" type="String"> <default></default> </entry>
     <entry name="showCpuCores"      type="Bool">   <default>true</default> </entry>
 </group>
 <group name="Appearance">

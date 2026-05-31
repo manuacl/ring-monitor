@@ -31,6 +31,8 @@ Item {
     readonly property string partitionLabels: Plasmoid.configuration.partitionLabels
     // Removable partitions the user opted out of auto-show (CSV of UUIDs).
     readonly property string partitionOptOut: Plasmoid.configuration.partitionOptOut
+    // JSON partition-id→custom-color map (empty = no per-partition colors).
+    readonly property string diskPartitionColors: Plasmoid.configuration.diskPartitionColors
     readonly property bool showCpuCores: Plasmoid.configuration.showCpuCores
     readonly property bool mergeCpuTemp: Plasmoid.configuration.mergeCpuTemp
     readonly property bool mergeGpuTemp: Plasmoid.configuration.mergeGpuTemp

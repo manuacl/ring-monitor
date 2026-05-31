@@ -26,6 +26,16 @@ Item {
     property bool available: true
     property bool checked: false
 
+    // Per-partition ring color (issue #67). `customColor` is the stored
+    // override ("" = none → the ring inherits the shared color, shown here
+    // via `inheritedColor`). `colorPickerComponent` is the platform-injected
+    // picker Component; when absent the swatch + clear button don't render
+    // (e.g. a host that doesn't wire a picker). Only the available variant
+    // gets a color control — a disconnected partition has no ring to color.
+    property Component colorPickerComponent
+    property string customColor: ""
+    property color inheritedColor: "#3daee9"
+
     // Theme tokens — injected by the parent. Defaults match Kirigami's.
     property real smallSpacing: 4
     property real iconSize: 16
@@ -33,6 +43,13 @@ Item {
     // ── Output ──────────────────────────────────────────────────────
     signal toggled(bool on)
     signal removeRequested
+    // Emitted when the user confirms a color in the picker, and when they
+    // clear the override (back to the shared ring color).
+    signal colorPicked(color picked)
+    signal colorCleared
+
+    readonly property bool _hasCustomColor: row.customColor !== ""
+    readonly property bool _colorControlVisible: row.available && row.colorPickerComponent !== null
 
     implicitWidth: layout.implicitWidth
     implicitHeight: layout.implicitHeight
@@ -51,6 +68,38 @@ Item {
             checked: row.checked
             onClicked: row.toggled(checked)
             Layout.fillWidth: true
+        }
+
+        // ── Per-partition color swatch (available variant) ──────────
+        // The swatch shows the override when set, else the inherited
+        // (shared) color so the user sees the current ring color before
+        // overriding. Confirming the dialog emits colorPicked.
+        Loader {
+            id: colorButton
+            visible: row._colorControlVisible
+            sourceComponent: row.colorPickerComponent
+            onLoaded: {
+                if (!item)
+                    return;
+                item.color = Qt.binding(function () {
+                    return row._hasCustomColor ? row.customColor : row.inheritedColor;
+                });
+                item.accepted.connect(function () {
+                    row.colorPicked(item.color);
+                });
+            }
+        }
+        // Clear the override → back to the shared widget color. Only
+        // meaningful (and visible) once a custom color is set.
+        QQC2.ToolButton {
+            id: clearColorButton
+            visible: row._colorControlVisible && row._hasCustomColor
+            icon.name: "edit-clear"
+            flat: true
+            onClicked: row.colorCleared()
+            QQC2.ToolTip.text: qsTr("Use the general ring color")
+            QQC2.ToolTip.visible: hovered
+            QQC2.ToolTip.delay: 500
         }
 
         // ── Stale variant ───────────────────────────────────────────
@@ -95,6 +144,8 @@ Item {
 
     // ── Test hooks ──────────────────────────────────────────────────
     readonly property alias _checkBox: checkBox
+    readonly property alias _colorButton: colorButton
+    readonly property alias _clearColorButton: clearColorButton
     readonly property alias _staleLabel: staleLabel
     readonly property alias _unavailableLabel: unavailableLabel
     readonly property alias _removeButton: removeButton

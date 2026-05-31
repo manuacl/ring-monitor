@@ -36,6 +36,13 @@ Item {
     // nestedValues, which keeps the main ring and nests thin rings inside it.
     property var equalValues: []
 
+    // Optional: per-index colors for the equalValues rings (disk
+    // multi-partition mode). Aligned to equalValues; entry i colors ring i.
+    // A missing/empty entry falls back to `ringColor` — so the default
+    // (empty array) keeps every disk ring on the shared color, and a
+    // partition without a custom color matches the rest. (issue #67)
+    property var equalColors: []
+
     // Optional: when `splitMode` is true the outer ring is scinded at
     // the top into two half-arcs growing bottom-up from the gap edges:
     //   - left half  = `value`        (0-100, usage %)
@@ -329,7 +336,7 @@ Item {
                 radius: root.equalLayout.radii[index] || 0
                 stroke: root.equalLayout.stroke
                 value: root.equalValues[index] || 0
-                ringColor: root.ringColor
+                ringColor: root.equalColors[index] || root.ringColor
                 trackOpacity: root.trackOpacity
                 arcOpacity: root.arcOpacity
             }
@@ -438,6 +445,7 @@ Item {
     readonly property real _rightSweepAngle: Geom.rightHalfSweepFor(root.displaySplitValue)
     readonly property bool _fullArcVisible: arcShape.visible
     readonly property int _equalRingCount: equalRepeater.count
+    readonly property alias _equalRepeater: equalRepeater
     readonly property bool _leftArcVisible: leftArcShape.visible
     readonly property bool _rightArcVisible: rightArcShape.visible
     readonly property bool _splitValueTextVisible: splitValueText.visible

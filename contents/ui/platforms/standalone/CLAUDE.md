@@ -647,6 +647,14 @@ an `id` and bind the child's width to `<id>.availableWidth`.
 Canonical example: `SettingsDialog.qml` — three ScrollViews each
 binding their body's width to their own `.availableWidth`.
 
+A QQC2 popup (`ToolTip` / `Menu`) raised from a `core/` component is
+clipped to **this tiny rings window** unless it's a `Window`-type popup,
+and a `Window` popup won't auto-size to its content — both bit the #69
+CPU-ring tooltip. The rule lives with the component layer:
+[`../../core/CLAUDE.md`](../../core/CLAUDE.md) § "QQC2 popup over the
+widget…". (The traps only surface here, because the standalone window is
+sized to the rings; on Plasma the overlay is large.)
+
 ### Autostart `Exec=` line must shell-escape the path
 
 `Autostart::buildDesktopFileContent` runs the current binary path

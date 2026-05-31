@@ -157,6 +157,34 @@ the list frozen; switching it to `readonly property var topProcesses`
 fixed it. Argument-taking getters (`metricValue(id)`) stay functions —
 the caller re-invokes them from a binding that already tracks the arg.
 
+### A QQC2 popup over the widget needs `popupType: Window` + a `width` bound to `implicitWidth`
+
+A `QQC2.ToolTip` / `Popup` raised from a ring (the #69 process tooltip,
+`ProcessTooltip.qml`) has two traps — both only bite on the **standalone**
+host, whose window is sized to the rings (tiny); on Plasma the overlay is
+large. Cost ~4 live iterations:
+
+- **`popupType: QQC2.Popup.Window`, not the default.** An in-scene
+  (`Item`) popup — the pre-6.8 default — is clipped to the host window's
+  rect, so over the tiny standalone window only a sliver shows. A
+  `Window`-type popup is a separate surface that escapes it (and the
+  compositor keeps it on screen). Harmless on Plasma.
+- **Bind `width` to the content's `implicitWidth` — don't rely on
+  auto-sizing, and don't hardcode a fixed width.** A `Window`-type popup
+  does **not** adopt its `contentItem`'s `implicitWidth` the way an
+  in-scene popup does, so a Layout content (rows using `Layout.fillWidth`,
+  which report a ~0 minimum) collapses to a sliver and names elide to
+  "k…"; setting row `preferredWidth` doesn't lift it. Use `width:
+  <content>.implicitWidth + leftPadding + rightPadding` — still
+  content-driven (grows to the widest row), just bound explicitly because
+  the popup won't. Cap one field (the name's `Layout.maximumWidth`) so an
+  outlier can't stretch it.
+- **Place it edge-aware**, not at a fixed offset: the standalone window
+  anchors **top-right**, so growing down-and-right runs off screen. Flip
+  the side on overflow via `item.mapToGlobal()` + `Screen.virtualX/Y` +
+  `Screen.width/height` (all plain QtQuick — no Plasma dep). Canonical:
+  `ProcessTooltip.qml`'s `x`/`y` bindings.
+
 ## Where the platform adapters live
 
 For Plasma-specific concerns (KSysGuard, KConfig, plasmashell quirks,

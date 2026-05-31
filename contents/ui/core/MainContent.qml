@@ -4,6 +4,7 @@ import "MetricsCatalog.js" as Catalog
 import "ColorThemes.js" as ColorThemes
 import "DiskMetrics.js" as DiskMetrics
 import "RingGeometry.js" as Geom
+import "ProcessRanking.js" as ProcessRanking
 
 // Body of the plasmoid's fullRepresentation. Renders the active rings
 // in a horizontal or vertical strip based on configStore.orientation.
@@ -264,8 +265,12 @@ GridLayout {
             ProcessTooltip {
                 id: cpuTooltip
                 armed: ringDelegate.modelData === "cpu"
+                title: qsTr("Top processes — CPU")
                 processes: content.metrics.topProcesses
-                loadAverages: content.metrics.loadAverages
+                formatValue: function (p) {
+                    return ProcessRanking.formatCpuPercent(p.cpuPercent);
+                }
+                footerText: qsTr("load") + "  " + ProcessRanking.formatLoadAverages(content.metrics.loadAverages)
             }
             Binding {
                 target: content.metrics

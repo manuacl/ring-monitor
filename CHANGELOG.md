@@ -131,6 +131,8 @@ user-facing only.
   enumeration nor `ProcessDataModel` polls in the background.
 - `core/ProcessTooltip.qml` (hover-driven `QQC2.ToolTip`, sampling starts on
   enter, shown after a 500 ms delay) wired onto the CPU `Ring` in `MainContent`.
+  Generic over the ranked metric — `title` / `formatValue` / `footerText` are
+  injected by the parent, so the companion RAM-ring tooltip can reuse it as-is.
 - Tests: `process-ranking`, `proc-parser`, `proc-reader` (/proc root guard),
   `standalone`/`plasma`-`process-sampler` guards, backend surface mirrors,
   `tst_ProcessTooltip.qml`.

@@ -2,11 +2,11 @@ import QtQuick
 import QtTest
 import "../../contents/ui/core" as Ui
 
-// Rendering tests for ProcessTooltip.qml — the CPU-ring top-processes tooltip
-// (issue #69). The ranking/formatting math is covered runtime-free in
+// Rendering tests for ProcessTooltip.qml — the generic top-processes ring
+// tooltip (issue #69). The ranking/formatting math is covered runtime-free in
 // process-ranking.test.mjs; this checks the QML view: row count tracks the
-// model, the footer formats the load averages, and sampling stays inert until
-// the CPU ring arms it.
+// model, the footer renders the injected text, and sampling stays inert until
+// the owning ring arms it.
 Item {
     id: root
     width: 300
@@ -15,8 +15,9 @@ Item {
     Ui.ProcessTooltip {
         id: tip
         armed: true
+        title: "Top processes — CPU"
         processes: []
-        loadAverages: [0, 0, 0]
+        footerText: ""
     }
 
     TestCase {
@@ -26,7 +27,7 @@ Item {
         function init() {
             tip.armed = true;
             tip.processes = [];
-            tip.loadAverages = [0, 0, 0];
+            tip.footerText = "";
         }
 
         function test_row_count_tracks_the_model() {
@@ -43,15 +44,13 @@ Item {
             compare(tip._rowCount, 0);
         }
 
-        function test_footer_formats_the_load_averages() {
-            tip.loadAverages = [0.82, 0.75, 0.61];
-            verify(tip._footerText.indexOf("0.82") !== -1);
-            verify(tip._footerText.indexOf("0.75") !== -1);
-            verify(tip._footerText.indexOf("0.61") !== -1);
+        function test_footer_renders_the_injected_text() {
+            tip.footerText = "load  0.82  0.75  0.61";
+            compare(tip._footerText, "load  0.82  0.75  0.61");
         }
 
-        // armed=false (every non-CPU ring) keeps the HoverHandler disabled, so
-        // sampling never engages there — the no-background-polling guarantee.
+        // armed=false (every non-owning ring) keeps the HoverHandler disabled,
+        // so sampling never engages there — the no-background-polling guarantee.
         function test_not_armed_means_not_sampling() {
             tip.armed = false;
             compare(tip.samplingActive, false);

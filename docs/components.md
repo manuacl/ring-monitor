@@ -321,26 +321,32 @@ nestedValues array). The pure math is covered by
 
 ## `ProcessTooltip.qml`
 
-The CPU-ring **top-processes tooltip** (issue #69). Dropped in as a child
-of the CPU `Ring` delegate in `MainContent`; every other ring leaves it
+A ring's **top-processes tooltip** (issue #69) — **generic over the
+ranked metric** (Open/Closed): the CPU ring wires it for CPU%, and the
+companion RAM-ring tooltip can reuse it as-is by injecting a memory
+`title` / `formatValue` / `footerText` (no edit here). Dropped in as a
+child of the ring delegate in `MainContent`; every other ring leaves it
 inert (`armed: false`). Pure QtQuick + Kirigami + QtQuick.Controls — no
-platform import; the data comes in as plain properties.
+platform import, no metric-specific logic; everything comes in as props.
 
 | Property / signal | Role |
 |---|---|
-| `armed` | Only the cpu delegate sets it true — gates the `HoverHandler` so sampling/showing never engage on other rings. |
-| `processes` | Ranked `[{pid, name, cpuPercent}]` (= `backend.topProcesses`). Rendered one row each: name + dimmed `·PID` + right-aligned `formatCpuPercent`. |
-| `loadAverages` | `[1, 5, 15]`-min averages (= `backend.loadAverages`); the footer formats them via `ProcessRanking.formatLoadAverages`. |
-| `samplingActive` (readonly) | True while the pointer is over the ring. `MainContent` binds `metrics.processSamplingActive` to it (gated on the cpu ring), so the backend samples **only** while hovered. |
+| `armed` | Only the owning ring's delegate sets it true — gates the `HoverHandler` so sampling/showing never engage on other rings. |
+| `processes` | Ranked `[{pid, name, …}]` (= `backend.topProcesses`). One row each: name + dimmed `·PID` + the right-aligned value below. |
+| `title` | Header line (CPU ring passes `qsTr("Top processes — CPU")`). |
+| `formatValue` | `function(process) → string` for the right column — the parent injects the metric (CPU: `p ⇒ ProcessRanking.formatCpuPercent(p.cpuPercent)`). |
+| `footerText` | Footer line, empty → no footer (CPU ring passes the `load` average, formatted via `ProcessRanking.formatLoadAverages`). |
+| `samplingActive` (readonly) | True while the pointer is over the ring. `MainContent` binds `metrics.processSamplingActive` to it (gated on the owning ring), so the backend samples **only** while hovered. |
 
 Sampling starts on hover-**enter** (immediately), but the `QQC2.ToolTip`
 only appears after a 500 ms delay — so the backend warms up during the
 delay and the list is populated by the time the tooltip shows (a
-`Gathering…` placeholder covers the rare first-tick gap). All number
-formatting is the shared
-[`core/ProcessRanking.js`](logic-modules.md#processrankingjs); the data
-sources are the two [`ProcessSampler.qml`](#processsamplerqml-one-per-platform)
-adapters. Covered by `tests/qml/tst_ProcessTooltip.qml`.
+`Gathering…` placeholder covers the rare first-tick gap). The tooltip is
+a `Window`-type popup, content-width-bound and edge-aware — see
+[`core/CLAUDE.md`](../contents/ui/core/CLAUDE.md) § "QQC2 popup over the
+widget…" for why. The data sources are the two
+[`ProcessSampler.qml`](#processsamplerqml-one-per-platform) adapters.
+Covered by `tests/qml/tst_ProcessTooltip.qml`.
 
 ## `MetricRow.qml`
 

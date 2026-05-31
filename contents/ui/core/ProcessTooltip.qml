@@ -2,34 +2,40 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls as QQC2
 import org.kde.kirigami as Kirigami
-import "ProcessRanking.js" as ProcessRanking
 
-// Hover-driven CPU-ring process tooltip (issue #69). Dropped in as a child of
-// the CPU Ring in MainContent; it detects hover over the parent ring and:
+// Hover-driven "top processes" tooltip for a ring (issue #69). Generic over the
+// ranked metric: the CPU ring wires it for CPU%, and the companion RAM-ring
+// tooltip can reuse it as-is by injecting a memory `title` / `formatValue` /
+// `footerText` (Open/Closed — no edit here). Dropped in as a child of the ring
+// in MainContent; it:
 //   - exposes `samplingActive` (true the instant the pointer enters) so the
-//     parent binds the backend's processSamplingActive to it — sampling warms
-//     up DURING the show-delay below, so data is ready by the time the tooltip
-//     appears;
+//     parent binds the backend's sampling gate to it — sampling warms up DURING
+//     the show-delay below, so data is ready by the time the tooltip appears;
 //   - shows the QQC2.ToolTip only after a short delay, so a quick mouse
-//     pass-over doesn't flash it (or spin up /proc enumeration pointlessly).
+//     pass-over doesn't flash it (or spin up enumeration pointlessly).
 //
 // Presentational only beyond that: it renders the ranked list (name + dimmed
-// ·PID, CPU% right-aligned) plus a load-average footer. All formatting is the
-// shared core/ProcessRanking.js. Pure QtQuick + Kirigami — no platform imports.
+// ·PID + a right-aligned value the parent formats) plus an optional footer.
+// Pure QtQuick + Kirigami — no platform imports, no metric-specific logic.
 Item {
     id: root
 
     // ── Inputs ───────────────────────────────────────────────────────
-    // Only the CPU ring arms the tooltip; every other ring leaves it inert.
+    // Only the owning ring arms the tooltip; every other ring leaves it inert.
     property bool armed: false
-    // Ranked [{pid, name, cpuPercent}] from backend.topProcesses.
+    // Ranked [{pid, name, ...}] from backend.topProcesses.
     property var processes: []
-    // [1, 5, 15]-min load averages from backend.loadAverages.
-    property var loadAverages: [0, 0, 0]
+    // Header line, e.g. qsTr("Top processes — CPU").
+    property string title: ""
+    // Per-row right-column formatter: function(process) → display string. The
+    // parent injects the metric (CPU%: p => formatCpuPercent(p.cpuPercent)).
+    property var formatValue: null
+    // Footer line (empty → no footer). The parent formats it (e.g. load avg).
+    property string footerText: ""
 
     // ── Output ───────────────────────────────────────────────────────
-    // The parent binds backend.processSamplingActive to this (gated on the CPU
-    // ring). hover.enabled is armed-gated, so this stays false on other rings.
+    // The parent binds the backend's sampling gate to this (gated on its ring).
+    // hover.enabled is armed-gated, so this stays false on every other ring.
     readonly property bool samplingActive: hover.hovered
 
     // Test hooks (underscore = internal).
@@ -106,7 +112,7 @@ Item {
             spacing: Kirigami.Units.smallSpacing
 
             QQC2.Label {
-                text: qsTr("Top processes — CPU")
+                text: root.title
                 font: Kirigami.Theme.smallFont
                 opacity: 0.7
                 Layout.fillWidth: true
@@ -137,7 +143,7 @@ Item {
                         font: Kirigami.Theme.smallFont
                     }
                     QQC2.Label {
-                        text: ProcessRanking.formatCpuPercent(procRow.modelData.cpuPercent)
+                        text: root.formatValue ? root.formatValue(procRow.modelData) : ""
                         horizontalAlignment: Text.AlignRight
                         Layout.minimumWidth: Kirigami.Units.gridUnit * 2.5
                     }
@@ -152,13 +158,15 @@ Item {
             }
 
             Kirigami.Separator {
+                visible: root.footerText.length > 0
                 Layout.fillWidth: true
                 Layout.topMargin: Kirigami.Units.smallSpacing
             }
 
             QQC2.Label {
                 id: footerLabel
-                text: qsTr("load") + "  " + ProcessRanking.formatLoadAverages(root.loadAverages)
+                visible: root.footerText.length > 0
+                text: root.footerText
                 font: Kirigami.Theme.smallFont
                 opacity: 0.7
             }

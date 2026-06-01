@@ -16,12 +16,14 @@
 // `contents/ui/platforms/standalone/CLAUDE.md`.
 
 #include "desktop_hints.h"
+#include "single_instance.h"
 
 #include <QGuiApplication>
+#include <QLocalSocket>
 #include <QQmlApplicationEngine>
-#include <QQmlContext>
 #include <QString>
 #include <QWindow>
+#include <QtQml>
 
 // Injected by CMake from metadata.json (KPlugin.Version) — the
 // single source of truth the release pipeline bumps. The fallback
@@ -55,12 +57,15 @@ int main(int argc, char *argv[])
     // not constructed at all. See its file docblock for why this
     // shape beats threading a `_settingsOnly` flag through Main.qml.
     //
-    // Implementation note: this opens a NEW process with only the
-    // settings dialog. Config writes go through QSettings to the same
-    // ~/.config file the running widget reads; the user kills +
-    // relaunches the running widget to apply (Qt.labs.settings
-    // doesn't watch). A live-reload path would need
-    // QFileSystemWatcher on the conf file — out of scope.
+    // Implementation note: `--open-settings` is the RECOVERY path, used
+    // only when no widget is running (or a wedged one didn't answer the
+    // single-instance probe below). When a widget IS running, the probe
+    // routes the request to it via IPC and this process exits before
+    // loading any root — so the dialog opens IN-PROCESS in the running
+    // widget, where its writes go through the same ConfigStore the rings
+    // read and therefore apply live (issues #103 / #104, see
+    // single_instance.h). The separate-process recovery root below only
+    // loads when there's nothing to route to.
     bool openSettings = false;
     for (int i = 1; i < argc; ++i) {
         const QString arg = QString::fromLocal8Bit(argv[i]);
@@ -106,7 +111,84 @@ int main(int argc, char *argv[])
     // build-from-source run), so it's harmless outside the AppImage.
     QGuiApplication::setDesktopFileName("dev.manuacl.ringmonitor");
 
+    // ── Single-instance guard + wake-up IPC (issues #103 / #104) ──────
+    // Probe-then-act loop. Each pass: if a primary is listening, hand it our
+    // intent + version and obey its explicit reply; otherwise try to become the
+    // primary. The newcomer NEVER acts on a timeout — only on an explicit reply
+    // — so a busy/wedged primary is never hijacked (review findings #1/#2):
+    //   • reply "defer"   → exit WITHOUT loading a QML root. Any --open-settings
+    //     (it opened its in-process dialog → live config, #104) and a same-version
+    //     relaunch (no pile-up, #103).
+    //   • reply "takeover" → a different-version primary is quitting; wait for it
+    //     to release the socket, then loop and claim it.
+    //   • no reply        → a primary is there but unresponsive; exit rather than
+    //     stealing its socket (kill it manually to replace a wedged one).
+    // tryListen() is itself race-safe: it listens first and only clears a socket
+    // it has PROVEN stale (re-probe), so two simultaneous launches can't both
+    // become primary — the loser gets Busy and re-probes into the defer path.
+    // The socket name is fixed and per-user ($XDG_RUNTIME_DIR-scoped by Qt).
+    const QString instanceSocket = QStringLiteral("dev.manuacl.ring-monitor");
+    const QString localVersion = QStringLiteral(RING_MONITOR_VERSION);
+    SingleInstance singleInstance(localVersion);
+    bool becamePrimary = false;
+    for (int attempt = 0; attempt < 5 && !becamePrimary; ++attempt) {
+        QLocalSocket probe;
+        probe.connectToServer(instanceSocket);
+        if (probe.waitForConnected(100)) {
+            // One newline-terminated line "<intent> <version>\n" — the '\n' is
+            // the frame delimiter, so the server reading up to it gets the whole
+            // message (intent AND version), never a truncated version (F1). Wire
+            // tokens are the shared SingleInstanceProtocol constants so a typo on
+            // one side can't silently break the handshake.
+            using namespace SingleInstanceProtocol;
+            const QByteArray hello =
+                (openSettings ? QByteArray(kIntentOpenSettings) : QByteArray(kIntentShow))
+                + ' ' + localVersion.toUtf8() + '\n';
+            probe.write(hello);
+            probe.waitForBytesWritten(100);
+            // Read the whole reply line, mirroring the server's framing: a split
+            // "takeover\n" must not be misread as non-takeover, which would make
+            // BOTH this process and the quitting primary exit, leaving no widget.
+            QByteArray reply;
+            while (!reply.contains('\n') && probe.waitForReadyRead(2000))
+                reply += probe.readAll();
+            reply = reply.left(reply.indexOf('\n')).trimmed();
+            if (reply == kReplyTakeover) {
+                probe.waitForDisconnected(2500);
+                continue;  // primary is quitting → loop and claim the socket
+            }
+            return 0;  // "defer" / unknown / no reply → a primary handled us
+        }
+        // No primary listening. The --open-settings recovery editor must NOT
+        // claim the socket (it's transient and would block a later widget launch).
+        if (openSettings)
+            break;
+        const SingleInstance::Claim claim = singleInstance.tryListen(instanceSocket);
+        if (claim == SingleInstance::Claim::Acquired)
+            becamePrimary = true;
+        else if (claim == SingleInstance::Claim::Busy)
+            continue;  // lost the start-up race → re-probe and defer to the winner
+        else
+            break;  // Failed (non-recoverable) → run anyway, unguarded
+    }
+    // Degraded: we're the main widget but never secured the socket (listen()
+    // failed, or we lost the start-up race every attempt). Run anyway — a
+    // visible widget beats refusing to start — but leave a trace, since a later
+    // launch won't see us and could stack a second window.
+    if (!openSettings && !becamePrimary)
+        qWarning("ring-monitor: single-instance socket not acquired; running unguarded");
+
     QQmlApplicationEngine engine;
+    // Expose the guard to QML as a context property — NOT
+    // qmlRegisterSingletonInstance into the "RingMonitor.Standalone" URI:
+    // manually registering a type into a module that qt_add_qml_module already
+    // owns clobbers its auto-registered C++ elements (ProcReader / NvmlReader /
+    // WindowAnchor), so the QML root fails to load with "ProcReader is not a
+    // type" and the binary exits 1. A context property is the right tool for
+    // exposing one pre-constructed instance and leaves the module registry
+    // intact. singleInstance is a stack object declared before `engine`, so it
+    // outlives the engine.
+    engine.rootContext()->setContextProperty("SingleInstance", &singleInstance);
     // Two physically separate roots (no `_settingsOnly` flag threaded
     // through Main.qml): recovery mode hosts only the SettingsDialog.
     const char *qmlRoot = openSettings ? "SettingsOnlyRoot" : "Main";

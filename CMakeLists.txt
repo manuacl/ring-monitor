@@ -115,6 +115,7 @@ qt_add_qml_module(ring-monitor-standalone
         contents/ui/platforms/standalone/Main.qml
         contents/ui/platforms/standalone/SettingsOnlyRoot.qml
         contents/ui/platforms/standalone/MetricsBackend.qml
+        contents/ui/platforms/standalone/ProcessSampler.qml
         contents/ui/platforms/standalone/Theme.qml
         contents/ui/platforms/standalone/ThemedIcon.qml
         contents/ui/platforms/standalone/ConfigStore.qml
@@ -126,6 +127,7 @@ qt_add_qml_module(ring-monitor-standalone
         contents/ui/platforms/standalone/GpuDiscovery.js
         contents/ui/platforms/standalone/DiskDiscovery.js
         contents/ui/platforms/standalone/WindowPlacement.js
+        contents/ui/platforms/standalone/ProcParser.js
         contents/ui/core/Ring.qml
         contents/ui/core/ConcentricArc.qml
         contents/ui/core/MainContent.qml
@@ -143,6 +145,8 @@ qt_add_qml_module(ring-monitor-standalone
         contents/ui/core/RingGeometry.js
         contents/ui/core/DiskMetrics.js
         contents/ui/core/UpdateCheck.js
+        contents/ui/core/ProcessRanking.js
+        contents/ui/core/ProcessTooltip.qml
 )
 
 target_link_libraries(ring-monitor-standalone PRIVATE

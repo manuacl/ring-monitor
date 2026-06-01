@@ -144,6 +144,69 @@ re-applies on every value change and survives the self-assign. Canonical use:
 the bug only because it had no external change). Regression-guarded by the
 `SCENARIO_swatch_*` tests in `tst_DiskPartitionPicker.qml` / `tst_AppearanceBody.qml`.
 
+### Reactive argless data: expose as a `property`, not a `function`
+
+When a component publishes data a view binds to (a list, a snapshot) and
+the getter takes **no argument**, expose it as a `readonly property`, not
+a `function foo()`. A function call is **not a tracked dependency** in a
+QML binding — `model: backend.foo()` evaluates once and never re-runs
+when the underlying data changes, so the view silently freezes. A
+property (even one forwarding a child's property) carries NOTIFY, so the
+binding updates. Bit the #69 tooltip: `topProcesses()` as a function left
+the list frozen; switching it to `readonly property var topProcesses`
+fixed it. Argument-taking getters (`metricValue(id)`) stay functions —
+the caller re-invokes them from a binding that already tracks the arg.
+
+### A QQC2 popup over the widget needs `popupType: Window` + a `width` bound to `implicitWidth`
+
+A `QQC2.ToolTip` / `Popup` raised from a ring (the #69 process tooltip,
+`ProcessTooltip.qml`) has two traps — both only bite on the **standalone**
+host, whose window is sized to the rings (tiny); on Plasma the overlay is
+large. Cost ~4 live iterations:
+
+- **`popupType: QQC2.Popup.Window`, not the default — but set it GUARDED,
+  not declaratively.** An in-scene (`Item`) popup — the pre-6.8 default — is
+  clipped to the host window's rect, so over the tiny standalone window only a
+  sliver shows. A `Window`-type popup is a separate surface that escapes it.
+  BUT `popupType` is **Qt 6.8+** and the project floor is **Qt 6.6**
+  (`CMakeLists.txt`): a *declarative* `popupType: QQC2.Popup.Window` is a hard
+  load error on < 6.8 ("Cannot assign to non-existent property") that takes the
+  **whole widget** down (this file is in `core/`, loaded by both hosts — so a
+  Plasma 6.6/6.7 host loses the widget entirely, and the AppImage smoke-test on
+  the 6.6 floor goes red). Set it imperatively + guarded instead:
+  `Component.onCompleted: if (tip.popupType !== undefined) tip.popupType = QQC2.Popup.Window`
+  — on ≥ 6.8 it's the Window popup; on 6.6/6.7 the component still loads with the
+  in-scene default (fine on Plasma's large overlay, clipped on the small
+  standalone window). The **shipped AppImage bundles Qt 6.8** (`release.yml`) so
+  standalone users get the Window popup; `ci.yml`'s AppImage smoke-test stays
+  pinned to Qt 6.6 to guard the fallback-load path. Don't "tidy" it back to a
+  declarative assignment. Canonical: `ProcessTooltip.qml`.
+- **Bind `width` to the content's `implicitWidth` — don't rely on
+  auto-sizing, and don't hardcode a fixed width.** A `Window`-type popup
+  does **not** adopt its `contentItem`'s `implicitWidth` the way an
+  in-scene popup does, so a Layout content (rows using `Layout.fillWidth`,
+  which report a ~0 minimum) collapses to a sliver and names elide to
+  "k…"; setting row `preferredWidth` doesn't lift it. Use `width:
+  <content>.implicitWidth + leftPadding + rightPadding` — still
+  content-driven (grows to the widest row), just bound explicitly because
+  the popup won't. Cap one field (the name's `Layout.maximumWidth`) so an
+  outlier can't stretch it.
+- **If the content re-samples on a timer, make the width a grow-only
+  high-water mark, reset on hide, bound as `max(mark, implicitWidth)`.** The
+  process tooltip refreshes every 500 ms, so the widest row keeps changing —
+  a bare `implicitWidth` bind makes the popup yoyo wider/narrower every
+  sample. Track a grow-only `_maxContentWidth` (a narrower sample is ignored;
+  reset to 0 on dismiss via `on_ShowChanged` so a one-off wide sample doesn't
+  pin every later hover). Bind to `max(mark, implicitWidth)`, not the mark
+  alone: the mark starts at 0 and the tracker only updates it on a *change*,
+  so a bare-mark bind renders a one-char sliver on the first frame until the
+  next layout tick. Canonical: `ProcessTooltip._maxContentWidth`.
+- **Place it edge-aware**, not at a fixed offset: the standalone window
+  anchors **top-right**, so growing down-and-right runs off screen. Flip
+  the side on overflow via `item.mapToGlobal()` + `Screen.virtualX/Y` +
+  `Screen.width/height` (all plain QtQuick — no Plasma dep). Canonical:
+  `ProcessTooltip.qml`'s `x`/`y` bindings.
+
 ## Where the platform adapters live
 
 For Plasma-specific concerns (KSysGuard, KConfig, plasmashell quirks,

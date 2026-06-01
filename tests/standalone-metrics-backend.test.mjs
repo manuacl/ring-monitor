@@ -22,7 +22,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms", "standalone", "MetricsBackend.qml"), "utf8");
 
 // Same public surface as platforms/plasma/MetricsBackend.qml.
-const PUBLIC_PROPS = ["coreValues", "loading", "availableMetrics", "availablePartitions", "defaultPartitionIds"];
+const PUBLIC_PROPS = ["coreValues", "loading", "availableMetrics", "availablePartitions", "defaultPartitionIds", "processSamplingActive", "topProcesses", "loadAverages"];
 const PUBLIC_FUNCS = ["metricValue", "metricRawTemp", "metricTempPercent", "partitionValue"];
 
 test("standalone MetricsBackend exposes the public properties main.qml depends on", () => {
@@ -279,4 +279,15 @@ test("standalone MetricsBackend polls on a Timer", () => {
     // value as the marker — looser than full Timer block matching,
     // tighter than no assertion at all.
     assert.match(SOURCE, /Timer\s*{[\s\S]*?interval:\s*500/, "must declare a Timer with interval: 500ms");
+});
+
+test("standalone MetricsBackend forwards the CPU process tooltip to ProcessSampler (#69)", () => {
+    // The /proc enumeration lives in the ProcessSampler child (own ProcReader
+    // + Timer) so this adapter stays under the 500-line cap; the backend just
+    // forwards the same-surface bits. Guarding the forwarding (not the
+    // enumeration, which is ProcessSampler's own guard) keeps the wiring honest.
+    assert.match(SOURCE, /ProcessSampler\s*{/, "must instantiate the ProcessSampler child");
+    assert.match(SOURCE, /property\s+alias\s+processSamplingActive\s*:\s*processSampler\.active/, "processSamplingActive must alias the sampler's active gate");
+    assert.match(SOURCE, /topProcesses\s*:\s*processSampler\.topProcesses/, "topProcesses must forward the sampler's ranked list (a property, for binding reactivity)");
+    assert.match(SOURCE, /loadAverages\s*:\s*processSampler\.loadAverages/, "loadAverages must forward the sampler's value");
 });

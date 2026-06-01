@@ -164,6 +164,31 @@ release happens to be single-scope, every tag is unsuffixed (`"both"`)
 and behaviour matches the pre-#89 widget. Full rationale: issue #89; the
 release-flow details live in [`releasing.md`](releasing.md).
 
+## `ProcessRanking.js`
+
+Pure ranking + formatting for the CPU-ring process tooltip (issue #69),
+shared by both platform adapters. It consumes **already-normalised**
+process records and only sorts + formats — the "total 0-100%" CPU
+normalisation happens at the source (the standalone `/proc/<pid>/stat`
+delta is intrinsically total-normalised over the system-wide jiffy
+delta; the Plasma adapter divides ksysguard's reading by the core
+count), so this module stays platform-agnostic.
+
+Record shape: `{ pid, name, cpuPercent, rssKb? }`. `rssKb` is optional
+and **unused in the v1 CPU tooltip** — it's a forward hook for the
+companion RAM-ring tooltip, which will reuse this same enumeration and
+rank on memory instead (so that issue adds a `rankByMemory` here rather
+than re-plumbing both backends).
+
+| Function | Purpose |
+|---|---|
+| `DEFAULT_LIMIT` | `20` — the issue-#69 cap (top 20 processes). |
+| `rankByCpu(records, limit)` | New array sorted by `cpuPercent` desc, capped to `limit` (default `DEFAULT_LIMIT`). Ties break by `pid` asc so the order is deterministic across ticks (no tooltip flicker). Drops records with no `pid`, coerces NaN/negative/undefined `cpuPercent` to 0, never mutates the input. Non-array input or `limit ≤ 0` → `[]`. |
+| `formatCpuPercent(value)` | `12.34` → `"12.3%"` (one decimal, `top`'s precision). NaN/negative/undefined → `"0.0%"`. |
+| `formatLoadAverages(loads)` | The three kernel load averages → `"0.42  0.55  0.61"` (two decimals, double-space separated). Pads a short/missing array with `0.00`; ignores entries past the first three. The `Load average:` label is added + translated by the QML caller. |
+
+Covered by `tests/process-ranking.test.mjs`.
+
 ## `SensorPicking.js`
 
 Lives in `contents/ui/platforms/plasma/` — it's **plasma-only** (the
@@ -235,6 +260,26 @@ percentages from the difference between two samples.
 
 Covered by `tests/proc-stat-parser.test.mjs` (a `.js` keeps its test
 wherever it lives — the test stays under `tests/`).
+
+## `ProcParser.js`
+
+Lives in `contents/ui/platforms/standalone/` — **standalone-only** (the
+Plasma build sources per-process data from `org.kde.ksysguard.process`
+`ProcessDataModel`). Pure parsers for the CPU-ring process tooltip
+(issue #69): `ProcessSampler.qml` reads `/proc/<pid>/stat`,
+`/proc/loadavg`, and `/proc/stat` via `ProcReader`, hands the raw text
+here, and feeds the result to the shared `core/ProcessRanking.js`.
+Self-contained (the dual-load convention forbids importing the sibling
+`ProcStatParser.js`, so `sumJiffies` is duplicated).
+
+| Function | Purpose |
+|---|---|
+| `parsePidStat(raw)` | `/proc/<pid>/stat` → `{ pid, name, jiffies }` (jiffies = utime + stime; children excluded, matching `top`). Splits `comm` on the **last** `)` so a process name containing spaces/parens (`(Web Content)`, `((sd-pam))`) doesn't shift the field offsets. `null` on malformed / truncated input. |
+| `parseLoadAvg(raw)` | `/proc/loadavg` → `[load1, load5, load15]`; missing/malformed tokens degrade to 0. |
+| `sumJiffies(fields)` | Sum of an aggregate-cpu jiffy array — the system-wide total, the denominator for the "total 0-100%" normalisation (a process's jiffy delta over the whole machine's, so a single pegged core reads ~`100/ncores`% and the rows sum toward the aggregate ring). |
+| `computePercents(prevMap, curMap, totalJiffiesDelta)` | Per-process CPU% over the interval between two pid→record snapshots, for pids present in **both** (a new pid has no prior sample → appears next tick). Clamps a negative delta (pid reuse) to 0 and the result to `[0, 100]`. Ranking + the top-N cap are the caller's job (`core/ProcessRanking.rankByCpu`). |
+
+Covered by `tests/proc-parser.test.mjs`.
 
 ## `MemInfoParser.js`
 

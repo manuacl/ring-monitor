@@ -187,6 +187,17 @@ id, label = the volume name shown in the picker), and `canonicalHome()`
 resolves `/home/<user>` → `/var/home/<user>` so `DiskDiscovery` can
 match `$HOME` against the real mountpoints for the default selection.
 
+`listDir()` shares the `/proc` + `/sys` allowlist, but the **bare roots
+`/proc` and `/sys` need an explicit exact-match** alongside the
+`/proc/` / `/sys/` prefix tests: `QDir::cleanPath` strips the trailing
+slash, so both `/proc` and `/proc/` arrive as `/proc` and would miss a
+`startsWith("/proc/")` gate. Process enumeration for the CPU tooltip
+(issue #69) lists the `/proc` root to find pid dirs — without the
+exact-root clause `listDir("/proc")` silently returns `{}` (empty
+tooltip, no error). Any future sensor enumerating a root (e.g. listing
+`/sys` itself) needs the same exact-match + a `tests/proc-reader.test.mjs`
+guard.
+
 ### Disk metric: per-filesystem discovery (multi-partition ring)
 
 The disk ring is **one equal-thickness concentric ring per selected
@@ -635,6 +646,14 @@ an `id` and bind the child's width to `<id>.availableWidth`.
 
 Canonical example: `SettingsDialog.qml` — three ScrollViews each
 binding their body's width to their own `.availableWidth`.
+
+A QQC2 popup (`ToolTip` / `Menu`) raised from a `core/` component is
+clipped to **this tiny rings window** unless it's a `Window`-type popup,
+and a `Window` popup won't auto-size to its content — both bit the #69
+CPU-ring tooltip. The rule lives with the component layer:
+[`../../core/CLAUDE.md`](../../core/CLAUDE.md) § "QQC2 popup over the
+widget…". (The traps only surface here, because the standalone window is
+sized to the rings; on Plasma the overlay is large.)
 
 ### Autostart `Exec=` line must shell-escape the path
 

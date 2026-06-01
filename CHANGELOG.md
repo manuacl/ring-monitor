@@ -19,6 +19,12 @@ user-facing only.
   vertical margins, under Settings → Appearance. The window can now sit in
   any corner instead of only top-right, and the placement persists across
   launches (#98).
+- **CPU ring tooltip — top processes.** Hover the CPU ring to see what's
+  using the most CPU right now: up to the 20 heaviest processes, each with
+  its CPU% and PID, plus a load-average footer. CPU% is the share of the
+  whole machine (so the rows sum toward the ring's value). Works on both
+  the Plasma widget and the standalone build. Process data is sampled
+  **only while the tooltip is shown** — nothing runs in the background.
 
 ### Changed
 
@@ -107,6 +113,54 @@ user-facing only.
   two margin sliders, gated by the renamed `windowPlacementVisible`. Defaults
   reproduce the pre-#98 top-right anchor byte-for-byte. **Breaking (config):**
   a custom `windowMargin` is not migrated — re-set it via the new sliders.
+- `core/ProcessRanking.js` — shared, platform-agnostic ranking + formatting
+  (sort desc, top-20 cap, deterministic pid tiebreak, `formatCpuPercent` /
+  `formatLoadAverages`). Carries an optional `rssKb` field as a forward hook
+  for the companion RAM-ring tooltip to reuse the same enumeration.
+- Standalone source `platforms/standalone/ProcessSampler.qml` + `ProcParser.js`:
+  enumerates `/proc`, deltas `utime+stime` over the system-wide jiffy delta
+  (intrinsically total-normalised), reads `/proc/loadavg`. `proc_reader.cpp`
+  now allows `listDir` on the bare `/proc` root (cleanPath stripped the
+  trailing slash) to discover pid dirs.
+- Plasma source `platforms/plasma/ProcessSampler.qml`: `org.kde.ksysguard.process`
+  `ProcessDataModel` (`enabledAttributes: name/pid/usage`, raw `Value` role).
+  ksysguard's `usage` is per-core, so it divides by `coreCount` to match the
+  total-normalised semantics; load averages from `cpu/loadaverages/loadaverage{1,5,15}`.
+- Both `MetricsBackend`s forward `processSamplingActive` / `topProcesses` /
+  `loadAverages`; sampling is gated on the tooltip's hover so neither `/proc`
+  enumeration nor `ProcessDataModel` polls in the background.
+- `core/ProcessTooltip.qml` (hover-driven `QQC2.ToolTip`, sampling starts on
+  enter, shown after a 500 ms delay) wired onto the CPU `Ring` in `MainContent`.
+  Generic over the ranked metric — `title` / `formatValue` / `footerText` are
+  injected by the parent, so the companion RAM-ring tooltip can reuse it as-is.
+- Tests: `process-ranking`, `proc-parser`, `proc-reader` (/proc root guard),
+  `standalone`/`plasma`-`process-sampler` guards, backend surface mirrors,
+  `tst_ProcessTooltip.qml`.
+- Review hardening: load-average sensors gated on `active` (no background
+  ksysguard subscription); `rankByCpu` coerces `pid` to a number (robust
+  tiebreak) and carries `rssKb` only when present (preserves the not-sampled
+  signal).
+- Tooltip placement (standalone live-test): the tooltip is a `Window`-type
+  popup (an in-scene popup is clipped to the tiny standalone window),
+  edge-aware (flips side when it would run off the screen — the standalone
+  anchors top-right), with a content-driven width bound to the content's
+  implicit size (a Window popup doesn't auto-adopt it; capped per name).
+- Tooltip width is a grow-only high-water mark (`_maxContentWidth`, reset on
+  dismiss when `_displayed` = `armed && _show` goes false): the ranked list
+  re-samples every 500 ms, so a width bound straight to live content yoyo'd
+  wider/narrower tick-to-tick. The mark blocks shrinking; the binding is
+  `max(mark, live implicitWidth)` so the first frame still sizes to content
+  instead of rendering a one-char sliver.
+- `popupType` (Qt 6.8+) is now set imperatively + guarded
+  (`Component.onCompleted: if (tip.popupType !== undefined) …`) instead of
+  declaratively — a declarative assignment is a hard load error on the project's
+  Qt 6.6 floor that took the whole widget down (it's in `core/`), which the
+  AppImage smoke-test (Qt 6.6) caught. On < 6.8 the component now loads with the
+  in-scene fallback; the shipped AppImage bundles Qt 6.8 (`release.yml`) so
+  standalone keeps the Window popup, and `ci.yml`'s smoke-test stays on Qt 6.6 to
+  guard the fallback-load path.
+- plasma `ProcessSampler`: `onActiveChanged` no longer double-samples (the Timer's
+  `triggeredOnStart` is the single first-sample path, matching standalone).
 
 ### Other
 

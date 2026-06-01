@@ -4,6 +4,7 @@ import "MetricsCatalog.js" as Catalog
 import "ColorThemes.js" as ColorThemes
 import "DiskMetrics.js" as DiskMetrics
 import "RingGeometry.js" as Geom
+import "ProcessRanking.js" as ProcessRanking
 
 // Body of the plasmoid's fullRepresentation. Renders the active rings
 // in a horizontal or vertical strip based on configStore.orientation.
@@ -254,6 +255,29 @@ GridLayout {
             // eye lands first.
             showUpdateBadge: index === 0 && content.updateChecker !== undefined && content.updateChecker.updateAvailable
             onUpdateBadgeClicked: content.configureRequested()
+
+            // CPU ring: hover reveals the top-processes tooltip (#69). Only
+            // the cpu delegate is armed; the tooltip drives the backend's
+            // processSamplingActive so /proc (standalone) / ProcessDataModel
+            // (Plasma) runs ONLY while the tooltip is hovered — no background
+            // process polling. Sampling starts on hover-enter so data is ready
+            // by the time the (delayed) tooltip shows.
+            ProcessTooltip {
+                id: cpuTooltip
+                armed: ringDelegate.modelData === "cpu"
+                title: qsTr("Top processes — CPU")
+                processes: content.metrics.topProcesses
+                formatValue: function (p) {
+                    return ProcessRanking.formatCpuPercent(p.cpuPercent);
+                }
+                footerText: qsTr("load") + "  " + ProcessRanking.formatLoadAverages(content.metrics.loadAverages)
+            }
+            Binding {
+                target: content.metrics
+                property: "processSamplingActive"
+                value: cpuTooltip.samplingActive
+                when: ringDelegate.modelData === "cpu"
+            }
         }
     }
 }

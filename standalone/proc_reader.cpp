@@ -54,8 +54,14 @@ QStringList ProcReader::listDir(const QString &path) const
     // dev-time sanity check, not a privilege boundary (the widget runs
     // as the user; `ls /sys/...` reaches the same entries). Refusing a
     // path outside /proc//sys keeps a QML typo greppable in the journal.
+    // The bare roots "/proc" and "/sys" are allowed (cleanPath strips the
+    // trailing slash, so "/proc/" arrives as "/proc" and would miss the
+    // "/proc/" prefix test): process enumeration for the CPU-ring tooltip
+    // needs to list "/proc" itself to discover the pid dirs (#69). Both
+    // roots are still ls-able by the user, same as the deeper paths.
     const QString cleaned = QDir::cleanPath(path);
-    if (!cleaned.startsWith(QStringLiteral("/proc/")) &&
+    if (cleaned != QStringLiteral("/proc") && cleaned != QStringLiteral("/sys") &&
+        !cleaned.startsWith(QStringLiteral("/proc/")) &&
         !cleaned.startsWith(QStringLiteral("/sys/"))) {
         qWarning() << "ProcReader::listDir refused path outside /proc/ or "
                       "/sys/ allowlist (after cleanPath):"

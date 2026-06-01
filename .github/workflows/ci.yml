@@ -263,6 +263,13 @@ jobs:
             libxcb1-dev libgl1-mesa-dev libfontconfig1 libfuse2 \
             libwayland-dev wayland-protocols libxkbcommon-dev
 
+      # Pinned to the Qt 6.6 FLOOR on purpose: this smoke-test is the only CI
+      # job that loads the QML on 6.6 (qml-checks runs on Fedora's Qt 6.8), so it
+      # guards the "widget still loads on the CMakeLists floor" promise — e.g.
+      # ProcessTooltip's Qt-6.8 `popupType` must stay behind a runtime guard (it
+      # does), else the whole widget fails to load here. The SHIPPED AppImage
+      # bundles Qt 6.8 (release.yml) so standalone gets the Window-popup tooltip;
+      # this job just proves the 6.6 fallback path still boots.
       - name: Install Qt 6.6
         uses: jurplel/install-qt-action@v4
         with:

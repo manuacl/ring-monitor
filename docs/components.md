@@ -319,6 +319,35 @@ with rounding + custom unit, sweep angle at 0/50/100 %, dimensions,
 nestedValues array). The pure math is covered by
 `tests/ring-geometry.test.mjs`.
 
+## `ProcessTooltip.qml`
+
+A ring's **top-processes tooltip** (issue #69) — **generic over the
+ranked metric** (Open/Closed): the CPU ring wires it for CPU%, and the
+companion RAM-ring tooltip can reuse it as-is by injecting a memory
+`title` / `formatValue` / `footerText` (no edit here). Dropped in as a
+child of the ring delegate in `MainContent`; every other ring leaves it
+inert (`armed: false`). Pure QtQuick + Kirigami + QtQuick.Controls — no
+platform import, no metric-specific logic; everything comes in as props.
+
+| Property / signal | Role |
+|---|---|
+| `armed` | Only the owning ring's delegate sets it true — gates the `HoverHandler` so sampling/showing never engage on other rings. |
+| `processes` | Ranked `[{pid, name, …}]` (= `backend.topProcesses`). One row each: name + dimmed `·PID` + the right-aligned value below. |
+| `title` | Header line (CPU ring passes `qsTr("Top processes — CPU")`). |
+| `formatValue` | `function(process) → string` for the right column — the parent injects the metric (CPU: `p ⇒ ProcessRanking.formatCpuPercent(p.cpuPercent)`). |
+| `footerText` | Footer line, empty → no footer (CPU ring passes the `load` average, formatted via `ProcessRanking.formatLoadAverages`). |
+| `samplingActive` (readonly) | True while the pointer is over the ring. `MainContent` binds `metrics.processSamplingActive` to it (gated on the owning ring), so the backend samples **only** while hovered. |
+
+Sampling starts on hover-**enter** (immediately), but the `QQC2.ToolTip`
+only appears after a 500 ms delay — so the backend warms up during the
+delay and the list is populated by the time the tooltip shows (a
+`Gathering…` placeholder covers the rare first-tick gap). The tooltip is
+a `Window`-type popup, content-width-bound and edge-aware — see
+[`core/CLAUDE.md`](../contents/ui/core/CLAUDE.md) § "QQC2 popup over the
+widget…" for why. The data sources are the two
+[`ProcessSampler.qml`](#processsamplerqml-one-per-platform) adapters.
+Covered by `tests/qml/tst_ProcessTooltip.qml`.
+
 ## `MetricRow.qml`
 
 One row of the metrics list:
@@ -837,6 +866,43 @@ by ksysguard, are unaffected).
 Text-guarded by `tests/mount-info.test.mjs` (alongside the pure
 `parseMountPairs` tests) — same reason as the other Plasma adapters: its
 plasma5support import keeps it out of `qmltestrunner`.
+
+### `ProcessSampler.qml` (one per platform)
+
+The source for the CPU-ring **process tooltip** (issue #69): top
+processes by CPU%, with a load-average footer. There are **two** —
+`platforms/standalone/ProcessSampler.qml` and
+`platforms/plasma/ProcessSampler.qml` — each instantiated by its
+`MetricsBackend`, which forwards the surface (`processSamplingActive`,
+`topProcesses`, `loadAverages`). `topProcesses` is a **property** (not a
+function) so the tooltip's binding tracks it and the list refreshes live.
+Both rank through the shared
+[`core/ProcessRanking.js`](logic-modules.md#processrankingjs); CPU% is
+**total-normalised** (0-100%, rows sum toward the aggregate ring), not
+per-core. Both gate sampling on `active` so there's **no background
+process polling** — the tooltip flips it true on hover.
+
+- **Standalone** owns its own `ProcReader` + 500 ms `Timer`
+  (`running: active`). Each tick reads `/proc/stat` (the system-wide
+  jiffy denominator), lists `/proc` for pid dirs, reads each
+  `/proc/<pid>/stat`, parses via
+  [`ProcParser.js`](logic-modules.md#procparserjs). The total
+  normalisation is intrinsic (process jiffy delta over the system-wide
+  delta). The prev snapshot is dropped when `active` flips off so a
+  re-open starts fresh (a stale snapshot would yield a bogus first
+  delta). Guard: `tests/standalone-process-sampler.test.mjs`.
+- **Plasma** uses `org.kde.ksysguard.process` `ProcessDataModel`
+  (`enabled: active`, `flatList`, `enabledAttributes: [name, pid,
+  usage]`), reading the raw `Value` role per row. ksysguard's `usage` is
+  **per-core** (a thread reads ~100%, total can reach `coreCount*100` —
+  confirmed in libksysguard `processes.cpp`), so the sampler **divides by
+  `coreCount`** (injected = `coreValues.length`) to reach the same total
+  semantics. Load averages come from `cpu/loadaverages/loadaverage{1,5,15}`
+  sensors. Guard: `tests/plasma-process-sampler.test.mjs`.
+
+Both files import a host-only module (`RingMonitor.Standalone` /
+`org.kde.ksysguard.*`) absent from the CI container, so they're
+text-guarded rather than run under `qmltestrunner`.
 
 ## Update-notification flow
 

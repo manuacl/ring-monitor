@@ -12,6 +12,27 @@ user-facing only.
 
 ## [Unreleased]
 
+### Fixed
+
+- Standalone AppImage no longer crashes at launch on a Wayland session
+  (KWin Plasma 6 and other wlr-layer-shell compositors). A missing Qt
+  graphics plugin left the window with no GPU surface, so the app aborted
+  the moment it tried to draw; the plugin is now bundled. Affected every
+  Wayland user of the AppImage regardless of GPU — workaround was launching
+  with `QT_QPA_PLATFORM=xcb` (#110).
+
+### Technical
+
+- fix(standalone): bundle the `wayland-egl` client-buffer integration plugin
+  in the AppImage so it no longer SIGABRTs at launch on a native KWin-Wayland
+  session (#110). linuxdeploy-plugin-qt ships the wayland *platform* plugins
+  but not `plugins/wayland-graphics-integration-client/`
+  (`libqt-plugin-wayland-egl.so`); without it Qt enumerates zero client-buffer
+  integrations and `QRhiGles2` can't create a GL context. `build-appimage.sh`
+  now copies the dir into the AppDir, and `verify-wayland-bundling.sh` asserts
+  the plugin is present so the gate stops being blind to it. Offscreen CI and
+  `QT_QPA_PLATFORM=xcb` never exercised this path, which is why it shipped.
+
 ### Other
 
 - ci(release): fix the standalone AppImage release job — Qt 6.8 needs the

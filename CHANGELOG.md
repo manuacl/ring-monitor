@@ -145,6 +145,11 @@ user-facing only.
   edge-aware (flips side when it would run off the screen — the standalone
   anchors top-right), with a content-driven width bound to the content's
   implicit size (a Window popup doesn't auto-adopt it; capped per name).
+- Tooltip width is a grow-only high-water mark (`_maxContentWidth`, reset on
+  hide via `on_ShowChanged`): the ranked list re-samples every 500 ms, so a
+  width bound straight to live content yoyo'd wider/narrower tick-to-tick. The
+  mark blocks shrinking; the binding is `max(mark, live implicitWidth)` so the
+  first frame still sizes to content instead of rendering a one-char sliver.
 
 ### Other
 

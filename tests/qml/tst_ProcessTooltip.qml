@@ -26,6 +26,7 @@ Item {
 
         function init() {
             tip.armed = true;
+            tip._show = false;
             tip.processes = [];
             tip.footerText = "";
         }
@@ -54,6 +55,30 @@ Item {
         function test_not_armed_means_not_sampling() {
             tip.armed = false;
             compare(tip.samplingActive, false);
+        }
+
+        // SCENARIO (#69 follow-up): the ranked list re-samples every 500 ms, so a
+        // width bound straight to live content made the popup yoyo wider/narrower
+        // tick-to-tick. The width is now a grow-only high-water mark — it grows on
+        // a wider sample and IGNORES a narrower one.
+        function test_modal_width_grows_only_never_shrinks() {
+            tip._show = true; // layout (so implicitWidth) only runs while shown
+            tip.processes = [{ pid: 1, name: "a-really-rather-long-process-name", cpuPercent: 88.8 }];
+            tryVerify(function () { return tip._maxContentWidth > 0; });
+            var wide = tip._maxContentWidth;
+            tip.processes = [{ pid: 2, name: "x", cpuPercent: 1.0 }];
+            wait(50);
+            compare(tip._maxContentWidth, wide);
+        }
+
+        // Reset on dismiss so a one-off wide sample doesn't pin every later hover.
+        // visible = armed && _show; drive a true→false transition via _show.
+        function test_hiding_resets_the_high_water_mark() {
+            tip._show = true;
+            tip.processes = [{ pid: 1, name: "a-really-rather-long-process-name", cpuPercent: 88.8 }];
+            tryVerify(function () { return tip._maxContentWidth > 0; });
+            tip._show = false;
+            tryCompare(tip, "_maxContentWidth", 0);
         }
     }
 }

@@ -42,6 +42,9 @@ Item {
     readonly property alias _rowCount: rowRepeater.count
     readonly property alias _footerText: footerLabel.text
     property bool _show: false
+    // Width high-water mark — see the popup's `width` binding. Grow-only, so the
+    // popup never shrinks while shown.
+    property real _maxContentWidth: 0
 
     anchors.fill: parent
 
@@ -65,6 +68,12 @@ Item {
         }
     }
 
+    // Reset the width high-water mark on dismiss (pointer leaves → _show goes
+    // false), so a one-off wide sample doesn't pin the popup wide for every
+    // later hover; the next show re-measures from scratch.
+    on_ShowChanged: if (!root._show)
+        root._maxContentWidth = 0
+
     QQC2.ToolTip {
         id: tip
         parent: root
@@ -75,15 +84,23 @@ Item {
         // compositor keeps on screen. (Qt 6.8+; harmless on Plasma.)
         popupType: QQC2.Popup.Window
         visible: root.armed && root._show
-        // Content-driven width, bound explicitly. A Window-type popup does NOT
-        // auto-adopt its contentItem's implicitWidth the way an in-scene popup
-        // does, so the window collapsed to a sliver and names elided to "k…"
-        // (PR #99 live test). Binding width to col.implicitWidth sizes the
-        // window to the widest row (no loop: a Layout's implicitWidth is its
-        // natural content size, independent of the width we assign back). The
-        // name's maximumWidth caps how far one long name can stretch it. Height
-        // stays implicit (it sized fine).
-        width: col.implicitWidth + leftPadding + rightPadding
+        // Content-driven width, bound explicitly, AND grow-only. A Window-type
+        // popup does NOT auto-adopt its contentItem's implicitWidth the way an
+        // in-scene popup does, so the window collapsed to a sliver and names
+        // elided to "k…" (PR #99 live test) — hence the explicit bind. But the
+        // ranked list churns every sample (rows enter/leave, the widest name
+        // changes), so binding straight to col.implicitWidth made the popup
+        // yoyo wider/narrower tick-to-tick. So col feeds a high-water mark
+        // (_maxContentWidth, grow-only — a narrower sample is ignored), reset on
+        // hide so a one-off wide sample doesn't pin every later hover. We bind to
+        // max(mark, live implicitWidth): the mark blocks shrinking, while the
+        // live term sizes the FIRST frame — the mark starts at 0 and the tracker
+        // only updates it on a *change*, so a bare-mark bind rendered the popup
+        // one-char-wide until the next layout tick. No loop: a Layout's
+        // implicitWidth is its natural content size, independent of the width we
+        // assign back. The name's maximumWidth caps how far one long name can
+        // stretch it. Height stays implicit.
+        width: Math.max(root._maxContentWidth, col.implicitWidth) + leftPadding + rightPadding
         // Edge-aware placement: prefer below-and-right of the ring, but FLIP to
         // the opposite side when that side would run off the screen, so the
         // tooltip stays fully visible wherever the widget sits (the standalone
@@ -110,6 +127,9 @@ Item {
         contentItem: ColumnLayout {
             id: col
             spacing: Kirigami.Units.smallSpacing
+            // Feed the grow-only width high-water mark; never let it shrink.
+            onImplicitWidthChanged: if (implicitWidth > root._maxContentWidth)
+                root._maxContentWidth = implicitWidth
 
             QQC2.Label {
                 text: root.title

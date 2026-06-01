@@ -61,23 +61,31 @@ Item {
         // width bound straight to live content made the popup yoyo wider/narrower
         // tick-to-tick. The width is now a grow-only high-water mark — it grows on
         // a wider sample and IGNORES a narrower one.
-        function test_modal_width_grows_only_never_shrinks() {
-            tip._show = true; // layout (so implicitWidth) only runs while shown
-            tip.processes = [{ pid: 1, name: "a-really-rather-long-process-name", cpuPercent: 88.8 }];
-            tryVerify(function () { return tip._maxContentWidth > 0; });
-            var wide = tip._maxContentWidth;
-            tip.processes = [{ pid: 2, name: "x", cpuPercent: 1.0 }];
-            wait(50);
-            compare(tip._maxContentWidth, wide);
-        }
+        // NOTE: the grow-only width itself (the tracker raising _maxContentWidth
+        // from col.implicitWidth, and the max(mark, implicitWidth) floor) is
+        // LIVE-verified only — under QT_QPA_PLATFORM=offscreen the Window popup
+        // never realizes, so col never lays out and the popup width never binds.
+        // What IS deterministic offscreen is the reset logic below, which is the
+        // part that decides whether the mark yoyos back: it's pure property math.
+        // See core/CLAUDE.md § "popup behaviour is live-only".
 
         // Reset on dismiss so a one-off wide sample doesn't pin every later hover.
-        // visible = armed && _show; drive a true→false transition via _show.
+        // Pure property logic (no layout): _displayed = armed && _show; seed the
+        // mark, drop _show, the on_DisplayedChanged reset must zero it.
         function test_hiding_resets_the_high_water_mark() {
+            tip._show = true; // _displayed = armed(true) && true
+            tip._maxContentWidth = 250;
+            tip._show = false; // _displayed → false
+            tryCompare(tip, "_maxContentWidth", 0);
+        }
+
+        // The OTHER dismissal term: disarming (armed→false) also hides the popup,
+        // so it must reset too — else a re-armed ring would open at a stale width.
+        // Guards the reset keying on `_displayed`, not `_show` alone.
+        function test_disarming_resets_the_high_water_mark() {
             tip._show = true;
-            tip.processes = [{ pid: 1, name: "a-really-rather-long-process-name", cpuPercent: 88.8 }];
-            tryVerify(function () { return tip._maxContentWidth > 0; });
-            tip._show = false;
+            tip._maxContentWidth = 250;
+            tip.armed = false; // _displayed → false
             tryCompare(tip, "_maxContentWidth", 0);
         }
     }

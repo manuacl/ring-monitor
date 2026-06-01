@@ -63,12 +63,13 @@ Item {
         sampler._top = ProcessRanking.rankByCpu(records);
     }
 
-    onActiveChanged: {
-        if (active)
-            _collect();
-        else
-            sampler._top = [];
-    }
+    // Only clear on deactivate; the Timer below (triggeredOnStart) is the single
+    // first-sample path on activate — calling _collect() here too would enumerate
+    // the model twice per hover-enter (and the first scan races ProcessDataModel's
+    // post-enable repopulation, so it'd see a stale/empty model anyway). Mirrors
+    // the standalone sampler, which also resets here and samples from the Timer.
+    onActiveChanged: if (!active)
+        sampler._top = []
 
     // Load averages for the tooltip footer (ksysguard cpu/loadaverages/*).
     // On a host without the sensor, status stays unresolved and value || 0 → 0.

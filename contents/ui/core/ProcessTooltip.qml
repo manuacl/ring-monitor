@@ -45,6 +45,12 @@ Item {
     // Width high-water mark — see the popup's `width` binding. Grow-only, so the
     // popup never shrinks while shown.
     property real _maxContentWidth: 0
+    // Whether the popup is actually displayed — mirrors `tip.visible`'s condition
+    // (armed && _show). The mark resets on its false edge, so dismissal by EITHER
+    // term (pointer leaves → _show false; ring disarms → armed false) re-measures
+    // next show. (We track this derived flag rather than `tip.visible` because a
+    // Window-popup's visibility isn't observable headlessly — see tst_/CLAUDE.md.)
+    readonly property bool _displayed: root.armed && root._show
 
     anchors.fill: parent
 
@@ -68,10 +74,9 @@ Item {
         }
     }
 
-    // Reset the width high-water mark on dismiss (pointer leaves → _show goes
-    // false), so a one-off wide sample doesn't pin the popup wide for every
-    // later hover; the next show re-measures from scratch.
-    on_ShowChanged: if (!root._show)
+    // Reset the width high-water mark on dismiss, so a one-off wide sample doesn't
+    // pin the popup wide for every later hover; the next show re-measures.
+    on_DisplayedChanged: if (!root._displayed)
         root._maxContentWidth = 0
 
     QQC2.ToolTip {

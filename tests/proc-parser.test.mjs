@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 
 const require = createRequire(import.meta.url);
 const P = require('../contents/ui/platforms/standalone/ProcParser.js');
+const Stat = require('../contents/ui/platforms/standalone/ProcStatParser.js');
 
 // A /proc/<pid>/stat line with the fields we read at their real offsets.
 // After "(comm)" the tokens are: state ppid pgrp session tty_nr tpgid flags
@@ -68,6 +69,23 @@ test('sumJiffies: sums the aggregate-cpu field array', () => {
 test('sumJiffies: non-array → 0; non-finite entries ignored', () => {
     assert.equal(P.sumJiffies(null), 0);
     assert.equal(P.sumJiffies([10, NaN, 5, undefined]), 15);
+});
+
+// No-desync guard: sumJiffies is a deliberate copy of the field-summing logic
+// in ProcStatParser.percentFromSample (the dual-load convention forbids a .js
+// importing a sibling .js). If the two ever diverge — a new /proc/stat column
+// summed in one but not the other — the standalone CPU% would silently disagree
+// with itself. ProcStatParser doesn't export its internal total, so tie them via
+// percentFromSample: the usage it computes from its OWN inline sum must equal the
+// usage derived from sumJiffies-based totals over the same sample pair.
+test('sumJiffies matches ProcStatParser internal total (dual-load no-desync)', () => {
+    const prev = Stat.parseProcStat('cpu  100 0 100 1000 0 0 0 0 0 0\n').all;
+    const cur = Stat.parseProcStat('cpu  150 0 150 1200 50 0 0 0 0 0\n').all;
+    const dTotal = P.sumJiffies(cur) - P.sumJiffies(prev);
+    const dIdle = (cur[3] + cur[4]) - (prev[3] + prev[4]);
+    const expected = (1 - dIdle / dTotal) * 100;
+    assert.ok(Math.abs(Stat.percentFromSample(prev, cur) - expected) < 1e-9,
+        'sumJiffies total must equal the total ProcStatParser sums internally');
 });
 
 // ── computePercents ──────────────────────────────────────────────────────────

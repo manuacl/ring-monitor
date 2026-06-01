@@ -40,10 +40,18 @@ rm -rf squashfs-root
 #                              integration (compiled in, NOT the dlopened
 #                              `liblayer-shell.so` plugin, which the global
 #                              useLayerShell path would use — we don't)
+#   - libqt-plugin-wayland-egl.so  the CLIENT-BUFFER integration plugin
+#                              (wayland-graphics-integration-client/), issue
+#                              #110: distinct from the egl PLATFORM plugin above
+#                              — without it native Wayland gets no GL surface and
+#                              QRhiGles2 SIGABRTs at launch. linuxdeploy-plugin-qt
+#                              does NOT bundle this dir; build-appimage.sh copies
+#                              it in. A silently dropped copy must fail HERE.
 required=(
     libqwayland-generic.so
     libqwayland-egl.so
     libLayerShellQtInterface.so.6
+    libqt-plugin-wayland-egl.so
 )
 missing=0
 for n in "${required[@]}"; do

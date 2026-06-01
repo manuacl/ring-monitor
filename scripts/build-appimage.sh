@@ -64,6 +64,34 @@ if [ -n "${QT_ROOT_DIR:-}" ]; then
     fi
 fi
 
+# 2c. Bundle the wayland-egl CLIENT-BUFFER integration plugin (issue #110).
+#
+# linuxdeploy-plugin-qt ships the wayland PLATFORM plugins (platforms/
+# libqwayland-egl.so), the shell-integration and the decoration-client dirs —
+# but NOT plugins/wayland-graphics-integration-client/, which holds
+# libqt-plugin-wayland-egl.so. That plugin is what registers the "wayland-egl"
+# client-buffer integration the native-Wayland (wlr-layer-shell, PR C2) path
+# needs to get a GL surface. Without it Qt enumerates zero client-buffer
+# integrations on a KWin-Wayland session (`Available client buffer integrations:
+# QList()`), QRhiGles2 can't create a context, and the binary SIGABRTs at
+# launch. The egl PLATFORM plugin being present (and passing the old verify
+# gate) is NOT the same artifact — note the lib it registers,
+# libQt6WaylandEglClientHwIntegration.so, was already bundled; only its
+# registering plugin was missing. Copy the whole dir (egl + dmabuf/drm
+# siblings) into the AppDir BEFORE linuxdeploy runs so it packages the plugins
+# and resolves their NEEDED deps. The XWayland (xcb) and software-backend paths
+# don't touch it, which is why offscreen CI and xcb checks stayed green.
+QT_PLUGINS="$(qmake -query QT_INSTALL_PLUGINS 2>/dev/null \
+    || qmake6 -query QT_INSTALL_PLUGINS 2>/dev/null || true)"
+gfx_src="${QT_PLUGINS:+$QT_PLUGINS/wayland-graphics-integration-client}"
+if [ -n "$gfx_src" ] && [ -d "$gfx_src" ]; then
+    mkdir -p AppDir/usr/plugins/wayland-graphics-integration-client
+    cp -a "$gfx_src/." AppDir/usr/plugins/wayland-graphics-integration-client/
+    echo "Bundled wayland-graphics-integration-client from $gfx_src"
+else
+    echo "build-appimage: wayland-graphics-integration-client not found (QT_INSTALL_PLUGINS=${QT_PLUGINS:-unset}) — AppImage will SIGABRT on native Wayland (issue #110)"
+fi
+
 # 3. Fetch linuxdeploy + the qt plugin (cached between runs).
 TOOLS="$ROOT/.appimage-tools"
 mkdir -p "$TOOLS"

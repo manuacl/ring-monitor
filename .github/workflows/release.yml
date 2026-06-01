@@ -192,10 +192,19 @@ jobs:
           # (core/UpdateCheck.js pickRelevantRelease) skips releases flagged
           # prerelease, so marking these would silently suppress every
           # scoped notification. gh leaves the flag false by default.
-          gh release create "$TAG_NAME" \
-            "$ARTIFACT" \
-            --title "$NAME v$VERSION" \
-            --notes-file /tmp/release-body.md
+          # Idempotent for the workflow_dispatch retry path: on a tag-push the
+          # release is absent → create it; on a manual re-run for a tag whose
+          # release already exists (e.g. the original run failed in the appimage
+          # job) `gh release create` would error, so re-upload the .plasmoid with
+          # --clobber instead and let the appimage job re-attach below.
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            gh release upload "$TAG_NAME" "$ARTIFACT" --clobber
+          else
+            gh release create "$TAG_NAME" \
+              "$ARTIFACT" \
+              --title "$NAME v$VERSION" \
+              --notes-file /tmp/release-body.md
+          fi
 
   # Build the standalone AppImage and attach it to the SAME Release the
   # job above created. A separate job (needs: release) keeps the fast
@@ -232,10 +241,14 @@ jobs:
           version: '6.8.*'
           host: linux
           target: desktop
-          arch: gcc_64
+          # Qt >= 6.7 renamed the linux desktop arch gcc_64 → linux_gcc_64
+          # (disambiguating from linux_arm64). aqt rejects gcc_64 for 6.8.3
+          # with "packages [qt_base, …] not found". ci.yml's smoke-test stays
+          # on the 6.6 floor, where the arch is still gcc_64.
+          arch: linux_gcc_64
           # qtshadertools: required by the Kirigami 6 build (find_package
           # Qt6 ShaderTools), not in the aqt base set. Qt6WaylandClient +
-          # the wayland platform plugins are already in the base gcc_64
+          # the wayland platform plugins are already in the base linux_gcc_64
           # package — there is no separate `qtwayland` aqt module (only
           # qtwaylandcompositor, the server side, which we don't use).
           modules: qtimageformats qtshadertools

@@ -82,12 +82,22 @@ Item {
     QQC2.ToolTip {
         id: tip
         parent: root
-        // A Window-type popup so it ISN'T clipped to the host window. The
-        // standalone window is sized to the rings (tiny), so an in-scene
-        // (Item) popup — the pre-6.8 default — gets cropped to that rect and
-        // only a sliver shows. A Window popup is a separate surface the
-        // compositor keeps on screen. (Qt 6.8+; harmless on Plasma.)
-        popupType: QQC2.Popup.Window
+        // A Window-type popup so it ISN'T clipped to the host window: the
+        // standalone window is sized to the rings (tiny), so an in-scene (Item)
+        // popup — the pre-6.8 default — gets cropped to that rect and only a
+        // sliver shows. A Window popup is a separate surface the compositor keeps
+        // on screen.
+        //
+        // `popupType` is Qt 6.8+, but the project floor is Qt 6.6 (CMakeLists) —
+        // and a DECLARATIVE `popupType:` is a hard load error on < 6.8 ("Cannot
+        // assign to non-existent property"), which would take down the whole
+        // widget (this is in core/, loaded by both hosts). So set it imperatively
+        // + guarded: on Qt ≥ 6.8 → Window popup; on 6.6/6.7 the component still
+        // loads with the in-scene default — fine on Plasma's large overlay,
+        // clipped on the small standalone window (the AppImage bundles Qt ≥ 6.8,
+        // so shipped standalone gets the Window popup). See core/CLAUDE.md.
+        Component.onCompleted: if (tip.popupType !== undefined)
+            tip.popupType = QQC2.Popup.Window
         visible: root.armed && root._show
         // Content-driven width, bound explicitly, AND grow-only. A Window-type
         // popup does NOT auto-adopt its contentItem's implicitWidth the way an

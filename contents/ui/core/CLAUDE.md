@@ -164,11 +164,23 @@ A `QQC2.ToolTip` / `Popup` raised from a ring (the #69 process tooltip,
 host, whose window is sized to the rings (tiny); on Plasma the overlay is
 large. Cost ~4 live iterations:
 
-- **`popupType: QQC2.Popup.Window`, not the default.** An in-scene
-  (`Item`) popup — the pre-6.8 default — is clipped to the host window's
-  rect, so over the tiny standalone window only a sliver shows. A
-  `Window`-type popup is a separate surface that escapes it (and the
-  compositor keeps it on screen). Harmless on Plasma.
+- **`popupType: QQC2.Popup.Window`, not the default — but set it GUARDED,
+  not declaratively.** An in-scene (`Item`) popup — the pre-6.8 default — is
+  clipped to the host window's rect, so over the tiny standalone window only a
+  sliver shows. A `Window`-type popup is a separate surface that escapes it.
+  BUT `popupType` is **Qt 6.8+** and the project floor is **Qt 6.6**
+  (`CMakeLists.txt`): a *declarative* `popupType: QQC2.Popup.Window` is a hard
+  load error on < 6.8 ("Cannot assign to non-existent property") that takes the
+  **whole widget** down (this file is in `core/`, loaded by both hosts — so a
+  Plasma 6.6/6.7 host loses the widget entirely, and the AppImage smoke-test on
+  the 6.6 floor goes red). Set it imperatively + guarded instead:
+  `Component.onCompleted: if (tip.popupType !== undefined) tip.popupType = QQC2.Popup.Window`
+  — on ≥ 6.8 it's the Window popup; on 6.6/6.7 the component still loads with the
+  in-scene default (fine on Plasma's large overlay, clipped on the small
+  standalone window). The **shipped AppImage bundles Qt 6.8** (`release.yml`) so
+  standalone users get the Window popup; `ci.yml`'s AppImage smoke-test stays
+  pinned to Qt 6.6 to guard the fallback-load path. Don't "tidy" it back to a
+  declarative assignment. Canonical: `ProcessTooltip.qml`.
 - **Bind `width` to the content's `implicitWidth` — don't rely on
   auto-sizing, and don't hardcode a fixed width.** A `Window`-type popup
   does **not** adopt its `contentItem`'s `implicitWidth` the way an

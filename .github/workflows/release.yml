@@ -200,8 +200,12 @@ jobs:
   # Build the standalone AppImage and attach it to the SAME Release the
   # job above created. A separate job (needs: release) keeps the fast
   # .plasmoid publish decoupled from the slower Qt + linuxdeploy
-  # toolchain. ubuntu-22.04 (glibc 2.35) + Qt 6.5 from aqtinstall for
-  # portability — see the appimage job in ci.yml for the rationale.
+  # toolchain. ubuntu-22.04 (glibc 2.35) keeps the broad-portability glibc
+  # floor; Qt 6.8 from aqtinstall (22.04 is a Qt 6.8 reference platform, so the
+  # glibc floor is unchanged) because the process-tooltip needs `popupType`
+  # (Qt 6.8+) to escape the tiny standalone window as a Window popup. The
+  # CMakeLists floor stays 6.6 and the widget loads there via a runtime guard
+  # (in-scene fallback) — ci.yml's appimage smoke-test pins that 6.6 path.
   appimage:
     needs: release
     runs-on: ubuntu-22.04
@@ -222,10 +226,10 @@ jobs:
             libxcb1-dev libgl1-mesa-dev libfontconfig1 libfuse2 \
             libwayland-dev wayland-protocols libxkbcommon-dev
 
-      - name: Install Qt 6.6
+      - name: Install Qt 6.8
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.6.*'
+          version: '6.8.*'
           host: linux
           target: desktop
           arch: gcc_64

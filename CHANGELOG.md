@@ -146,10 +146,21 @@ user-facing only.
   anchors top-right), with a content-driven width bound to the content's
   implicit size (a Window popup doesn't auto-adopt it; capped per name).
 - Tooltip width is a grow-only high-water mark (`_maxContentWidth`, reset on
-  hide via `on_ShowChanged`): the ranked list re-samples every 500 ms, so a
-  width bound straight to live content yoyo'd wider/narrower tick-to-tick. The
-  mark blocks shrinking; the binding is `max(mark, live implicitWidth)` so the
-  first frame still sizes to content instead of rendering a one-char sliver.
+  dismiss when `_displayed` = `armed && _show` goes false): the ranked list
+  re-samples every 500 ms, so a width bound straight to live content yoyo'd
+  wider/narrower tick-to-tick. The mark blocks shrinking; the binding is
+  `max(mark, live implicitWidth)` so the first frame still sizes to content
+  instead of rendering a one-char sliver.
+- `popupType` (Qt 6.8+) is now set imperatively + guarded
+  (`Component.onCompleted: if (tip.popupType !== undefined) …`) instead of
+  declaratively — a declarative assignment is a hard load error on the project's
+  Qt 6.6 floor that took the whole widget down (it's in `core/`), which the
+  AppImage smoke-test (Qt 6.6) caught. On < 6.8 the component now loads with the
+  in-scene fallback; the shipped AppImage bundles Qt 6.8 (`release.yml`) so
+  standalone keeps the Window popup, and `ci.yml`'s smoke-test stays on Qt 6.6 to
+  guard the fallback-load path.
+- plasma `ProcessSampler`: `onActiveChanged` no longer double-samples (the Timer's
+  `triggeredOnStart` is the single first-sample path, matching standalone).
 
 ### Other
 

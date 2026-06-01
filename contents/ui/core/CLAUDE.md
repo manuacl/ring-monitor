@@ -179,6 +179,16 @@ large. Cost ~4 live iterations:
   content-driven (grows to the widest row), just bound explicitly because
   the popup won't. Cap one field (the name's `Layout.maximumWidth`) so an
   outlier can't stretch it.
+- **If the content re-samples on a timer, make the width a grow-only
+  high-water mark, reset on hide, bound as `max(mark, implicitWidth)`.** The
+  process tooltip refreshes every 500 ms, so the widest row keeps changing —
+  a bare `implicitWidth` bind makes the popup yoyo wider/narrower every
+  sample. Track a grow-only `_maxContentWidth` (a narrower sample is ignored;
+  reset to 0 on dismiss via `on_ShowChanged` so a one-off wide sample doesn't
+  pin every later hover). Bind to `max(mark, implicitWidth)`, not the mark
+  alone: the mark starts at 0 and the tracker only updates it on a *change*,
+  so a bare-mark bind renders a one-char sliver on the first frame until the
+  next layout tick. Canonical: `ProcessTooltip._maxContentWidth`.
 - **Place it edge-aware**, not at a fixed offset: the standalone window
   anchors **top-right**, so growing down-and-right runs off screen. Flip
   the side on overflow via `item.mapToGlobal()` + `Screen.virtualX/Y` +

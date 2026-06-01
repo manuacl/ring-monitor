@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
     VENDOR_AMD,
     VENDOR_INTEL,
+    VENDOR_NVIDIA,
     discoverGpu,
     parseTempCelsius,
     _sortedDrmCards,
@@ -154,9 +155,35 @@ test("discoverGpu detects Intel card — busyPath null, tempPath present", () =>
     });
 });
 
-test("discoverGpu returns null for NVIDIA-only host", () => {
-    // NVIDIA is handled by NvmlReader, not sysfs — discoverGpu must skip it.
-    const { listDir, read } = makeFs({ vendors: { card1: "0x10de" } });
+test("discoverGpu NVIDIA-only host falls back to nouveau temp-only (issue #106)", () => {
+    // Proprietary-driver NVIDIA never reaches here (NVML takes priority in
+    // MetricsBackend). On the nouveau driver NVML is unavailable, so we expose
+    // the hwmon temperature; usage has no sysfs counter → busyPath null.
+    const { listDir, read } = makeFs({
+        vendors: { card0: VENDOR_NVIDIA },
+        hwmons: { card0: ["hwmon4"] },
+    });
+    assert.deepEqual(discoverGpu(listDir, read), {
+        vendor: "nouveau",
+        busyPath: null,
+        tempPath: "/sys/class/drm/card0/device/hwmon/hwmon4/temp1_input",
+    });
+});
+
+test("discoverGpu nouveau: tempPath is null when no hwmon dir present", () => {
+    // A nouveau card without a registered hwmon yields no usable path → the
+    // GPU-temp ring stays hidden (correct for a genuinely absent sensor).
+    const { listDir, read } = makeFs({ vendors: { card0: VENDOR_NVIDIA } });
+    const result = discoverGpu(listDir, read);
+    assert.ok(result);
+    assert.equal(result.vendor, "nouveau");
+    assert.equal(result.busyPath, null);
+    assert.equal(result.tempPath, null);
+});
+
+test("discoverGpu returns null when /sys/class/drm has no GPU card", () => {
+    // Neither AMD/Intel nor NVIDIA present → nothing to discover.
+    const { listDir, read } = makeFs({ vendors: { card0: "0x1234" } });
     assert.equal(discoverGpu(listDir, read), null);
 });
 
@@ -176,11 +203,13 @@ test("discoverGpu picks the lowest-numbered card when multiple AMD cards present
     assert.ok(result.busyPath.includes("card0"), "should pick card0, not card1");
 });
 
-test("discoverGpu skips NVIDIA and picks the AMD card behind it", () => {
-    // Mixed host: card0 = NVIDIA, card1 = AMD (e.g. iGPU + dGPU).
+test("discoverGpu prefers AMD over a lower-numbered nouveau card (usage wins)", () => {
+    // Mixed host: card0 = NVIDIA-nouveau, card1 = AMD. AMD exposes usage + temp,
+    // nouveau only temp — so AMD wins even though it's the higher card number.
+    // nouveau is a temp-only fallback, used only when no AMD/Intel card exists.
     const { listDir, read } = makeFs({
-        vendors: { card0: "0x10de", card1: VENDOR_AMD },
-        hwmons: { card1: ["hwmon3"] },
+        vendors: { card0: VENDOR_NVIDIA, card1: VENDOR_AMD },
+        hwmons: { card0: ["hwmon0"], card1: ["hwmon3"] },
         busy: { card1: "20\n" },
     });
     const result = discoverGpu(listDir, read);

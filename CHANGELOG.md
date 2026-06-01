@@ -31,9 +31,58 @@ user-facing only.
 - Standalone: picking a custom text colour (light or dark) now takes effect —
   the colour swatch and the ring text update on confirm. Previously the
   selection was silently dropped and the swatch never changed.
+- Standalone: launching the app while the same build is already running no
+  longer stacks a second widget on the desktop — the extra launch is ignored.
+  Launching a **different** build (e.g. opening a newer AppImage) replaces the
+  running one, so the version you open is the version you see. If you launch
+  with `--open-settings`, the already-running widget opens its own settings
+  dialog, so the change applies immediately instead of needing a restart
+  (#103, #104).
+- Standalone: NVIDIA GPUs on the open-source `nouveau` driver (or any host
+  without the proprietary driver installed) now show a GPU **temperature** ring
+  instead of "not detected". GPU usage stays unavailable on nouveau — the
+  driver exposes no usage counter without root (#106).
 
 ### Technical
 
+- fix(standalone): single-instance guard + wake-up IPC (#103, #104). A new
+  `QLocalServer`-based helper (`standalone/single_instance.{h,cpp}`, linked via
+  the added `Qt6::Network`) lets the first widget process own a per-user
+  socket; a later launch connects as a `QLocalSocket`, announces
+  `"<intent> <version>\n"` (one newline-terminated frame, so reading up to the
+  `\n` can't truncate the version), and obeys the primary's **explicit** reply —
+  never a timeout, so
+  a busy/wedged primary is never hijacked. Verdict: `--open-settings` (any
+  version), a same-version `show`, or any unknown/garbled intent reply `"defer"`
+  → the newcomer exits with no window (no pile-up, #103; an unknown intent never
+  quits the widget); a *different*-version `show` replies `"takeover"` then the
+  running widget quits and closes its server synchronously, and the newcomer
+  claims the socket and shows its own build — "the AppImage you open is the one
+  that runs", equality only (any mismatch hands over). Claiming is race-safe:
+  `tryListen()` listens first and only clears a socket it has *proven* stale
+  (re-probe), so two simultaneous launches can't both become primary (the loser
+  gets `Busy` and re-probes into the defer path). `main.cpp` runs this
+  probe-then-act loop before loading any QML root and only claims on the main
+  path (not `--open-settings`). The `openSettingsRequested` route opens the
+  IN-PROCESS `SettingsDialog`, whose writes go through the same `ConfigStore` the
+  rings read — fixing the #104 live-reload symptom without a `QFileSystemWatcher`
+  (`Qt.labs.settings` has no reload API). The separate `SettingsOnlyRoot` process
+  is now strictly the recovery fallback for when no widget is running. Exposed to
+  QML as the `SingleInstance` context property (not a module-URI singleton, which
+  would clobber the auto-registered `ProcReader`/`NvmlReader` C++ elements);
+  guarded by `tests/single-instance.test.mjs` and a live
+  `scripts/test-single-instance.sh` (raw-socket verdict probe + a `--full`
+  two-version takeover round-trip) for the parts the headless env can't reach.
+- fix(standalone): nouveau GPU-temperature fallback (#106). `GpuDiscovery.js`
+  no longer hard-excludes NVIDIA: vendor `0x10de` resolves to a temp-only
+  `nouveau` source (hwmon `temp1_input` via the existing `_drmHwmonTempPath`,
+  `busyPath` null). It's a lower-priority fallback than AMD/Intel — a hybrid
+  nouveau+AMD host still picks AMD (usage + temp). Only reached when NVML is
+  unavailable (`MetricsBackend` gates on `!nvml.available`), so proprietary-
+  driver hosts are unaffected; the vendor-agnostic backend already maps
+  `tempPath`-without-`busyPath` to `_gpuTempAvailable` without `_gpuAvailable`.
+  Extends `tests/gpu-discovery.test.mjs` (nouveau temp, no-hwmon → null,
+  AMD-preferred-over-nouveau).
 - fix(standalone): ColorPicker dropped the user's selection because the
   dialog's `selectedColor` was permanently bound to `color` (`selectedColor:
   root.color`); the live binding re-pinned the selection to the old colour, so

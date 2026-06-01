@@ -66,11 +66,18 @@ Load-bearing details:
   transient query failure doesn't drop the whole sample.
 - Links `${CMAKE_DL_LIBS}` (libdl) — see `CMakeLists.txt`.
 
-**AMD/Intel GPU is a follow-up:** AMD usage is sysfs
-(`/sys/class/drm/card*/device/gpu_busy_percent`) + amdgpu hwmon temp —
-readable through the existing `ProcReader`, no library; Intel usage
-needs i915 perf (elevated perms), so Intel would be temp-only first.
-The vendor-detection seam lands with that PR.
+**Non-NVML GPUs go through `GpuDiscovery.js` (sysfs), only when NVML is
+unavailable.** `MetricsBackend._sample()` gates the sysfs branch on
+`!nvml.available`, so a proprietary-driver NVIDIA host never touches it. AMD
+usage is `/sys/class/drm/card*/device/gpu_busy_percent` + amdgpu hwmon temp;
+Intel is temp-only (i915 perf usage needs elevated perms). NVIDIA on the
+open-source **nouveau** driver is also temp-only (issue #106): vendor `0x10de`
+resolves to `vendor: "nouveau"`, `busyPath: null`, hwmon `temp1_input` — nouveau
+has no sysfs usage counter (debugfs pstate is root-only). nouveau is the
+**lowest-priority** vendor in `discoverGpu`, so a hybrid nouveau+AMD host still
+picks the AMD card (usage + temp). The vendor-agnostic backend maps
+`tempPath`-without-`busyPath` to `_gpuTempAvailable` without `_gpuAvailable`,
+which is exactly the temp-only ring this needs.
 
 ## Poll cadence: 500 ms (2 Hz), matching Plasma
 
@@ -397,11 +404,73 @@ WindowAnchor) is not constructed at all. Quit is wired to the
 dialog's `onClosing` signal — intent-driven (not based on
 `Window.visibility === Hidden`), so a future programmatic hide
 (modal color picker, hide-and-reopen) doesn't accidentally kill the
-recovery process. Config writes go through the same `QSettings`
-file the running widget reads, so the user kills + relaunches the
-running widget to apply (`Qt.labs.settings` doesn't watch — a
-live-reload via `QFileSystemWatcher` is out of scope for the minimal
-recovery).
+recovery process.
+
+`--open-settings` now reaches this separate-process root **only when no
+widget is running**. When one is, the single-instance IPC (below) routes
+the request to the live widget, which opens its IN-PROCESS dialog — so the
+edit applies through the same `ConfigStore` the rings read, no kill+relaunch.
+The separate root stays as the recovery fallback for a compositor that
+swallows the right-click *and* no live widget to route to (config writes
+there still need a manual relaunch, since `Qt.labs.settings` doesn't watch
+the file).
+
+### Single-instance guard + wake-up IPC (issues #103 / #104)
+
+`standalone/single_instance.{h,cpp}` (a `QObject`, **not** a `QML_ELEMENT` —
+instantiated in `main.cpp` and exposed to QML as the `SingleInstance` **context
+property**, so the object QML connects to is the very one that called
+`listen()`). Do **not** switch this to `qmlRegisterSingletonInstance` into the
+`RingMonitor.Standalone` URI: registering a type into a module `qt_add_qml_module`
+already owns clobbers its auto-registered C++ elements (`ProcReader` / `NvmlReader`
+/ `WindowAnchor`), so the QML root fails to load with "ProcReader is not a type"
+and the binary exits 1 (the offscreen smoke test catches it). Links `Qt6::Network`
+(`QLocalServer`/`QLocalSocket`).
+
+The first main-widget process owns a per-user `QLocalServer`. A later launch
+connects as a client, writes one newline-terminated frame `"<intent> <version>\n"`,
+and **acts only on the primary's explicit reply — never on a timeout**, so a
+busy/wedged primary is never hijacked. The single `\n` is the frame delimiter:
+reading up to it proves the whole line (intent AND version) arrived, so a split
+delivery can't truncate the version (finding F1). Wire tokens
+(`open-settings`/`show`/`defer`/`takeover`) are the shared
+`SingleInstanceProtocol::` constants, defined once so a bare-literal typo can't
+silently break the handshake. `main.cpp` runs the probe-then-act loop **before**
+loading any QML root. The primary's verdict (`onNewConnection`):
+
+- **`open-settings`** (any version) → `openSettingsRequested` → `Main.qml` shows
+  its in-process `SettingsDialog`; replies `"defer"` → newcomer exits (#104).
+- **`show`, same version** → `showRequested` (no-op: the widget is already
+  visible); replies `"defer"` → newcomer exits. No pile-up (#103).
+- **unknown / garbled intent** → replies `"defer"` (newcomer exits). An
+  unrecognised message must **never** quit the widget.
+- **`show`, different version** → replies `"takeover"` **first**, then
+  `supersededRequested` (`Main.qml` → `Qt.quit`) + `m_server->close()`
+  synchronously. The newcomer reads `"takeover"` and only then claims the socket.
+
+Two load-bearing robustness rules (review-driven):
+
+- **Claim is race-safe.** `tryListen()` calls `listen()` FIRST; only on
+  `AddressInUseError` does it re-probe — a live owner ⇒ `Claim::Busy` (the
+  caller re-probes and defers), a dead socket file ⇒ `removeServer` + retry. It
+  must **never** `removeServer` unconditionally, or two simultaneous launches
+  would each unlink the other's live socket and both become primary.
+- **Reply before quit.** On supersede, `"takeover"` is written and flushed
+  *before* `Qt.quit`, and `m_server->close()` runs synchronously so the socket
+  frees deterministically before the newcomer's `tryListen()` (no late-dtor
+  unlink race). Both ends read up to the `\n` frame delimiter (loop until it
+  arrives) so a split delivery can't truncate the intent/version or the reply.
+
+Version handling is **equality only, no ordering** (user decision): "the
+AppImage you open is the one that runs" — any mismatch hands over, identical is
+left running untouched. Text-guarded by `tests/single-instance.test.mjs`.
+
+The **version-mismatch takeover** can't be exercised from the headless
+CI/agent env (it reaps detached GUI processes), so it has a dedicated **live**
+check: `scripts/test-single-instance.sh` (run on a real session). It probes the
+four verdicts against a running primary via the raw socket, and with `--full`
+builds a second `9.9.9-test` binary and asserts the real round-trip (old primary
+exits, newcomer takes over the socket).
 
 The previous shape (now reverted) threaded a `_settingsOnly`
 boolean through eight sites — argv parse, two startup gates, a

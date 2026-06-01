@@ -262,13 +262,15 @@ test("standalone MetricsBackend wires AMD/Intel GPU via GpuDiscovery sysfs", () 
     assert.match(SOURCE, /property\s+bool\s+_gpuTempAvailable/, "must declare _gpuTempAvailable for the gpuTemp availability gate");
     assert.match(SOURCE, /sysfsTempValid\s*=\s*true/, "must set sysfsTempValid when AMD/Intel sysfs temp read succeeds (liveness gate for _gpuTempAvailable)");
     assert.match(SOURCE, /_gpuTempAvailable\s*=\s*nvml\.available\s*\|\|\s*sysfsTempValid/, "must derive _gpuTempAvailable from liveness (sysfsTempValid), not path non-emptiness");
-    // Resolve loop: runs only on non-NVIDIA hosts; retries while EITHER path is still
-    // empty so a late-loaded hwmon is picked up after the other path already resolved.
+    // Resolve loop: runs only when NVML is unavailable; retries while a STILL-EXPECTED
+    // path is empty so a late-loaded hwmon is picked up after the other path resolved.
     // Fixes (#83): && closed the gate the moment one path landed (AMD gpu_busy_percent
     // present at boot but amdgpu hwmon settling seconds later → temp ring lost all session).
-    // Fixes: Intel card found without hwmon permanently closed the gate via _gpuVendor.
-    assert.match(SOURCE, /!backend\._gpuBusyPath\s*\|\|\s*!backend\._gpuTempPath/, "resolve gate must retry while EITHER path is still empty (||), so a late path is picked up after the other resolved (#83)");
-    assert.match(SOURCE, /!nvml\.available[\s\S]{0,200}_gpuResolveAttempts\s*<\s*backend\._gpuMaxResolveAttempts/, "resolve gate must require both !nvml.available AND the attempt bound");
+    // #106: temp-only vendors (Intel/nouveau) have no busy path, so the busy-path term is
+    // gated on needBusyPath — otherwise the gate would re-walk /sys every tick forever.
+    assert.match(SOURCE, /needBusyPath\s*&&\s*!backend\._gpuBusyPath\)\s*\|\|\s*!backend\._gpuTempPath/, "resolve gate retries while a still-expected path is empty; busy path required only for vendors that have one (#83/#106)");
+    assert.match(SOURCE, /if\s*\(\s*!nvml\.available\s*\)/, "the sysfs resolve+read branch must be gated on !nvml.available");
+    assert.match(SOURCE, /gpuPathsIncomplete\s*&&\s*backend\._gpuResolveAttempts\s*<\s*backend\._gpuMaxResolveAttempts/, "resolve gate must be bounded by the attempt cap");
 });
 
 test("standalone MetricsBackend polls on a Timer", () => {

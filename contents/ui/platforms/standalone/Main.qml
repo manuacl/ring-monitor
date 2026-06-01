@@ -195,6 +195,21 @@ Window {
         platform: "standalone"
     }
 
+    // A second launch (single-instance IPC, issues #103 / #104) routes its
+    // intent here instead of stacking a new window:
+    //   • --open-settings → open the IN-PROCESS dialog, so the edit applies live
+    //   • same-version relaunch → no-op (the widget is already visible)
+    //   • different-version launch → quit so the new build takes over the socket
+    Connections {
+        target: SingleInstance
+        function onOpenSettingsRequested() {
+            settingsDialog.show();
+        }
+        function onSupersededRequested() {
+            Qt.quit();
+        }
+    }
+
     SettingsDialog {
         id: settingsDialog
         configStore: configStoreAdapter

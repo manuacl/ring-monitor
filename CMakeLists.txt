@@ -39,7 +39,9 @@ set(CMAKE_AUTOMOC ON)
 # non-existent property preferredRendererType"). qt_add_qml_module +
 # loadFromModule() (the compile-QML-into-the-binary path used below)
 # are 6.5, but CurveRenderer is the binding floor.
-find_package(Qt6 6.6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2)
+# Network provides QLocalServer/QLocalSocket — the single-instance guard +
+# wake-up IPC in single_instance.cpp (issues #103 / #104).
+find_package(Qt6 6.6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Network)
 
 # XCB is used by desktop_hints.cpp for the X11/XWayland EWMH hints
 # (sticky, skip-taskbar, skip-pager). The Qt 6 native interface gives
@@ -79,6 +81,11 @@ qt_add_executable(ring-monitor-standalone
     standalone/main.cpp
     standalone/desktop_hints.cpp
     standalone/desktop_hints.h
+    # Single-instance guard + wake-up IPC (issues #103 / #104). Not a
+    # QML_ELEMENT (instantiated in main.cpp, exposed as a context property),
+    # so it lives here rather than in the qml_module SOURCES.
+    standalone/single_instance.cpp
+    standalone/single_instance.h
 )
 
 # Bundle the QML as a compiled resource under the
@@ -144,6 +151,7 @@ target_link_libraries(ring-monitor-standalone PRIVATE
     Qt6::Qml
     Qt6::Quick
     Qt6::QuickControls2
+    Qt6::Network
     PkgConfig::XCB
     # dlopen/dlsym/dlclose for NvmlReader's runtime load of
     # libnvidia-ml.so.1. ${CMAKE_DL_LIBS} is -ldl on glibc, empty on

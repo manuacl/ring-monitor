@@ -436,7 +436,12 @@ Item {
         var sysfsUsageValid = false;
         var sysfsTempValid = false;
         if (!nvml.available) {
-            if ((!backend._gpuBusyPath || !backend._gpuTempPath) && backend._gpuResolveAttempts < backend._gpuMaxResolveAttempts) {
+            // Only AMD has a usage path; Intel/nouveau are temp-only, so don't
+            // require _gpuBusyPath for them (it would re-walk sysfs every tick
+            // for the whole window). Unknown vendor → require both until ID'd.
+            var needBusyPath = backend._gpuVendor === "" || backend._gpuVendor === "amd";
+            var gpuPathsIncomplete = (needBusyPath && !backend._gpuBusyPath) || !backend._gpuTempPath;
+            if (gpuPathsIncomplete && backend._gpuResolveAttempts < backend._gpuMaxResolveAttempts) {
                 backend._gpuResolveAttempts++;
                 backend._resolveGpuPaths();
             }

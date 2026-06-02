@@ -904,26 +904,43 @@ Both files import a host-only module (`RingMonitor.Standalone` /
 `org.kde.ksysguard.*`) absent from the CI container, so they're
 text-guarded rather than run under `qmltestrunner`.
 
-### `DiskIoSampler.qml` (standalone; Plasma counterpart in PR3)
+### `DiskIoSampler.qml` (one per platform)
 
-The standalone source for the disk-I/O **throughput** ring (issue #77) —
-distinct from the disk **usage** % ring. Same shape as `ProcessSampler`:
-its own `ProcReader` + 500 ms `Timer` (`running: active`), gated so an
-off-screen ring polls nothing (the issue's "sample only while on screen"
-requirement). Each tick reads `/proc/diskstats`, aggregates **whole
-physical disks** via
-[`DiskStatsParser.js`](logic-modules.md#diskstatsparserjs) (partitions +
-virtual devices dropped to avoid double-counting), derives read/write
-byte/s from the sample delta, and scales each onto the arc via
+The source for the disk-I/O **throughput** ring (issue #77) — distinct
+from the disk **usage** % ring. There are **two** —
+`platforms/standalone/DiskIoSampler.qml` and
+`platforms/plasma/DiskIoSampler.qml` — each instantiated by its
+`MetricsBackend`, which forwards the gate (`diskIoSamplingActive`) and a
+reactive `io` **property**: `{readBps, writeBps, combinedBps, readPercent,
+writePercent, combinedPercent}`. `io` is a property (not a function) so
+the ring binding tracks it and refreshes live; the `*Bps` feed the MB/s
+label, the `*Percent` the sweep (combined by default, read/write split via
+a toggle, wired in the UI PR). Both scale the rate onto the arc through
 [`core/DiskIoScale.js`](logic-modules.md#diskioscalejs)'s auto-scaling
-rolling peak. `MetricsBackend` forwards the gate (`diskIoSamplingActive`)
-and a reactive `io` **property** — `{readBps, writeBps, combinedBps,
-readPercent, writePercent, combinedPercent}` — so the ring binding
-refreshes live; the `*Bps` feed the MB/s label, the `*Percent` the sweep
-(combined by default, read/write split via a toggle, wired in the UI PR).
-The baseline is dropped when `active` flips off (a re-show would otherwise
-flash a huge stale delta); the peaks are kept so a toggled ring keeps its
-learned scale. Guard: `tests/standalone-disk-io-sampler.test.mjs`.
+rolling peak (per component, so read / write / combined don't share one
+ceiling), and both gate sampling on `active` so an off-screen ring costs
+nothing (the issue's "sample only while on screen" requirement).
+
+- **Standalone** owns its own `ProcReader` + 500 ms `Timer`
+  (`running: active`). Each tick reads `/proc/diskstats`, aggregates
+  **whole physical disks** via
+  [`DiskStatsParser.js`](logic-modules.md#diskstatsparserjs) (partitions +
+  virtual/stacked devices dropped to avoid double-counting), and derives
+  read/write byte/s from the **sample delta**. The baseline is dropped
+  when `active` flips off (a re-show would otherwise flash a huge stale
+  delta), and a transient empty read is skipped rather than seeding a zero
+  baseline. Guard: `tests/standalone-disk-io-sampler.test.mjs`.
+- **Plasma** reads ksysguard's `disk/all/read` + `disk/all/write` byte/s
+  sensors (`enabled: active`), which report the **rate directly** — no
+  sample delta, so there's no stale-baseline hazard; the `_reset` just
+  zeroes the rates. An unread sensor (`NaN` before the first push) is
+  coerced to 0 so the surface matches standalone byte-for-byte. Guard:
+  `tests/plasma-disk-io-sampler.test.mjs`.
+
+In both, the per-component peaks are **kept** across an off/on toggle so a
+re-shown ring keeps its learned scale instead of re-warming from the floor.
+Both import a host-only module absent from the CI container, so they're
+text-guarded rather than run under `qmltestrunner`.
 
 ## Update-notification flow
 

@@ -20,7 +20,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms", "plasma", "MetricsBackend.qml"), "utf8");
 
 // Public surface main.qml consumes.
-const PUBLIC_PROPS = ["coreValues", "loading", "availableMetrics", "availablePartitions", "defaultPartitionIds", "removablePartitions", "removableTrackingActive", "mountedPartitionIds", "mountedAvailablePartitions", "processSamplingActive", "topProcesses", "loadAverages"];
+const PUBLIC_PROPS = ["coreValues", "loading", "availableMetrics", "availablePartitions", "defaultPartitionIds", "removablePartitions", "removableTrackingActive", "mountedPartitionIds", "mountedAvailablePartitions", "processSamplingActive", "topProcesses", "loadAverages", "diskIo", "diskIoSamplingActive"];
 const PUBLIC_FUNCS = ["metricValue", "metricRawTemp", "metricTempPercent", "partitionValue"];
 
 // Universal-id sensor instances — sensors whose ksysguard id is the
@@ -62,6 +62,16 @@ test("MetricsBackend exposes the public functions main.qml depends on", () => {
         const pattern = new RegExp(`function\\s+${name}\\s*\\(`);
         assert.match(SOURCE, pattern, `MetricsBackend.qml must declare function ${name}(...)`);
     }
+});
+
+test("MetricsBackend forwards the disk-I/O ring surface (issue #77)", () => {
+    // The disk/all/{read,write} sensor reads live in the gated DiskIoSampler
+    // child (keeps this adapter under the 500-line cap); the backend forwards
+    // its reactive `io` + the gate, same surface as the standalone adapter.
+    assert.match(SOURCE, /DiskIoSampler\s*{/, "must instantiate the DiskIoSampler child");
+    assert.match(SOURCE, /property\s+var\s+diskIo\s*:\s*diskIoSampler\.io/, "diskIo must forward the sampler's io property");
+    assert.match(SOURCE, /property\s+alias\s+diskIoSamplingActive\s*:\s*diskIoSampler\.active/, "diskIoSamplingActive must alias the sampler's active gate");
+    assert.match(SOURCE, /"diskIo":\s*true/, 'availableMetrics map must flag "diskIo" available');
 });
 
 test("MetricsBackend declares the universal-id Sensor instances", () => {

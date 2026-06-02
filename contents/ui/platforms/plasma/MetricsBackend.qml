@@ -222,6 +222,11 @@ Item {
     // desktop auto-show, where `expanded` is a popup signal and isn't reliably true).
     property bool removableTrackingActive: false
 
+    // Gate for the per-partition total/free byte sensors — set true by MainContent
+    // while the disk tooltip is hovered, so the daemon isn't pushing them when no
+    // tooltip is up (#68). Forwarded into the DiskPartitionSensors adapter.
+    property alias diskTooltipActive: diskSensors.tooltipActive
+
     // Per-partition Sensor instances (usedPercent + total/free bytes) live in
     // the DiskPartitionSensors adapter below; partitionValue / partitionDetail
     // forward to it so MainContent still sees one `metrics` object.

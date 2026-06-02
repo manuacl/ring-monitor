@@ -49,3 +49,19 @@ test("partitionDetail assembles via the shared DiskMetrics helper", () => {
 test("holds last-good usedPercent across Sensor rebuilds (USB plug/unplug)", () => {
     assert.match(SOURCE, /_lastValue/, "must cache the last-good value so a rebuild doesn't blink rings to 0%");
 });
+
+test("D5: total/free leaves are gated on tooltipActive; usedPercent is always-on (#68)", () => {
+    // The byte leaves are only read in the tooltip → subscribe them only while
+    // it's hovered (the ProcessSampler gate pattern), so the daemon isn't pushing
+    // them in the background. usedPercent must NOT be gated — the ring needs it
+    // every tick. Pins the gate so a refactor can't silently make it always-on.
+    assert.match(SOURCE, /property\s+bool\s+tooltipActive/, "must expose the tooltipActive gate");
+    // The total + free Sensor blocks each carry `enabled: ...tooltipActive` (2×).
+    const gated = (SOURCE.match(/enabled:\s*diskSensors\.tooltipActive/g) || []).length;
+    assert.equal(gated, 2, "total AND free sensors must be enabled-gated on tooltipActive (exactly 2)");
+    // The usedPercent sensor must stay always-on: its block (bound to
+    // modelData.sensorId) must NOT carry an `enabled:` line.
+    const usedBlock = SOURCE.match(/Sensors\.Sensor\s*{[^}]*sensorId:\s*modelData\.sensorId[^}]*}/);
+    assert.ok(usedBlock, "must find the usedPercent Sensor block");
+    assert.doesNotMatch(usedBlock[0], /\benabled:/, "the usedPercent sensor must stay always-on (no enabled gate)");
+});

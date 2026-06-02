@@ -337,6 +337,28 @@ GridLayout {
                 value: cpuTooltip.samplingActive
                 when: ringDelegate.modelData === "cpu"
             }
+
+            // Disk ring: hover reveals the per-partition tooltip (#68). `details`
+            // is computed ONLY while the tooltip samples (hover) so partitionDetail
+            // — which kicks a statvfs on standalone and reads total/free sensors on
+            // Plasma — isn't run every tick when nobody's looking. diskTooltipActive
+            // gates the Plasma per-partition total/free Sensor subscriptions (the
+            // usedPercent leaf the ring needs stays always-on).
+            DiskTooltip {
+                id: diskTooltip
+                armed: ringDelegate._isDisk
+                colors: content._diskColors
+                fallbackColor: content._ringColor
+                details: (ringDelegate._isDisk && diskTooltip.samplingActive) ? content._diskSelectedIds.map(function (id) {
+                    return content.metrics.partitionDetail(id);
+                }) : []
+            }
+            Binding {
+                target: content.metrics
+                property: "diskTooltipActive"
+                value: diskTooltip.samplingActive
+                when: ringDelegate._isDisk && content.metrics.diskTooltipActive !== undefined
+            }
         }
     }
 

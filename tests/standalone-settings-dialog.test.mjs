@@ -125,3 +125,14 @@ test("SettingsDialog instantiates Autostart and wires it through AboutBody", () 
     assert.match(SOURCE, /autostartEnabled\s*:\s*autostartHelper\.enabled/, "AboutBody.autostartEnabled must read from autostartHelper.enabled so the checkbox stays in sync with the .desktop file's existence");
     assert.match(SOURCE, /onAutostartToggled\s*:\s*on\s*=>\s*autostartHelper\.setEnabled\(on\)/, "onAutostartToggled must call autostartHelper.setEnabled(on)");
 });
+
+test("SettingsDialog instantiates MenuEntry and wires it through AboutBody", () => {
+    // Without these "Show in application menu" stays hidden
+    // (menuEntryAvailable defaults to false) or shows but doesn't
+    // persist (no onMenuEntryToggled wire-up). Mirrors the Autostart
+    // wiring — same RingMonitor.Standalone import.
+    assert.match(SOURCE, /MenuEntry\s*{[\s\S]{0,100}id:\s*menuEntryHelper/, "must instantiate MenuEntry { id: menuEntryHelper }");
+    assert.match(SOURCE, /menuEntryAvailable\s*:\s*true/, "AboutBody.menuEntryAvailable must be true so the toggle renders");
+    assert.match(SOURCE, /menuEntryEnabled\s*:\s*menuEntryHelper\.enabled/, "AboutBody.menuEntryEnabled must read from menuEntryHelper.enabled so the checkbox tracks the .desktop file's existence");
+    assert.match(SOURCE, /onMenuEntryToggled\s*:\s*on\s*=>\s*menuEntryHelper\.setEnabled\(on\)/, "onMenuEntryToggled must call menuEntryHelper.setEnabled(on)");
+});

@@ -147,6 +147,15 @@ Window {
         id: autostartHelper
     }
 
+    // Menu-entry helper — manages ~/.local/share/applications/<id>.desktop.
+    // Wired into AboutBody so "Show in application menu" reflects and
+    // writes the launcher state. Plasma users get a menu entry from the
+    // .plasmoid install, so AboutBody gates the row on
+    // `menuEntryAvailable`, which only this side sets to true.
+    MenuEntry {
+        id: menuEntryHelper
+    }
+
     // ── Layout ──────────────────────────────────────────────────────
     Item {
         anchors.fill: parent
@@ -253,6 +262,8 @@ Window {
                     checkForUpdatesEnabled: dialog.configStore ? dialog.configStore.checkForUpdatesEnabled : true
                     autostartAvailable: true
                     autostartEnabled: autostartHelper.enabled
+                    menuEntryAvailable: true
+                    menuEntryEnabled: menuEntryHelper.enabled
 
                     onAcknowledgeClicked: dialog.updateChecker && dialog.updateChecker.acknowledge()
                     onOpenStorePageClicked: dialog.updateChecker && dialog.updateChecker.openStorePage()
@@ -261,6 +272,7 @@ Window {
                             dialog.configStore.checkForUpdatesEnabled = on;
                     }
                     onAutostartToggled: on => autostartHelper.setEnabled(on)
+                    onMenuEntryToggled: on => menuEntryHelper.setEnabled(on)
                 }
             }
         }

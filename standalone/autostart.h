@@ -48,10 +48,8 @@ signals:
 
 private:
     QString desktopFilePath() const;
-    QString currentExecPath() const;
-    QString buildDesktopFileContent() const;
 
-    // XDG-spec encoding for the Exec= argument. Static so the impl
-    // is independent of `this` — purely a string transform.
-    static QString quoteExecArg(const QString &arg);
+    // The Exec= line (incl. AppImage resolution + XDG quoting) is
+    // shared with MenuEntry — see standalone/desktop_entry.h.
+    QString buildDesktopFileContent() const;
 };

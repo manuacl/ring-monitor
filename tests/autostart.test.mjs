@@ -4,15 +4,15 @@
 // config-store.test.mjs / metrics-backend.test.mjs: read the source
 // as plain text and assert the behavioural contract.
 //
-// What we lock in here:
+// The Exec= resolution (AppImage path + XDG quoting) now lives in
+// standalone/desktop_entry.cpp, shared with MenuEntry — its escape
+// order and $APPDIR-prefix guards are in desktop-entry.test.mjs. Here
+// we only lock in what's specific to the autostart writer:
 //
-// 1. The Exec= line goes through `quoteExecArg(currentExecPath())`
-//    — without this, an AppImage installed under a path with spaces
-//    (e.g. `~/Applications/Ring Monitor.AppImage`) breaks autostart
-//    silently because the XDG launcher tokenises on whitespace.
-// 2. The XDG-spec escape order is preserved: backslash MUST be
-//    escaped before `"`, `$`, and backtick — otherwise the inserted
-//    backslashes from the later passes get doubled.
+// 1. The Exec= line is built from desktop_entry::execLine() — so the
+//    AppImage-path + quoting logic isn't re-implemented (and can't
+//    drift from the menu-entry writer).
+// 2. The autostart entry carries X-GNOME-Autostart-enabled=true.
 // 3. `setEnabled(false)` removes the file rather than rewriting it
 //    empty (cheap regression guard around the existing behaviour).
 
@@ -28,72 +28,42 @@ const SRC = readFileSync(
     "utf8",
 );
 
-test("autostart.cpp wires quoteExecArg into the Exec= line", () => {
+test("autostart.cpp builds the Exec= line via desktop_entry::execLine", () => {
     // Whitespace-tolerant: matches the call regardless of formatting.
+    // The shared helper is what carries quoteExecArg(currentExecPath()).
     assert.match(
         SRC,
-        /quoteExecArg\s*\(\s*currentExecPath\s*\(\s*\)\s*\)/,
-        "buildDesktopFileContent must wrap currentExecPath() through quoteExecArg",
+        /desktop_entry::execLine\s*\(\s*\)/,
+        "buildDesktopFileContent must use the shared desktop_entry::execLine()",
     );
 });
 
-test("quoteExecArg escapes backslash before the other reserved chars", () => {
-    // Find the four replace() calls in source order and assert the
-    // first one targets the backslash literal — the spec's escape
-    // order is load-bearing (later passes insert backslashes that
-    // would otherwise get doubled).
-    const replaces = [...SRC.matchAll(/replace\(QLatin1Char\('([^']+)'\)/g)].map(
-        (m) => m[1],
-    );
-    assert.ok(
-        replaces.length >= 4,
-        `expected ≥4 replace() calls in quoteExecArg, found ${replaces.length}`,
-    );
-    assert.equal(
-        replaces[0],
-        "\\\\",
-        "backslash must be the first character escaped",
-    );
-    // The other three chars must all be covered, in any order.
-    const rest = new Set(replaces.slice(1, 4));
-    for (const ch of ['"', "$", "`"]) {
-        assert.ok(rest.has(ch), `quoteExecArg must escape ${ch}`);
-    }
-});
-
-test("quoteExecArg wraps the result in double quotes", () => {
-    // The final return concatenates a leading `"`, the escaped arg,
-    // and a trailing `"`. We assert both literal `"` chars appear in
-    // the return path of quoteExecArg.
-    const fnStart = SRC.indexOf("Autostart::quoteExecArg");
-    assert.ok(fnStart >= 0, "quoteExecArg definition not found");
-    const fnEnd = SRC.indexOf("}\n", fnStart);
-    const body = SRC.slice(fnStart, fnEnd);
-    assert.match(
-        body,
-        /QLatin1Char\('"'\)\s*\+[\s\S]*\+\s*QLatin1Char\('"'\)/,
-        "return value must be wrapped in double quotes",
-    );
-});
-
-test("setEnabled(false) removes the autostart file (no empty-rewrite)", () => {
-    // Cheap regression guard — keep the existing `QFile::remove(path)`
-    // pattern rather than truncating to an empty file.
+test("autostart entry declares X-GNOME-Autostart-enabled", () => {
     assert.match(
         SRC,
-        /QFile::remove\(\s*path\s*\)/,
-        "setEnabled(false) must call QFile::remove on the autostart file",
+        /X-GNOME-Autostart-enabled=true/,
+        "the autostart .desktop must carry the GNOME autostart key",
     );
 });
 
-test("currentExecPath matches APPDIR with a trailing slash", () => {
-    // A bare `self.startsWith(appDir)` matches a different AppImage
-    // mount whose ID coincidentally shares a prefix (Limux/Ghostty
-    // terminal hosting our binary from a sibling mount). Requiring
-    // the trailing `/` enforces a directory-boundary match.
+test("setEnabled routes writes/removes through the shared desktop_entry helpers", () => {
+    // The mkpath + write + remove plumbing is shared with MenuEntry via
+    // desktop_entry (atomic QSaveFile write, self-heal) — autostart must
+    // delegate, not re-implement, so a fix to one writer covers both.
     assert.match(
         SRC,
-        /self\.startsWith\(\s*QString::fromLocal8Bit\(\s*appDir\s*\)\s*\+\s*QLatin1Char\(\s*'\/'\s*\)\s*\)/,
-        "the APPDIR prefix check must require a trailing slash so a coincidental prefix from a sibling mount does not match",
+        /desktop_entry::writeDesktopFile\(/,
+        "setEnabled(true) must delegate to desktop_entry::writeDesktopFile",
     );
+    assert.match(
+        SRC,
+        /desktop_entry::removeDesktopFile\(/,
+        "setEnabled(false) must delegate to desktop_entry::removeDesktopFile",
+    );
+});
+
+test("setEnabled emits enabledChanged so the view re-syncs on a failed write", () => {
+    // The checkbox optimistically flips on click; emitting regardless of
+    // write success lets it un-tick if the write failed.
+    assert.match(SRC, /Q_EMIT\s+enabledChanged\(\)/, "setEnabled must emit enabledChanged after the write/remove attempt");
 });

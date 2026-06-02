@@ -88,6 +88,27 @@ chmod +x Ring_Monitor-*-x86_64.AppImage
 NVIDIA GPU support works out of the box (the binary `dlopen`s
 `libnvidia-ml.so.1` at runtime); AMD/Intel GPUs are read from sysfs.
 
+> **First launch needs the executable bit.** Browsers don't preserve
+> it on download, so the file arrives `rw-rw-r--` and a double-click in
+> the file manager does nothing (silently — issue
+> [#101](https://github.com/manuacl/ring-monitor/issues/101)). The
+> `chmod +x` above fixes it; in a file manager it's
+> *Properties → Permissions → Allow executing as program*. On XFCE /
+> Thunar a double-click may still do nothing even after that, because
+> those desktops ship no default handler for the
+> `application/vnd.appimage` MIME type — run it from the terminal as
+> shown, or install [AppImageLauncher](https://github.com/TheAssassin/AppImageLauncher).
+
+#### Add it to your application menu
+
+Once it's running, **right-click → Settings → About → "Show in
+application menu"**. Ring Monitor writes a launcher to
+`~/.local/share/applications/` pointing at the AppImage (no root, no
+system-wide change), so it shows up in your launcher and survives
+moves of the AppImage as long as the path stays put. Untick it to
+remove the entry. The neighbouring **"Start automatically on login"**
+toggle works the same way via `~/.config/autostart/`.
+
 #### Build from source
 
 Prefer building yourself (or your system lacks FUSE for AppImages)?

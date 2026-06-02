@@ -254,9 +254,13 @@ bypassed, but the key persists; useful for debugging).
   produces nothing in `journalctl --user`; `console.warn(...)` shows.
   Reach for `console.warn` when instrumenting a widget QML file you'll
   observe via the journal. **A standalone `qml-qt6` probe (the way to
-  spot-check a ksysguard sensor live — e.g. confirming `disk/all/read`
-  resolves and reports bytes/s under load) filters even `console.warn`;
-  use `console.error` there** and read it back with `journalctl --user`.
+  spot-check a ksysguard sensor live — e.g. confirming `disk/<uuid>/total`
+  resolves and reports bytes) swallows console output ENTIRELY — even
+  `console.error` — by default.** Run it as
+  `QT_LOGGING_RULES="*=true" QT_ASSUME_STDERR_HAS_CONSOLE=1 qml-qt6 probe.qml 2>&1`
+  and then plain `console.log(...)` prints to stderr (the probe exits 0-but-
+  silent without the env). Confirmed on the #68 byte-unit probe: `disk/<uuid>/total`
+  = 253282484224 (≈236 GiB), i.e. **bytes**, not KiB.
 - **`plasma5support` `DataSource` (engine `"executable"`) runs commands
   with the session `PATH`.** So invoke tools by bare name (`findmnt`), not
   an absolute path — see the no-absolute-path rule in the root

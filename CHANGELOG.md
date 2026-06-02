@@ -12,6 +12,8 @@ user-facing only.
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-06-02
+
 ### Added
 
 - **Disk ring tooltip** — hover the disk ring(s) to see one line per shown disk:

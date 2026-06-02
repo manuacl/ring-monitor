@@ -253,7 +253,11 @@ GridLayout {
                     return _tempInfo.value;
                 return NaN;
             }
-            unit: _isTemp && _tempInfo ? _tempInfo.unit : "%"
+            unit: {
+                if (_isDiskIo)
+                    return "MB/s";
+                return _isTemp && _tempInfo ? _tempInfo.unit : "%";
+            }
             nestedValues: modelData === "cpu" && content.configStore.showCpuCores ? content.metrics.coreValues : []
             // Equal-thickness concentric rings for the selected disk
             // partitions ([] for every other ring → normal single arc).
@@ -275,7 +279,11 @@ GridLayout {
                 return _splitOn ? content.metrics.metricTempPercent(modelData) : 0;
             }
             splitRawValue: !content.metrics.loading && _splitOn && _tempInfo ? _tempInfo.value : 0
-            splitUnit: _splitOn && _tempInfo ? _tempInfo.unit : ""
+            splitUnit: {
+                if (_diskIoSplit)
+                    return "MB/s";
+                return _splitOn && _tempInfo ? _tempInfo.unit : "";
+            }
             // Preformatted MB/s centre labels for the diskIo ring (empty for
             // every other ring → the normal Math.round(rawValue)+unit path).
             // Combined → single label; split → read on the left (valueOverride),
@@ -284,9 +292,12 @@ GridLayout {
             valueOverride: {
                 if (!_isDiskIo || content.metrics.loading || !_io)
                     return "";
-                return DiskIo.formatRate(_diskIoSplit ? _io.readBps : _io.combinedBps);
+                return DiskIo.formatRateValue(_diskIoSplit ? _io.readBps : _io.combinedBps);
             }
-            splitValueOverride: (_isDiskIo && _diskIoSplit && !content.metrics.loading && _io) ? DiskIo.formatRate(_io.writeBps) : ""
+            splitValueOverride: (_isDiskIo && _diskIoSplit && !content.metrics.loading && _io) ? DiskIo.formatRateValue(_io.writeBps) : ""
+            // diskIo renders "MB/s" small + tight (unitSmall); the number is the
+            // override above. Other rings keep their full-size unit.
+            unitSmall: ringDelegate._isDiskIo
             // Shared color for every ring; disk partitions with a custom
             // color override it per-ring via equalColors above.
             ringColor: content._ringColor

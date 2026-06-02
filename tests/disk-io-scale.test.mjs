@@ -76,7 +76,14 @@ test("rateToPercent returns 0 for non-positive / non-finite peak", () => {
 
 // ── formatRate ──────────────────────────────────────────────────────
 
-test("formatRate shows one decimal below 100 MB/s", () => {
+test("formatRateValue is the number only (no unit) — the ring renders the unit separately", () => {
+    assert.equal(DiskIo.formatRateValue(3.4 * MB), "3.4");
+    assert.equal(DiskIo.formatRateValue(0), "0.0");
+    assert.equal(DiskIo.formatRateValue(380.2 * MB), "380");
+    assert.equal(DiskIo.formatRateValue(NaN), "0.0");
+});
+
+test("formatRate appends the MB/s unit to formatRateValue", () => {
     assert.equal(DiskIo.formatRate(3.4 * MB), "3.4 MB/s");
     assert.equal(DiskIo.formatRate(0), "0.0 MB/s");
 });

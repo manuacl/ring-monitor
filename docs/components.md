@@ -245,6 +245,7 @@ A circular gauge: 270° arc starting at 135° (90° gap at the bottom).
 | `splitUnit` | `"°"` | suffix appended to the right-side text |
 | `valueOverride` | `""` | optional preformatted centre-text string — when non-empty, the centre readout shows it verbatim instead of `Math.round(rawValue) + unit`. The arc still uses `value`. Used by the disk-I/O ring (issue #77), whose label is an MB/s rate from `DiskIoScale.formatRate` (one decimal below 100 MB/s, none above) that `Math.round` + a single `unit` can't express. |
 | `splitValueOverride` | `""` | same as `valueOverride` for the split-right readout (the diskIo write half); empty → the `Math.round(splitRawValue) + splitUnit` path. |
+| `unitSmall` | `false` | render the unit suffix smaller (`<font size="1">`) and tight against the number — no leading space — so a long unit doesn't crowd it. Set only by the disk-I/O ring (its "MB/s"); other rings keep the full-size unit. Uses `<font size>` because Qt's StyledText ignores a CSS `font-size:` span (measured). |
 | `showUpdateBadge` | `false` | when true, render a small coloured dot in the 90° bottom gap (just left of the label) that pulses slowly. Emits `updateBadgeClicked()` on click — the parent uses it to open the config dialog at the "New release" tab. Set by `MainContent` on the first ring only when `updateChecker.updateAvailable` is true. |
 
 ### Split mode

@@ -61,7 +61,13 @@ user-facing only.
   string the `Math.round(rawValue)+unit` path can't express for an MB/s rate).
   A content-scope `Binding` drives `diskIoSamplingActive` from whether the ring
   is enabled, so the backend only polls while it's on screen. The split toggle
-  is a `MetricsBody` `extraContent` checkbox on the diskIo row. `MainContent`'s
+  is a `MetricsBody` `extraContent` checkbox on the diskIo row. The diskIo
+  centre label renders the "MB/s" unit smaller and tight against the number
+  (no leading space) so the rate gets the room — via a new `Ring.unitSmall`
+  flag + a `<font size="1">` span (Qt's StyledText **ignores** a CSS
+  `font-size:` span — measured — but honours `<font size>`); `formatRate` was
+  split into `formatRateValue` (number) + the unit so the two render
+  separately. Only diskIo opts in; other rings keep their full-size unit. `MainContent`'s
   enabled-list derivation now `mergeWithCatalog`s `metricOrder` before
   `filterByOrder`, so an enabled catalog id missing from a stale persisted order
   (upgraders, or a host default predating the metric) still renders without a

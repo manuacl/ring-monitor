@@ -67,6 +67,12 @@ Item {
     property string valueOverride: ""
     property string splitValueOverride: ""
 
+    // When true, the unit suffix is rendered at ~half the number's size and
+    // tight against it (no leading space) so the number gets the room — for
+    // the disk-I/O ring's "MB/s", the widest unit. Other rings keep the unit
+    // at full size. Implemented via StyledText in _composeReadout below.
+    property bool unitSmall: false
+
     // Optional: render a small "update available" dot inside the 90°
     // bottom gap, next to the label. Clicking it fires updateBadgeClicked
     // which the parent uses to trigger Plasmoid.action("configure").
@@ -132,6 +138,22 @@ Item {
     }
     onRawValueChanged: {
         displayRawValue = isFinite(rawValue) ? rawValue : value;
+    }
+
+    // Centre readout = number + unit, as StyledText. `unitSmall` (the disk-I/O
+    // ring) renders the unit smaller and tight against the number (no leading
+    // space) so the long "MB/s" doesn't crowd it; every other ring appends the
+    // unit full-size. Uses `<font size>` (HTML relative 1-7), NOT a CSS
+    // `font-size:` span — Qt's StyledText parser silently IGNORES the span
+    // (measured: identical paintedWidth) but honours `<font size>`. The markup
+    // is inert for the full-size case — a plain "42%" renders identically.
+    function _composeReadout(numberPart, unit) {
+        var n = "" + numberPart;
+        if (!unit || unit === "")
+            return n;
+        if (!root.unitSmall)
+            return n + unit;
+        return n + '<font size="1">' + unit + '</font>';
     }
 
     // Same smoothing for the split secondary (animated %) and its raw
@@ -364,7 +386,8 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.horizontalCenterOffset: root.splitMode ? -root.size * 0.18 : 0
-            text: root.valueOverride !== "" ? root.valueOverride : Math.round(root.displayRawValue) + root.unit
+            textFormat: Text.StyledText
+            text: root._composeReadout(root.valueOverride !== "" ? root.valueOverride : Math.round(root.displayRawValue), root.unit)
             color: root.textColor
             opacity: root.textOpacity
             font.pixelSize: root.splitMode ? Math.round(root.valuePx * 0.75) : root.valuePx
@@ -377,7 +400,8 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.horizontalCenterOffset: root.size * 0.18
-            text: root.splitValueOverride !== "" ? root.splitValueOverride : Math.round(root.displaySplitRawValue) + root.splitUnit
+            textFormat: Text.StyledText
+            text: root._composeReadout(root.splitValueOverride !== "" ? root.splitValueOverride : Math.round(root.displaySplitRawValue), root.splitUnit)
             color: root.textColor
             opacity: root.textOpacity
             font.pixelSize: Math.round(root.valuePx * 0.75)

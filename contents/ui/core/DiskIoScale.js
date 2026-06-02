@@ -89,16 +89,21 @@ function rateToPercent(rateBps, peakBps) {
     return pct;
 }
 
-// Human-readable throughput for the centre label. MB/s with one decimal
+// The numeric part of the MB/s readout, WITHOUT the unit: one decimal
 // below 100 MB/s (so a 3.4 MB/s trickle is legible) and no decimal above
-// (380 MB/s, not 380.2 — the extra digit is noise at that magnitude).
-// Always MB/s: a single unit keeps the label width stable across the
-// ring's value animation instead of flipping KB/MB/GB mid-sweep.
-function formatRate(bps) {
+// (380, not 380.2 — the extra digit is noise at that magnitude). The ring
+// renders the unit separately (smaller font) so the number gets the room,
+// which is why the value and unit are split.
+function formatRateValue(bps) {
     var mb = _finite(bps) / BYTES_PER_MB;
     if (mb < 0) mb = 0;
-    var n = mb < 100 ? mb.toFixed(1) : String(Math.round(mb));
-    return n + " MB/s";
+    return mb < 100 ? mb.toFixed(1) : String(Math.round(mb));
+}
+
+// Full "{n} MB/s" string. Always MB/s — a single unit keeps the width
+// stable across the ring's value animation instead of flipping KB/MB/GB.
+function formatRate(bps) {
+    return formatRateValue(bps) + " MB/s";
 }
 
 if (typeof module !== "undefined" && module.exports) {
@@ -109,6 +114,7 @@ if (typeof module !== "undefined" && module.exports) {
         combinedRate: combinedRate,
         updatePeak: updatePeak,
         rateToPercent: rateToPercent,
+        formatRateValue: formatRateValue,
         formatRate: formatRate
     };
 }

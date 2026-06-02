@@ -12,8 +12,6 @@ user-facing only.
 
 ## [Unreleased]
 
-## [0.12.0] — 2026-06-02
-
 ### Added
 
 - **Disk ring tooltip** — hover the disk ring(s) to see one line per shown disk:
@@ -52,23 +50,25 @@ user-facing only.
   in PR 3. Covered by `disk-metrics`, `disk-partition-sensors` (new text guard),
   `mount-info`, `disk-discovery`, `metrics-backend`, `standalone-metrics-backend`.
 - feat(disk): disk-ring tooltip UI + wire-in (issue #68, PR 3/3 — the
-  feature-completing PR). The hard-won popup chrome (Window-popup guard,
-  grow-only width high-water mark, edge-aware placement, show-delay) is extracted
-  from `ProcessTooltip` into a shared `core/HoverTooltip.qml` base that injects
-  its body via a `contentComponent` Loader (a default-property slot would capture
-  the `HoverHandler`); `ProcessTooltip` is refactored onto it with no behaviour
-  change (its #69 tests stay green). New `core/DiskTooltip.qml` renders one row
-  per shown disk from `DiskTooltipModel.buildRows` — a `Kirigami.Icon` tinted to
-  the ring colour (`isMask`), the label + dimmed `mountpoint · fstype`, the usage
-  line and free space. `MainContent` arms it on the disk ring and computes
-  `details` (the `metrics.partitionDetail(id)` list) ONLY while hovered, so the
-  per-tick statvfs (standalone) / total-free reads (Plasma) don't run when no
-  tooltip is up. Plasma gates the per-partition `total`/`free` Sensor
-  subscriptions on a new `diskTooltipActive` flag (the `ProcessSampler` pattern;
-  `usedPercent` stays always-on). Live-verified: ksysguard `disk/<uuid>/total`
-  +`/free` report bytes (236 / 115 GiB on the btrfs root, ratio matched
-  `usedPercent`). Covered by `tst_HoverTooltip`, `tst_DiskTooltip`,
-  `disk-tooltip-model`, the unchanged `tst_ProcessTooltip`.
+  feature-completing PR). New `core/DiskTooltip.qml` renders one row per shown
+  disk from `DiskTooltipModel.buildRows` — a `Kirigami.Icon` tinted to the ring
+  colour (`isMask`), the label + dimmed `mountpoint · fstype`, the usage line
+  and free space. `MainContent` arms it on the disk ring and computes `details`
+  (the `metrics.partitionDetail(id)` list) ONLY while hovered, so the per-tick
+  statvfs (standalone) / total-free reads (Plasma) don't run when no tooltip is
+  up. Plasma gates the per-partition `total`/`free` Sensor subscriptions on a
+  new `diskTooltipActive` flag (the `ProcessSampler` pattern; `usedPercent`
+  stays always-on). Live-verified: ksysguard `disk/<uuid>/total` +`/free` report
+  bytes (236 / 115 GiB on the btrfs root, ratio matched `usedPercent`). The
+  popup chrome (Window-popup guard, grow-only width high-water mark, edge-aware
+  placement, show-delay) is DUPLICATED from `ProcessTooltip`, not shared: an
+  earlier `core/HoverTooltip.qml` base injected the body via a `contentComponent`
+  Loader, but a Window-type QQC2 popup renders WRONG with a Loader `contentItem`
+  (in-scene/clipped, not a floating surface — caught live on Qt 6.10, both
+  rings). The body must be the popup's DIRECT `contentItem`, so each tooltip
+  owns its chrome; keep them in sync (documented in both files + `core/CLAUDE.md`).
+  Covered by `tst_DiskTooltip`, `disk-tooltip-model`, the unchanged
+  `tst_ProcessTooltip`.
 
 ### Other
 

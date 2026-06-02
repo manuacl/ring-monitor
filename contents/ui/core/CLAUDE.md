@@ -218,6 +218,16 @@ large. Cost ~4 live iterations:
   the side on overflow via `item.mapToGlobal()` + `Screen.virtualX/Y` +
   `Screen.width/height` (all plain QtQuick — no Plasma dep). Canonical:
   `ProcessTooltip.qml`'s `x`/`y` bindings.
+- **The body must be the popup's DIRECT `contentItem` — never a `Loader`.**
+  Tempting to factor this chrome into a shared `HoverTooltip` base that takes
+  the body as a `Component` and hosts it in a `Loader` `contentItem` (a
+  default-property slot captures the base's own `HoverHandler`, so a Loader
+  looks like the only seam). But a `Window`-type popup renders WRONG with a
+  Loader `contentItem`: in-scene / clipped instead of a floating surface —
+  caught live on Qt 6.10, on BOTH the CPU and disk tooltips, and identically on
+  standalone. So `ProcessTooltip` and `DiskTooltip` each DUPLICATE the chrome
+  (direct `ColumnLayout` `contentItem`) rather than share a base. Fix-twice
+  debt, accepted: keep the two in sync. Don't re-attempt the extraction.
 
 ## Where the platform adapters live
 

@@ -8,7 +8,7 @@
     <group name="Metrics">
         <entry name="metricOrder" type="String">
             <label>All metric ids in display order (whether enabled or not)</label>
-            <default>cpu,cpuTemp,ram,swap,gpu,gpuTemp,disk</default>
+            <default>cpu,cpuTemp,ram,swap,gpu,gpuTemp,disk,diskIo</default>
         </entry>
 
         <entry name="enabledMetrics" type="String">
@@ -53,6 +53,11 @@
 
         <entry name="mergeGpuTemp" type="Bool">
             <label>Render gpuTemp as the right half of the gpu ring instead of a separate gauge. Requires both gpu and gpuTemp to be enabled.</label>
+            <default>false</default>
+        </entry>
+
+        <entry name="splitDiskIo" type="Bool">
+            <label>Render the disk I/O ring split into two half-arcs — read on the left, write on the right — instead of a single combined read+write arc.</label>
             <default>false</default>
         </entry>
     </group>

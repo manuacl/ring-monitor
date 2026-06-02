@@ -194,7 +194,7 @@ different value (or the standalone build never reads it):
 2. `platforms/plasma/ConfigStore.qml` — `readonly property X: Plasmoid.configuration.X`.
 3. `platforms/standalone/ConfigStore.qml` — `property X: <default>` (mirror the default byte-for-byte).
 4. `configMetrics.qml` (or the owning page) — `property alias cfg_X: body.X` + the `cfg_XDefault` placeholder.
-5. `configAppearance.qml` (and any other page) — `cfg_X` + `cfg_XDefault` 484541 placeholders.
+5. `configAppearance.qml` **and `configAbout.qml`** (every *other* page than the one handling the key) — `cfg_X` + `cfg_XDefault` 484541 placeholders. Missing one only shows as a journal warning at runtime (the dialog still loads), so it slips past the headless tests — `configAbout` is the easy miss (caught live in #77).
 6. `platforms/standalone/SettingsDialog.qml` — a `_bridgeMap` entry `[body, "X", "X"]` (+ the pair in `standalone-settings-dialog.test.mjs`).
 
 The `config-store` / `standalone-config-store` / `standalone-settings-dialog`
@@ -253,7 +253,10 @@ bypassed, but the key persists; useful for debugging).
   plasmashell drops QML debug-level messages, so `console.log(...)`
   produces nothing in `journalctl --user`; `console.warn(...)` shows.
   Reach for `console.warn` when instrumenting a widget QML file you'll
-  observe via the journal.
+  observe via the journal. **A standalone `qml-qt6` probe (the way to
+  spot-check a ksysguard sensor live — e.g. confirming `disk/all/read`
+  resolves and reports bytes/s under load) filters even `console.warn`;
+  use `console.error` there** and read it back with `journalctl --user`.
 - **`plasma5support` `DataSource` (engine `"executable"`) runs commands
   with the session `PATH`.** So invoke tools by bare name (`findmnt`), not
   an absolute path — see the no-absolute-path rule in the root

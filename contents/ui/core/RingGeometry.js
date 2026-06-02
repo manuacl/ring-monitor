@@ -91,6 +91,21 @@ function rightHalfSweepFor(percent) {
     return -effectiveHalfSweep() * clampPercent(percent) / 100 + 0;
 }
 
+// Centre-offset {x, y} for a split-mode readout. `side` is -1 (left/read) or
+// +1 (right/write). Flat layout (temperature split): readouts sit on one line,
+// offset horizontally by ±18% of size. `stacked` layout (the disk-I/O split,
+// whose "0.1MB/s" readouts are too wide to share a line): they move diagonally
+// — read up-and-left, write down-and-right — by a small fraction of valuePx
+// (0.35× horizontal, 0.45× vertical) so they separate without flying apart.
+// !splitMode → {0,0}.
+function splitReadoutOffset(side, splitMode, stacked, size, valuePx) {
+    if (!splitMode)
+        return { x: 0, y: 0 };
+    if (stacked)
+        return { x: side * Math.round(valuePx * 0.35), y: side * Math.round(valuePx * 0.45) };
+    return { x: side * Math.round(size * 0.18), y: 0 };
+}
+
 function dimensionsFor(size) {
     if (!isFinite(size) || size <= 0) size = 0;
     function compute(rule) {
@@ -203,6 +218,7 @@ if (typeof module !== "undefined" && module.exports) {
         effectiveHalfSweep: effectiveHalfSweep,
         leftHalfSweepFor: leftHalfSweepFor,
         rightHalfSweepFor: rightHalfSweepFor,
+        splitReadoutOffset: splitReadoutOffset,
         dimensionsFor: dimensionsFor,
         nestedRingLayout: nestedRingLayout,
         equalRingLayout: equalRingLayout,

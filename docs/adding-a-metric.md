@@ -119,9 +119,36 @@ temperatures, or absolute values need to be converted to a percentage of
 some `max`:
 
 - For rates: a configurable max (e.g. "100 Mbit/s baseline") or a
-  rolling max from a small history.
+  rolling max from a small history — the disk-I/O ring takes the rolling-max
+  route (see "Pattern: rate metric" below).
 - For temperatures: clamp into a sensible range
   (`MetricsCatalog.tempToPercent` defaults to 30–90 °C → 0–100%).
+
+## Pattern: rate metric (disk I/O throughput, issue #77)
+
+The disk-I/O ring is the canonical example of an **unbounded byte/s rate**
+mapped onto the arc. It differs from a percent metric in three ways, all
+generalisable to a future network-rate ring:
+
+1. **Auto-scaling peak, not a fixed max.** `core/DiskIoScale.js` keeps a
+   decaying rolling peak per component and fills the arc to `rate / peak`
+   (`updatePeak` + `rateToPercent`). The numeric label always shows the real
+   MB/s via `formatRate` — arc scale and displayed value are decoupled, the
+   same `value` vs `rawValue` split temperature uses.
+2. **A gated sampler child, not the sensor map.** Each platform has a
+   `DiskIoSampler.qml` (standalone: `/proc/diskstats` deltas; Plasma:
+   `disk/all/{read,write}` sensors) gated on an `active` property, so an
+   off-screen ring polls nothing. `MetricsBackend` forwards a reactive `io`
+   snapshot + the `diskIoSamplingActive` gate; `MainContent` drives the gate
+   from whether the ring is in the enabled list. Classify the id in
+   `MetricsCatalog.RATE_METRIC_IDS` (`isRateMetric`) so `MainContent`
+   special-cases it like the disk multi-partition ring — it does **not** go
+   through `metricValue` / the sensor map.
+3. **A preformatted label via `Ring.valueOverride`.** Because the MB/s string
+   (`formatRate`) carries a decimal `Math.round(rawValue) + unit` can't, the
+   delegate passes `valueOverride` (and `splitValueOverride` for the split
+   write half) instead of `rawValue`. Combined R+W is the default arc; the
+   `splitDiskIo` toggle reuses split mode to show read|write.
 
 ## Pattern: split mode (CPU / GPU temperature)
 

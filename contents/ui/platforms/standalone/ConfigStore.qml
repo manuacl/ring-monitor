@@ -27,7 +27,7 @@ Settings {
     id: store
 
     // ── Metrics group ───────────────────────────────────────────────
-    property string metricOrder: "cpu,cpuTemp,ram,swap,gpu,gpuTemp,disk"
+    property string metricOrder: "cpu,cpuTemp,ram,swap,gpu,gpuTemp,disk,diskIo"
     property string enabledMetrics: "cpu,ram"
     // Selected disk partition ids (empty = the backend's default, i.e. the
     // $HOME-bearing filesystem on standalone).
@@ -45,6 +45,7 @@ Settings {
     property bool showCpuCores: true
     property bool mergeCpuTemp: false
     property bool mergeGpuTemp: false
+    property bool splitDiskIo: false
 
     // ── Appearance group ────────────────────────────────────────────
     property string orientation: "horizontal"

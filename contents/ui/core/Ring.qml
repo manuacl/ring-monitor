@@ -58,6 +58,29 @@ Item {
     property real splitRawValue: 0
     property string splitUnit: "°"
 
+    // Optional preformatted centre-text overrides. When non-empty, the centre
+    // readout shows the string verbatim instead of `Math.round(rawValue)+unit`
+    // (resp. the split-right `splitRawValue`). For the disk-I/O ring, whose
+    // label is an MB/s rate formatted by DiskIoScale.formatRate (one decimal
+    // below 100 MB/s, none above) — a precision Math.round would flatten and a
+    // single unit can't express. The sweep still uses value / splitValue.
+    property string valueOverride: ""
+    property string splitValueOverride: ""
+
+    // When true, the unit suffix is rendered at ~half the number's size and
+    // tight against it (no leading space) so the number gets the room — for
+    // the disk-I/O ring's "MB/s", the widest unit. Other rings keep the unit
+    // at full size. Implemented via StyledText in _composeReadout below.
+    property bool unitSmall: false
+
+    // splitStacked: the disk-I/O split readouts ("0.1MB/s") are too wide to sit
+    // side by side, so they STACK diagonally — read up-left toward its half-arc,
+    // write down-right. Temperature split (short "45°C") stays flat side-by-side.
+    // The {x,y} centre offsets per readout are pure math in RingGeometry.
+    property bool splitStacked: false
+    readonly property var _readOffset: Geom.splitReadoutOffset(-1, splitMode, splitStacked, size, valuePx)
+    readonly property var _writeOffset: Geom.splitReadoutOffset(1, splitMode, splitStacked, size, valuePx)
+
     // Optional: render a small "update available" dot inside the 90°
     // bottom gap, next to the label. Clicking it fires updateBadgeClicked
     // which the parent uses to trigger Plasmoid.action("configure").
@@ -123,6 +146,22 @@ Item {
     }
     onRawValueChanged: {
         displayRawValue = isFinite(rawValue) ? rawValue : value;
+    }
+
+    // Centre readout = number + unit, as StyledText. `unitSmall` (the disk-I/O
+    // ring) renders the unit smaller and tight against the number (no leading
+    // space) so the long "MB/s" doesn't crowd it; every other ring appends the
+    // unit full-size. Uses `<font size>` (HTML relative 1-7), NOT a CSS
+    // `font-size:` span — Qt's StyledText parser silently IGNORES the span
+    // (measured: identical paintedWidth) but honours `<font size>`. The markup
+    // is inert for the full-size case — a plain "42%" renders identically.
+    function _composeReadout(numberPart, unit) {
+        var n = "" + numberPart;
+        if (!unit || unit === "")
+            return n;
+        if (!root.unitSmall)
+            return n + unit;
+        return n + '<font size="1">' + unit + '</font>';
     }
 
     // Same smoothing for the split secondary (animated %) and its raw
@@ -354,8 +393,10 @@ Item {
             id: valueText
             anchors.verticalCenter: parent.verticalCenter
             anchors.horizontalCenter: parent.horizontalCenter
-            anchors.horizontalCenterOffset: root.splitMode ? -root.size * 0.18 : 0
-            text: Math.round(root.displayRawValue) + root.unit
+            anchors.horizontalCenterOffset: root._readOffset.x
+            anchors.verticalCenterOffset: root._readOffset.y
+            textFormat: Text.StyledText
+            text: root._composeReadout(root.valueOverride !== "" ? root.valueOverride : Math.round(root.displayRawValue), root.unit)
             color: root.textColor
             opacity: root.textOpacity
             font.pixelSize: root.splitMode ? Math.round(root.valuePx * 0.75) : root.valuePx
@@ -367,8 +408,10 @@ Item {
             visible: root.splitMode && !root._equalMode
             anchors.verticalCenter: parent.verticalCenter
             anchors.horizontalCenter: parent.horizontalCenter
-            anchors.horizontalCenterOffset: root.size * 0.18
-            text: Math.round(root.displaySplitRawValue) + root.splitUnit
+            anchors.horizontalCenterOffset: root._writeOffset.x
+            anchors.verticalCenterOffset: root._writeOffset.y
+            textFormat: Text.StyledText
+            text: root._composeReadout(root.splitValueOverride !== "" ? root.splitValueOverride : Math.round(root.displaySplitRawValue), root.splitUnit)
             color: root.textColor
             opacity: root.textOpacity
             font.pixelSize: Math.round(root.valuePx * 0.75)

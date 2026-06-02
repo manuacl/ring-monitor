@@ -74,19 +74,54 @@ test("rateToPercent returns 0 for non-positive / non-finite peak", () => {
     assert.equal(DiskIo.rateToPercent(50 * MB, -1), 0);
 });
 
-// ── formatRate ──────────────────────────────────────────────────────
+// ── scaleRate / dynamic unit ────────────────────────────────────────
 
-test("formatRate shows one decimal below 100 MB/s", () => {
+test("scaleRate picks the unit keeping the number in 0–999 (SI 10^3 steps)", () => {
+    assert.deepEqual(DiskIo.scaleRate(0), { value: 0, unit: "B/s" });
+    assert.deepEqual(DiskIo.scaleRate(850), { value: 850, unit: "B/s" });
+    assert.deepEqual(DiskIo.scaleRate(1000), { value: 1, unit: "KB/s" });
+    assert.deepEqual(DiskIo.scaleRate(3.4 * MB), { value: 3.4, unit: "MB/s" });
+    assert.deepEqual(DiskIo.scaleRate(2.5e9), { value: 2.5, unit: "GB/s" });
+});
+
+test("scaleRate promotes the unit when the value would round up to 1000 (≤3 digits)", () => {
+    // SCENARIO: 999.7 KB/s rounds to "1000" at integer precision — promote to
+    // MB/s so the label stays ≤3 digits ("1.0 MB/s", not "1000 KB/s").
+    assert.deepEqual(DiskIo.scaleRate(999700), { value: 999700 / MB, unit: "MB/s" });
+    assert.equal(DiskIo.formatRateValue(999700), "1.0");
+    assert.equal(DiskIo.formatRateUnit(999700), "MB/s");
+    // Same at the B/s→KB/s edge.
+    assert.equal(DiskIo.formatRateUnit(999.7), "KB/s");
+    // Just below the round-up threshold stays in the lower unit.
+    assert.equal(DiskIo.formatRateUnit(999000), "KB/s");
+    assert.equal(DiskIo.formatRateValue(999000), "999");
+});
+
+test("scaleRate coerces negative / NaN to 0 B/s", () => {
+    assert.deepEqual(DiskIo.scaleRate(-100), { value: 0, unit: "B/s" });
+    assert.deepEqual(DiskIo.scaleRate(NaN), { value: 0, unit: "B/s" });
+});
+
+test("formatRateValue is the number only, in the auto-picked unit (one decimal <100, none above)", () => {
+    assert.equal(DiskIo.formatRateValue(3.4 * MB), "3.4");   // 3.4 MB/s
+    assert.equal(DiskIo.formatRateValue(0), "0.0");          // 0.0 B/s
+    assert.equal(DiskIo.formatRateValue(850), "850");        // 850 B/s (≥100 → int)
+    assert.equal(DiskIo.formatRateValue(380.2 * MB), "380"); // 380 MB/s
+    assert.equal(DiskIo.formatRateValue(2.5e9), "2.5");      // 2.5 GB/s
+    assert.equal(DiskIo.formatRateValue(NaN), "0.0");
+});
+
+test("formatRateUnit / formatRate scale dynamically from B/s to GB/s", () => {
+    assert.equal(DiskIo.formatRateUnit(0), "B/s");
+    assert.equal(DiskIo.formatRateUnit(50 * 1000), "KB/s");
+    assert.equal(DiskIo.formatRateUnit(3.4 * MB), "MB/s");
+    assert.equal(DiskIo.formatRateUnit(2.5e9), "GB/s");
+    assert.equal(DiskIo.formatRate(0), "0.0 B/s");
     assert.equal(DiskIo.formatRate(3.4 * MB), "3.4 MB/s");
-    assert.equal(DiskIo.formatRate(0), "0.0 MB/s");
+    assert.equal(DiskIo.formatRate(2.5e9), "2.5 GB/s");
 });
 
-test("formatRate drops the decimal at/above 100 MB/s", () => {
-    assert.equal(DiskIo.formatRate(380.2 * MB), "380 MB/s");
-    assert.equal(DiskIo.formatRate(100 * MB), "100 MB/s");
-});
-
-test("formatRate coerces NaN / negative to 0", () => {
-    assert.equal(DiskIo.formatRate(NaN), "0.0 MB/s");
-    assert.equal(DiskIo.formatRate(-5 * MB), "0.0 MB/s");
+test("formatRate coerces NaN / negative to 0 (B/s at zero)", () => {
+    assert.equal(DiskIo.formatRate(NaN), "0.0 B/s");
+    assert.equal(DiskIo.formatRate(-5 * MB), "0.0 B/s");
 });

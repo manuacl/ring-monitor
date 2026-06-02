@@ -35,6 +35,9 @@ Item {
             ring.splitValue = 0;
             ring.splitRawValue = 0;
             ring.splitUnit = "°";
+            ring.valueOverride = "";
+            ring.splitValueOverride = "";
+            ring.unitSmall = false;
             // Wait for animations triggered by previous tests to settle.
             tryCompare(ring, "displayValue", 0);
             tryCompare(ring, "displayRawValue", 0);
@@ -63,6 +66,45 @@ Item {
             ring.value = 42.6;
             tryCompare(ring, "displayValue", 42.6, 1000);
             compare(ring._valueText, "43%");
+        }
+
+        // ── Preformatted number override (disk-I/O MB/s, issue #77) ──
+        function test_value_override_replaces_the_rounded_number() {
+            // The arc still reads `value`; the centre number is the
+            // preformatted override (an MB/s rate keeps its decimal, which
+            // Math.round(rawValue) would flatten). Unit appended full-size here.
+            ring.value = 70;
+            ring.rawValue = 3.4;
+            ring.unit = "MB/s";
+            ring.valueOverride = "3.4";
+            compare(ring._valueText, "3.4MB/s");
+            // Empty override falls back to the rounded rawValue.
+            ring.valueOverride = "";
+            tryCompare(ring, "displayRawValue", 3.4, 1000);
+            compare(ring._valueText, "3MB/s");
+        }
+
+        // unitSmall (diskIo) wraps the unit in a smaller `<font size>` (StyledText
+        // ignores a CSS font-size span — measured — but honours <font size>),
+        // tight against the number. The readout carries number + unit, no space.
+        function test_unit_small_renders_unit_in_a_smaller_font() {
+            ring.unit = "MB/s";
+            ring.valueOverride = "3.4";
+            ring.unitSmall = true;
+            verify(ring._valueText.indexOf("3.4") === 0);             // number first
+            verify(ring._valueText.indexOf("MB/s") !== -1);          // unit present
+            verify(ring._valueText.indexOf('<font size="1">') !== -1); // unit shrunk via <font size>
+            verify(ring._valueText.indexOf(" MB/s") === -1);          // no leading space
+        }
+
+        function test_split_value_override_replaces_the_right_half_number() {
+            ring.splitMode = true;
+            ring.unit = "MB/s";
+            ring.splitUnit = "MB/s";
+            ring.valueOverride = "120";
+            ring.splitValueOverride = "45.0";
+            compare(ring._valueText, "120MB/s");
+            compare(ring._splitValueText, "45.0MB/s");
         }
 
         // ── Sweep angle binding (RingGeometry → arc) ──────────────

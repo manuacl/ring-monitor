@@ -14,6 +14,18 @@ user-facing only.
 
 ### Added
 
+- **Disk I/O ring** — a new ring showing live disk **read/write throughput**
+  (MB/s), alongside the existing DISKS ring that shows how *full* the disk is.
+  Enable "DISK IO" in Settings → Metrics. By default it shows combined read +
+  write as one arc; tick **"Split read / write"** under the metric to see read
+  on the left half and write on the right. The arc auto-scales to the disk's
+  recent activity (so it stays expressive whether you're idle or copying a
+  large file), and the centre shows the real rate with a unit that scales
+  automatically from B/s to GB/s. In split mode the read and write readouts
+  stack diagonally (read toward the left arc, write toward the right) so the
+  longer labels don't crowd. Works on both the Plasma widget and the standalone
+  build (#77).
+
 - Standalone: a **"Show in application menu"** toggle in Settings → About.
   A downloaded AppImage normally appears in no application launcher, and on
   XFCE / Thunar a double-click does nothing; ticking the box registers a
@@ -25,6 +37,11 @@ user-facing only.
 
 ### Fixed
 
+- Enabling a metric that was introduced in a newer version (e.g. the new Disk
+  I/O ring, or the CPU/GPU temperature rings on an older config) now shows its
+  ring immediately — previously a metric absent from your saved ring order
+  stayed hidden until you drag-reordered the list once (#77).
+
 - Standalone AppImage no longer crashes at launch on a Wayland session
   (KWin Plasma 6 and other wlr-layer-shell compositors). A missing Qt
   graphics plugin left the window with no GPU surface, so the app aborted
@@ -33,6 +50,42 @@ user-facing only.
   with `QT_QPA_PLATFORM=xcb` (#110).
 
 ### Technical
+
+- feat(disk-io): UI + config wiring that ships the disk-I/O ring (issue #77, PR4
+  — the feature-completing PR). Registers `diskIo` in the catalog
+  (`METRIC_IDS` + label + `isRateMetric`, parallel to `isTempMetric`) and the
+  `splitDiskIo` config key across all six touch-points (main.xml, both
+  ConfigStores, configMetrics alias, configAppearance 484541 placeholders,
+  standalone SettingsDialog `_bridgeMap`). `MainContent`'s delegate special-cases
+  the rate metric like the disk multi-partition ring: the arc uses the backend
+  `io` snapshot's auto-scaled `*Percent` (combined, or read|write via split
+  mode), and the centre label is `DiskIoScale.formatRate(*Bps)` passed through
+  two new `Ring` props — `valueOverride` / `splitValueOverride` (a preformatted
+  string the `Math.round(rawValue)+unit` path can't express for an MB/s rate).
+  A content-scope `Binding` drives `diskIoSamplingActive` from whether the ring
+  is enabled, so the backend only polls while it's on screen. The split toggle
+  is a `MetricsBody` `extraContent` checkbox on the diskIo row. The diskIo
+  centre label renders the "MB/s" unit smaller and tight against the number
+  (no leading space) so the rate gets the room — via a new `Ring.unitSmall`
+  flag + a `<font size="1">` span (Qt's StyledText **ignores** a CSS
+  `font-size:` span — measured — but honours `<font size>`); `formatRate` was
+  split into `formatRateValue` (number) + the unit so the two render
+  separately. Only diskIo opts in; other rings keep their full-size unit. The
+  unit is **dynamic** — `DiskIoScale.scaleRate` picks B/s / KB/s / MB/s / GB/s
+  (SI 10³ steps) keeping the number in 0–999; the ring `unit` binds to
+  `formatRateUnit(bps)`. In split mode the read/write readouts **stack
+  diagonally** instead of side-by-side (`Ring.splitStacked` + the pure
+  `RingGeometry.splitReadoutOffset` → each readout an `{x,y}` centre offset,
+  read up-left / write down-right); the temperature split keeps the flat
+  side-by-side layout. `MainContent`'s
+  enabled-list derivation now `mergeWithCatalog`s `metricOrder` before
+  `filterByOrder`, so an enabled catalog id missing from a stale persisted order
+  (upgraders, or a host default predating the metric) still renders without a
+  manual drag — a latent gap diskIo was the first opt-in metric to expose; the
+  standalone `metricOrder` default also gains `diskIo` to mirror `main.xml`.
+  Covered by
+  `metrics-catalog` (id + `isRateMetric`), `tst_Ring` (the override props),
+  `tst_MainContent` (the sampling gate), and `tst_MetricsBody` (catalog count).
 
 - feat(disk-io): Plasma adapter wiring for the disk-I/O ring (issue #77, PR3 of
   the sequence; adapter layer only, no user-facing change yet). New

@@ -85,6 +85,18 @@ Give the `Shape` an `id` and reference it explicitly. The default
 implicit binding through `parent` resolves to the wrong item in some
 QML render scopes — the arc ends up drawn off-centre.
 
+### `Text.StyledText` ignores a CSS `font-size:` span — use `<font size="N">`
+
+To make part of a `Text` a different size (e.g. `Ring.unitSmall` shrinks
+the disk-I/O "MB/s" suffix), `textFormat: Text.StyledText` **silently
+ignores** `<span style="font-size:Npx">` — the markup parses but the size
+is unchanged (verified: identical `paintedWidth`). Use the HTML
+`<font size="N">` tag instead (relative 1–7, default 3; `1` is smallest).
+It's coarse (no px control), so when you need an exact pixel size, render
+the segment as a separate `Text` with its own `font.pixelSize`. Cost ~2
+live iterations on #77 (the span no-op'd → no visible change). Canonical:
+`Ring._composeReadout`.
+
 ### `DraggableList.qml`: forward row data via `parent.rowModel`, not the scope chain
 
 Inside a `Loader` that hosts a user-provided `Component`, declare

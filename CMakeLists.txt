@@ -154,7 +154,9 @@ qt_add_qml_module(ring-monitor-standalone
         contents/ui/core/DiskTooltipModel.js
         contents/ui/core/UpdateCheck.js
         contents/ui/core/ProcessRanking.js
+        contents/ui/core/HoverTooltip.qml
         contents/ui/core/ProcessTooltip.qml
+        contents/ui/core/DiskTooltip.qml
 )
 
 target_link_libraries(ring-monitor-standalone PRIVATE

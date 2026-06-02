@@ -12,6 +12,16 @@ user-facing only.
 
 ## [Unreleased]
 
+### Added
+
+- **Disk ring tooltip** — hover the disk ring(s) to see one line per shown disk:
+  a removable/fixed drive icon tinted to that ring's colour, the volume label
+  with its mountpoint and filesystem type, the usage % with used / total size
+  (e.g. `12% — 56 GiB / 466 GiB`), and the free space. When several disks are
+  shown (your selection plus auto-shown removables) the tooltip tells you which
+  ring is which and the exact figures, without cluttering the gauge. Works on
+  both the Plasma widget and the standalone build (#68).
+
 ### Technical
 
 - feat(disk): pure presentational logic for the disk-ring hover tooltip
@@ -39,6 +49,24 @@ user-facing only.
   with an O(1) `_partForId` lookup. No user-facing change yet — the view lands
   in PR 3. Covered by `disk-metrics`, `disk-partition-sensors` (new text guard),
   `mount-info`, `disk-discovery`, `metrics-backend`, `standalone-metrics-backend`.
+- feat(disk): disk-ring tooltip UI + wire-in (issue #68, PR 3/3 — the
+  feature-completing PR). The hard-won popup chrome (Window-popup guard,
+  grow-only width high-water mark, edge-aware placement, show-delay) is extracted
+  from `ProcessTooltip` into a shared `core/HoverTooltip.qml` base that injects
+  its body via a `contentComponent` Loader (a default-property slot would capture
+  the `HoverHandler`); `ProcessTooltip` is refactored onto it with no behaviour
+  change (its #69 tests stay green). New `core/DiskTooltip.qml` renders one row
+  per shown disk from `DiskTooltipModel.buildRows` — a `Kirigami.Icon` tinted to
+  the ring colour (`isMask`), the label + dimmed `mountpoint · fstype`, the usage
+  line and free space. `MainContent` arms it on the disk ring and computes
+  `details` (the `metrics.partitionDetail(id)` list) ONLY while hovered, so the
+  per-tick statvfs (standalone) / total-free reads (Plasma) don't run when no
+  tooltip is up. Plasma gates the per-partition `total`/`free` Sensor
+  subscriptions on a new `diskTooltipActive` flag (the `ProcessSampler` pattern;
+  `usedPercent` stays always-on). Live-verified: ksysguard `disk/<uuid>/total`
+  +`/free` report bytes (236 / 115 GiB on the btrfs root, ratio matched
+  `usedPercent`). Covered by `tst_HoverTooltip`, `tst_DiskTooltip`,
+  `disk-tooltip-model`, the unchanged `tst_ProcessTooltip`.
 
 ### Other
 

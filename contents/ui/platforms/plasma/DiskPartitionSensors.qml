@@ -23,6 +23,11 @@ Item {
 
     property var partitions: []
     property var mounted: []
+    // True while the disk tooltip is shown (hovered). Gates the total/free byte
+    // leaves' subscription — they're only read in the tooltip, so the daemon
+    // isn't pushing them while no tooltip is up. usedPercent stays always-on (the
+    // ring needs it every tick). #68.
+    property bool tooltipActive: false
 
     property int _tick: 0
     // Last-good usedPercent per id, held across Sensor rebuilds: a USB plug /
@@ -34,13 +39,10 @@ Item {
     Instantiator {
         id: inst
         model: diskSensors.partitions
-        // Three ksysguard leaves per filesystem: usedPercent (the ring value) +
-        // total / free bytes (the #68 tooltip figures). `enabled` stays default —
-        // the daemon only pushes a subscribed sensor. TODO(#68 PR3): the
-        // total/free leaves are only read on tooltip hover; once the tooltip
-        // drives an `active` gate (like ProcessSampler), bind their `enabled` to
-        // it so they're unsubscribed while no tooltip is shown. usedPercent stays
-        // always-on (the ring needs it every tick).
+        // Three ksysguard leaves per filesystem: usedPercent (the ring value,
+        // always subscribed) + total / free bytes (the #68 tooltip figures, only
+        // subscribed via `enabled: tooltipActive` while a tooltip is shown — the
+        // ProcessSampler gate pattern). The daemon only pushes a subscribed sensor.
         delegate: Item {
             required property var modelData
             readonly property string partId: modelData.id
@@ -54,11 +56,13 @@ Item {
             }
             Sensors.Sensor {
                 id: totalSensor
+                enabled: diskSensors.tooltipActive
                 sensorId: "disk/" + modelData.id + "/total"
                 onValueChanged: diskSensors._tick++
             }
             Sensors.Sensor {
                 id: freeSensor
+                enabled: diskSensors.tooltipActive
                 sensorId: "disk/" + modelData.id + "/free"
                 onValueChanged: diskSensors._tick++
             }

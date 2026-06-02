@@ -34,6 +34,22 @@ user-facing only.
 
 ### Technical
 
+- feat(disk-io): standalone adapter wiring for the disk-I/O ring (issue #77,
+  PR2 of the sequence; adapter layer only, no user-facing change yet). New
+  gated `platforms/standalone/DiskIoSampler.qml` (own `ProcReader` + 500 ms
+  `Timer`, mirroring `ProcessSampler`) reads `/proc/diskstats` only while
+  active, aggregates whole disks via `DiskStatsParser`, and scales read/write
+  byte/s onto the arc via `DiskIoScale`'s rolling peak. `MetricsBackend`
+  forwards a reactive `io` property + the `diskIoSamplingActive` gate and flags
+  `diskIo` available (a no-op until the UI PR registers the catalog id). The
+  sampler skips a transient empty `/proc/diskstats` read rather than seeding a
+  zero baseline (which would spike the next tick and pin the rolling peak), and
+  derives its Timer interval from the rate denominator so the two can't drift.
+  The sampler split keeps `MetricsBackend.qml` at the 500-line cap; a few long
+  comments duplicated in `standalone/CLAUDE.md` were reduced to pointers to
+  make room. Text-guarded by `standalone-disk-io-sampler` +
+  `standalone-metrics-backend`.
+
 - feat(disk-io): pure scaling + parsing logic for the upcoming disk-I/O
   throughput ring (issue #77, first of a multi-PR sequence; no wiring yet).
   `core/DiskIoScale.js` maps an unbounded byte/s rate onto the 0-100% arc via

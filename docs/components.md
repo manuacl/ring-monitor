@@ -904,6 +904,27 @@ Both files import a host-only module (`RingMonitor.Standalone` /
 `org.kde.ksysguard.*`) absent from the CI container, so they're
 text-guarded rather than run under `qmltestrunner`.
 
+### `DiskIoSampler.qml` (standalone; Plasma counterpart in PR3)
+
+The standalone source for the disk-I/O **throughput** ring (issue #77) —
+distinct from the disk **usage** % ring. Same shape as `ProcessSampler`:
+its own `ProcReader` + 500 ms `Timer` (`running: active`), gated so an
+off-screen ring polls nothing (the issue's "sample only while on screen"
+requirement). Each tick reads `/proc/diskstats`, aggregates **whole
+physical disks** via
+[`DiskStatsParser.js`](logic-modules.md#diskstatsparserjs) (partitions +
+virtual devices dropped to avoid double-counting), derives read/write
+byte/s from the sample delta, and scales each onto the arc via
+[`core/DiskIoScale.js`](logic-modules.md#diskioscalejs)'s auto-scaling
+rolling peak. `MetricsBackend` forwards the gate (`diskIoSamplingActive`)
+and a reactive `io` **property** — `{readBps, writeBps, combinedBps,
+readPercent, writePercent, combinedPercent}` — so the ring binding
+refreshes live; the `*Bps` feed the MB/s label, the `*Percent` the sweep
+(combined by default, read/write split via a toggle, wired in the UI PR).
+The baseline is dropped when `active` flips off (a re-show would otherwise
+flash a huge stale delta); the peaks are kept so a toggled ring keeps its
+learned scale. Guard: `tests/standalone-disk-io-sampler.test.mjs`.
+
 ## Update-notification flow
 
 A widget-side check against GitHub Releases drives a subtle "new

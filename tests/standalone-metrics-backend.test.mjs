@@ -22,7 +22,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms", "standalone", "MetricsBackend.qml"), "utf8");
 
 // Same public surface as platforms/plasma/MetricsBackend.qml.
-const PUBLIC_PROPS = ["coreValues", "loading", "availableMetrics", "availablePartitions", "defaultPartitionIds", "processSamplingActive", "topProcesses", "loadAverages"];
+const PUBLIC_PROPS = ["coreValues", "loading", "availableMetrics", "availablePartitions", "defaultPartitionIds", "processSamplingActive", "topProcesses", "loadAverages", "diskIo", "diskIoSamplingActive"];
 const PUBLIC_FUNCS = ["metricValue", "metricRawTemp", "metricTempPercent", "partitionValue"];
 
 test("standalone MetricsBackend exposes the public properties main.qml depends on", () => {
@@ -37,6 +37,16 @@ test("standalone MetricsBackend exposes the public functions main.qml depends on
         const pattern = new RegExp(`function\\s+${name}\\s*\\(`);
         assert.match(SOURCE, pattern, `standalone MetricsBackend.qml must declare function ${name}(...)`);
     }
+});
+
+test("standalone MetricsBackend forwards the disk-I/O ring surface (issue #77)", () => {
+    // The throughput sampling lives in the gated DiskIoSampler child (keeps
+    // this adapter under the 500-line cap); the backend just forwards its
+    // reactive `io` snapshot + the on-screen gate, and flags diskIo available.
+    assert.match(SOURCE, /DiskIoSampler\s*{/, "must instantiate the DiskIoSampler child");
+    assert.match(SOURCE, /property\s+var\s+diskIo\s*:\s*diskIoSampler\.io/, "diskIo must forward the sampler's io property");
+    assert.match(SOURCE, /property\s+alias\s+diskIoSamplingActive\s*:\s*diskIoSampler\.active/, "diskIoSamplingActive must alias the sampler's active gate");
+    assert.match(SOURCE, /"diskIo":\s*true/, 'availableMetrics map must flag "diskIo" available (/proc/diskstats always exists)');
 });
 
 test("standalone MetricsBackend wires ProcReader + ProcStatParser", () => {

@@ -133,6 +133,7 @@ qt_add_qml_module(ring-monitor-standalone
         contents/ui/platforms/standalone/WindowPlacement.js
         contents/ui/platforms/standalone/ProcParser.js
         contents/ui/platforms/standalone/DiskStatsParser.js
+        contents/ui/platforms/standalone/DiskIoSampler.qml
         contents/ui/core/Ring.qml
         contents/ui/core/ConcentricArc.qml
         contents/ui/core/MainContent.qml

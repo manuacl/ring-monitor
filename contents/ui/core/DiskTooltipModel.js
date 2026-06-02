@@ -13,9 +13,16 @@
 //   - usedPercent: the SAME number the ring is drawn from (ksysguard
 //     usedPercent on Plasma, df-formula on standalone) — NOT recomputed from
 //     bytes, so the tooltip can't disagree with the gauge (issue #68 note).
-//   - totalBytes / freeBytes: capacity in bytes; used = total - free. 0/absent
-//     when the source hasn't resolved yet → the byte figures are dropped and
-//     only the % shows (graceful degrade).
+//   - totalBytes / freeBytes: capacity in bytes. freeBytes = what the user can
+//     actually write (statvfs f_bavail / df "Avail"), the file-manager
+//     convention (Dolphin / GNOME Files). buildRows derives `used = total -
+//     free`, so used+free=total always holds — but that means an ext4 root's
+//     reserved blocks (~5%, root-only) count as *used* here, while usedPercent
+//     follows the df formula that EXCLUDES the reservation. So on a
+//     reserved-block fs the used/total ratio can read a few % above
+//     usedPercent. usedPercent stays authoritative (it's the ring's number);
+//     the byte figures are illustrative. btrfs (no classic reservation) → no
+//     gap. 0/absent until the source resolves → byte figures dropped, % only.
 //
 // Public surface:
 //   formatSize(bytes)                          - "56 GiB" (IEC binary, df -h style)
@@ -109,12 +116,13 @@ function buildRows(details) {
         d = d || {};
         var total = _finite(d.totalBytes);
         var free = _finite(d.freeBytes);
+        // used+free=total by construction; reserved-block caveat in the header.
         var used = total - free;
         if (used < 0)
             used = 0;
         return {
             "id": d.id || "",
-            "label": d.label || (d.id || ""),
+            "label": d.label || d.id || "",
             "subLabel": subLabel(d.mountpoint, d.fstype),
             "usageText": composeUsage(d.usedPercent, used, total),
             "freeText": composeFree(free, total),

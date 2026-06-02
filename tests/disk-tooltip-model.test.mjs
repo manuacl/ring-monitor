@@ -157,3 +157,25 @@ test("buildRows: non-array input → empty list", () => {
     assert.deepEqual(M.buildRows(undefined), []);
     assert.deepEqual(M.buildRows(null), []);
 });
+
+// ── boundary cases (code-review #122 recall pass) ───────────────────
+
+test("formatSize: exact promote boundary — 1023.5 GiB promotes, 1023.4 GiB does not", () => {
+    assert.equal(M.formatSize(1023.5 * GiB), "1.0 TiB"); // b >= 1023.5 → promote
+    assert.equal(M.formatSize(1023.4 * GiB), "1023 GiB"); // just below → stays
+});
+
+test("formatSize: the <10 decimal threshold — 10 is integer, 9.94 keeps one decimal", () => {
+    assert.equal(M.formatSize(10 * GiB), "10 GiB");   // b<10 false → integer, not "10.0"
+    assert.equal(M.formatSize(9.94 * GiB), "9.9 GiB"); // below 10 → one decimal
+});
+
+test("composeFree: free > total is shown as-is (transient source skew, not clamped here)", () => {
+    // buildRows clamps `used` to 0, but composeFree reports freeBytes verbatim —
+    // the figure is illustrative; the % stays the authoritative number.
+    assert.equal(M.composeFree(120 * GiB, 100 * GiB), "120 GiB free");
+});
+
+test("composeUsage: used > total passes through (clamping is buildRows' job, not this layer's)", () => {
+    assert.equal(M.composeUsage(25, 150 * GiB, 100 * GiB), "25% — 150 GiB / 100 GiB");
+});

@@ -459,6 +459,15 @@ the tooltip can't disagree with the gauge. `totalBytes`/`freeBytes` are
 `0`/absent until the source resolves → the byte figures degrade to
 percent-only.
 
+`freeBytes` is **what the user can actually write** (statvfs `f_bavail` / df
+"Avail"), the file-manager convention. `buildRows` derives `used = total -
+free` (so `used + free = total` always holds), which means an ext4 root's
+reserved blocks (~5%, root-only) count as *used* in the byte figures while
+`usedPercent` follows the `df` formula that **excludes** the reservation — so on
+a reserved-block filesystem the used/total ratio can read a few % above the
+displayed `%`. The `%` stays authoritative (it's the ring's number); the byte
+figures are illustrative. btrfs (no classic reservation) shows no gap.
+
 | Function | Purpose |
 |---|---|
 | `formatSize(bytes)` | IEC binary size string (`56 GiB`, `1.5 TiB`, `512 B`), `df -h` style — one decimal below 10, integer above, promote at the rounding boundary (`1023.7 GiB` → `1.0 TiB`). NaN / negative coerce to `0 B`. Capacity is binary (Dolphin convention), deliberately NOT the SI 10³ steps `DiskIoScale` uses for I/O *rate*. |

@@ -59,9 +59,7 @@ Item {
     // keeps the warm-up sweep visually consistent across all three
     // rings — no reader needs to wonder whether one specific value
     // is "still loading" or "really zero". The ~0.5 s warm-up is the
-    // cost of this consistency; a future `Qt.callLater(_sample)` in
-    // `Component.onCompleted` could halve it if the boot-time blank
-    // ever becomes a UX complaint.
+    // cost of this consistency.
     readonly property bool loading: backend._prev === null
 
     // Catalog ids with a live data source (same surface as the Plasma
@@ -80,7 +78,9 @@ Item {
         "swap": backend._swapAvailable,
         "gpu": backend._gpuAvailable,
         "gpuTemp": backend._gpuTempAvailable && isFinite(backend._gpuTempC),
-        "disk": true
+        "disk": true,
+        // /proc/diskstats always exists (no-op until the diskIo UI PR adds the catalog id).
+        "diskIo": true
     })
 
     function metricValue(id) {
@@ -89,11 +89,10 @@ Item {
             return backend._aggregateUsage;
         if (id === "ram")
             return backend._ramUsage;
-        // Aggregate fallback: the standalone "disk" value is the default
-        // (home) partition rather than statvfs("/") — on rpm-ostree hosts
-        // "/" is a composefs overlay stuck near 100%. MainContent normally
-        // renders disk in multi-partition mode and never reads this; it's
-        // the sane single-number answer for any aggregate consumer.
+        // Aggregate fallback = the default (home) partition, not statvfs("/")
+        // (a composefs overlay stuck near 100% on rpm-ostree). MainContent
+        // renders disk multi-partition and never reads this; it's the sane
+        // single number for an aggregate consumer.
         if (id === "disk")
             return backend.defaultPartitionIds.length > 0 ? backend.partitionValue(backend.defaultPartitionIds[0]) : 0;
         if (id === "gpu")
@@ -122,12 +121,10 @@ Item {
         return 0;
     }
 
-    // A temp property carries NaN internally until its sensor is resolved
-    // (and read). Coerce it to 0 at the public surface so this adapter
-    // matches the Plasma one byte-for-byte: there valueFromSensorMap(...)
-    // returns 0 for an unread/missing sensor, so a consumer doing
-    // arithmetic on the value never sees NaN on one host and 0 on the
-    // other. Generalised over cpuTemp/gpuTemp (any future raw-°C metric).
+    // A temp property is NaN until its sensor resolves; coerce to 0 at the
+    // public surface so this adapter matches the Plasma one (valueFromSensorMap
+    // returns 0 for an unread sensor) — a consumer never sees NaN on one host
+    // and 0 on the other. Generalised over any raw-°C metric.
     function _coerceTemp(celsius) {
         return isFinite(celsius) ? celsius : 0;
     }
@@ -148,6 +145,16 @@ Item {
 
     ProcessSampler {
         id: processSampler
+    }
+
+    // ── Disk I/O throughput ring (issue #77) ─────────────────────────
+    // `io` (reactive) = per-component byte/s + arc %; the gate keeps the
+    // /proc/diskstats poll off while the ring is off-screen. See DiskIoSampler.
+    property alias diskIoSamplingActive: diskIoSampler.active
+    readonly property var diskIo: diskIoSampler.io
+
+    DiskIoSampler {
+        id: diskIoSampler
     }
 
     // ── Disk partitions (multi-ring) ─────────────────────────────────
@@ -177,16 +184,12 @@ Item {
     })
     property var defaultPartitionIds: []
 
-    // Per-partition usage %, read NON-BLOCKING so a stuck mount (stale
-    // NFS, hung autofs, spun-down USB) never freezes the GUI thread —
-    // issue #48. requestStatvfs kicks a background read on a worker
-    // thread (idempotent: deduped while in flight, throttled per mount),
-    // and cachedStatvfs returns the last-good result (empty → 0% until
-    // the first read lands). Reading _tick drives the periodic 500 ms
-    // refresh (each Timer tick re-evaluates this, which re-requests);
-    // _partTick makes it re-render the instant a result arrives. The
-    // request fires only for the ids MainContent actually asks about
-    // (the selected partitions), so an unselected disk is never probed.
+    // Per-partition usage %, read NON-BLOCKING (issue #48) so a stuck mount
+    // never freezes the GUI thread: requestStatvfs kicks a worker-thread read,
+    // cachedStatvfs returns the last-good (empty → 0% until it lands). _tick
+    // drives the 500 ms refresh (re-requests); _partTick re-renders the instant
+    // a result arrives; only the ids MainContent asks about are ever probed.
+    // Full rationale: standalone/CLAUDE.md § "statvfs runs off the GUI thread".
     function partitionValue(id) {
         backend._tick;
         backend._partTick;

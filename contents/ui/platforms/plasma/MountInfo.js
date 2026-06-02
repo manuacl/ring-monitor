@@ -5,7 +5,7 @@
 // key from a fixed disk by sensors alone — nor can it tell whether a partition
 // is still mounted (its SensorTreeModel freezes on unmount, #58). We get that
 // missing data by running
-//   findmnt -P -o UUID,TARGET,LABEL
+//   findmnt -P -o UUID,TARGET,LABEL,FSTYPE
 // through plasma5support's executable DataSource (see MountInfo.qml) and
 // parsing it here. findmnt reads the kernel mount table (/proc/self/mountinfo),
 // so — unlike lsblk's block-device view — it lists EVERY mount, including a
@@ -17,7 +17,7 @@
 //
 // Pairs (`-P`) output, one line per mount, robust against spaces in the
 // label / target:
-//   UUID="6f45-2b2f" TARGET="/run/media/manu/BIOS" LABEL="BIOS"
+//   UUID="6f45-2b2f" TARGET="/run/media/manu/BIOS" LABEL="BIOS" FSTYPE="vfat"
 //
 // The UUID is lower-cased: findmnt (via libblkid) prints FAT/vfat volume
 // serials in UPPERCASE (e.g. "6F45-2B2F") while ksysguard keys its disk/<uuid>
@@ -41,11 +41,12 @@
 // Dual-loaded by QML (`import "MountInfo.js" as MountInfo`) and Node.
 //
 // Public surface:
-//   parseMountPairs(stdout) - [{uuid, label, mountpoint}], one per mounted
-//                             filesystem that has a UUID and an absolute-path
-//                             target. Rows without a UUID and rows whose target
-//                             isn't an absolute path are dropped; a duplicate
-//                             UUID keeps the first row.
+//   parseMountPairs(stdout) - [{uuid, label, mountpoint, fstype}], one per
+//                             mounted filesystem that has a UUID and an
+//                             absolute-path target. Rows without a UUID and rows
+//                             whose target isn't an absolute path are dropped; a
+//                             duplicate UUID keeps the first row. `fstype` is ""
+//                             when the column is absent (older findmnt -o list).
 
 function parseMountPairs(stdout) {
     var out = [];
@@ -76,6 +77,7 @@ function parseMountPairs(stdout) {
             uuid: uuid,
             label: row.LABEL || uuid,
             mountpoint: mountpoint,
+            fstype: row.FSTYPE || "",
         });
     }
     return out;

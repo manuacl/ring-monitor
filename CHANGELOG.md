@@ -22,6 +22,23 @@ user-facing only.
   free space, removable-vs-fixed icon). Defines the `partitionDetail(id)`
   contract the backends will satisfy in PR 2. Node-tested; no behaviour
   change yet.
+- feat(disk): `partitionDetail(id)` backend surface for the disk-ring tooltip
+  (issue #68, PR 2/3) — both `MetricsBackend` adapters now return
+  `{id, label, mountpoint, fstype, usedPercent, totalBytes, freeBytes,
+  removable}` (same shape; assembled by the shared
+  `DiskMetrics.buildPartitionDetail`, which owns the defaulting + the single
+  `isRemovableMount` rule). `usedPercent` is the gauge's own value, never
+  recomputed. **Plasma:** `findmnt` gains `FSTYPE` (→ `MountInfo` exposes
+  `fstype`); the per-partition Sensor wiring moved into a new
+  `platforms/plasma/DiskPartitionSensors.qml` adapter that grew each partition
+  from one ksysguard leaf (`usedPercent`) to three (`+ total` / `free` bytes) —
+  the split keeps `MetricsBackend` under the 500-line cap, which it now
+  *forwards* `partitionValue` / `partitionDetail` to. **Standalone:** fstype is
+  threaded through `DiskDiscovery.buildPartitions`; bytes ride the same
+  off-GUI-thread `statvfs` cache as `partitionValue` (`freeBytes` = df Avail),
+  with an O(1) `_partForId` lookup. No user-facing change yet — the view lands
+  in PR 3. Covered by `disk-metrics`, `disk-partition-sensors` (new text guard),
+  `mount-info`, `disk-discovery`, `metrics-backend`, `standalone-metrics-backend`.
 
 ### Other
 

@@ -26,7 +26,7 @@
 //                                          and the EFI System Partition —
 //                                          see _isEfiSystemPartition, #66).
 //   buildPartitions(mounts, blockInfo)   - dedup by device → [{id, label,
-//                                          mountpoint, device}]; id = fs UUID
+//                                          mountpoint, fstype, device}]; id = fs UUID
 //                                          (falls back to device), label =
 //                                          volume label (falls back to device
 //                                          basename), mountpoint = a
@@ -122,6 +122,9 @@ function buildPartitions(mounts, blockInfo) {
     blockInfo = blockInfo || {};
     var order = [];
     var byDevice = {};
+    // fstype is a property of the filesystem, so it's identical across every
+    // mount of one device — keep the first seen (feeds the #68 tooltip).
+    var fstypeByDevice = {};
     for (var i = 0; i < mounts.length; i++) {
         var dev = mounts[i].device;
         if (!byDevice[dev]) {
@@ -129,6 +132,8 @@ function buildPartitions(mounts, blockInfo) {
             order.push(dev);
         }
         byDevice[dev].push(mounts[i].mountpoint);
+        if (fstypeByDevice[dev] === undefined)
+            fstypeByDevice[dev] = mounts[i].fstype || "";
     }
     var out = [];
     for (var j = 0; j < order.length; j++) {
@@ -138,6 +143,7 @@ function buildPartitions(mounts, blockInfo) {
             id: info.uuid || device,
             label: info.label || _basename(device),
             mountpoint: _representativeMount(byDevice[device]),
+            fstype: fstypeByDevice[device] || "",
             device: device,
         });
     }

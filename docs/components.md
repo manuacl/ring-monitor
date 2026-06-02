@@ -749,6 +749,7 @@ per-GPU temperature, per-GPU usage).
 | `partitionsReady` (readonly property bool) | Plasma only: forwards `DiskPartitions.ready` — false until the incremental `SensorTreeModel` walk settles. The config picker gates its destructive stale-row removal on it (issue #49). |
 | `defaultPartitionIds` (readonly property var) | partition ids to show when the user has selected none — `[]` on Plasma (falls back to the `disk/all` aggregate ring); the `$HOME`-bearing filesystem on standalone |
 | `partitionValue(id)` (function) | latest 0–100 usage % for one discovered partition (Plasma: a live `disk/<uuid>/usedPercent` sensor; standalone: a **non-blocking** read of the last-good `statvfs` of the partition's representative mountpoint — see the async note below). Requesting an id also subscribes it to refreshes, so only the selected partitions are probed. |
+| `partitionDetail(id)` (function) | full per-partition detail for the disk-ring hover tooltip ([#68](https://github.com/manuacl/ring-monitor/issues/68)): `{id, label, mountpoint, fstype, usedPercent, totalBytes, freeBytes, removable}`, same shape on both platforms (assembled by `DiskMetrics.buildPartitionDetail`). `usedPercent` is the same value `partitionValue(id)` returns — the figure the ring is drawn from, never recomputed. Bytes: Plasma reads the `disk/<uuid>/total` + `/free` ksysguard leaves; standalone reads `totalBytes`/`freeBytes` from the same off-GUI-thread `statvfs` cache (`freeBytes` = available, the df "Avail"). `mountpoint`/`fstype`/`removable` come from `MountInfo` (findmnt) on Plasma, `DiskDiscovery` (`/proc/mounts`) on standalone. The tooltip model degrades to percent-only when the byte source hasn't resolved (`totalBytes ≤ 0`). |
 | `removablePartitions` (readonly property var) | Plasma only (Phase 2, [#58](https://github.com/manuacl/ring-monitor/issues/58)): `[{id, label}]` of the **currently-mounted removable** filesystems (USB keys, SD cards), sourced from `MountInfo` (findmnt) rather than ksysguard. `MainContent` unions it with the manual selection via `DiskMetrics.resolveDiskRingIds`, so a plugged key auto-shows a ring and an unplugged one self-heals away with no trip through Settings. The per-ring value still flows through `partitionValue(id)` (ksysguard exposes the sensor while mounted; only set/unmount detection froze, which `MountInfo` sidesteps). Absent on standalone until Phase 4 — `MainContent` guards with `\|\| []`. |
 | `removableTrackingActive` (property bool) | Plasma only: gate for the `MountInfo` findmnt poll. `main.qml` sets it `true` only while the disk ring is enabled, so a disk-disabled widget spawns no subprocess ([#59](https://github.com/manuacl/ring-monitor/pull/59) review finding 1). Deliberately **not** also gated on `Plasmoid.expanded` — with `preferredRepresentation: fullRepresentation` the rings draw inline on the desktop where `expanded` (a popup signal) is not reliably true, which would break auto-show there. |
 | `mountedPartitionIds` (readonly property var) | Plasma only: every currently-mounted UUID (fixed + removable) from the live `MountInfo` findmnt poll (the kernel mount table, so btrfs-subvolume / non-block mounts are included and a still-mounted disk isn't wrongly dropped). `MainContent` gates the manual disk selection on it via `DiskMetrics.resolveDiskRingIds`, so an unmounted partition's ring self-heals away even though ksysguard's tree freezes on unmount and keeps listing the gone UUID ([#58](https://github.com/manuacl/ring-monitor/issues/58)). Empty until the first poll returns (treated as "no data, don't gate"). |
@@ -757,8 +758,17 @@ per-GPU temperature, per-GPU usage).
 The disk-partition discovery on Plasma lives in a separate reusable
 adapter, `platforms/plasma/DiskPartitions.qml` (its own
 `SensorTreeModel` walk → `[{id, label, sensorId}]`, id = the fs UUID,
-label = the volume name), which `MetricsBackend` instantiates to drive
-a per-partition `Sensor` `Instantiator`. The config dialog
+label = the volume name). The per-partition `Sensor` instances built
+from that list live in a second adapter,
+`platforms/plasma/DiskPartitionSensors.qml` — split out of
+`MetricsBackend` when the tooltip (#68) grew each partition from one
+ksysguard leaf (`usedPercent`) to **three** (`usedPercent` + `total` +
+`free` bytes), which would have breached the 500-line cap. It owns the
+`Instantiator`, the last-good value cache, and the `partitionValue` /
+`partitionDetail` reads; `MetricsBackend` feeds it
+`diskPartitions.partitions` + `mountInfo.mounted` and forwards the two
+functions so `MainContent` still sees one `metrics` object. The config
+dialog
 (`configMetrics.qml`) instantiates a **whole `MetricsBackend`** of its
 own — the KCM page runs in a separate context from the live widget, so
 it can't read the running one — and feeds `MetricsBody.diskPartitions`

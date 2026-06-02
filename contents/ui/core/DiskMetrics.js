@@ -399,9 +399,33 @@ function resolveRingColors(ids, json, fallback) {
     return out;
 }
 
+// Assemble the per-partition detail object consumed by the disk-ring tooltip
+// (issue #68, DiskTooltipModel.buildRows). Both backends pass the partition
+// `id`, resolve `info` ({label, mountpoint, fstype}, may be undefined for an
+// unknown id) and read `stats` ({usedPercent, totalBytes, freeBytes}) their own
+// way; this owns the defaulting + the single removable rule (isRemovableMount
+// on the mountpoint). usedPercent is the caller's gauge value, passed straight
+// through — never recomputed here.
+function buildPartitionDetail(id, info, stats) {
+    info = info || {};
+    stats = stats || {};
+    var mp = info.mountpoint || "";
+    return {
+        "id": id || info.id || "",
+        "label": info.label || id || "",
+        "mountpoint": mp,
+        "fstype": info.fstype || "",
+        "usedPercent": stats.usedPercent || 0,
+        "totalBytes": stats.totalBytes || 0,
+        "freeBytes": stats.freeBytes || 0,
+        "removable": isRemovableMount(mp)
+    };
+}
+
 if (typeof module !== "undefined" && module.exports) {
     module.exports = {
         averagePercent: averagePercent,
+        buildPartitionDetail: buildPartitionDetail,
         sortByLabel: sortByLabel,
         orderPartitions: orderPartitions,
         resolveDiskRingIds: resolveDiskRingIds,

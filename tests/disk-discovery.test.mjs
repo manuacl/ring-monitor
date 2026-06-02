@@ -118,6 +118,13 @@ test("buildPartitions: id = fs UUID, label = volume label when known", () => {
     assert.equal(sda3.label, "root");
 });
 
+test("buildPartitions: carries the fstype (same across a device's mounts) for the tooltip (#68)", () => {
+    const m = Disk.parseMounts(OSTREE_MOUNTS);
+    const parts = Disk.buildPartitions(m, {});
+    const sda3 = parts.find((p) => p.device === "/dev/sda3");
+    assert.equal(sda3.fstype, "btrfs"); // the btrfs root, mounted 5× → one fstype
+});
+
 test("buildPartitions: falls back to device path / basename without blockInfo", () => {
     const m = Disk.parseMounts(OSTREE_MOUNTS);
     const parts = Disk.buildPartitions(m, {});

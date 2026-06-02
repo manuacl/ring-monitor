@@ -12,6 +12,17 @@ user-facing only.
 
 ## [Unreleased]
 
+### Technical
+
+- feat(disk): pure presentational logic for the disk-ring hover tooltip
+  (issue #68, PR 1/3) — `core/DiskTooltipModel.js` with IEC-binary
+  `formatSize` (`df -h` style), usage/free line composition, and
+  `buildRows()` mapping a per-partition detail object to the view's row
+  model (label, mountpoint·fstype sub-line, `12% — 56 GiB / 466 GiB`,
+  free space, removable-vs-fixed icon). Defines the `partitionDetail(id)`
+  contract the backends will satisfy in PR 2. Node-tested; no behaviour
+  change yet.
+
 ### Other
 
 - chore(skills): `refresh-plasma-widget` now **copies** the source into a

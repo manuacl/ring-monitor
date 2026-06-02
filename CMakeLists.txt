@@ -105,6 +105,10 @@ qt_add_qml_module(ring-monitor-standalone
         standalone/proc_reader.h
         standalone/autostart.cpp
         standalone/autostart.h
+        standalone/menu_entry.cpp
+        standalone/menu_entry.h
+        standalone/desktop_entry.cpp
+        standalone/desktop_entry.h
         standalone/window_anchor.cpp
         standalone/window_anchor.h
         standalone/nvml_reader.cpp

@@ -12,6 +12,17 @@ user-facing only.
 
 ## [Unreleased]
 
+### Added
+
+- Standalone: a **"Show in application menu"** toggle in Settings → About.
+  A downloaded AppImage normally appears in no application launcher, and on
+  XFCE / Thunar a double-click does nothing; ticking the box registers a
+  launcher entry (under `~/.local/share/applications/`) so Ring Monitor shows
+  up in your menu — no root, no system-wide change, untick to remove. The
+  *first* launch still needs the executable bit set (`chmod +x`, or
+  Properties → Permissions in your file manager), since a browser download
+  strips it (#101 / #102).
+
 ### Fixed
 
 - Standalone AppImage no longer crashes at launch on a Wayland session
@@ -22,6 +33,33 @@ user-facing only.
   with `QT_QPA_PLATFORM=xcb` (#110).
 
 ### Technical
+
+- feat(standalone): add a "Show in application menu" toggle in Settings →
+  About (issues #101/#102). A downloaded AppImage shows up in no launcher,
+  and on XFCE/Thunar a double-click does nothing (no default handler for
+  `application/vnd.appimage`); the toggle writes/removes
+  `~/.local/share/applications/dev.manuacl.ringmonitor.desktop` pointing
+  `Exec=` at the AppImage — no root, no system-wide MIME default. New
+  `MenuEntry` QML_ELEMENT (`standalone/menu_entry.{h,cpp}`) mirrors
+  `Autostart`; the shared `Exec=` resolution (AppImage path + XDG quoting +
+  the `env QT_QPA_PLATFORM=xcb` prefix) is extracted to
+  `standalone/desktop_entry.{h,cpp}` so the two writers can't drift.
+  `AboutBody` gates the row on `menuEntryAvailable` (standalone-only; Plasma
+  gets a menu entry from the `.plasmoid` install). `desktop_entry` also owns
+  the shared write plumbing: an atomic `QSaveFile` write (no truncated
+  launcher on a crash mid-write), a `removeDesktopFile`, and a
+  `refreshIfStale` self-heal that `MenuEntry`'s constructor calls so a moved /
+  re-downloaded AppImage's launcher is rewritten to the current path instead
+  of silently pointing at a dead one. Both writers' `setEnabled` emit
+  `enabledChanged` even on a failed write, and both the menu-entry and
+  autostart checkboxes drive `checked` through a `Binding` element, so a write
+  failure un-ticks the box rather than leaving it claiming an entry exists. The
+  menu `.desktop` carries
+  `StartupWMClass=ring-monitor-standalone` for taskbar grouping. Bootstrap
+  limit: the *first* launch still needs the executable bit (`chmod +x`) — the
+  binary can't set its own `+x` before it runs (#101), so the README
+  documents the manual step. Guarded by `desktop-entry` / `menu-entry` /
+  `standalone-settings-dialog` Node tests + `tst_AboutBody.qml`.
 
 - fix(standalone): bundle the `wayland-egl` client-buffer integration plugin
   in the AppImage so it no longer SIGABRTs at launch on a native KWin-Wayland

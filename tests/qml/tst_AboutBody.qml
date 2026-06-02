@@ -98,6 +98,41 @@ Item {
             body._openStoreButton.clicked();
             compare(spy.count, 1);
         }
+
+        // ── Autostart toggle: checked driven by a Binding element ────────
+        function test_autostart_checkbox_emits_toggle_signal() {
+            body.autostartAvailable = true;
+            body.autostartEnabled = false;
+            const spy = createTemporaryObject(signalSpyComponent, root, {
+                target: body,
+                signalName: "autostartToggled"
+            });
+            body._autostartCheckBox.toggle();
+            body._autostartCheckBox.clicked();
+            compare(spy.count, 1);
+            compare(spy.signalArguments[0][0], true);
+        }
+
+        // ── Menu-entry toggle: gated by menuEntryAvailable, emits signal ─
+        function test_menu_entry_hidden_until_available() {
+            body.menuEntryAvailable = false;
+            verify(!body._menuEntryCheckBox.visible, "menu-entry toggle must stay hidden on hosts that don't wire it (e.g. Plasma)");
+            body.menuEntryAvailable = true;
+            verify(body._menuEntryCheckBox.visible, "menu-entry toggle must show once the standalone host sets menuEntryAvailable");
+        }
+
+        function test_menu_entry_checkbox_emits_toggle_signal() {
+            body.menuEntryAvailable = true;
+            body.menuEntryEnabled = false;
+            const spy = createTemporaryObject(signalSpyComponent, root, {
+                target: body,
+                signalName: "menuEntryToggled"
+            });
+            body._menuEntryCheckBox.toggle();
+            body._menuEntryCheckBox.clicked();
+            compare(spy.count, 1);
+            compare(spy.signalArguments[0][0], true);
+        }
     }
 
     Component {

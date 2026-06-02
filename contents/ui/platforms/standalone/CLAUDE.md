@@ -23,6 +23,7 @@ under "Standalone target — backend choice".
 | `ThemedIcon.qml` | wraps `Kirigami.Icon` (same as Plasma adapter) | **PR F1 ✓ — one-liner mirror of the Plasma adapter** |
 | `ColorPicker.qml` | wraps a plain `QQC2.AbstractButton` + `QtQuick.Dialogs.ColorDialog` (the Plasma adapter wraps `KQuickControls.ColorButton`, which is not a runtime dep of the standalone build) | **PR F2 ✓** |
 | `Autostart` (C++ in `standalone/autostart.{h,cpp}`, registered via `QML_ELEMENT`) | Writes / removes `~/.config/autostart/dev.manuacl.ringmonitor.desktop` so the user can toggle "Start on login" from the Settings dialog. Plasma side uses plasmashell instead, so the toggle is hidden there (`AboutBody.autostartAvailable` gated). | **PR G ✓** |
+| `MenuEntry` (C++ in `standalone/menu_entry.{h,cpp}`, registered via `QML_ELEMENT`) | Writes / removes `~/.local/share/applications/dev.manuacl.ringmonitor.desktop` so the user can toggle "Show in application menu" — gives a downloaded AppImage a launcher entry without root or a system-wide MIME default (issues #101/#102). Shares the `Exec=` resolution with `Autostart` via `desktop_entry.{h,cpp}`. Plasma side gets a menu entry from the `.plasmoid` install, so `AboutBody.menuEntryAvailable` gates it hidden there. | **issues #101/#102 ✓** |
 
 ## Platform-only pure logic lives here, not in `core/`
 
@@ -655,17 +656,30 @@ CPU-ring tooltip. The rule lives with the component layer:
 widget…". (The traps only surface here, because the standalone window is
 sized to the rings; on Plasma the overlay is large.)
 
-### Autostart `Exec=` line must shell-escape the path
+### `Exec=` line must shell-escape the path — shared by both .desktop writers
 
-`Autostart::buildDesktopFileContent` runs the current binary path
-through `quoteExecArg` before splicing into the `Exec=` line.
-Without that, an AppImage installed under a path containing spaces
-(e.g. `~/Applications/Ring Monitor.AppImage`, common with
-AppImageLauncher) breaks autostart silently — the XDG launcher
-tokenises on whitespace and tries to exec the wrong binary. The
-XDG-spec escape order is load-bearing: backslash is escaped before
-`"`, `$`, and backtick (text-level-guarded by
-`tests/autostart.test.mjs`).
+The `Exec=` value (AppImage-path resolution + XDG quoting + the
+`env QT_QPA_PLATFORM=xcb` prefix) lives in **`standalone/desktop_entry.cpp`**
+(`desktop_entry::execLine()`), used by **both** `Autostart`
+(`~/.config/autostart/`) and `MenuEntry`
+(`~/.local/share/applications/`, issues #101/#102). Keeping it in one
+TU stops the two writers from drifting on logic that's subtle twice
+over:
+
+- Without `quoteExecArg`, an AppImage under a path with spaces (e.g.
+  `~/Applications/Ring Monitor.AppImage`, common with AppImageLauncher)
+  breaks launching silently — the XDG launcher tokenises on whitespace
+  and execs the wrong binary. The XDG-spec escape order is load-bearing:
+  backslash is escaped before `"`, `$`, and backtick.
+- `currentExecPath()` prefers `$APPIMAGE` only when our binary actually
+  lives under `$APPDIR/` (trailing-slash match) — otherwise the env
+  vars were inherited from a parent that is itself an AppImage and the
+  Exec would point at the wrong app.
+
+Text-level-guarded by `tests/desktop-entry.test.mjs` (the shared
+logic), with `tests/autostart.test.mjs` / `tests/menu-entry.test.mjs`
+asserting each writer delegates to `execLine()` and targets the right
+directory.
 
 ### Don't bind `QtDialogs.ColorDialog.selectedColor` to a source property
 

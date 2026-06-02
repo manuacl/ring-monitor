@@ -977,3 +977,19 @@ the `Autostart` C++ helper, which creates / removes
 `~/.config/autostart/dev.manuacl.ringmonitor.desktop`. Plasma users
 manage autostart from the panel layout, so the row stays hidden
 there.
+
+A sixth row, "Show in application menu", follows the identical gated
+pattern (`menuEntryAvailable` / `menuEntryEnabled` /
+`menuEntryToggled(on)`). The standalone wrapper wires it to the
+`MenuEntry` C++ helper, which creates / removes
+`~/.local/share/applications/dev.manuacl.ringmonitor.desktop` — giving
+a downloaded AppImage a launcher entry without root or a system-wide
+MIME default (issues [#101](https://github.com/manuacl/ring-monitor/issues/101) /
+[#102](https://github.com/manuacl/ring-monitor/issues/102)). The
+`Exec=` resolution (AppImage path + XDG quoting + the
+`env QT_QPA_PLATFORM=xcb` prefix) is shared with `Autostart` via
+`standalone/desktop_entry.{h,cpp}`. Plasma users get a menu entry from
+the `.plasmoid` install, so the row stays hidden there. Note the
+bootstrap limit: the *first* launch still needs `chmod +x` (a browser
+download arrives without the executable bit) — the binary can't set its
+own `+x` before it runs, so the README documents the manual step.

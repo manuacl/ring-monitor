@@ -26,10 +26,18 @@ Kirigami.FormLayout {
     property bool autostartAvailable: false
     property bool autostartEnabled: false
 
+    // Same gate as autostart: only the standalone wrapper sets this
+    // true and wires the MenuEntry backend (writes a launcher to
+    // ~/.local/share/applications/). Plasma users already get a menu
+    // entry from the .plasmoid install, so it stays hidden there.
+    property bool menuEntryAvailable: false
+    property bool menuEntryEnabled: false
+
     signal acknowledgeClicked
     signal openStorePageClicked
     signal checkForUpdatesToggled(bool on)
     signal autostartToggled(bool on)
+    signal menuEntryToggled(bool on)
 
     QQC2.Label {
         Kirigami.FormData.label: qsTr("Version:")
@@ -147,8 +155,40 @@ Kirigami.FormLayout {
         Kirigami.FormData.label: qsTr("Startup:")
         text: qsTr("Start automatically on login")
         visible: body.autostartAvailable
-        checked: body.autostartEnabled
         onClicked: body.autostartToggled(checked)
+
+        // Same reason as menuEntryCheckBox below: drive `checked` through a
+        // Binding element so a failed autostart write (which still emits
+        // enabledChanged with `enabled` false) un-ticks the box instead of
+        // leaving it lying. A plain `checked:` binding would be severed by
+        // QQC2's self-assign on click. See core/CLAUDE.md "Binding a
+        // Loader-injected child that also self-assigns".
+        Binding {
+            target: autostartCheckBox
+            property: "checked"
+            value: body.autostartEnabled
+        }
+    }
+
+    QQC2.CheckBox {
+        id: menuEntryCheckBox
+        text: qsTr("Show in application menu")
+        visible: body.menuEntryAvailable
+        onClicked: body.menuEntryToggled(checked)
+
+        // Drive `checked` through a Binding element, not a declarative
+        // `checked: body.menuEntryEnabled`: QQC2 self-assigns `checked` on
+        // the click, which would sever a plain binding. The Binding
+        // re-applies on every menuEntryEnabled change, so if the toggle's
+        // .desktop write fails (unwritable dir, full disk) the backend
+        // emits with `enabled` still false and the box un-ticks instead of
+        // lying that an entry was created. See core/CLAUDE.md "Binding a
+        // Loader-injected child that also self-assigns".
+        Binding {
+            target: menuEntryCheckBox
+            property: "checked"
+            value: body.menuEntryEnabled
+        }
     }
 
     // ── Test hooks ──────────────────────────────────────────────────
@@ -157,4 +197,5 @@ Kirigami.FormLayout {
     readonly property alias _gotItButton: gotItButton
     readonly property alias _checkBox: checkBox
     readonly property alias _autostartCheckBox: autostartCheckBox
+    readonly property alias _menuEntryCheckBox: menuEntryCheckBox
 }

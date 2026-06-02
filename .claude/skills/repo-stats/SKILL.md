@@ -71,9 +71,53 @@ gh api repos/$REPO/contents/downloads.csv?ref=stats --jq '.content' | base64 -d
 If a fetch 404s, the workflow hasn't run yet or the branch doesn't exist — report
 the live 14-day window only and note the archive is empty.
 
+## KDE Store downloads — the dominant channel (don't skip)
+
+The GitHub Releases counter only covers AppImage / standalone grabs + the dev's
+own checkouts. The **Plasma widget installs from the KDE Store**, a channel
+GitHub traffic is completely blind to. Measured 2026-06-02: store ≈ **334**
+downloads vs GitHub Releases **34** — the store is ~10× larger and is the real
+adoption signal. Always pull it; reporting GitHub downloads alone undercounts
+installs by an order of magnitude.
+
+The product is `https://www.opendesktop.org/p/2360410` (id **2360410**, also
+mirrored at `store.kde.org` / `api.kde-look.org`). Two endpoints, no auth:
+
+```bash
+PID=2360410
+# Product metadata. NOTE: the `downloads` field here is NOT the cumulative
+# total — it undercounts badly (showed 69 when the real sum was 334). Use it
+# only for name / current version / score, never as the download total.
+curl -fsS "https://api.opendesktop.org/ocs/v1/content/data/$PID?format=json"
+
+# Per-file counts INCLUDING archived/de-listed versions. This is the source
+# of truth for downloads. `files[].downloaded_count_uk` is the per-file count;
+# `active=="1"` flags the currently-listed files, archived ones are `"0"`.
+curl -fsS "https://www.opendesktop.org/p/$PID/loadFiles" -o /tmp/files.json
+python3 - <<'PY'
+import json
+files = json.load(open("/tmp/files.json"))["files"]
+tot = 0
+for f in sorted(files, key=lambda x: x.get("created_timestamp", "")):
+    dl = int(f.get("downloaded_count_uk") or 0); tot += dl
+    flag = "active" if f.get("active") == "1" else "arch"
+    print(f"{str(f.get('version')):10} {flag:6} {dl:>5}  {f.get('name')}")
+print("TOTAL store downloads =", tot)
+PY
+```
+
+The **true cumulative store total is the sum of `downloaded_count_uk` across all
+files** (active + archived), not the OCS `downloads` field. Watch for re-uploads:
+a version can appear twice (an archived `0`-download entry + the live one, or a
+`-<timestamp>` dupe) — sum them all, they're real distinct files.
+
+`loadFiles` is on the `www.opendesktop.org` host specifically (the `www.pling.com`
+host 301-redirects to it; follow the redirect or hit opendesktop directly).
+
 ## Report shape
 
-Lead with the **human** signals (view uniques, downloads, referrers), then give
+Lead with the **KDE Store download total** (the real install signal) and the
+GitHub **human** signals (view uniques, release downloads, referrers), then give
 clones with the bot caveat, then offer the long-term trend if the archive exists.
 Keep it tight — a small table per section, not a data dump. Match the user's
 conversation language (the repo files are English-only, but the chat reply is not

@@ -35,6 +35,11 @@ user-facing only.
 
 ### Other
 
+- docs(repo-stats): teach the `repo-stats` skill to pull KDE Store download
+  counts (OCS `loadFiles` per-file totals incl. archived versions) — the
+  Plasma widget's main install channel, which GitHub release-download numbers
+  can't see. Maintainer tooling only; no change to the shipped widget.
+
 - ci(release): fix the standalone AppImage release job — Qt 6.8 needs the
   `linux_gcc_64` aqt arch (renamed from `gcc_64` at Qt 6.7), so the v0.9.0
   release built the `.plasmoid` but failed to attach the AppImage; also make the

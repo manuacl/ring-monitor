@@ -103,8 +103,15 @@ function scaleRate(bps) {
     var b = _finite(bps);
     if (b < 0) b = 0;
     for (var i = 0; i < RATE_UNITS.length; i++) {
-        if (b >= RATE_UNITS[i].factor)
-            return { "value": b / RATE_UNITS[i].factor, "unit": RATE_UNITS[i].unit };
+        if (b < RATE_UNITS[i].factor)
+            continue;
+        var v = b / RATE_UNITS[i].factor;
+        // If v would render as "1000" (≥999.5 rounds up at integer precision)
+        // and a larger unit exists, promote — keeps the number ≤ 3 digits
+        // (999.7 KB/s → 1.0 MB/s, not "1000 KB/s").
+        if (v >= 999.5 && i > 0)
+            return { "value": b / RATE_UNITS[i - 1].factor, "unit": RATE_UNITS[i - 1].unit };
+        return { "value": v, "unit": RATE_UNITS[i].unit };
     }
     return { "value": 0, "unit": "B/s" };  // b < 1 B/s
 }

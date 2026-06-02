@@ -84,6 +84,19 @@ test("scaleRate picks the unit keeping the number in 0–999 (SI 10^3 steps)", (
     assert.deepEqual(DiskIo.scaleRate(2.5e9), { value: 2.5, unit: "GB/s" });
 });
 
+test("scaleRate promotes the unit when the value would round up to 1000 (≤3 digits)", () => {
+    // SCENARIO: 999.7 KB/s rounds to "1000" at integer precision — promote to
+    // MB/s so the label stays ≤3 digits ("1.0 MB/s", not "1000 KB/s").
+    assert.deepEqual(DiskIo.scaleRate(999700), { value: 999700 / MB, unit: "MB/s" });
+    assert.equal(DiskIo.formatRateValue(999700), "1.0");
+    assert.equal(DiskIo.formatRateUnit(999700), "MB/s");
+    // Same at the B/s→KB/s edge.
+    assert.equal(DiskIo.formatRateUnit(999.7), "KB/s");
+    // Just below the round-up threshold stays in the lower unit.
+    assert.equal(DiskIo.formatRateUnit(999000), "KB/s");
+    assert.equal(DiskIo.formatRateValue(999000), "999");
+});
+
 test("scaleRate coerces negative / NaN to 0 B/s", () => {
     assert.deepEqual(DiskIo.scaleRate(-100), { value: 0, unit: "B/s" });
     assert.deepEqual(DiskIo.scaleRate(NaN), { value: 0, unit: "B/s" });

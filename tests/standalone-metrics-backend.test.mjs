@@ -23,7 +23,7 @@ const SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms",
 
 // Same public surface as platforms/plasma/MetricsBackend.qml.
 const PUBLIC_PROPS = ["coreValues", "loading", "availableMetrics", "availablePartitions", "defaultPartitionIds", "processSamplingActive", "topProcesses", "loadAverages", "diskIo", "diskIoSamplingActive"];
-const PUBLIC_FUNCS = ["metricValue", "metricRawTemp", "metricTempPercent", "partitionValue"];
+const PUBLIC_FUNCS = ["metricValue", "metricRawTemp", "metricTempPercent", "partitionValue", "partitionDetail"];
 
 test("standalone MetricsBackend exposes the public properties main.qml depends on", () => {
     for (const name of PUBLIC_PROPS) {
@@ -97,6 +97,16 @@ test("standalone MetricsBackend reads per-partition usage via async statvfs + df
         /MemInfoParser\.diskUsagePercent\s*\(\s*disk\.total\s*,\s*disk\.free\s*,\s*disk\.available\s*\)/,
         "per-partition percent must use diskUsagePercent(total, free, available) so it matches `df`",
     );
+});
+
+test("standalone partitionDetail assembles the #68 tooltip detail without blocking", () => {
+    // Same shape as the Plasma adapter, via the shared assembler. Bytes ride the
+    // SAME off-GUI-thread statvfs cache as partitionValue (no blocking statvfs).
+    const detFn = SOURCE.match(/\n {4}function\s+partitionDetail\s*\([^)]*\)\s*{[\s\S]*?\n {4}}/);
+    assert.ok(detFn, "must find the partitionDetail body");
+    assert.doesNotMatch(detFn[0], /reader\.statvfs\s*\(/, "partitionDetail must NOT call the blocking reader.statvfs()");
+    assert.match(detFn[0], /reader\.cachedStatvfs\s*\(/, "partitionDetail must read bytes from the cached (non-blocking) statvfs");
+    assert.match(detFn[0], /DiskMetrics\.buildPartitionDetail\s*\(/, "partitionDetail must delegate assembly to the shared DiskMetrics helper");
 });
 
 test("standalone MetricsBackend re-renders disk rings when an async statvfs lands", () => {

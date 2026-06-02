@@ -20,20 +20,17 @@ import "../../core/DiskMetrics.js" as DiskMetrics
 //   readonly property var availablePartitions   (disk multi-ring)
 //   readonly property var defaultPartitionIds
 //   function partitionValue(id)
+//   function partitionDetail(id)                 (disk-ring tooltip, #68)
 //
-// Backend = single `Timer` polling at 2 Hz (every 500 ms, matching the
-// Plasma ksysguard cadence) via the
-// `ProcReader` C++ helper (`/proc/stat`, `/proc/meminfo`, async
-// `statvfs` per selected filesystem), then deferring the parse + percent math to the pure
-// modules in `core/`. Maximum work in `core/`, minimum in this
-// adapter — same rule that drove the `SensorPicking` extraction
-// (see [feedback-maximize-shared-code] memory).
+// Backend = single `Timer` polling at 2 Hz (500 ms, matching the Plasma
+// ksysguard cadence) via the `ProcReader` C++ helper (`/proc/stat`,
+// `/proc/meminfo`, async `statvfs` per selected filesystem), deferring the
+// parse + percent math to the pure modules in `core/` (maximum work in `core/`,
+// minimum here — the [feedback-maximize-shared-code] rule).
 //
-// Scope: CPU usage (aggregate + per-core), RAM, swap, disk, CPU temperature
-// (hwmon / thermal-zone via CpuTempDiscovery), NVIDIA GPU usage + temperature
-// (NVML via the NvmlReader C++ helper), AMD GPU usage + temperature (sysfs
-// gpu_busy_percent + hwmon via GpuDiscovery), and Intel GPU temperature (hwmon
-// via GpuDiscovery; Intel usage needs i915-perf elevated perms — deferred).
+// Scope: CPU usage (aggregate + per-core), RAM, swap, disk, CPU temp (hwmon/
+// thermal-zone), and GPU usage+temp (NVIDIA via NVML, AMD via sysfs, Intel
+// temp-only). Discovery details live in the *Discovery.js modules.
 
 Item {
     id: backend
@@ -50,27 +47,17 @@ Item {
         return backend._coreUsage.slice();
     }
 
-    // True until the second `/proc/stat` sample lands ~0.5 s after
-    // startup (the Timer fires every `interval` ms). CPU usage
-    // requires two samples (the delta between them); the first tick
-    // captures `_prev`, the second tick computes the percent. RAM
-    // and disk are point-in-time reads and would technically be
-    // ready on the first tick, but gating them on the same flag
-    // keeps the warm-up sweep visually consistent across all three
-    // rings — no reader needs to wonder whether one specific value
-    // is "still loading" or "really zero". The ~0.5 s warm-up is the
-    // cost of this consistency.
+    // True until the second `/proc/stat` sample lands ~0.5 s after startup. CPU
+    // usage needs two samples (the delta); RAM/disk are point-in-time but gate
+    // on the same flag so the warm-up sweep stays visually consistent across all
+    // rings.
     readonly property bool loading: backend._prev === null
 
-    // Catalog ids with a live data source (same surface as the Plasma
-    // adapter). The map below reads as the gating; gpuTemp additionally
-    // requires a finite reading so a GPU whose temp query keeps failing shows
-    // no dead 0°C ring (matches Plasma's split usage/temp gating).
-    //
-    // Depends ONLY on the capability properties — NOT on _tick. Each carries
-    // its own NOTIFY, so it re-evaluates when a capability flips, not every
-    // 500 ms poll (which would hand MainContent a fresh array identity each
-    // tick and rebuild the whole ring strip at 2 Hz — a fixed review bug).
+    // Catalog ids with a live data source (same surface as the Plasma adapter).
+    // gpuTemp also requires a finite reading so a failing temp query shows no
+    // dead 0°C ring. Depends ONLY on the capability properties — NOT on _tick
+    // (each has NOTIFY), so it doesn't hand MainContent a fresh array every poll
+    // and rebuild the whole strip at 2 Hz (a fixed review bug).
     readonly property var availableMetrics: Catalog.availableMetricsFrom({
         "cpu": true,
         "cpuTemp": backend._cpuTempPath !== "",
@@ -184,11 +171,8 @@ Item {
     })
     property var defaultPartitionIds: []
 
-    // Per-partition usage %, read NON-BLOCKING (issue #48) so a stuck mount
-    // never freezes the GUI thread: requestStatvfs kicks a worker-thread read,
-    // cachedStatvfs returns the last-good (empty → 0% until it lands). _tick
-    // drives the 500 ms refresh (re-requests); _partTick re-renders the instant
-    // a result arrives; only the ids MainContent asks about are ever probed.
+    // Per-partition usage %, read NON-BLOCKING off the GUI thread (issue #48):
+    // requestStatvfs kicks a worker read, cachedStatvfs returns last-good.
     // Full rationale: standalone/CLAUDE.md § "statvfs runs off the GUI thread".
     function partitionValue(id) {
         backend._tick;
@@ -201,18 +185,37 @@ Item {
         return MemInfoParser.diskUsagePercent(disk.total, disk.free, disk.available);
     }
 
+    // Full per-partition detail for the disk-ring tooltip (#68), same shape as
+    // the Plasma adapter. Bytes share the off-GUI-thread statvfs cache; the
+    // user-facing "free" = available (df Avail, what you can write). DiskMetrics
+    // owns the assembly + the removable rule.
+    function partitionDetail(id) {
+        backend._tick;
+        backend._partTick;
+        var stats = {};
+        var mount = backend._mountForId[id];
+        if (mount) {
+            reader.requestStatvfs(mount);
+            var disk = reader.cachedStatvfs(mount);
+            // freeBytes = available (df "Avail"); cachedStatvfs sets all 3 or {}.
+            stats = {
+                "usedPercent": MemInfoParser.diskUsagePercent(disk.total, disk.free, disk.available),
+                "totalBytes": disk.total || 0,
+                "freeBytes": disk.available || 0
+            };
+        }
+        return DiskMetrics.buildPartitionDetail(id, backend._partForId[id], stats);
+    }
+
     // ── Internal ────────────────────────────────────────────────────
 
     ProcReader {
         id: reader
     }
 
-    // Bumped when an async statvfs lands so partitionValue re-evaluates
-    // immediately (the 500 ms Timer would otherwise be the only refresh
-    // and the rings would lag a tick behind a freshly-arrived value).
-    // Kept separate from _tick so a disk-only update doesn't re-run the
-    // CPU/RAM/GPU bindings. No feedback loop: the re-request that this
-    // re-evaluation triggers is throttled away in ProcReader.
+    // Bumped when an async statvfs lands so the disk bindings re-evaluate
+    // immediately. Separate from _tick so a disk update doesn't re-run the
+    // CPU/RAM/GPU bindings; no loop (the re-request is throttled in ProcReader).
     property int _partTick: 0
     Connections {
         target: reader
@@ -232,46 +235,39 @@ Item {
     property var _coreUsage: []
     property real _ramUsage: 0
     property real _swapUsage: 0
-    // Whether the kernel reports any swap (SwapTotal > 0). zram (the default
-    // swap on many distros) counts, so this is true on a typical desktop;
-    // false only on a genuinely swapless host, where availableMetrics then
-    // drops "swap".
+    // Whether the kernel reports any swap (SwapTotal > 0; zram counts). false on
+    // a swapless host, where availableMetrics then drops "swap".
     property bool _swapAvailable: false
     // Discovered filesystems (rebuilt only when /proc/mounts changes).
-    // _partitions: [{id, label, mountpoint, device}]; _mountForId maps a
-    // partition id to its representative mountpoint for the live statvfs.
+    // _partitions: [{id, label, mountpoint, fstype, device}]; _mountForId maps a
+    // partition id → its representative mountpoint for the live statvfs;
+    // _partForId maps id → the whole entry for partitionDetail's O(1) lookup.
     property var _partitions: []
     property var _mountForId: ({})
+    property var _partForId: ({})
     property string _lastMountsRaw: ""
     property string _canonicalHome: ""
-    // Resolved lazily over a short warm-up window (the hwmonN numbering
-    // + owning chip are machine-specific — see CpuTempDiscovery.js).
-    // "" while unresolved; _cpuTempC then stays NaN, coerced to 0 at the
-    // public surface by _coerceTemp.
+    // Resolved lazily over a short warm-up window (hwmonN numbering is
+    // machine-specific — see CpuTempDiscovery.js). "" while unresolved →
+    // _cpuTempC stays NaN, coerced to 0 at the surface by _coerceTemp.
     property string _cpuTempPath: ""
     property real _cpuTempC: NaN
-    // Bounded retry: a hwmon driver (coretemp/k10temp/…) can be modprobed
-    // a few seconds AFTER the widget autostarts at login, so we re-walk
-    // sysfs for the first _cpuTempMaxResolveAttempts ticks. After that we
-    // give up — a machine with genuinely no CPU temp sensor (VM, unknown
-    // hardware) must NOT re-walk /sys every tick for the whole session.
+    // Bounded retry: a hwmon driver can be modprobed a few seconds AFTER login,
+    // so re-walk sysfs for the first N ticks then give up (no per-tick walk on a
+    // sensorless host). See standalone/CLAUDE.md § "Sysfs discovery retry gate".
     property int _cpuTempResolveAttempts: 0
     readonly property int _cpuTempMaxResolveAttempts: 60  // ~30s at the 2 Hz Timer
-    // GPU (NVIDIA/NVML). _gpuUsage is a 0-100 percent; _gpuTempC is raw °C
-    // (NaN until/unless NVML reports it, coerced to 0 at the surface).
+    // GPU (NVIDIA/NVML): _gpuUsage 0-100 %; _gpuTempC raw °C (NaN→0 at surface).
     property real _gpuUsage: 0
     property real _gpuTempC: NaN
-    // Whether any GPU has a usage source: NVML (NVIDIA) or sysfs gpu_busy_percent
-    // (AMD). false on Intel-only (usage needs i915-perf elevated perms) and on
-    // hosts with no GPU at all.
+    // Whether any GPU has a usage source (NVML, or AMD sysfs gpu_busy_percent);
+    // false on Intel-only (needs elevated perms) and GPU-less hosts.
     property bool _gpuAvailable: false
-    // Whether any GPU has a temperature source: NVML (NVIDIA) or sysfs hwmon
-    // (AMD/Intel). Separate from _gpuAvailable so Intel-temp-only hosts show a
-    // gpuTemp ring even though _gpuAvailable stays false (no usage source).
+    // Whether any GPU has a temp source (NVML, or AMD/Intel hwmon). Separate so
+    // an Intel-temp-only host shows a gpuTemp ring without _gpuAvailable.
     property bool _gpuTempAvailable: false
     // AMD/Intel GPU sysfs paths resolved once by GpuDiscovery (empty until
-    // resolved or after the bounded retry window closes). _gpuBusyPath is the
-    // gpu_busy_percent file; _gpuTempPath is the hwmon temp1_input file.
+    // resolved or after the retry window closes): gpu_busy_percent + hwmon temp.
     property string _gpuBusyPath: ""
     property string _gpuTempPath: ""
     // "amd" | "intel" | "" (NVIDIA excluded — NVML path; "" while unresolved)
@@ -368,9 +364,13 @@ Item {
         var mounts = DiskDiscovery.parseMounts(raw);
         var parts = DiskDiscovery.buildPartitions(mounts, reader.blockDeviceInfo());
         var mountForId = {};
-        for (var i = 0; i < parts.length; i++)
+        var partForId = {};
+        for (var i = 0; i < parts.length; i++) {
             mountForId[parts[i].id] = parts[i].mountpoint;
+            partForId[parts[i].id] = parts[i];
+        }
         backend._mountForId = mountForId;
+        backend._partForId = partForId;
         backend._partitions = parts;
         // Default = the $HOME-bearing filesystem (or the first partition when
         // home detection fails). Same helper as the SettingsDialog picker so

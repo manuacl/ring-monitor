@@ -403,3 +403,44 @@ test("resolveDiskRingIds: mounted gate drops a manual id but keeps the auto-show
         ["home", "new-usb"]);
     assert.deepEqual(out, ["home", "new-usb"]);
 });
+
+// ── buildPartitionDetail (#68 tooltip detail assembly) ───────────────
+
+test("buildPartitionDetail: assembles the tooltip detail with derived removable", () => {
+    const d = Disk.buildPartitionDetail(
+        "uuid-1",
+        { label: "root", mountpoint: "/", fstype: "btrfs" },
+        { usedPercent: 12, totalBytes: 500, freeBytes: 440 });
+    assert.deepEqual(d, {
+        id: "uuid-1",
+        label: "root",
+        mountpoint: "/",
+        fstype: "btrfs",
+        usedPercent: 12,
+        totalBytes: 500,
+        freeBytes: 440,
+        removable: false,
+    });
+});
+
+test("buildPartitionDetail: a /run/media mountpoint is flagged removable", () => {
+    const d = Disk.buildPartitionDetail(
+        "u",
+        { label: "USB", mountpoint: "/run/media/manu/USB", fstype: "vfat" },
+        { usedPercent: 30, totalBytes: 16, freeBytes: 11 });
+    assert.equal(d.removable, true);
+});
+
+test("buildPartitionDetail: defaults — label falls back to id, missing stats → 0, no detail → safe", () => {
+    const d = Disk.buildPartitionDetail("uuid-x", null, null);
+    assert.equal(d.label, "uuid-x");
+    assert.equal(d.mountpoint, "");
+    assert.equal(d.fstype, "");
+    assert.equal(d.usedPercent, 0);
+    assert.equal(d.totalBytes, 0);
+    assert.equal(d.freeBytes, 0);
+    assert.equal(d.removable, false);
+    const empty = Disk.buildPartitionDetail("", null, null);
+    assert.equal(empty.id, "");
+    assert.equal(empty.label, "");
+});

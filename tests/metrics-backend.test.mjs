@@ -161,11 +161,16 @@ test("MetricsBackend imports SensorPicking and delegates the 'first ready wins' 
 
 test("MetricsBackend wires disk partitions via the shared DiskPartitions adapter", () => {
     // Discovery + labels come from DiskPartitions (also used by the config
-    // dialog); a per-partition Sensor Instantiator backs partitionValue(id).
+    // dialog). The per-partition Sensor instances live in DiskPartitionSensors
+    // (split out for the 500-line cap + the 3-leaf tooltip expansion, #68);
+    // MetricsBackend feeds it the discovered list + the findmnt mount set and
+    // forwards partitionValue / partitionDetail.
     assert.match(SOURCE, /DiskPartitions\s*{/, "must instantiate the DiskPartitions discovery adapter");
-    assert.match(SOURCE, /model:\s*diskPartitions\.partitions/, "the disk Instantiator must be driven by the discovered partition list");
-    assert.match(SOURCE, /partId:\s*modelData\.id/, "each disk Sensor delegate must expose its partition id");
-    assert.match(SOURCE, /sensorId:\s*modelData\.sensorId/, "each disk Sensor must bind the discovered usedPercent sensorId");
+    assert.match(SOURCE, /DiskPartitionSensors\s*{/, "must instantiate the DiskPartitionSensors adapter");
+    assert.match(SOURCE, /partitions:\s*diskPartitions\.partitions/, "DiskPartitionSensors must be driven by the discovered partition list");
+    assert.match(SOURCE, /mounted:\s*mountInfo\.mounted/, "DiskPartitionSensors must receive the findmnt mount set (mountpoint/fstype)");
+    assert.match(SOURCE, /function\s+partitionValue\s*\(id\)\s*{\s*return\s+diskSensors\.partitionValue\(id\)/, "partitionValue must forward to the DiskPartitionSensors adapter");
+    assert.match(SOURCE, /function\s+partitionDetail\s*\(id\)\s*{\s*return\s+diskSensors\.partitionDetail\(id\)/, "partitionDetail must forward to the DiskPartitionSensors adapter");
     // defaultPartitionIds is empty on Plasma (aggregate fallback — no
     // mountpoint to match $HOME against).
     assert.match(SOURCE, /defaultPartitionIds:\s*\[\s*\]/, "Plasma defaultPartitionIds must be empty (aggregate fallback)");

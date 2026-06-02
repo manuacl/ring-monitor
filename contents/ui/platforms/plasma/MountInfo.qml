@@ -30,7 +30,7 @@ import "../../core/DiskMetrics.js" as DiskMetrics
 // ksysguard) are unaffected.
 //
 // Public surface:
-//   readonly property var mounted  - [{uuid, label, mountpoint, removable}],
+//   readonly property var mounted  - [{uuid, label, mountpoint, fstype, removable}],
 //                                    one per mounted filesystem with a UUID.
 //   property int pollMs            - re-scan cadence (unplug-detection latency).
 //   property bool active           - when false the poll Timer is stopped, so no
@@ -58,7 +58,8 @@ Item {
         root._mounted = []
 
     // `-P` (key="value" pairs) is robust against spaces in label / target.
-    readonly property string _command: "findmnt -P -o UUID,TARGET,LABEL"
+    // FSTYPE feeds the disk-ring tooltip's per-partition fs label (#68).
+    readonly property string _command: "findmnt -P -o UUID,TARGET,LABEL,FSTYPE"
 
     P5Support.DataSource {
         id: mountSource
@@ -79,6 +80,7 @@ Item {
                     "uuid": r.uuid,
                     "label": r.label,
                     "mountpoint": r.mountpoint,
+                    "fstype": r.fstype,
                     "removable": DiskMetrics.isRemovableMount(r.mountpoint)
                 };
             });

@@ -222,27 +222,17 @@ Item {
     // desktop auto-show, where `expanded` is a popup signal and isn't reliably true).
     property bool removableTrackingActive: false
 
-    // Last-good value per partition id, held across Sensor rebuilds. When the
-    // partition set changes (USB plug/unplug) the Instantiator recreates ALL
-    // disk Sensors, which read 0 until their first ksysguard sample — without
-    // this cache the rings (and the centre average) would collapse to 0% and
-    // recover. Keyed by the stable UUID, so it survives the rebuild.
-    property var _lastPartValue: ({})
-
+    // Per-partition Sensor instances (usedPercent + total/free bytes) live in
+    // the DiskPartitionSensors adapter below; partitionValue / partitionDetail
+    // forward to it so MainContent still sees one `metrics` object.
     function partitionValue(id) {
-        backend._diskTick;
-        for (var i = 0; i < diskPartInstantiator.count; i++) {
-            var s = diskPartInstantiator.objectAt(i);
-            if (s && s.partId === id) {
-                if (s.status === Sensors.Sensor.Ready && typeof s.value === "number" && !isNaN(s.value)) {
-                    backend._lastPartValue[id] = s.value;
-                    return s.value;
-                }
-                // Sensor not Ready yet (e.g. just rebuilt) — hold last-good.
-                return backend._lastPartValue[id] || 0;
-            }
-        }
-        return backend._lastPartValue[id] || 0;
+        return diskSensors.partitionValue(id);
+    }
+    // Full per-partition detail for the disk-ring tooltip (#68): joins the
+    // ksysguard usedPercent + total/free bytes with the findmnt mountpoint /
+    // fstype / removable. Same shape as the standalone adapter.
+    function partitionDetail(id) {
+        return diskSensors.partitionDetail(id);
     }
 
     // ── Internal — id → Sensor instance lookup (universal aggregates) ──
@@ -468,17 +458,9 @@ Item {
         active: backend.removableTrackingActive
     }
 
-    property int _diskTick: 0
-    Instantiator {
-        id: diskPartInstantiator
-        model: diskPartitions.partitions
-        delegate: Sensors.Sensor {
-            required property var modelData
-            readonly property string partId: modelData.id
-            sensorId: modelData.sensorId
-            onValueChanged: backend._diskTick++
-        }
-        onObjectAdded: backend._diskTick++
-        onObjectRemoved: backend._diskTick++
+    DiskPartitionSensors {
+        id: diskSensors
+        partitions: diskPartitions.partitions
+        mounted: mountInfo.mounted
     }
 }

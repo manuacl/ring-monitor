@@ -26,14 +26,14 @@ const QML = readFileSync(
 // SEVERAL subvolume targets with one shared UUID (deduped to the first), an
 // uppercase vfat serial (EFI), and the removable key under /run/media.
 const SAMPLE =
-    'UUID="" TARGET="/" LABEL=""\n' +
-    'UUID="6286e04e-b217-43bf-834f-d6a054ac4376" TARGET="/etc" LABEL="root"\n' +
-    'UUID="6286e04e-b217-43bf-834f-d6a054ac4376" TARGET="/var/home" LABEL="root"\n' +
-    'UUID="dc3453e6-4610-4b89-b66c-82c29195ab01" TARGET="/boot" LABEL="xboot"\n' +
-    'UUID="ADD0-32B6" TARGET="/boot/efi" LABEL=""\n' +
-    'UUID="81af2d89-3967-403a-8f96-643b32f1620f" TARGET="/var/mnt/photos" LABEL="photos"\n' +
-    'UUID="6F45-2B2F" TARGET="/run/media/manu/BIOS" LABEL="BIOS"\n' +
-    'UUID="" TARGET="/proc" LABEL=""\n';
+    'UUID="" TARGET="/" LABEL="" FSTYPE="overlay"\n' +
+    'UUID="6286e04e-b217-43bf-834f-d6a054ac4376" TARGET="/etc" LABEL="root" FSTYPE="btrfs"\n' +
+    'UUID="6286e04e-b217-43bf-834f-d6a054ac4376" TARGET="/var/home" LABEL="root" FSTYPE="btrfs"\n' +
+    'UUID="dc3453e6-4610-4b89-b66c-82c29195ab01" TARGET="/boot" LABEL="xboot" FSTYPE="ext4"\n' +
+    'UUID="ADD0-32B6" TARGET="/boot/efi" LABEL="" FSTYPE="vfat"\n' +
+    'UUID="81af2d89-3967-403a-8f96-643b32f1620f" TARGET="/var/mnt/photos" LABEL="photos" FSTYPE="ext4"\n' +
+    'UUID="6F45-2B2F" TARGET="/run/media/manu/BIOS" LABEL="BIOS" FSTYPE="vfat"\n' +
+    'UUID="" TARGET="/proc" LABEL="" FSTYPE="proc"\n';
 
 test("parseMountPairs: parses each mounted filesystem (deduped, no-UUID dropped)", () => {
     const rows = MountInfo.parseMountPairs(SAMPLE);
@@ -43,7 +43,14 @@ test("parseMountPairs: parses each mounted filesystem (deduped, no-UUID dropped)
         uuid: "6f45-2b2f",
         label: "BIOS",
         mountpoint: "/run/media/manu/BIOS",
+        fstype: "vfat",
     });
+});
+
+test("parseMountPairs: fstype defaults to '' when the column is absent (older -o list)", () => {
+    const out = MountInfo.parseMountPairs(
+        'UUID="ab12-cd34" TARGET="/data" LABEL="data"\n');
+    assert.equal(out[0].fstype, "");
 });
 
 test("parseMountPairs: lower-cases the UUID to match ksysguard (vfat serials are UPPERCASE)", () => {
@@ -105,7 +112,7 @@ test("parseMountPairs: preserves spaces inside quoted label and target", () => {
 test("parseMountPairs: tolerates column order and extra whitespace", () => {
     const out = MountInfo.parseMountPairs(
         'LABEL="data"   TARGET="/data"   UUID="u1"\n');
-    assert.deepEqual(out, [{ uuid: "u1", label: "data", mountpoint: "/data" }]);
+    assert.deepEqual(out, [{ uuid: "u1", label: "data", mountpoint: "/data", fstype: "" }]);
 });
 
 test("parseMountPairs: empty / non-string input → []", () => {

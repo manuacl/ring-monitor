@@ -6,32 +6,32 @@ user-invocable: true
 
 # Refresh ring-monitor Plasma widget
 
-Rafraîchit l'instance de dev du widget après une modif locale. Le code source est **copié** (pas de symlink) dans une install Plasma dédiée `~/.local/share/plasma/plasmoids/ring-monitor_dev`, dont le `metadata.json` est patché pour utiliser un plugin Id distinct (`ring-monitor_dev`) et un nom distinct (`Ring Monitor (dev)`).
+Refreshes the dev instance of the widget after a local edit. The source is **copied** (not symlinked) into a dedicated Plasma install at `~/.local/share/plasma/plasmoids/ring-monitor_dev`, whose `metadata.json` is patched to use a distinct plugin Id (`ring-monitor_dev`) and a distinct name (`Ring Monitor (dev)`).
 
-Pourquoi copier au lieu de symlinker :
+Why copy instead of symlink:
 
-1. **Coexistence Store.** Le plugin Id distinct laisse coexister cette install de dev avec la version stable installée depuis le **KDE Store** (`dev.manuacl.ringmonitor`). On peut donc à tout moment tester l'installation Store et le widget de dev côte à côte dans le même panneau, sans collision d'Id.
-2. **Source protégée.** L'ancien symlink était dangereux : retirer/désinstaller le widget faisait suivre le lien à KDE et **supprimait tout le dossier source** du repo. Une copie est jetable — virer `ring-monitor_dev` n'efface qu'elle, jamais le repo.
+1. **Store coexistence.** The distinct plugin Id lets this dev install live alongside the stable version installed from the **KDE Store** (`dev.manuacl.ringmonitor`). You can test the Store install and the dev widget side by side in the same panel at any time, with no Id collision.
+2. **Source protected.** The old symlink was dangerous: removing/uninstalling the widget made KDE follow the link and **delete the whole source folder** of the repo. A copy is disposable — dropping `ring-monitor_dev` only erases that copy, never the repo.
 
-## Quand l'utiliser
+## When to use it
 
-- L'utilisateur dit "actualise l'app", "reload", "refresh ring-monitor", "raffraîchis le widget", "rebuild".
-- Tu viens de modifier un fichier sous `contents/ui/*.qml`, `contents/config/main.xml`, ou `metadata.json` et tu veux confirmer le rendu.
+- The user says "actualise l'app", "reload", "refresh ring-monitor", "rafraîchis le widget", "rebuild".
+- You just modified a file under `contents/ui/*.qml`, `contents/config/main.xml`, or `metadata.json` and want to confirm the render.
 
-## Quand NE PAS l'utiliser
+## When NOT to use it
 
-- Erreur de parsing QML qui empêche le widget de charger → préfère le mode debug isolé documenté dans `docs/development.md` § "Standalone preview" :
+- A QML parse error that stops the widget from loading → prefer the isolated debug mode documented in `docs/development.md` § "Standalone preview":
   ```bash
   setsid -f plasmawindowed dev.manuacl.ringmonitor < /dev/null > /tmp/plasmawindowed.log 2>&1
   ```
-  puis lire `/tmp/plasmawindowed.log`. La fenêtre standalone montre les erreurs sans nécessiter de restart plasmashell.
-- Premier ajout du widget au panneau → ce skill installe/écrase la copie `ring-monitor_dev`, mais c'est à l'utilisateur d'ajouter ensuite *Ring Monitor (dev)* au panneau via « Ajouter des widgets ». Le skill ne place pas le widget.
+  then read `/tmp/plasmawindowed.log`. The standalone window shows the errors without a plasmashell restart.
+- First time adding the widget to the panel → this skill installs/overwrites the `ring-monitor_dev` copy, but it is up to the user to then add *Ring Monitor (dev)* to the panel via "Add Widgets". The skill does not place the widget.
 
-## Procédure
+## Procedure
 
-Avertir l'utilisateur d'abord : **l'écran flashe pendant le restart, et sur Wayland le lockscreen peut brièvement apparaître (re-unlock nécessaire)**.
+Warn the user first: **the screen flashes during the restart, and on Wayland the lockscreen may briefly appear (re-unlock needed)**.
 
-Exécuter depuis la racine du repo, en un seul appel Bash. Copie (en écrasant) la source vers l'install de dev, patche le `metadata.json` copié pour un Id + un nom distincts, puis vide les caches et redémarre plasmashell :
+Run from the repo root, in a single Bash call. It copies (overwriting) the source into the dev install, patches the copied `metadata.json` for a distinct Id + name, then clears the caches and restarts plasmashell:
 
 ```bash
 DEST=~/.local/share/plasma/plasmoids/ring-monitor_dev && \
@@ -49,24 +49,24 @@ systemctl --user restart plasma-plasmashell.service && \
 sleep 5
 ```
 
-Puis vérifier le journal en un second appel :
+Then check the journal in a second call:
 
 ```bash
 journalctl --user --since "10 sec ago" 2>/dev/null | grep -iE "ring-?mon|qml" | grep -v breezerc | head -30
 ```
 
-## Rapport attendu
+## Expected report
 
-- **Journal vide** → "Widget rechargé, journal propre."
-- **Lignes d'erreur QML** → citer les 3-5 premières lignes pertinentes ; pointer le fichier/numéro de ligne si l'erreur en mentionne un. Ne pas tenter de fixer automatiquement — laisser l'utilisateur décider.
-- **`breezerc` floode parfois malgré le grep -v** : si le filtre laisse passer des lignes manifestement sans rapport, les ignorer.
+- **Empty journal** → "Widget reloaded, journal clean."
+- **QML error lines** → quote the first 3-5 relevant lines; point at the file/line number if the error mentions one. Don't try to fix automatically — let the user decide.
+- **`breezerc` sometimes floods despite the `grep -v`**: if the filter lets through obviously unrelated lines, ignore them.
 
-## Pourquoi cette procédure
+## Why this procedure
 
-`rsync -a --delete` écrase l'install de dev à l'identique de la source (les fichiers supprimés côté source disparaissent côté dest — un symlink le faisait gratuitement, une copie incrémentale non). Les `--exclude` gardent le paquet propre (pas de `.git`/`tests`/`docs` dans le plasmoid). Le patch `jq` sur le `metadata.json` **copié uniquement** (jamais la source) donne l'Id distinct qui permet la coexistence avec la version Store.
+`rsync -a --delete` overwrites the dev install to match the source exactly (files removed on the source side disappear on the dest side — a symlink got this for free, an incremental copy doesn't). The `--exclude`s keep the package clean (no `.git`/`tests`/`docs` in the plasmoid). The `jq` patch on the **copied** `metadata.json` only (never the source) provides the distinct Id that enables coexistence with the Store version.
 
-`systemctl --user restart plasma-plasmashell.service` est la commande robuste sur Bazzite Wayland Plasma 6 (50+ utilisations validées en session de dev). `kquitapp6 plasmashell && kstart plasmashell` n'est pas fiable sur cet environnement.
+`systemctl --user restart plasma-plasmashell.service` is the robust command on Bazzite Wayland Plasma 6 (50+ validated uses in dev sessions). `kquitapp6 plasmashell && kstart plasmashell` is unreliable on this environment.
 
-Les trois qmlcaches couvrent les trois containers Plasma qui peuvent loader des fichiers du plasmoid : `plasmashell` (widget dans le panneau), `kcmshell6` (dialogue de config via System Settings), `plasmawindowed` (debug standalone). Vider les trois en bloc coûte ~0 (les caches se reconstruisent à la volée) et évite la classe de bugs "modif config dialog invisible" documentée dans `CLAUDE.md` § Common pitfalls.
+The three qmlcaches cover the three Plasma containers that can load plasmoid files: `plasmashell` (widget in the panel), `kcmshell6` (config dialog via System Settings), `plasmawindowed` (standalone debug). Clearing all three in one go costs ~0 (the caches rebuild on the fly) and avoids the "config dialog edit invisible" class of bugs documented in `CLAUDE.md` § Common pitfalls.
 
-Détails dans `docs/development.md` § "When edits show up", "Restarting plasmashell", "Reading the journal".
+Details in `docs/development.md` § "When edits show up", "Restarting plasmashell", "Reading the journal".

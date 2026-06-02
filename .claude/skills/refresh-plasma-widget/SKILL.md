@@ -1,34 +1,45 @@
 ---
 name: refresh-plasma-widget
-description: Reload the ring-monitor Plasma widget after a code change — clears qmlcaches, restarts plasmashell, then greps the journal for QML/ringmon errors. Plasma-host workflow only (the standalone binary doesn't need this — just relaunch it). Use when the user says "actualise l'app", "reload widget", "refresh ring-monitor", or after modifying contents/ui/*.qml, contents/config/main.xml, or metadata.json.
+description: Reload the ring-monitor Plasma widget after a code change — copies the source over a dedicated dev install (ring-monitor_dev), clears qmlcaches, restarts plasmashell, then greps the journal for QML/ringmon errors. Plasma-host workflow only (the standalone binary doesn't need this — just relaunch it). Use when the user says "actualise l'app", "reload widget", "refresh ring-monitor", or after modifying contents/ui/*.qml, contents/config/main.xml, or metadata.json.
 user-invocable: true
 ---
 
 # Refresh ring-monitor Plasma widget
 
-Rafraîchit l'instance du widget installée dans le panneau Plasma de l'utilisateur après une modif locale. Le code source vit dans `~/projects/ring-monitor/`, monté dans Plasma via le symlink `~/.local/share/plasma/plasmoids/dev.manuacl.ringmonitor → ~/projects/ring-monitor` (voir `docs/development.md` § Layout).
+Refreshes the dev instance of the widget after a local edit. The source is **copied** (not symlinked) into a dedicated Plasma install at `~/.local/share/plasma/plasmoids/ring-monitor_dev`, whose `metadata.json` is patched to use a distinct plugin Id (`ring-monitor_dev`) and a distinct name (`Ring Monitor (dev)`).
 
-## Quand l'utiliser
+Why copy instead of symlink:
 
-- L'utilisateur dit "actualise l'app", "reload", "refresh ring-monitor", "raffraîchis le widget", "rebuild".
-- Tu viens de modifier un fichier sous `contents/ui/*.qml`, `contents/config/main.xml`, ou `metadata.json` et tu veux confirmer le rendu.
+1. **Store coexistence.** The distinct plugin Id lets this dev install live alongside the stable version installed from the **KDE Store** (`dev.manuacl.ringmonitor`). You can test the Store install and the dev widget side by side in the same panel at any time, with no Id collision.
+2. **Source protected.** The old symlink was dangerous: removing/uninstalling the widget made KDE follow the link and **delete the whole source folder** of the repo. A copy is disposable — dropping `ring-monitor_dev` only erases that copy, never the repo.
 
-## Quand NE PAS l'utiliser
+## When to use it
 
-- Erreur de parsing QML qui empêche le widget de charger → préfère le mode debug isolé documenté dans `docs/development.md` § "Standalone preview" :
+- The user says "actualise l'app", "reload", "refresh ring-monitor", "rafraîchis le widget", "rebuild".
+- You just modified a file under `contents/ui/*.qml`, `contents/config/main.xml`, or `metadata.json` and want to confirm the render.
+
+## When NOT to use it
+
+- A QML parse error that stops the widget from loading → prefer the isolated debug mode documented in `docs/development.md` § "Standalone preview":
   ```bash
   setsid -f plasmawindowed dev.manuacl.ringmonitor < /dev/null > /tmp/plasmawindowed.log 2>&1
   ```
-  puis lire `/tmp/plasmawindowed.log`. La fenêtre standalone montre les erreurs sans nécessiter de restart plasmashell.
-- Premier setup (symlink absent) → utiliser `kpackagetool6 -t Plasma/Applet -i .` une fois, pas ce skill.
+  then read `/tmp/plasmawindowed.log`. The standalone window shows the errors without a plasmashell restart.
+- First time adding the widget to the panel → this skill installs/overwrites the `ring-monitor_dev` copy, but it is up to the user to then add *Ring Monitor (dev)* to the panel via "Add Widgets". The skill does not place the widget.
 
-## Procédure
+## Procedure
 
-Avertir l'utilisateur d'abord : **l'écran flashe pendant le restart, et sur Wayland le lockscreen peut brièvement apparaître (re-unlock nécessaire)**.
+Warn the user first: **the screen flashes during the restart, and on Wayland the lockscreen may briefly appear (re-unlock needed)**.
 
-Puis exécuter en un seul appel Bash :
+Run from the repo root, in a single Bash call. It copies (overwriting) the source into the dev install, patches the copied `metadata.json` for a distinct Id + name, then clears the caches and restarts plasmashell:
 
 ```bash
+DEST=~/.local/share/plasma/plasmoids/ring-monitor_dev && \
+rm -rf "$DEST" && mkdir -p "$DEST" && \
+rsync -a contents metadata.json LICENSE "$DEST"/ && \
+jq '.KPlugin.Id = "ring-monitor_dev" | .KPlugin.Name = "Ring Monitor (dev)"' \
+   "$DEST/metadata.json" > "$DEST/metadata.json.tmp" && \
+mv "$DEST/metadata.json.tmp" "$DEST/metadata.json" && \
 rm -rf ~/.cache/plasmashell/qmlcache \
        ~/.cache/kcmshell6/qmlcache \
        ~/.cache/plasmawindowed/qmlcache && \
@@ -36,22 +47,24 @@ systemctl --user restart plasma-plasmashell.service && \
 sleep 5
 ```
 
-Puis vérifier le journal en un second appel :
+Then check the journal in a second call:
 
 ```bash
-journalctl --user --since "10 sec ago" 2>/dev/null | grep -iE "ringmon|qml" | grep -v breezerc | head -30
+journalctl --user --since "10 sec ago" 2>/dev/null | grep -iE "ring-?mon|qml" | grep -v breezerc | head -30
 ```
 
-## Rapport attendu
+## Expected report
 
-- **Journal vide** → "Widget rechargé, journal propre."
-- **Lignes d'erreur QML** → citer les 3-5 premières lignes pertinentes ; pointer le fichier/numéro de ligne si l'erreur en mentionne un. Ne pas tenter de fixer automatiquement — laisser l'utilisateur décider.
-- **`breezerc` floode parfois malgré le grep -v** : si le filtre laisse passer des lignes manifestement sans rapport, les ignorer.
+- **Empty journal** → "Widget reloaded, journal clean."
+- **QML error lines** → quote the first 3-5 relevant lines; point at the file/line number if the error mentions one. Don't try to fix automatically — let the user decide.
+- **`breezerc` sometimes floods despite the `grep -v`**: if the filter lets through obviously unrelated lines, ignore them.
 
-## Pourquoi cette procédure
+## Why this procedure
 
-`systemctl --user restart plasma-plasmashell.service` est la commande robuste sur Bazzite Wayland Plasma 6 (50+ utilisations validées en session de dev). `kquitapp6 plasmashell && kstart plasmashell` n'est pas fiable sur cet environnement.
+`rm -rf "$DEST"` first guarantees a clean overwrite — no stale file survives from a previous copy (a plain `rsync --delete contents metadata.json LICENSE` only prunes *inside* the synced dirs, leaving sibling cruft like `.github/`/`standalone/` from an earlier wider copy untouched at the dest top level). Then `rsync -a` copies only `contents/`, `metadata.json` and `LICENSE` — the three things a Plasma package actually needs — so dev cruft never lands in the install. The `jq` patch on the **copied** `metadata.json` only (never the source) provides the distinct Id that enables coexistence with the Store version.
 
-Les trois qmlcaches couvrent les trois containers Plasma qui peuvent loader des fichiers du plasmoid : `plasmashell` (widget dans le panneau), `kcmshell6` (dialogue de config via System Settings), `plasmawindowed` (debug standalone). Vider les trois en bloc coûte ~0 (les caches se reconstruisent à la volée) et évite la classe de bugs "modif config dialog invisible" documentée dans `CLAUDE.md` § Common pitfalls.
+`systemctl --user restart plasma-plasmashell.service` is the robust command on Bazzite Wayland Plasma 6 (50+ validated uses in dev sessions). `kquitapp6 plasmashell && kstart plasmashell` is unreliable on this environment.
 
-Détails dans `docs/development.md` § "When edits show up", "Restarting plasmashell", "Reading the journal".
+The three qmlcaches cover the three Plasma containers that can load plasmoid files: `plasmashell` (widget in the panel), `kcmshell6` (config dialog via System Settings), `plasmawindowed` (standalone debug). Clearing all three in one go costs ~0 (the caches rebuild on the fly) and avoids the "config dialog edit invisible" class of bugs documented in `CLAUDE.md` § Common pitfalls.
+
+Details in `docs/development.md` § "When edits show up", "Restarting plasmashell", "Reading the journal".

@@ -14,6 +14,11 @@ user-facing only.
 
 ### Other
 
+- chore(skills): `refresh-plasma-widget` now **copies** the source into a
+  dedicated `ring-monitor_dev` install (distinct plugin Id + name) instead of
+  relying on a symlink — lets the dev build coexist with the KDE Store version
+  and stops widget-uninstall from deleting the repo source via the followed
+  symlink. Skill rewritten in English.
 - ci(release): `version.yml` now **promotes the CHANGELOG automatically** on
   every bump — `## [Unreleased]` → `## [X.Y.Z] — DATE` with a fresh empty
   `[Unreleased]` above — committed alongside the `metadata.json` bump. This was

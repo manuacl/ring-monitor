@@ -168,6 +168,14 @@ user-facing only.
 
 ### Other
 
+- docs(standalone): correct the `MemInfoParser._clampPercent` comment — it
+  wrongly suggested extracting a shared `Numeric.js` once a 3rd module needed the
+  `[0,100]` clamp. That's not extractable here: QML `.import` of a `.js` needs
+  `.pragma library`, and both are Node-`require` syntax errors, so a shared
+  module couldn't be Node-tested and every consumer's test would break. The
+  duplication is the accepted dual-load trade-off (like `ProcParser.sumJiffies`);
+  comment now says don't re-attempt. No code change.
+
 - docs(repo-stats): teach the `repo-stats` skill to pull KDE Store download
   counts (OCS `loadFiles` per-file totals incl. archived versions) — the
   Plasma widget's main install channel, which GitHub release-download numbers

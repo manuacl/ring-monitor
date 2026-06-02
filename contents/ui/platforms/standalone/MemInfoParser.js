@@ -21,13 +21,17 @@
 // Dual-loaded by QML and Node (the standard `module.exports` shim at
 // the bottom mirrors every other module under `core/`).
 //
-// `_clampPercent` is a local mirror of `RingGeometry.clampPercent`
-// (same `!isFinite || <0 || >100` semantics). The two stay separate
-// because QML's `.import` of a `.js` module requires `.pragma
-// library` on the importee, which would change `RingGeometry`'s
-// per-instance semantics across all importers — not worth it for
-// a 4-line helper. If a third module ever needs the same clamp,
-// extract a `Numeric.js` shared library then.
+// `_clampPercent` is a local mirror of `RingGeometry.clampPercent` /
+// `DiskIoScale`'s clamp (same `!isFinite || <0 || >100` semantics). The
+// copies stay separate ON PURPOSE — a shared `Numeric.js` is NOT
+// extractable here: sharing it would need QML's `.import "Numeric.js"`,
+// which requires `.pragma library` on the importee, and BOTH `.pragma
+// library` and `.import` are hard syntax errors under Node `require`
+// (verified) — so the importee couldn't be Node-tested and every
+// consumer's own `*.test.mjs` would break. The dual-load + "all logic
+// Node-tested" rules forbid cross-`.js` import; this duplication is the
+// same accepted trade-off as `ProcParser.sumJiffies`. Don't re-attempt
+// the extraction (a prior version of this comment wrongly suggested it).
 //
 // Public surface:
 //   parseMemInfo(content)         - { total, available, swapTotal,

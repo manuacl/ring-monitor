@@ -26,7 +26,7 @@
 //
 // Public surface:
 //   formatSize(bytes)                          - "56 GiB" (IEC binary, df -h style)
-//   composeUsage(usedPercent, used, total)     - "12% — 56 GiB / 466 GiB"
+//   composeUsage(usedPercent, used, total)     - "12% · 56 GiB / 466 GiB"
 //   composeFree(freeBytes, totalBytes)         - "120 GiB free"
 //   subLabel(mountpoint, fstype)               - "/ · btrfs"
 //   iconFor(removable)                         - freedesktop icon name
@@ -77,13 +77,13 @@ function _percentText(usedPercent) {
     return Math.round(p) + "%";
 }
 
-// "12% — 56 GiB / 466 GiB", or just "12%" when total is unknown (bytes source
+// "12% · 56 GiB / 466 GiB", or just "12%" when total is unknown (bytes source
 // not yet resolved) — the % always shows, the figures only when they exist.
 function composeUsage(usedPercent, usedBytes, totalBytes) {
     var pct = _percentText(usedPercent);
     if (_finite(totalBytes) <= 0)
         return pct;
-    return pct + " — " + formatSize(usedBytes) + " / " + formatSize(totalBytes);
+    return pct + " · " + formatSize(usedBytes) + " / " + formatSize(totalBytes);
 }
 
 // "120 GiB free". Empty when the byte source hasn't resolved (total unknown),

@@ -35,10 +35,8 @@ Run from the repo root, in a single Bash call. It copies (overwriting) the sourc
 
 ```bash
 DEST=~/.local/share/plasma/plasmoids/ring-monitor_dev && \
-rsync -a --delete \
-      --exclude='.git' --exclude='.claude' --exclude='tests' \
-      --exclude='docs' --exclude='node_modules' \
-      ./ "$DEST"/ && \
+rm -rf "$DEST" && mkdir -p "$DEST" && \
+rsync -a contents metadata.json LICENSE "$DEST"/ && \
 jq '.KPlugin.Id = "ring-monitor_dev" | .KPlugin.Name = "Ring Monitor (dev)"' \
    "$DEST/metadata.json" > "$DEST/metadata.json.tmp" && \
 mv "$DEST/metadata.json.tmp" "$DEST/metadata.json" && \
@@ -63,7 +61,7 @@ journalctl --user --since "10 sec ago" 2>/dev/null | grep -iE "ring-?mon|qml" | 
 
 ## Why this procedure
 
-`rsync -a --delete` overwrites the dev install to match the source exactly (files removed on the source side disappear on the dest side — a symlink got this for free, an incremental copy doesn't). The `--exclude`s keep the package clean (no `.git`/`tests`/`docs` in the plasmoid). The `jq` patch on the **copied** `metadata.json` only (never the source) provides the distinct Id that enables coexistence with the Store version.
+`rm -rf "$DEST"` first guarantees a clean overwrite — no stale file survives from a previous copy (a plain `rsync --delete contents metadata.json LICENSE` only prunes *inside* the synced dirs, leaving sibling cruft like `.github/`/`standalone/` from an earlier wider copy untouched at the dest top level). Then `rsync -a` copies only `contents/`, `metadata.json` and `LICENSE` — the three things a Plasma package actually needs — so dev cruft never lands in the install. The `jq` patch on the **copied** `metadata.json` only (never the source) provides the distinct Id that enables coexistence with the Store version.
 
 `systemctl --user restart plasma-plasmashell.service` is the robust command on Bazzite Wayland Plasma 6 (50+ validated uses in dev sessions). `kquitapp6 plasmashell && kstart plasmashell` is unreliable on this environment.
 

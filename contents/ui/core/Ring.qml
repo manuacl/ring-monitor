@@ -73,6 +73,14 @@ Item {
     // at full size. Implemented via StyledText in _composeReadout below.
     property bool unitSmall: false
 
+    // splitStacked: the disk-I/O split readouts ("0.1MB/s") are too wide to sit
+    // side by side, so they STACK diagonally — read up-left toward its half-arc,
+    // write down-right. Temperature split (short "45°C") stays flat side-by-side.
+    // The {x,y} centre offsets per readout are pure math in RingGeometry.
+    property bool splitStacked: false
+    readonly property var _readOffset: Geom.splitReadoutOffset(-1, splitMode, splitStacked, size, valuePx)
+    readonly property var _writeOffset: Geom.splitReadoutOffset(1, splitMode, splitStacked, size, valuePx)
+
     // Optional: render a small "update available" dot inside the 90°
     // bottom gap, next to the label. Clicking it fires updateBadgeClicked
     // which the parent uses to trigger Plasmoid.action("configure").
@@ -385,7 +393,8 @@ Item {
             id: valueText
             anchors.verticalCenter: parent.verticalCenter
             anchors.horizontalCenter: parent.horizontalCenter
-            anchors.horizontalCenterOffset: root.splitMode ? -root.size * 0.18 : 0
+            anchors.horizontalCenterOffset: root._readOffset.x
+            anchors.verticalCenterOffset: root._readOffset.y
             textFormat: Text.StyledText
             text: root._composeReadout(root.valueOverride !== "" ? root.valueOverride : Math.round(root.displayRawValue), root.unit)
             color: root.textColor
@@ -399,7 +408,8 @@ Item {
             visible: root.splitMode && !root._equalMode
             anchors.verticalCenter: parent.verticalCenter
             anchors.horizontalCenter: parent.horizontalCenter
-            anchors.horizontalCenterOffset: root.size * 0.18
+            anchors.horizontalCenterOffset: root._writeOffset.x
+            anchors.verticalCenterOffset: root._writeOffset.y
             textFormat: Text.StyledText
             text: root._composeReadout(root.splitValueOverride !== "" ? root.splitValueOverride : Math.round(root.displaySplitRawValue), root.splitUnit)
             color: root.textColor

@@ -20,8 +20,11 @@ user-facing only.
   write as one arc; tick **"Split read / write"** under the metric to see read
   on the left half and write on the right. The arc auto-scales to the disk's
   recent activity (so it stays expressive whether you're idle or copying a
-  large file), and the centre always shows the real MB/s. Works on both the
-  Plasma widget and the standalone build (#77).
+  large file), and the centre shows the real rate with a unit that scales
+  automatically from B/s to GB/s. In split mode the read and write readouts
+  stack diagonally (read toward the left arc, write toward the right) so the
+  longer labels don't crowd. Works on both the Plasma widget and the standalone
+  build (#77).
 
 - Standalone: a **"Show in application menu"** toggle in Settings → About.
   A downloaded AppImage normally appears in no application launcher, and on
@@ -67,7 +70,14 @@ user-facing only.
   flag + a `<font size="1">` span (Qt's StyledText **ignores** a CSS
   `font-size:` span — measured — but honours `<font size>`); `formatRate` was
   split into `formatRateValue` (number) + the unit so the two render
-  separately. Only diskIo opts in; other rings keep their full-size unit. `MainContent`'s
+  separately. Only diskIo opts in; other rings keep their full-size unit. The
+  unit is **dynamic** — `DiskIoScale.scaleRate` picks B/s / KB/s / MB/s / GB/s
+  (SI 10³ steps) keeping the number in 0–999; the ring `unit` binds to
+  `formatRateUnit(bps)`. In split mode the read/write readouts **stack
+  diagonally** instead of side-by-side (`Ring.splitStacked` + the pure
+  `RingGeometry.splitReadoutOffset` → each readout an `{x,y}` centre offset,
+  read up-left / write down-right); the temperature split keeps the flat
+  side-by-side layout. `MainContent`'s
   enabled-list derivation now `mergeWithCatalog`s `metricOrder` before
   `filterByOrder`, so an enabled catalog id missing from a stale persisted order
   (upgraders, or a host default predating the metric) still renders without a

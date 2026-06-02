@@ -24,10 +24,17 @@
 //   rateToPercent(rateBps, peakBps)        - 0-100 arc fill against the peak
 //   formatRate(bps)                        - "{n} {unit}/s" display string
 
-// A megabyte for throughput is 10^6 bytes (the SI convention `iostat`,
-// `dstat`, and most disk-vendor specs use), not 2^20. The ring label
-// reads in the same units a user would see in those tools.
+// Throughput units are SI (10^N), the convention `iostat` / `dstat` /
+// disk-vendor specs use — not 2^N. So a "megabyte" is 10^6 B, and the ring
+// label reads in the same units a user sees in those tools.
 var BYTES_PER_MB = 1000000;
+// Ordered largest→smallest for the dynamic-unit pick in scaleRate.
+var RATE_UNITS = [
+    { "factor": 1000000000, "unit": "GB/s" },
+    { "factor": 1000000, "unit": "MB/s" },
+    { "factor": 1000, "unit": "KB/s" },
+    { "factor": 1, "unit": "B/s" }
+];
 
 // Peak decay per sample. The peak is the normalisation ceiling for the
 // arc; without decay a single burst (a one-off large copy) would pin the
@@ -89,21 +96,36 @@ function rateToPercent(rateBps, peakBps) {
     return pct;
 }
 
-// The numeric part of the MB/s readout, WITHOUT the unit: one decimal
-// below 100 MB/s (so a 3.4 MB/s trickle is legible) and no decimal above
-// (380, not 380.2 — the extra digit is noise at that magnitude). The ring
-// renders the unit separately (smaller font) so the number gets the room,
-// which is why the value and unit are split.
-function formatRateValue(bps) {
-    var mb = _finite(bps) / BYTES_PER_MB;
-    if (mb < 0) mb = 0;
-    return mb < 100 ? mb.toFixed(1) : String(Math.round(mb));
+// Pick the unit that keeps the number in a readable 0–999 range:
+// { value: <number in that unit>, unit: "B/s"|"KB/s"|"MB/s"|"GB/s" }. SI
+// (10^3) steps. Idle (0) → { 0, "B/s" }. Negative / NaN coerce to 0.
+function scaleRate(bps) {
+    var b = _finite(bps);
+    if (b < 0) b = 0;
+    for (var i = 0; i < RATE_UNITS.length; i++) {
+        if (b >= RATE_UNITS[i].factor)
+            return { "value": b / RATE_UNITS[i].factor, "unit": RATE_UNITS[i].unit };
+    }
+    return { "value": 0, "unit": "B/s" };  // b < 1 B/s
 }
 
-// Full "{n} MB/s" string. Always MB/s — a single unit keeps the width
-// stable across the ring's value animation instead of flipping KB/MB/GB.
+// The numeric part of the readout, WITHOUT the unit, in the auto-picked
+// unit: one decimal below 100 (so a 3.4 trickle is legible), none above
+// (380, not 380.2 — noise at that magnitude). The ring renders the unit
+// separately (smaller font), which is why value and unit are split.
+function formatRateValue(bps) {
+    var v = scaleRate(bps).value;
+    return v < 100 ? v.toFixed(1) : String(Math.round(v));
+}
+
+// The auto-picked unit string for `bps` (B/s … GB/s).
+function formatRateUnit(bps) {
+    return scaleRate(bps).unit;
+}
+
+// Full "{n} {unit}/s" string (e.g. for a tooltip), unit auto-picked.
 function formatRate(bps) {
-    return formatRateValue(bps) + " MB/s";
+    return formatRateValue(bps) + " " + formatRateUnit(bps);
 }
 
 if (typeof module !== "undefined" && module.exports) {
@@ -114,7 +136,9 @@ if (typeof module !== "undefined" && module.exports) {
         combinedRate: combinedRate,
         updatePeak: updatePeak,
         rateToPercent: rateToPercent,
+        scaleRate: scaleRate,
         formatRateValue: formatRateValue,
+        formatRateUnit: formatRateUnit,
         formatRate: formatRate
     };
 }

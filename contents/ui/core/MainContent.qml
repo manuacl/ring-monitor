@@ -255,7 +255,7 @@ GridLayout {
             }
             unit: {
                 if (_isDiskIo)
-                    return "MB/s";
+                    return _io ? DiskIo.formatRateUnit(_diskIoSplit ? _io.readBps : _io.combinedBps) : "B/s";
                 return _isTemp && _tempInfo ? _tempInfo.unit : "%";
             }
             nestedValues: modelData === "cpu" && content.configStore.showCpuCores ? content.metrics.coreValues : []
@@ -281,7 +281,7 @@ GridLayout {
             splitRawValue: !content.metrics.loading && _splitOn && _tempInfo ? _tempInfo.value : 0
             splitUnit: {
                 if (_diskIoSplit)
-                    return "MB/s";
+                    return _io ? DiskIo.formatRateUnit(_io.writeBps) : "B/s";
                 return _splitOn && _tempInfo ? _tempInfo.unit : "";
             }
             // Preformatted MB/s centre labels for the diskIo ring (empty for
@@ -298,6 +298,9 @@ GridLayout {
             // diskIo renders "MB/s" small + tight (unitSmall); the number is the
             // override above. Other rings keep their full-size unit.
             unitSmall: ringDelegate._isDiskIo
+            // diskIo split readouts are too wide for one line → stack them
+            // diagonally (read up-left, write down-right). Temp split stays flat.
+            splitStacked: ringDelegate._diskIoSplit
             // Shared color for every ring; disk partitions with a custom
             // color override it per-ring via equalColors above.
             ringColor: content._ringColor

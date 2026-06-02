@@ -254,3 +254,28 @@ test('equalRingLayout: at the 6-ring cap + min ringSize, innermost radius stays 
     const out = Geom.equalRingLayout(36, 4, 2, Geom.DISK_MAX_RING_COUNT);
     assert.ok(out.radii[out.radii.length - 1] > 0, `innermost radius must be >0, got ${out.radii[out.radii.length - 1]}`);
 });
+
+// ── splitReadoutOffset (disk-I/O #77) ─────────────────────────────────
+test('splitReadoutOffset: no split → no offset', () => {
+    assert.deepEqual(Geom.splitReadoutOffset(-1, false, false, 180, 30), { x: 0, y: 0 });
+    assert.deepEqual(Geom.splitReadoutOffset(1, false, true, 180, 30), { x: 0, y: 0 });
+});
+
+test('splitReadoutOffset: flat split (temperature) is horizontal only, ±18% of size', () => {
+    assert.deepEqual(Geom.splitReadoutOffset(-1, true, false, 180, 30), { x: -32, y: 0 });
+    assert.deepEqual(Geom.splitReadoutOffset(1, true, false, 180, 30), { x: 32, y: 0 });
+});
+
+test('splitReadoutOffset: stacked split (diskIo) goes diagonal — read up-left, write down-right', () => {
+    const read = Geom.splitReadoutOffset(-1, true, true, 180, 30);
+    const write = Geom.splitReadoutOffset(1, true, true, 180, 30);
+    // read negative both axes (up + left), write positive (down + right).
+    assert.ok(read.x < 0 && read.y < 0, `read should be up-left, got ${JSON.stringify(read)}`);
+    assert.ok(write.x > 0 && write.y > 0, `write should be down-right, got ${JSON.stringify(write)}`);
+    // symmetric about centre.
+    assert.equal(read.x, -write.x);
+    assert.equal(read.y, -write.y);
+    // scales off valuePx (0.35× horizontal, 0.45× vertical), not size.
+    assert.equal(write.x, Math.round(30 * 0.35));
+    assert.equal(write.y, Math.round(30 * 0.45));
+});

@@ -442,6 +442,43 @@ subset in display order is done with `MetricsCatalog.filterByOrder`
 
 Covered by `tests/disk-metrics.test.mjs` (+ `tests/disk-colors.test.mjs` for the color-map + `pruneMap` layer). The color map lives here, not in a separate `DiskColors.js`, because the dual-load convention (Node `--test` + QML) forbids a `.js` importing a sibling `.js` — so sharing the `parseUuidMap`/`serializeUuidMap` plumbing requires living in the same file (same reason `parseCsv` is duplicated rather than imported).
 
+## `DiskTooltipModel.js`
+
+Shared (`core/`) presentational logic for the disk-ring **hover tooltip**
+(issue #68). Both platform backends expose the same per-partition detail
+object; the view (`DiskTooltip.qml`) stays thin, repeating over
+`buildRows()`'s output. All formatting + composition lives here so it's
+tested once.
+
+The `partitionDetail(id)` contract each backend satisfies (one object):
+`{ id, label, mountpoint, fstype, usedPercent, totalBytes, freeBytes,
+removable }`. `usedPercent` is the **same number the ring is drawn from**
+(ksysguard `usedPercent` on Plasma, the `df` formula on standalone — the
+documented per-platform divergence), never recomputed from the bytes, so
+the tooltip can't disagree with the gauge. `totalBytes`/`freeBytes` are
+`0`/absent until the source resolves → the byte figures degrade to
+percent-only.
+
+`freeBytes` is **what the user can actually write** (statvfs `f_bavail` / df
+"Avail"), the file-manager convention. `buildRows` derives `used = total -
+free` (so `used + free = total` always holds), which means an ext4 root's
+reserved blocks (~5%, root-only) count as *used* in the byte figures while
+`usedPercent` follows the `df` formula that **excludes** the reservation — so on
+a reserved-block filesystem the used/total ratio can read a few % above the
+displayed `%`. The `%` stays authoritative (it's the ring's number); the byte
+figures are illustrative. btrfs (no classic reservation) shows no gap.
+
+| Function | Purpose |
+|---|---|
+| `formatSize(bytes)` | IEC binary size string (`56 GiB`, `1.5 TiB`, `512 B`), `df -h` style — one decimal below 10, integer above, promote at the rounding boundary (`1023.7 GiB` → `1.0 TiB`). NaN / negative coerce to `0 B`. Capacity is binary (Dolphin convention), deliberately NOT the SI 10³ steps `DiskIoScale` uses for I/O *rate*. |
+| `composeUsage(usedPercent, usedBytes, totalBytes)` | `12% — 56 GiB / 466 GiB`, or just `12%` when `totalBytes ≤ 0` (bytes source not yet resolved). `%` is rounded, taken as-is from the ring's value. |
+| `composeFree(freeBytes, totalBytes)` | `120 GiB free`, empty when `totalBytes ≤ 0` (so the view hides the line rather than show a misleading `0 B free`). |
+| `subLabel(mountpoint, fstype)` | `/ · btrfs`; one alone when the other is missing; `""` when both are. The dimmed second line disambiguating same-labelled volumes. |
+| `iconFor(removable)` | Freedesktop icon name — `drive-removable-media` for an auto-shown removable, `drive-harddisk` for a fixed disk. |
+| `buildRows(details)` | Maps the `partitionDetail[]` (ring order, outermost first) to the view's row model `[{ id, label, subLabel, usageText, freeText, iconName, removable }]`; derives `used = total − free` (clamped at 0). Non-array → `[]`. |
+
+Covered by `tests/disk-tooltip-model.test.mjs`.
+
 ## `WindowPlacement.js`
 
 Standalone-only placement math for the root window (in

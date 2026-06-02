@@ -197,11 +197,11 @@ Item {
         if (mount) {
             reader.requestStatvfs(mount);
             var disk = reader.cachedStatvfs(mount);
-            var avail = disk.available !== undefined ? disk.available : disk.free;
+            // freeBytes = available (df "Avail"); cachedStatvfs sets all 3 or {}.
             stats = {
                 "usedPercent": MemInfoParser.diskUsagePercent(disk.total, disk.free, disk.available),
                 "totalBytes": disk.total || 0,
-                "freeBytes": avail || 0
+                "freeBytes": disk.available || 0
             };
         }
         return DiskMetrics.buildPartitionDetail(id, backend._partForId[id], stats);

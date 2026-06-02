@@ -36,7 +36,11 @@ Item {
         model: diskSensors.partitions
         // Three ksysguard leaves per filesystem: usedPercent (the ring value) +
         // total / free bytes (the #68 tooltip figures). `enabled` stays default —
-        // the daemon only pushes a subscribed sensor.
+        // the daemon only pushes a subscribed sensor. TODO(#68 PR3): the
+        // total/free leaves are only read on tooltip hover; once the tooltip
+        // drives an `active` gate (like ProcessSampler), bind their `enabled` to
+        // it so they're unsubscribed while no tooltip is shown. usedPercent stays
+        // always-on (the ring needs it every tick).
         delegate: Item {
             required property var modelData
             readonly property string partId: modelData.id
@@ -80,9 +84,11 @@ Item {
         return null;
     }
 
-    function partitionValue(id) {
-        diskSensors._tick;
-        var d = _delegateFor(id);
+    // usedPercent from an already-resolved delegate (avoids a second
+    // _delegateFor scan when partitionDetail already has it): the live sensor
+    // value when Ready, else the last-good cache so a Sensor rebuild doesn't
+    // blink the ring to 0%.
+    function _usedPercent(d, id) {
         if (d) {
             var v = _num(d.used, NaN);
             if (!isNaN(v)) {
@@ -91,6 +97,11 @@ Item {
             }
         }
         return diskSensors._lastValue[id] || 0;
+    }
+
+    function partitionValue(id) {
+        diskSensors._tick;
+        return _usedPercent(_delegateFor(id), id);
     }
 
     function partitionDetail(id) {
@@ -111,9 +122,9 @@ Item {
                 fstype = ms[j].fstype;
                 break;
             }
-        var d = _delegateFor(id);
+        var d = _delegateFor(id);   // single scan: usedPercent + total + free
         var stats = {
-            "usedPercent": partitionValue(id),
+            "usedPercent": _usedPercent(d, id),
             "totalBytes": d ? _num(d.total, 0) : 0,
             "freeBytes": d ? _num(d.free, 0) : 0
         };

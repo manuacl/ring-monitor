@@ -253,7 +253,10 @@ bypassed, but the key persists; useful for debugging).
   plasmashell drops QML debug-level messages, so `console.log(...)`
   produces nothing in `journalctl --user`; `console.warn(...)` shows.
   Reach for `console.warn` when instrumenting a widget QML file you'll
-  observe via the journal.
+  observe via the journal. **A standalone `qml-qt6` probe (the way to
+  spot-check a ksysguard sensor live — e.g. confirming `disk/all/read`
+  resolves and reports bytes/s under load) filters even `console.warn`;
+  use `console.error` there** and read it back with `journalctl --user`.
 - **`plasma5support` `DataSource` (engine `"executable"`) runs commands
   with the session `PATH`.** So invoke tools by bare name (`findmnt`), not
   an absolute path — see the no-absolute-path rule in the root

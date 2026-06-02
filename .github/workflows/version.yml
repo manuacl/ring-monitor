@@ -1,8 +1,9 @@
 name: Bump version
 
 # Triggers on push to main (= a PR has just been merged). Reads the
-# merged PR's bump:<level> label, bumps metadata.json's KPlugin.Version
-# accordingly, commits the change and creates the matching git tag.
+# merged PR's bump:<level> label, bumps metadata.json's KPlugin.Version,
+# promotes the CHANGELOG (## [Unreleased] → ## [X.Y.Z] — DATE), commits
+# both, and creates the matching git tag.
 #
 # No label = no bump: the workflow exits cleanly without touching
 # anything.
@@ -99,6 +100,32 @@ jobs:
           # Strip jq's trailing newline → match the file's original style
           # (already 4-space indented, ends without a trailing blank line).
 
+      # Promote the CHANGELOG: turn `## [Unreleased]` into a dated
+      # `## [X.Y.Z]` section and leave a fresh empty `## [Unreleased]`
+      # above it. This used to be a manual step that was repeatedly
+      # forgotten — releases shipped with their notes stranded under
+      # [Unreleased], so release.yml's per-version extraction found
+      # nothing and the GitHub Release body came out empty. The CHANGELOG
+      # header carries the CLEAN X.Y.Z (no scope suffix — that's tag-only).
+      - name: Promote CHANGELOG [Unreleased] → [X.Y.Z]
+        if: steps.check.outputs.skip == 'false' && steps.bump.outputs.type != 'none'
+        env:
+          NEW_VERSION: ${{ steps.version.outputs.new }}
+        run: |
+          DATE=$(date -u +%Y-%m-%d)
+          # Guard: only promote if [Unreleased] actually has content
+          # (a `### ` heading before the next `## [` version section).
+          BODY=$(awk '/^## \[Unreleased\]/{f=1;next} /^## \[/{f=0} f' CHANGELOG.md)
+          if ! printf '%s\n' "$BODY" | grep -q '^### '; then
+            echo "::warning::[Unreleased] is empty — no CHANGELOG section promoted for $NEW_VERSION"
+            exit 0
+          fi
+          # Replace the FIRST `## [Unreleased]` line with itself + the new
+          # dated header (GNU sed first-match form; the original blank line
+          # after [Unreleased] becomes the separator before ### Added).
+          sed -i "0,/^## \[Unreleased\]$/s//## [Unreleased]\n\n## [$NEW_VERSION] — $DATE/" CHANGELOG.md
+          echo "Promoted [Unreleased] → [$NEW_VERSION] — $DATE"
+
       # Platform scope of this release (issue #89): suffix the tag with
       # -p / -s / nothing so the in-widget update check notifies only the
       # platform(s) the release actually changed. metadata.json stays a
@@ -139,7 +166,7 @@ jobs:
           # metadata.json keeps the clean X.Y.Z; the tag carries the scope
           # suffix (release.yml strips it back off to match metadata).
           TAG="v${NEW_VERSION}${SCOPE_SUFFIX}"
-          git add metadata.json
+          git add metadata.json CHANGELOG.md
           git commit -m "chore: bump version to $NEW_VERSION ($BUMP_TYPE)"
           git tag -a "$TAG" -m "Release $TAG"
           git push origin HEAD:main --no-verify

@@ -12,6 +12,18 @@ user-facing only.
 
 ## [Unreleased]
 
+### Other
+
+- ci(release): `version.yml` now **promotes the CHANGELOG automatically** on
+  every bump — `## [Unreleased]` → `## [X.Y.Z] — DATE` with a fresh empty
+  `[Unreleased]` above — committed alongside the `metadata.json` bump. This was
+  a manual step that kept getting forgotten, so releases shipped with their
+  notes stranded under `[Unreleased]` and the GitHub Release body (which
+  `release.yml` extracts per-version) came out empty. Also backfills the
+  `[0.11.0]` and `[0.10.0]` sections that were missed this way.
+
+## [0.11.0] — 2026-06-02
+
 ### Added
 
 - **Disk I/O ring** — a new ring showing live disk **read/write throughput**
@@ -26,28 +38,12 @@ user-facing only.
   longer labels don't crowd. Works on both the Plasma widget and the standalone
   build (#77).
 
-- Standalone: a **"Show in application menu"** toggle in Settings → About.
-  A downloaded AppImage normally appears in no application launcher, and on
-  XFCE / Thunar a double-click does nothing; ticking the box registers a
-  launcher entry (under `~/.local/share/applications/`) so Ring Monitor shows
-  up in your menu — no root, no system-wide change, untick to remove. The
-  *first* launch still needs the executable bit set (`chmod +x`, or
-  Properties → Permissions in your file manager), since a browser download
-  strips it (#101 / #102).
-
 ### Fixed
 
 - Enabling a metric that was introduced in a newer version (e.g. the new Disk
   I/O ring, or the CPU/GPU temperature rings on an older config) now shows its
   ring immediately — previously a metric absent from your saved ring order
   stayed hidden until you drag-reordered the list once (#77).
-
-- Standalone AppImage no longer crashes at launch on a Wayland session
-  (KWin Plasma 6 and other wlr-layer-shell compositors). A missing Qt
-  graphics plugin left the window with no GPU surface, so the app aborted
-  the moment it tried to draw; the plugin is now bundled. Affected every
-  Wayland user of the AppImage regardless of GPU — workaround was launching
-  with `QT_QPA_PLATFORM=xcb` (#110).
 
 ### Technical
 
@@ -129,6 +125,40 @@ user-facing only.
   are pure, Node-tested (`disk-io-scale`, `disk-stats-parser`), and added to
   the standalone `QML_FILES` manifest.
 
+### Other
+
+- docs(standalone): correct the `MemInfoParser._clampPercent` comment — it
+  wrongly suggested extracting a shared `Numeric.js` once a 3rd module needed the
+  `[0,100]` clamp. That's not extractable here: QML `.import` of a `.js` needs
+  `.pragma library`, and both are Node-`require` syntax errors, so a shared
+  module couldn't be Node-tested and every consumer's test would break. The
+  duplication is the accepted dual-load trade-off (like `ProcParser.sumJiffies`);
+  comment now says don't re-attempt. No code change.
+
+## [0.10.0] — 2026-06-02
+
+### Added
+
+- Standalone: a **"Show in application menu"** toggle in Settings → About.
+  A downloaded AppImage normally appears in no application launcher, and on
+  XFCE / Thunar a double-click does nothing; ticking the box registers a
+  launcher entry (under `~/.local/share/applications/`) so Ring Monitor shows
+  up in your menu — no root, no system-wide change, untick to remove. The
+  *first* launch still needs the executable bit set (`chmod +x`, or
+  Properties → Permissions in your file manager), since a browser download
+  strips it (#101 / #102).
+
+### Fixed
+
+- Standalone AppImage no longer crashes at launch on a Wayland session
+  (KWin Plasma 6 and other wlr-layer-shell compositors). A missing Qt
+  graphics plugin left the window with no GPU surface, so the app aborted
+  the moment it tried to draw; the plugin is now bundled. Affected every
+  Wayland user of the AppImage regardless of GPU — workaround was launching
+  with `QT_QPA_PLATFORM=xcb` (#110).
+
+### Technical
+
 - feat(standalone): add a "Show in application menu" toggle in Settings →
   About (issues #101/#102). A downloaded AppImage shows up in no launcher,
   and on XFCE/Thunar a double-click does nothing (no default handler for
@@ -167,14 +197,6 @@ user-facing only.
   `QT_QPA_PLATFORM=xcb` never exercised this path, which is why it shipped.
 
 ### Other
-
-- docs(standalone): correct the `MemInfoParser._clampPercent` comment — it
-  wrongly suggested extracting a shared `Numeric.js` once a 3rd module needed the
-  `[0,100]` clamp. That's not extractable here: QML `.import` of a `.js` needs
-  `.pragma library`, and both are Node-`require` syntax errors, so a shared
-  module couldn't be Node-tested and every consumer's test would break. The
-  duplication is the accepted dual-load trade-off (like `ProcParser.sumJiffies`);
-  comment now says don't re-attempt. No code change.
 
 - docs(repo-stats): teach the `repo-stats` skill to pull KDE Store download
   counts (OCS `loadFiles` per-file totals incl. archived versions) — the

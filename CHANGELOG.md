@@ -34,6 +34,18 @@ user-facing only.
 
 ### Technical
 
+- feat(disk-io): pure scaling + parsing logic for the upcoming disk-I/O
+  throughput ring (issue #77, first of a multi-PR sequence; no wiring yet).
+  `core/DiskIoScale.js` maps an unbounded byte/s rate onto the 0-100% arc via
+  an auto-scaling rolling peak (decay + floor so a one-off burst doesn't pin
+  the ceiling and idle noise doesn't saturate the ring), combines read+write,
+  and formats MB/s for the label — shared by both backends, so it's written
+  once. `platforms/standalone/DiskStatsParser.js` turns `/proc/diskstats`
+  sector counters into byte/s deltas, aggregating WHOLE physical disks only
+  (drops partitions + virtual/stacked devices to avoid double-counting). Both
+  are pure, Node-tested (`disk-io-scale`, `disk-stats-parser`), and added to
+  the standalone `QML_FILES` manifest.
+
 - feat(standalone): add a "Show in application menu" toggle in Settings →
   About (issues #101/#102). A downloaded AppImage shows up in no launcher,
   and on XFCE/Thunar a double-click does nothing (no default handler for

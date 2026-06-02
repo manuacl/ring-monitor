@@ -121,6 +121,28 @@ canonical signal that a pure-math helper wants to exist. Putting it in a
 testable file means changes to "how big should the label be at size 40"
 are testable without launching Plasma.
 
+## `DiskIoScale.js`
+
+Scaling + formatting for the disk-I/O throughput ring (issue #77).
+Disk throughput has no fixed ceiling, so unlike a usage % it can't map
+linearly onto the 0-100% arc. This module implements the **auto-scaling
+rolling peak** chosen for #77: each sample updates a decaying per-ring
+peak and the arc fills to `rate / peak`, while the numeric label always
+shows the real MB/s — the same `Ring.value` vs `rawValue` decoupling the
+temperature ring uses (`tempToPercent`). Shared by both backends (Plasma
+gets byte/s rates from ksysguard's `disk/all/{read,write}` sensors,
+standalone from `DiskStatsParser`), so the peak/combine/format logic is
+written once here.
+
+| Function | Purpose |
+|---|---|
+| `combinedRate(readBps, writeBps)` | Read + write sum (the default "combined" ring). Negative / NaN halves coerce to 0 so one unread sensor never poisons the sum. |
+| `updatePeak(prevPeak, rateBps)` | New ceiling for this tick: `max(rate, prevPeak * PEAK_DECAY, PEAK_FLOOR_BPS)`. Rises immediately to a faster live rate; decays ~2 %/tick while idle so a one-off burst doesn't pin the gauge near-empty for the session (the documented "meaning drifts" trade-off). The floor (10 MB/s) avoids a divide-by-zero and stops idle noise from filling the arc. |
+| `rateToPercent(rateBps, peakBps)` | `rate / peak`, clamped to `[0, 100]`; non-finite / non-positive peak → 0. Drives the sweep only. |
+| `formatRate(bps)` | `"{n} MB/s"` for the centre label — one decimal below 100 MB/s, none above. Always MB/s (10⁶ B, the `iostat`/`dstat` convention) so the label width stays stable across the value animation instead of flipping KB/MB/GB mid-sweep. |
+
+Covered by `tests/disk-io-scale.test.mjs`.
+
 ## `UpdateCheck.js`
 
 Pure semver math + cache-TTL gating for the in-widget "update
@@ -260,6 +282,23 @@ percentages from the difference between two samples.
 
 Covered by `tests/proc-stat-parser.test.mjs` (a `.js` keeps its test
 wherever it lives — the test stays under `tests/`).
+
+## `DiskStatsParser.js`
+
+Lives in `contents/ui/platforms/standalone/` — **standalone-only** (the
+Plasma build gets disk throughput from ksysguard's `disk/all/{read,write}`
+sensors, never from `/proc/diskstats`). Pure parse + delta math for the
+disk-I/O ring (issue #77): the standalone `MetricsBackend.qml` reads
+`/proc/diskstats` via `ProcReader`, hands the raw text here, and gets
+byte/s rates that feed the shared `core/DiskIoScale.js` peak-scaling.
+
+| Function | Purpose |
+|---|---|
+| `parseDiskStats(content)` | Raw `/proc/diskstats` → `{ name: {readSectors, writeSectors} }`. Reads only the two sector counters (3rd + 7th post-name fields); skips lines too short to carry them. Defensive against null / empty input (`{}`). |
+| `aggregateWholeDisks(map)` | Sums sector counters across **whole physical disks only** — drops partitions (`sda1`, `nvme0n1p2`, `mmcblk0p1`: their de-suffixed base names a present device), eMMC hardware areas (`mmcblk0boot0`/`boot1`/`rpmb`), and the numbered virtual / stacked device families (`loop`/`ram`/`zram`/`dm-`/`md`/`sr`/`fd`, each anchored on a trailing digit). Summing a disk *and* its sub-devices would multiply the throughput. |
+| `ratesFromSamples(prev, cur, intervalSec)` | `{readBps, writeBps}` = sector delta × 512 B / elapsed. A negative delta (counter reset on re-enumeration / hotplug) clamps to 0 rather than flashing a huge spurious rate; non-positive interval → 0. |
+
+Covered by `tests/disk-stats-parser.test.mjs`.
 
 ## `ProcParser.js`
 

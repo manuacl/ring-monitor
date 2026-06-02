@@ -472,7 +472,7 @@ figures are illustrative. btrfs (no classic reservation) shows no gap.
 | Function | Purpose |
 |---|---|
 | `formatSize(bytes)` | IEC binary size string (`56 GiB`, `1.5 TiB`, `512 B`), `df -h` style — one decimal below 10, integer above, promote at the rounding boundary (`1023.7 GiB` → `1.0 TiB`). NaN / negative coerce to `0 B`. Capacity is binary (Dolphin convention), deliberately NOT the SI 10³ steps `DiskIoScale` uses for I/O *rate*. |
-| `composeUsage(usedPercent, usedBytes, totalBytes)` | `12% — 56 GiB / 466 GiB`, or just `12%` when `totalBytes ≤ 0` (bytes source not yet resolved). `%` is rounded, taken as-is from the ring's value. |
+| `composeUsage(usedPercent, usedBytes, totalBytes)` | `12% · 56 GiB / 466 GiB`, or just `12%` when `totalBytes ≤ 0` (bytes source not yet resolved). `%` is rounded, taken as-is from the ring's value. |
 | `composeFree(freeBytes, totalBytes)` | `120 GiB free`, empty when `totalBytes ≤ 0` (so the view hides the line rather than show a misleading `0 B free`). |
 | `subLabel(mountpoint, fstype)` | `/ · btrfs`; one alone when the other is missing; `""` when both are. The dimmed second line disambiguating same-labelled volumes. |
 | `iconFor(removable)` | Freedesktop icon name — `drive-removable-media` for an auto-shown removable, `drive-harddisk` for a fixed disk. |

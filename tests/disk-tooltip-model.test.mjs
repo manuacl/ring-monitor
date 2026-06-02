@@ -56,12 +56,12 @@ test("formatSize: NaN / negative / undefined coerce to 0 B", () => {
 // ── composeUsage ────────────────────────────────────────────────────
 
 test("composeUsage: full line with rounded % and both figures", () => {
-    assert.equal(M.composeUsage(12, 56 * GiB, 466 * GiB), "12% — 56 GiB / 466 GiB");
+    assert.equal(M.composeUsage(12, 56 * GiB, 466 * GiB), "12% · 56 GiB / 466 GiB");
 });
 
 test("composeUsage: % rounds; reads the ring's value, not recomputed", () => {
     // usedPercent is taken as-is (the gauge's number), independent of bytes.
-    assert.equal(M.composeUsage(12.6, 56 * GiB, 466 * GiB), "13% — 56 GiB / 466 GiB");
+    assert.equal(M.composeUsage(12.6, 56 * GiB, 466 * GiB), "13% · 56 GiB / 466 GiB");
 });
 
 test("composeUsage: total unknown → just the percent", () => {
@@ -123,7 +123,7 @@ test("buildRows: maps a detail to the presentational row", () => {
         id: "uuid-1",
         label: "root",
         subLabel: "/ · btrfs",
-        usageText: "12% — 56 GiB / 466 GiB",
+        usageText: "12% · 56 GiB / 466 GiB",
         freeText: "410 GiB free",
         iconName: "drive-harddisk",
         removable: false
@@ -133,7 +133,7 @@ test("buildRows: maps a detail to the presentational row", () => {
 test("buildRows: derives used = total - free, clamped at 0", () => {
     // free > total (transient inconsistency between sources) → used floors to 0.
     const rows = M.buildRows([{ totalBytes: 100 * GiB, freeBytes: 120 * GiB, usedPercent: 0 }]);
-    assert.equal(rows[0].usageText, "0% — 0 B / 100 GiB");
+    assert.equal(rows[0].usageText, "0% · 0 B / 100 GiB");
 });
 
 test("buildRows: removable → removable icon", () => {
@@ -177,5 +177,5 @@ test("composeFree: free > total is shown as-is (transient source skew, not clamp
 });
 
 test("composeUsage: used > total passes through (clamping is buildRows' job, not this layer's)", () => {
-    assert.equal(M.composeUsage(25, 150 * GiB, 100 * GiB), "25% — 150 GiB / 100 GiB");
+    assert.equal(M.composeUsage(25, 150 * GiB, 100 * GiB), "25% · 150 GiB / 100 GiB");
 });

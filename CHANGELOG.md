@@ -12,6 +12,13 @@ user-facing only.
 
 ## [Unreleased]
 
+### Technical
+
+- style(disk): the disk-ring tooltip usage line now separates the percentage
+  from the size figures with a middle dot (`12% · 56 GiB / 466 GiB`) instead of
+  an em dash, matching the `mountpoint · fstype` sub-line's separator. Single
+  `composeUsage` glyph swap in `core/DiskTooltipModel.js`; tests + docs updated.
+
 ## [0.12.0] — 2026-06-02
 
 ### Added

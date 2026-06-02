@@ -86,7 +86,7 @@ Item {
             compare(tip._rows.length, 1);
             compare(tip._rows[0].label, "root");
             compare(tip._rows[0].subLabel, "/ · ext4");
-            compare(tip._rows[0].usageText, "12% — 56 GiB / 466 GiB");
+            compare(tip._rows[0].usageText, "12% · 56 GiB / 466 GiB");
             compare(tip._rows[0].iconName, "drive-harddisk");
         }
     }

@@ -40,7 +40,17 @@ GridLayout {
     // the user asked to merge them into the cpu / gpu ring AND both
     // sides are enabled (a merge with nothing to merge into stays a
     // standalone temperature ring).
-    readonly property var _rawEnabledList: Catalog.filterByOrder(Catalog.parseCsv(content.configStore.enabledMetrics), Catalog.parseCsv(content.configStore.metricOrder))
+    //
+    // mergeWithCatalog the order before filtering: filterByOrder only keeps
+    // enabled ids that appear in `metricOrder`, so a catalog metric missing
+    // from the persisted order (a fresh metric an upgrading user hasn't
+    // drag-reordered yet, or a host whose default order predates it) would be
+    // enabled-but-never-rendered. Merging appends any missing catalog id (in
+    // canonical order) so enabling it always shows the ring — same merge the
+    // config picker applies in MetricsBody.loadOrder. Idempotent when the
+    // order is already complete. (diskIo, #77, was the first opt-in metric to
+    // expose this.)
+    readonly property var _rawEnabledList: Catalog.filterByOrder(Catalog.parseCsv(content.configStore.enabledMetrics), Catalog.mergeWithCatalog(Catalog.parseCsv(content.configStore.metricOrder)))
     // Drop metrics with no live data source, but only after warm-up
     // (`loading` keeps the full strip during the 100% sweep), and BEFORE
     // applyMergedTempMode so split-mode never engages on an unavailable temp
@@ -225,8 +235,11 @@ GridLayout {
                     return Catalog.tempToPercent(_rawTempC);
                 // diskIo arc: left/read half in split mode, else the combined
                 // sweep. The right/write half is splitValue below.
-                if (_isDiskIo)
-                    return _io ? (_diskIoSplit ? _io.readPercent : _io.combinedPercent) : 0;
+                if (_isDiskIo) {
+                    if (!_io)
+                        return 0;
+                    return _diskIoSplit ? _io.readPercent : _io.combinedPercent;
+                }
                 return content.metrics.metricValue(modelData);
             }
             // Centre text: disk equal mode shows the partition average; temp

@@ -127,6 +127,18 @@ Item {
             tryCompare(metricsStub, "diskIoSamplingActive", false);
         }
 
+        // SCENARIO (#77): an upgrading user's persisted metricOrder predates
+        // diskIo (and the loadOrder merge only updates the picker, not the
+        // persisted order until a drag). filterByOrder must still surface an
+        // enabled id missing from the order — MainContent mergeWithCatalogs the
+        // order before filtering, so enabling diskIo renders the ring without a
+        // manual reorder. Without the merge the gate would stay false here.
+        function test_diskIo_renders_when_enabled_but_absent_from_metricOrder() {
+            configStub.metricOrder = "cpu,ram";          // stale (pre-diskIo)
+            configStub.enabledMetrics = "cpu,ram,diskIo";
+            tryCompare(metricsStub, "diskIoSamplingActive", true);
+        }
+
         // QQuickLayout reflows its implicit dimensions on a deferred
         // polish pass, so the implicit isn't always settled by the
         // time the synchronous bindings have updated. tryCompare

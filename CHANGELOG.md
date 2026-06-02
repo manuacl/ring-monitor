@@ -34,6 +34,11 @@ user-facing only.
 
 ### Fixed
 
+- Enabling a metric that was introduced in a newer version (e.g. the new Disk
+  I/O ring, or the CPU/GPU temperature rings on an older config) now shows its
+  ring immediately — previously a metric absent from your saved ring order
+  stayed hidden until you drag-reordered the list once (#77).
+
 - Standalone AppImage no longer crashes at launch on a Wayland session
   (KWin Plasma 6 and other wlr-layer-shell compositors). A missing Qt
   graphics plugin left the window with no GPU surface, so the app aborted
@@ -56,7 +61,13 @@ user-facing only.
   string the `Math.round(rawValue)+unit` path can't express for an MB/s rate).
   A content-scope `Binding` drives `diskIoSamplingActive` from whether the ring
   is enabled, so the backend only polls while it's on screen. The split toggle
-  is a `MetricsBody` `extraContent` checkbox on the diskIo row. Covered by
+  is a `MetricsBody` `extraContent` checkbox on the diskIo row. `MainContent`'s
+  enabled-list derivation now `mergeWithCatalog`s `metricOrder` before
+  `filterByOrder`, so an enabled catalog id missing from a stale persisted order
+  (upgraders, or a host default predating the metric) still renders without a
+  manual drag — a latent gap diskIo was the first opt-in metric to expose; the
+  standalone `metricOrder` default also gains `diskIo` to mirror `main.xml`.
+  Covered by
   `metrics-catalog` (id + `isRateMetric`), `tst_Ring` (the override props),
   `tst_MainContent` (the sampling gate), and `tst_MetricsBody` (catalog count).
 

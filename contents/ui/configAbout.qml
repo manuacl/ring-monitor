@@ -45,6 +45,8 @@ KCM.SimpleKCM {
     property var cfg_mergeCpuTempDefault
     property var cfg_mergeGpuTemp
     property var cfg_mergeGpuTempDefault
+    property var cfg_splitDiskIo
+    property var cfg_splitDiskIoDefault
     property var cfg_tempUnit
     property var cfg_tempUnitDefault
     property var cfg_orientation

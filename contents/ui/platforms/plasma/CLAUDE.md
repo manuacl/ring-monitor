@@ -194,7 +194,7 @@ different value (or the standalone build never reads it):
 2. `platforms/plasma/ConfigStore.qml` — `readonly property X: Plasmoid.configuration.X`.
 3. `platforms/standalone/ConfigStore.qml` — `property X: <default>` (mirror the default byte-for-byte).
 4. `configMetrics.qml` (or the owning page) — `property alias cfg_X: body.X` + the `cfg_XDefault` placeholder.
-5. `configAppearance.qml` (and any other page) — `cfg_X` + `cfg_XDefault` 484541 placeholders.
+5. `configAppearance.qml` **and `configAbout.qml`** (every *other* page than the one handling the key) — `cfg_X` + `cfg_XDefault` 484541 placeholders. Missing one only shows as a journal warning at runtime (the dialog still loads), so it slips past the headless tests — `configAbout` is the easy miss (caught live in #77).
 6. `platforms/standalone/SettingsDialog.qml` — a `_bridgeMap` entry `[body, "X", "X"]` (+ the pair in `standalone-settings-dialog.test.mjs`).
 
 The `config-store` / `standalone-config-store` / `standalone-settings-dialog`

@@ -18,7 +18,7 @@
 
 // Canonical metric order. Temperature variants sit next to their
 // usage counterpart so fresh installs see related rings adjacent.
-var METRIC_IDS = ["cpu", "cpuTemp", "ram", "swap", "gpu", "gpuTemp", "disk"];
+var METRIC_IDS = ["cpu", "cpuTemp", "ram", "swap", "gpu", "gpuTemp", "disk", "diskIo"];
 
 var METRIC_LABELS = {
     cpu: "CPU",
@@ -28,6 +28,7 @@ var METRIC_LABELS = {
     gpu: "GPU",
     gpuTemp: "GPU T",
     disk: "DISKS",
+    diskIo: "DISK IO",
 };
 
 // METRIC_SENSOR_IDS maps the catalog id to its ksysguard sensor. For
@@ -51,6 +52,16 @@ var TEMP_METRIC_IDS = { cpuTemp: true, gpuTemp: true };
 
 function isTempMetric(id) {
     return TEMP_METRIC_IDS[id] === true;
+}
+
+// Metric ids whose value is an unbounded byte/s rate, not a 0-100 percent.
+// The backend exposes them via the `diskIo` property (per-component byte/s +
+// arc %), NOT through metricValue/the sensor map — MainContent special-cases
+// them like the disk multi-partition ring. Parallel to TEMP_METRIC_IDS.
+var RATE_METRIC_IDS = { diskIo: true };
+
+function isRateMetric(id) {
+    return RATE_METRIC_IDS[id] === true;
 }
 
 // Optional temperature sensors per metric. ksysguard exposes
@@ -312,6 +323,8 @@ if (typeof module !== "undefined" && module.exports) {
         METRIC_TEMP_SENSOR_IDS: METRIC_TEMP_SENSOR_IDS,
         TEMP_METRIC_IDS: TEMP_METRIC_IDS,
         isTempMetric: isTempMetric,
+        RATE_METRIC_IDS: RATE_METRIC_IDS,
+        isRateMetric: isRateMetric,
         mergeWithCatalog: mergeWithCatalog,
         applyMergedTempMode: applyMergedTempMode,
         classifyDiscoveredIds: classifyDiscoveredIds,

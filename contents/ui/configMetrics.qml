@@ -29,6 +29,7 @@ KCM.SimpleKCM {
     property alias cfg_showCpuCores: body.showCpuCores
     property alias cfg_mergeCpuTemp: body.mergeCpuTemp
     property alias cfg_mergeGpuTemp: body.mergeGpuTemp
+    property alias cfg_splitDiskIo: body.splitDiskIo
     property alias cfg_tempUnit: body.tempUnit
 
     // KDE bug 484541 placeholders — keys handled on the Appearance page
@@ -76,6 +77,7 @@ KCM.SimpleKCM {
     property var cfg_showCpuCoresDefault
     property var cfg_mergeCpuTempDefault
     property var cfg_mergeGpuTempDefault
+    property var cfg_splitDiskIoDefault
     // Update-check keys (handled on the About page via UpdateChecker).
     property var cfg_checkForUpdatesEnabled
     property var cfg_checkForUpdatesEnabledDefault

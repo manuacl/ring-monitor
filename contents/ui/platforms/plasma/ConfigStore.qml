@@ -36,6 +36,7 @@ Item {
     readonly property bool showCpuCores: Plasmoid.configuration.showCpuCores
     readonly property bool mergeCpuTemp: Plasmoid.configuration.mergeCpuTemp
     readonly property bool mergeGpuTemp: Plasmoid.configuration.mergeGpuTemp
+    readonly property bool splitDiskIo: Plasmoid.configuration.splitDiskIo
 
     // ── Appearance group ────────────────────────────────────────────
     readonly property string orientation: Plasmoid.configuration.orientation

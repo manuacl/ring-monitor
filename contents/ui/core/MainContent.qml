@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import "MetricsCatalog.js" as Catalog
 import "ColorThemes.js" as ColorThemes
 import "DiskMetrics.js" as DiskMetrics
+import "DiskIoScale.js" as DiskIo
 import "RingGeometry.js" as Geom
 import "ProcessRanking.js" as ProcessRanking
 
@@ -149,6 +150,15 @@ GridLayout {
             //      merge* config when both sides are enabled.
             readonly property bool _isTemp: Catalog.isTempMetric(modelData)
             readonly property bool _splitOn: Catalog.isSplitForBase(modelData, content._availableEnabledList, content.configStore.mergeCpuTemp, content.configStore.mergeGpuTemp)
+            // Disk I/O throughput ring: a raw byte/s rate, not a %. The backend
+            // exposes it via the `diskIo` property snapshot {readBps, writeBps,
+            // combinedBps, readPercent, writePercent, combinedPercent}; the arc
+            // uses the *Percent (auto-scaled), the centre label the *Bps through
+            // DiskIo.formatRate. splitDiskIo renders read|write as two half-arcs
+            // (reusing split mode), else a single combined arc.
+            readonly property bool _isDiskIo: Catalog.isRateMetric(modelData)
+            readonly property bool _diskIoSplit: _isDiskIo && content.configStore.splitDiskIo
+            readonly property var _io: _isDiskIo ? (content.metrics.diskIo || null) : null
             // Disk multi-partition: one equal-thickness ring per selected
             // filesystem, centre = their average. Empty when not the disk
             // ring or when nothing resolved (→ aggregate single ring via the
@@ -213,6 +223,10 @@ GridLayout {
                     return 0;
                 if (_isTemp)
                     return Catalog.tempToPercent(_rawTempC);
+                // diskIo arc: left/read half in split mode, else the combined
+                // sweep. The right/write half is splitValue below.
+                if (_isDiskIo)
+                    return _io ? (_diskIoSplit ? _io.readPercent : _io.combinedPercent) : 0;
                 return content.metrics.metricValue(modelData);
             }
             // Centre text: disk equal mode shows the partition average; temp
@@ -235,13 +249,31 @@ GridLayout {
             // without an override falls back to ringColor inside Ring. [] for
             // every non-disk ring.
             equalColors: ringDelegate._isDisk ? content._diskColors : []
-            splitMode: _splitOn
+            splitMode: _splitOn || _diskIoSplit
             // splitValue stays a percentage (0-100) so the geometry math
             // and tempToPercent threshold work in °C regardless of the
-            // display unit; only splitRawValue / splitUnit change.
-            splitValue: content.metrics.loading ? 100 : (_splitOn ? content.metrics.metricTempPercent(modelData) : 0)
+            // display unit; only splitRawValue / splitUnit change. For the
+            // diskIo split it's the write half's auto-scaled percent.
+            splitValue: {
+                if (content.metrics.loading)
+                    return 100;
+                if (_diskIoSplit)
+                    return _io ? _io.writePercent : 0;
+                return _splitOn ? content.metrics.metricTempPercent(modelData) : 0;
+            }
             splitRawValue: !content.metrics.loading && _splitOn && _tempInfo ? _tempInfo.value : 0
             splitUnit: _splitOn && _tempInfo ? _tempInfo.unit : ""
+            // Preformatted MB/s centre labels for the diskIo ring (empty for
+            // every other ring → the normal Math.round(rawValue)+unit path).
+            // Combined → single label; split → read on the left (valueOverride),
+            // write on the right (splitValueOverride). Empty during loading so
+            // the warm-up shows the 100% sweep like the others.
+            valueOverride: {
+                if (!_isDiskIo || content.metrics.loading || !_io)
+                    return "";
+                return DiskIo.formatRate(_diskIoSplit ? _io.readBps : _io.combinedBps);
+            }
+            splitValueOverride: (_isDiskIo && _diskIoSplit && !content.metrics.loading && _io) ? DiskIo.formatRate(_io.writeBps) : ""
             // Shared color for every ring; disk partitions with a custom
             // color override it per-ring via equalColors above.
             ringColor: content._ringColor
@@ -279,5 +311,17 @@ GridLayout {
                 when: ringDelegate.modelData === "cpu"
             }
         }
+    }
+
+    // Disk-I/O sampling runs only while a diskIo ring is on screen: the backend
+    // gates its /proc/diskstats poll (standalone) / ksysguard subscription
+    // (Plasma) on this. Driven once at content scope (not per-delegate) since
+    // there's a single diskIo ring. `when` guards a backend that predates the
+    // surface (the alias is absent → the Binding is inert).
+    Binding {
+        target: content.metrics
+        property: "diskIoSamplingActive"
+        value: content.enabledList.indexOf("diskIo") >= 0
+        when: content.metrics !== undefined && content.metrics.diskIoSamplingActive !== undefined
     }
 }

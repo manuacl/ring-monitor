@@ -14,6 +14,15 @@ user-facing only.
 
 ### Added
 
+- **Disk I/O ring** — a new ring showing live disk **read/write throughput**
+  (MB/s), alongside the existing DISKS ring that shows how *full* the disk is.
+  Enable "DISK IO" in Settings → Metrics. By default it shows combined read +
+  write as one arc; tick **"Split read / write"** under the metric to see read
+  on the left half and write on the right. The arc auto-scales to the disk's
+  recent activity (so it stays expressive whether you're idle or copying a
+  large file), and the centre always shows the real MB/s. Works on both the
+  Plasma widget and the standalone build (#77).
+
 - Standalone: a **"Show in application menu"** toggle in Settings → About.
   A downloaded AppImage normally appears in no application launcher, and on
   XFCE / Thunar a double-click does nothing; ticking the box registers a
@@ -33,6 +42,23 @@ user-facing only.
   with `QT_QPA_PLATFORM=xcb` (#110).
 
 ### Technical
+
+- feat(disk-io): UI + config wiring that ships the disk-I/O ring (issue #77, PR4
+  — the feature-completing PR). Registers `diskIo` in the catalog
+  (`METRIC_IDS` + label + `isRateMetric`, parallel to `isTempMetric`) and the
+  `splitDiskIo` config key across all six touch-points (main.xml, both
+  ConfigStores, configMetrics alias, configAppearance 484541 placeholders,
+  standalone SettingsDialog `_bridgeMap`). `MainContent`'s delegate special-cases
+  the rate metric like the disk multi-partition ring: the arc uses the backend
+  `io` snapshot's auto-scaled `*Percent` (combined, or read|write via split
+  mode), and the centre label is `DiskIoScale.formatRate(*Bps)` passed through
+  two new `Ring` props — `valueOverride` / `splitValueOverride` (a preformatted
+  string the `Math.round(rawValue)+unit` path can't express for an MB/s rate).
+  A content-scope `Binding` drives `diskIoSamplingActive` from whether the ring
+  is enabled, so the backend only polls while it's on screen. The split toggle
+  is a `MetricsBody` `extraContent` checkbox on the diskIo row. Covered by
+  `metrics-catalog` (id + `isRateMetric`), `tst_Ring` (the override props),
+  `tst_MainContent` (the sampling gate), and `tst_MetricsBody` (catalog count).
 
 - feat(disk-io): Plasma adapter wiring for the disk-I/O ring (issue #77, PR3 of
   the sequence; adapter layer only, no user-facing change yet). New

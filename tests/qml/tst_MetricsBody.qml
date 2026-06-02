@@ -58,10 +58,12 @@ Item {
 
         // ── loadOrder: CSV → orderModel ───────────────────────────────
         function test_loadOrder_populates_model_from_csv() {
-            // 7 catalog ids (mergeWithCatalog appends any missing).
-            compare(body._orderModel.count, 7);
+            // 8 catalog ids (mergeWithCatalog appends any missing — the seed
+            // CSV omits diskIo, so it's appended at the end).
+            compare(body._orderModel.count, 8);
             compare(body._orderModel.get(0).metricId, "cpu");
             compare(body._orderModel.get(6).metricId, "disk");
+            compare(body._orderModel.get(7).metricId, "diskIo");
         }
 
         function test_metricOrderCsv_change_reloads_model_and_appends_missing() {
@@ -70,7 +72,7 @@ Item {
             // shows every available metric.
             body.metricOrderCsv = "ram,gpu,cpu";
             wait(20);
-            compare(body._orderModel.count, 7);
+            compare(body._orderModel.count, 8);
             compare(body._orderModel.get(0).metricId, "ram");
             compare(body._orderModel.get(1).metricId, "gpu");
             compare(body._orderModel.get(2).metricId, "cpu");
@@ -81,7 +83,7 @@ Item {
         // ── currentOrder + commitOrder: roundtrip ─────────────────────
         function test_currentOrder_reads_model() {
             const order = body.currentOrder();
-            compare(order, ["cpu", "cpuTemp", "ram", "swap", "gpu", "gpuTemp", "disk"]);
+            compare(order, ["cpu", "cpuTemp", "ram", "swap", "gpu", "gpuTemp", "disk", "diskIo"]);
         }
 
         function test_commitOrder_writes_back_to_csv() {

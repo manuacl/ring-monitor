@@ -58,6 +58,15 @@ Item {
     property real splitRawValue: 0
     property string splitUnit: "°"
 
+    // Optional preformatted centre-text overrides. When non-empty, the centre
+    // readout shows the string verbatim instead of `Math.round(rawValue)+unit`
+    // (resp. the split-right `splitRawValue`). For the disk-I/O ring, whose
+    // label is an MB/s rate formatted by DiskIoScale.formatRate (one decimal
+    // below 100 MB/s, none above) — a precision Math.round would flatten and a
+    // single unit can't express. The sweep still uses value / splitValue.
+    property string valueOverride: ""
+    property string splitValueOverride: ""
+
     // Optional: render a small "update available" dot inside the 90°
     // bottom gap, next to the label. Clicking it fires updateBadgeClicked
     // which the parent uses to trigger Plasmoid.action("configure").
@@ -355,7 +364,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.horizontalCenterOffset: root.splitMode ? -root.size * 0.18 : 0
-            text: Math.round(root.displayRawValue) + root.unit
+            text: root.valueOverride !== "" ? root.valueOverride : Math.round(root.displayRawValue) + root.unit
             color: root.textColor
             opacity: root.textOpacity
             font.pixelSize: root.splitMode ? Math.round(root.valuePx * 0.75) : root.valuePx
@@ -368,7 +377,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.horizontalCenterOffset: root.size * 0.18
-            text: Math.round(root.displaySplitRawValue) + root.splitUnit
+            text: root.splitValueOverride !== "" ? root.splitValueOverride : Math.round(root.displaySplitRawValue) + root.splitUnit
             color: root.textColor
             opacity: root.textOpacity
             font.pixelSize: Math.round(root.valuePx * 0.75)

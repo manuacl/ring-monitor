@@ -69,6 +69,7 @@ ColumnLayout {
     property bool showCpuCores: false
     property bool mergeCpuTemp: false
     property bool mergeGpuTemp: false
+    property bool splitDiskIo: false
     property string tempUnit: "auto"
 
     // ── Internal — the displayed order is a ListModel built from metricOrderCsv ──
@@ -91,7 +92,8 @@ ColumnLayout {
             swap: qsTr("Swap usage"),
             gpu: qsTr("GPU usage"),
             gpuTemp: qsTr("GPU temperature"),
-            disk: qsTr("Disk space per selected partition")
+            disk: qsTr("Disk space per selected partition"),
+            diskIo: qsTr("Disk read/write throughput")
         })
 
     function currentOrder() {
@@ -344,6 +346,8 @@ ColumnLayout {
                         return gpuTempMergeToggle;
                     if (_metricId === "disk")
                         return diskPartitionsPicker;
+                    if (_metricId === "diskIo")
+                        return diskIoSplitToggle;
                     return null;
                 }
             }
@@ -440,6 +444,15 @@ ColumnLayout {
                 if (checked && !body.isEnabled("gpu"))
                     body.setEnabled("gpu", true);
             }
+        }
+    }
+
+    Component {
+        id: diskIoSplitToggle
+        QQC2.CheckBox {
+            text: qsTr("Split read / write (left / right)")
+            checked: body.splitDiskIo
+            onClicked: body.splitDiskIo = checked
         }
     }
 

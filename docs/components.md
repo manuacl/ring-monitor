@@ -243,6 +243,8 @@ A circular gauge: 270° arc starting at 135° (90° gap at the bottom).
 | `splitValue` | `0` | percentage (0–100) for the right half — usually a `tempToPercent(°C)` mapping |
 | `splitRawValue` | `0` | raw value (e.g. °C) displayed in the right-side text |
 | `splitUnit` | `"°"` | suffix appended to the right-side text |
+| `valueOverride` | `""` | optional preformatted centre-text string — when non-empty, the centre readout shows it verbatim instead of `Math.round(rawValue) + unit`. The arc still uses `value`. Used by the disk-I/O ring (issue #77), whose label is an MB/s rate from `DiskIoScale.formatRate` (one decimal below 100 MB/s, none above) that `Math.round` + a single `unit` can't express. |
+| `splitValueOverride` | `""` | same as `valueOverride` for the split-right readout (the diskIo write half); empty → the `Math.round(splitRawValue) + splitUnit` path. |
 | `showUpdateBadge` | `false` | when true, render a small coloured dot in the 90° bottom gap (just left of the label) that pulses slowly. Emits `updateBadgeClicked()` on click — the parent uses it to open the config dialog at the "New release" tab. Set by `MainContent` on the first ring only when `updateChecker.updateAvailable` is true. |
 
 ### Split mode

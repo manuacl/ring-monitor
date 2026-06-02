@@ -46,6 +46,7 @@ Item {
         property color customTextColorLight: "#000000"
         property color customTextColorDark: "#ffffff"
         property string diskPartitionColors: ""
+        property bool splitDiskIo: false
     }
 
     QtObject {
@@ -65,6 +66,17 @@ Item {
         function metricRawTemp(_id) {
             return 0;
         }
+        // Disk-I/O surface (issue #77): a reactive snapshot + the on-screen gate
+        // MainContent drives. Defaults to idle; a test mutates them.
+        property var diskIo: ({
+                "readBps": 0,
+                "writeBps": 0,
+                "combinedBps": 0,
+                "readPercent": 0,
+                "writePercent": 0,
+                "combinedPercent": 0
+            })
+        property bool diskIoSamplingActive: false
     }
 
     QtObject {
@@ -97,6 +109,22 @@ Item {
             metricsStub.availableMetrics = null;
             configStub.mergeCpuTemp = false;
             configStub.mergeGpuTemp = false;
+            configStub.splitDiskIo = false;
+            metricsStub.diskIoSamplingActive = false;
+        }
+
+        // ── Disk-I/O sampling gate (issue #77) ──────────────────────
+        // MainContent drives metrics.diskIoSamplingActive from whether a
+        // diskIo ring is on screen, so the backend only polls /proc/diskstats
+        // (or subscribes ksysguard) while the ring is enabled.
+        function test_diskIo_sampling_gate_follows_enabled_list() {
+            configStub.metricOrder = "cpu,ram,diskIo";
+            configStub.enabledMetrics = "cpu,ram";
+            tryCompare(metricsStub, "diskIoSamplingActive", false);
+            configStub.enabledMetrics = "cpu,ram,diskIo";
+            tryCompare(metricsStub, "diskIoSamplingActive", true);
+            configStub.enabledMetrics = "cpu,ram";
+            tryCompare(metricsStub, "diskIoSamplingActive", false);
         }
 
         // QQuickLayout reflows its implicit dimensions on a deferred

@@ -35,6 +35,8 @@ Item {
             ring.splitValue = 0;
             ring.splitRawValue = 0;
             ring.splitUnit = "°";
+            ring.valueOverride = "";
+            ring.splitValueOverride = "";
             // Wait for animations triggered by previous tests to settle.
             tryCompare(ring, "displayValue", 0);
             tryCompare(ring, "displayRawValue", 0);
@@ -63,6 +65,30 @@ Item {
             ring.value = 42.6;
             tryCompare(ring, "displayValue", 42.6, 1000);
             compare(ring._valueText, "43%");
+        }
+
+        // ── Preformatted centre-text override (disk-I/O MB/s, issue #77) ──
+        function test_value_override_replaces_the_rounded_readout() {
+            // The arc still reads `value`; only the centre text is the
+            // preformatted string (an MB/s rate keeps its decimal, which
+            // Math.round(rawValue) would flatten).
+            ring.value = 70;
+            ring.rawValue = 3.4;
+            ring.unit = " MB/s";
+            ring.valueOverride = "3.4 MB/s";
+            compare(ring._valueText, "3.4 MB/s");
+            // Empty override falls back to the rounded rawValue+unit path.
+            ring.valueOverride = "";
+            tryCompare(ring, "displayRawValue", 3.4, 1000);
+            compare(ring._valueText, "3 MB/s");
+        }
+
+        function test_split_value_override_replaces_the_right_half_readout() {
+            ring.splitMode = true;
+            ring.valueOverride = "120 MB/s";
+            ring.splitValueOverride = "45.0 MB/s";
+            compare(ring._valueText, "120 MB/s");
+            compare(ring._splitValueText, "45.0 MB/s");
         }
 
         // ── Sweep angle binding (RingGeometry → arc) ──────────────

@@ -45,6 +45,7 @@ Settings {
     property bool showCpuCores: true
     property bool mergeCpuTemp: false
     property bool mergeGpuTemp: false
+    property bool splitDiskIo: false
 
     // ── Appearance group ────────────────────────────────────────────
     property string orientation: "horizontal"

@@ -8,14 +8,15 @@ const require = createRequire(import.meta.url);
 const Catalog = require('../contents/ui/core/MetricsCatalog.js');
 
 test('METRIC_IDS contains all known metrics in canonical order', () => {
-    // Temperature variants sit next to their usage counterpart so a
-    // fresh install lays out related rings adjacent in the strip.
-    assert.deepEqual(Catalog.METRIC_IDS, ['cpu', 'cpuTemp', 'ram', 'swap', 'gpu', 'gpuTemp', 'disk']);
+    // Temp variants sit next to their usage counterpart (adjacent in the strip).
+    assert.deepEqual(Catalog.METRIC_IDS, ['cpu', 'cpuTemp', 'ram', 'swap', 'gpu', 'gpuTemp', 'disk', 'diskIo']);
 });
 
-test('labelFor: temperature variants get a "T" suffix to disambiguate from the usage row', () => {
+test('labelFor: temperature variants get a "T" suffix; diskIo is distinct from DISKS', () => {
     assert.equal(Catalog.labelFor('cpuTemp'), 'CPU T');
     assert.equal(Catalog.labelFor('gpuTemp'), 'GPU T');
+    assert.equal(Catalog.labelFor('disk'), 'DISKS');
+    assert.equal(Catalog.labelFor('diskIo'), 'DISK IO');
 });
 
 test('sensorIdFor: temperature variants map to the same °C sensor as METRIC_TEMP_SENSOR_IDS', () => {
@@ -32,16 +33,24 @@ test('isTempMetric: exactly cpuTemp and gpuTemp are temperature metrics', () => 
     assert.equal(Catalog.isTempMetric('foo'), false);
 });
 
+test('isRateMetric: exactly diskIo is a byte/s-rate metric (disjoint from temp)', () => {
+    assert.equal(Catalog.isRateMetric('diskIo'), true);
+    assert.equal(Catalog.isRateMetric('disk'), false);
+    assert.equal(Catalog.isRateMetric('cpu'), false);
+    assert.equal(Catalog.isRateMetric('foo'), false);
+    assert.equal(Catalog.isTempMetric('diskIo'), false);
+});
+
 // ── mergeWithCatalog ──────────────────────────────────────────────────
 
 test('mergeWithCatalog: appends missing catalog ids to a user CSV', () => {
     // Pre-0.4 user: cpu+ram+gpu order, no temp metrics yet.
     const result = Catalog.mergeWithCatalog(['cpu', 'ram', 'gpu']);
-    assert.deepEqual(result, ['cpu', 'ram', 'gpu', 'cpuTemp', 'swap', 'gpuTemp', 'disk']);
+    assert.deepEqual(result, ['cpu', 'ram', 'gpu', 'cpuTemp', 'swap', 'gpuTemp', 'disk', 'diskIo']);
 });
 
 test('mergeWithCatalog: preserves existing order when nothing is missing', () => {
-    const input = ['gpu', 'cpu', 'ram', 'cpuTemp', 'swap', 'gpuTemp', 'disk'];
+    const input = ['gpu', 'cpu', 'ram', 'cpuTemp', 'swap', 'gpuTemp', 'disk', 'diskIo'];
     assert.deepEqual(Catalog.mergeWithCatalog(input), input);
 });
 
@@ -107,8 +116,6 @@ test('isSplitForBase: non-cpu/gpu base ids never split', () => {
 });
 
 // ── classifyDiscoveredIds: filter + natural sort ──────────────────────
-// Buckets the per-core / per-gpu variants out of a flat SensorTreeModel id
-// dump. Single-id metrics (cpu/all/usage, …) stay in METRIC_SENSOR_IDS.
 
 test('classifyDiscoveredIds: empty input → empty buckets', () => {
     const out = Catalog.classifyDiscoveredIds([]);
@@ -245,7 +252,6 @@ test('filterByOrder: keeps only ids that are in `ids`, in `order` ordering', () 
 });
 
 test('filterByOrder: respects custom order argument', () => {
-    // User-defined order ['gpu', 'cpu', 'ram'] + enabled {cpu, gpu}
     assert.deepEqual(
         Catalog.filterByOrder(['cpu', 'gpu'], ['gpu', 'cpu', 'ram']),
         ['gpu', 'cpu']
@@ -264,7 +270,6 @@ test('filterByOrder: empty enabled → []', () => {
 });
 
 // ── filterByAvailable: keep only available ids, in the enabled order ──
-// (drops a GPU ring on a non-NVIDIA box / swap on a swapless host, etc.)
 
 test('filterByAvailable: keeps only available ids, in the enabled order', () => {
     assert.deepEqual(
@@ -345,8 +350,6 @@ test('toggleEnabled: enabling an id not yet present appends it', () => {
 });
 
 test('toggleEnabled: enabling an id already present is a no-op (re-appended at end)', () => {
-    // The function strips duplicates then re-adds. The exact position is an
-    // implementation detail; what matters is that the set is correct.
     assert.deepEqual(Catalog.toggleEnabled(['cpu', 'ram'], 'cpu', true),
                      ['ram', 'cpu']);
 });
@@ -368,8 +371,7 @@ test('toggleEnabled: does not mutate the input', () => {
 });
 
 // ── valueFromSensorMap — read sensor value defensively ──────────────────
-// `Sensor.value` is undefined pre-first-sample, NaN on a bad id, and the
-// map itself may be null in tests — this is the single chokepoint for that.
+// `Sensor.value` is undefined pre-first-sample, NaN on a bad id, map may be null.
 
 test('valueFromSensorMap: returns sensor value for a known id', () => {
     const map = { cpu: { value: 42 }, ram: { value: 17 } };
@@ -403,8 +405,7 @@ test('valueFromSensorMap: preserves 0 as a valid sensor reading', () => {
 });
 
 // ── Temperature sensors + °C → % mapping ────────────────────────────────
-// Optional temperature half-arc for cpu (core-averaged) and gpu (per-GPU —
-// ksysguard exposes no `gpu/all` aggregate).
+// cpu (core-averaged) + gpu (per-GPU — ksysguard has no `gpu/all` aggregate).
 
 test('tempSensorIdFor: known ids return their ksysguard temperature sensor', () => {
     assert.equal(Catalog.tempSensorIdFor('cpu'), 'cpu/all/averageTemperature');
@@ -450,8 +451,7 @@ test('tempToPercent: degenerate range (max <= min) → 0', () => {
 });
 
 // ── Display unit resolution + °C → °F conversion ────────────────────────
-// Sensor stays in Celsius (tempToPercent + the 30-90°C range stay
-// meaningful); only the *displayed* number converts, last hop in MainContent.
+// Sensor stays Celsius; only the *displayed* number converts (last hop, MainContent).
 
 test('MEASUREMENT_* constants match Qt QLocale.MeasurementSystem enum', () => {
     assert.equal(Catalog.MEASUREMENT_METRIC, 0);

@@ -75,7 +75,11 @@ Item {
             "swap": swapSensor.status === Sensors.Sensor.Ready,
             "gpu": backend._gpuUsageReady(),
             "gpuTemp": backend._gpuTempReady(),
-            "disk": diskSensor.status === Sensors.Sensor.Ready
+            "disk": diskSensor.status === Sensors.Sensor.Ready,
+            // ksysguard exposes disk/all/{read,write} on any host with a disk
+            // (no-op until the diskIo UI PR adds the catalog id — filtered to
+            // METRIC_IDS).
+            "diskIo": true
         });
     }
 
@@ -134,6 +138,19 @@ Item {
         // ksysguard "usage" is per-core; the sampler divides by this to hit the
         // "total 0-100%" tooltip semantics. coreValues.length = discovered cores.
         coreCount: backend.coreValues.length
+    }
+
+    // ── Disk I/O throughput ring (issue #77) ─────────────────────────
+    // Same surface as the standalone adapter; the disk/all/{read,write} sensor
+    // reads live in the DiskIoSampler child (subscribed only while active) so
+    // this adapter stays under the 500-line cap. `io` is a property (reactive)
+    // carrying per-component byte/s + arc %; the gate keeps the daemon
+    // unsubscribed while the ring is off-screen.
+    property alias diskIoSamplingActive: diskIoSampler.active
+    readonly property var diskIo: diskIoSampler.io
+
+    DiskIoSampler {
+        id: diskIoSampler
     }
 
     // ── Disk partitions (multi-ring) ─────────────────────────────────

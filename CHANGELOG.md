@@ -34,6 +34,20 @@ user-facing only.
 
 ### Technical
 
+- feat(disk-io): Plasma adapter wiring for the disk-I/O ring (issue #77, PR3 of
+  the sequence; adapter layer only, no user-facing change yet). New
+  `platforms/plasma/DiskIoSampler.qml` mirrors the standalone sampler's surface
+  (`active` / `io`) from ksysguard's `disk/all/{read,write}` byte/s sensors —
+  which report the rate directly, so unlike the standalone `/proc/diskstats`
+  path there's no sample delta; each tick reads `.value`, coerces an unread
+  sensor to 0, and scales it onto the arc via `DiskIoScale`'s rolling peak.
+  Sensors are `enabled: active` so the daemon isn't subscribed while the ring is
+  off-screen. `MetricsBackend` forwards the reactive `io` property + the
+  `diskIoSamplingActive` gate and flags `diskIo` available (a no-op until the UI
+  PR registers the catalog id). Extracting the sampler keeps the adapter under
+  the 500-line cap (484), same as `ProcessSampler`. Text-guarded by
+  `plasma-disk-io-sampler` + `metrics-backend`.
+
 - feat(disk-io): standalone adapter wiring for the disk-I/O ring (issue #77,
   PR2 of the sequence; adapter layer only, no user-facing change yet). New
   gated `platforms/standalone/DiskIoSampler.qml` (own `ProcReader` + 500 ms

@@ -9,16 +9,16 @@
 
 namespace desktop_entry {
 
-QString currentExecPath()
+bool runningAsAppImage()
 {
     // AppImage runtime sets $APPIMAGE to the .AppImage file path and
-    // $APPDIR to the mount root (e.g. /tmp/.mount_xxx). Use $APPIMAGE
-    // ONLY when our own binary lives inside $APPDIR — otherwise we
-    // inherited the env vars from a parent process that itself runs
-    // in an AppImage (e.g. the user's terminal or editor wrapper) and
-    // pointing Exec= at THAT AppImage would launch the wrong app.
-    // Surfaced as a bug during PR G manual testing (Limux terminal had
-    // $APPIMAGE pointing at its own .AppImage).
+    // $APPDIR to the mount root (e.g. /tmp/.mount_xxx). Treat ourselves as
+    // an AppImage run ONLY when our own binary lives inside $APPDIR —
+    // otherwise we inherited the env vars from a parent process that itself
+    // runs in an AppImage (e.g. the user's terminal or editor wrapper) and
+    // pointing Exec= at THAT AppImage would launch the wrong app. Surfaced
+    // as a bug during PR G manual testing (Limux terminal had $APPIMAGE
+    // pointing at its own .AppImage).
     const QString self = QCoreApplication::applicationFilePath();
     const QByteArray appImage = qgetenv("APPIMAGE");
     const QByteArray appDir = qgetenv("APPDIR");
@@ -26,11 +26,15 @@ QString currentExecPath()
     // mount (APPDIR=/tmp/.mount_limuxAB vs our binary under
     // /tmp/.mount_limuxABCDE) would falsely prefix-match and point
     // Exec= at the wrong AppImage.
-    if (!appImage.isEmpty() && !appDir.isEmpty()
-        && self.startsWith(QString::fromLocal8Bit(appDir) + QLatin1Char('/'))) {
-        return QString::fromLocal8Bit(appImage);
-    }
-    return self;
+    return !appImage.isEmpty() && !appDir.isEmpty()
+        && self.startsWith(QString::fromLocal8Bit(appDir) + QLatin1Char('/'));
+}
+
+QString currentExecPath()
+{
+    if (runningAsAppImage())
+        return QString::fromLocal8Bit(qgetenv("APPIMAGE"));
+    return QCoreApplication::applicationFilePath();
 }
 
 QString quoteExecArg(const QString &arg)
@@ -95,6 +99,15 @@ bool removeDesktopFile(const QString &path)
 
 bool refreshIfStale(const QString &path, const QString &content)
 {
+    // Self-heal is for AppImage installs only. An AppImage update changes
+    // the versioned filename (Ring_Monitor-0.8.0 → -0.11.0), so a stored
+    // Exec= goes stale and login launches the old binary (#126). A dev /
+    // source build, by contrast, has a FIXED applicationFilePath() — it
+    // never drifts, and rewriting an existing entry to it would hijack the
+    // user's installed-AppImage launcher to a throwaway build path. Gate
+    // here (not at each caller) so every self-heal site is covered at once.
+    if (!runningAsAppImage())
+        return false;
     if (!QFileInfo::exists(path))
         return false;
     QFile f(path);

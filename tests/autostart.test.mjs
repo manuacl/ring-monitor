@@ -38,6 +38,20 @@ test("autostart.cpp builds the Exec= line via desktop_entry::execLine", () => {
     );
 });
 
+test("Autostart self-heals a stale entry on construction (#126)", () => {
+    // After an AppImage update the versioned filename changes, so a stored
+    // Exec= points at the old binary and login keeps launching it. The ctor
+    // must refresh the entry (parity with MenuEntry), gated inside
+    // refreshIfStale to AppImage runs so a dev build can't hijack it.
+    const ctor = SRC.slice(SRC.indexOf("Autostart::Autostart"));
+    const body = ctor.slice(0, ctor.indexOf("\n}\n"));
+    assert.match(
+        body,
+        /desktop_entry::refreshIfStale\(\s*desktopFilePath\(\)\s*,\s*buildDesktopFileContent\(\)\s*\)/,
+        "the Autostart constructor must call refreshIfStale to rewrite a stale Exec= path",
+    );
+});
+
 test("autostart entry declares X-GNOME-Autostart-enabled", () => {
     assert.match(
         SRC,

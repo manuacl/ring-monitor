@@ -5,7 +5,16 @@
 #include <QFileInfo>
 #include <QStandardPaths>
 
-Autostart::Autostart(QObject *parent) : QObject(parent) {}
+Autostart::Autostart(QObject *parent) : QObject(parent)
+{
+    // Self-heal a stale autostart entry: after an AppImage update the
+    // versioned filename changes, so a previously written Exec= points at
+    // the OLD binary and login keeps launching it (#126). Rewrite to the
+    // current path on construction — parity with MenuEntry. refreshIfStale
+    // is a no-op when the entry is absent, already current, or we're a
+    // fixed-path dev build (so a source run can't hijack the entry).
+    desktop_entry::refreshIfStale(desktopFilePath(), buildDesktopFileContent());
+}
 
 QString Autostart::desktopFilePath() const
 {

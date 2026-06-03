@@ -31,6 +31,12 @@ QString execLine();
 // (e.g. a terminal) and must fall back to applicationFilePath().
 QString currentExecPath();
 
+// True iff we run from inside our OWN AppImage (`$APPIMAGE` set and our
+// binary under `$APPDIR`). The stale-Exec self-heal (refreshIfStale) is
+// gated on this so a dev / source build never rewrites the user's
+// installed launcher to point at the throwaway build binary. See #126.
+bool runningAsAppImage();
+
 // XDG Desktop Entry §"The Exec key" encoding: wrap in double quotes,
 // escaping `\` first (so later-inserted backslashes aren't doubled),
 // then `"`, `$`, and backtick.
@@ -48,9 +54,11 @@ bool removeDesktopFile(const QString &path);
 
 // Self-heal: if `path` exists but its `Exec=` line no longer matches
 // `execLine()` (the AppImage was moved / re-downloaded to a new path),
-// rewrite it with `content`. No-op if the file is absent or already
-// current. Returns true iff a rewrite happened. Lets a writer refresh a
-// stale launcher on startup so it never silently points at a dead path.
+// rewrite it with `content`. No-op if the file is absent, already
+// current, or we're not running as an AppImage (runningAsAppImage() —
+// a fixed-path dev build must not hijack the installed launcher).
+// Returns true iff a rewrite happened. Lets a writer refresh a stale
+// launcher on startup so it never silently points at a dead path.
 bool refreshIfStale(const QString &path, const QString &content);
 
 } // namespace desktop_entry

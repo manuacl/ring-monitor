@@ -85,6 +85,30 @@ test("main.cpp ties the app to its desktop entry (Wayland app_id)", () => {
     );
 });
 
+test("main.cpp self-heals stale launcher entries on every startup (#126)", () => {
+    // The autostart / menu .desktop files embed the versioned AppImage
+    // path; after an update that path is stale and login launches the old
+    // binary. main.cpp constructs both helpers on startup so their ctors
+    // run refreshIfStale on EVERY launch — not only when Settings is opened
+    // (the only prior instantiation site). refreshIfStale itself is gated to
+    // AppImage runs, so a dev build constructing these is a no-op.
+    assert.match(
+        SRC,
+        /Autostart\s+\w+\s*;/,
+        "main.cpp must construct an Autostart on startup so its ctor refreshes a stale entry",
+    );
+    assert.match(
+        SRC,
+        /MenuEntry\s+\w+\s*;/,
+        "main.cpp must construct a MenuEntry on startup so its ctor refreshes a stale entry",
+    );
+    // Must come after the single-instance defer paths (which return early),
+    // i.e. before the engine is built but reached only by the real widget.
+    const autostartIdx = SRC.search(/Autostart\s+\w+\s*;/);
+    const engineIdx = SRC.search(/QQmlApplicationEngine\s+engine/);
+    assert.ok(autostartIdx >= 0 && engineIdx >= 0 && autostartIdx < engineIdx, "the launcher refresh must run before the QML engine is constructed");
+});
+
 test("main.cpp picks a window strategy and gates both X11 calls on X11Ewmh (PR C2)", () => {
     // One decideWindowStrategy() call drives the pre-app platform setup
     // and the post-load per-window integration.

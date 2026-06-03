@@ -12,6 +12,8 @@ user-facing only.
 
 ## [Unreleased]
 
+## [0.12.1] — 2026-06-03
+
 ### Fixed
 
 - **Autostart no longer launches the old version after an AppImage update**

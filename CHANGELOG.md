@@ -22,18 +22,18 @@ user-facing only.
 
 ### Technical
 
-- fix(standalone): self-heal the autostart / menu launcher `Exec=` path on
-  every launch so an AppImage update no longer keeps starting the old version
-  at login (#126). The autostart entry embedded the versioned AppImage
-  filename (`Ring_Monitor-0.8.0-x86_64.AppImage`); after updating, login still
-  ran the stale binary. The `Autostart` constructor now calls
-  `desktop_entry::refreshIfStale` (parity with `MenuEntry`), and `main.cpp`
-  constructs both helpers on startup so the refresh runs on every launch — not
-  only when the Settings dialog is opened. `refreshIfStale` is gated on a new
-  `desktop_entry::runningAsAppImage()` predicate (extracted from
+- fix(standalone): self-heal the autostart / menu launcher `Exec=` path so an
+  AppImage update no longer keeps starting the old version at login (#126). The
+  autostart entry embedded the versioned AppImage filename
+  (`Ring_Monitor-0.8.0-x86_64.AppImage`); after updating, login still ran the
+  stale binary. The `Autostart` constructor now calls
+  `desktop_entry::refreshIfStale` (parity with `MenuEntry`) — and because the
+  `SettingsDialog` (which holds both helpers) is constructed eagerly by both
+  standalone roots, this self-heal runs on every startup. `refreshIfStale` is
+  gated on a new `desktop_entry::runningAsAppImage()` predicate (extracted from
   `currentExecPath`) so a fixed-path dev / source build never rewrites the
   user's installed-AppImage launcher to point at the throwaway binary. Tests
-  added to `desktop-entry`, `autostart`, and `standalone-main-cpp`.
+  added to `desktop-entry` and `autostart`.
 
 - style(disk): the disk-ring tooltip usage line now separates the percentage
   from the size figures with a middle dot (`12% · 56 GiB / 466 GiB`) instead of

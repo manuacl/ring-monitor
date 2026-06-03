@@ -15,9 +15,7 @@
 // `docs/plasma-isolation/plan.md` "Window model" and
 // `contents/ui/platforms/standalone/CLAUDE.md`.
 
-#include "autostart.h"
 #include "desktop_hints.h"
-#include "menu_entry.h"
 #include "single_instance.h"
 
 #include <QGuiApplication>
@@ -179,25 +177,6 @@ int main(int argc, char *argv[])
     // launch won't see us and could stack a second window.
     if (!openSettings && !becamePrimary)
         qWarning("ring-monitor: single-instance socket not acquired; running unguarded");
-
-    // Self-heal stale launcher Exec= paths on EVERY normal startup, not only
-    // when the Settings dialog instantiates these helpers (#126). After an
-    // AppImage update the versioned filename changes, so a previously written
-    // autostart / menu entry points at the old binary; the next login (or
-    // menu launch) would run the stale version. Each ctor calls
-    // desktop_entry::refreshIfStale, which rewrites the entry to the current
-    // $APPIMAGE — a no-op when the entry is absent, already current, or we're
-    // a fixed-path dev build. The entry tracks whichever binary actually runs
-    // as the widget: the single-instance handshake makes a just-launched
-    // *different-version* process take over and become primary (so an update
-    // re-points the launchers), and that primary is what reaches here.
-    // Skipped in --open-settings recovery — that process is the deliberately
-    // non-authoritative config editor (it never claims the single-instance
-    // socket), so it must not rewrite the user's launchers either.
-    if (!openSettings) {
-        [[maybe_unused]] Autostart autostartRefresh;
-        [[maybe_unused]] MenuEntry menuEntryRefresh;
-    }
 
     QQmlApplicationEngine engine;
     // Expose the guard to QML as a context property — NOT

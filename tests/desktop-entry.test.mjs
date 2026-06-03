@@ -83,7 +83,7 @@ test("quoteExecArg wraps the result in double quotes", () => {
     );
 });
 
-test("currentExecPath matches APPDIR with a trailing slash", () => {
+test("runningAsAppImage matches APPDIR with a trailing slash", () => {
     // A bare `self.startsWith(appDir)` matches a different AppImage
     // mount whose ID coincidentally shares a prefix (Limux/Ghostty
     // terminal hosting our binary from a sibling mount). Requiring
@@ -93,6 +93,30 @@ test("currentExecPath matches APPDIR with a trailing slash", () => {
         /self\.startsWith\(\s*QString::fromLocal8Bit\(\s*appDir\s*\)\s*\+\s*QLatin1Char\(\s*'\/'\s*\)\s*\)/,
         "the APPDIR prefix check must require a trailing slash so a coincidental prefix from a sibling mount does not match",
     );
+});
+
+test("currentExecPath returns $APPIMAGE only via the runningAsAppImage gate", () => {
+    // The AppImage-vs-dev decision lives in one predicate so refreshIfStale
+    // can reuse it. currentExecPath must branch on it, not re-implement the
+    // env-var check.
+    const fn = SRC.slice(SRC.indexOf("currentExecPath()"));
+    const body = fn.slice(0, fn.indexOf("\n}\n"));
+    assert.match(body, /runningAsAppImage\(\)/, "currentExecPath must branch on runningAsAppImage()");
+    assert.match(body, /qgetenv\("APPIMAGE"\)/, "currentExecPath must return the $APPIMAGE path on the AppImage branch");
+});
+
+test("refreshIfStale is gated on runningAsAppImage (no dev-build hijack)", () => {
+    // #126: a fixed-path dev / source build must NOT rewrite the user's
+    // installed-AppImage launcher to point at the throwaway binary. The
+    // self-heal therefore bails early unless we're an AppImage run — and
+    // this guard precedes the file-exists check so a dev build never even
+    // reads the entry.
+    const fn = SRC.slice(SRC.indexOf("refreshIfStale(const QString"));
+    const body = fn.slice(0, fn.indexOf("\n}\n"));
+    assert.match(body, /!\s*runningAsAppImage\(\)\s*\)?\s*\n?\s*return false/, "refreshIfStale must return false when not running as an AppImage");
+    const gateIdx = body.search(/runningAsAppImage\(\)/);
+    const existsIdx = body.search(/QFileInfo::exists\(\s*path\s*\)/);
+    assert.ok(gateIdx >= 0 && existsIdx >= 0 && gateIdx < existsIdx, "the runningAsAppImage gate must precede the file-exists check");
 });
 
 test("writeDesktopFile uses QSaveFile for an atomic write", () => {

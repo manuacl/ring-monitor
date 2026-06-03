@@ -143,6 +143,13 @@ Window {
     // Plasma users don't see this toggle (plasmashell handles it
     // via the panel layout); AboutBody gates the row on
     // `autostartAvailable`, which only this side sets to true.
+    //
+    // Load-bearing for #126: this dialog is constructed eagerly by both
+    // standalone roots (Main.qml + SettingsOnlyRoot.qml), so building it
+    // also builds Autostart on every startup — and Autostart's ctor
+    // self-heals a stale Exec= after an AppImage update. If this dialog is
+    // ever made lazy (a Loader), that self-heal stops firing on launch;
+    // add an explicit startup refresh then.
     Autostart {
         id: autostartHelper
     }

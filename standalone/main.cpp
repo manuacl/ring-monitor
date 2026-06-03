@@ -180,19 +180,24 @@ int main(int argc, char *argv[])
     if (!openSettings && !becamePrimary)
         qWarning("ring-monitor: single-instance socket not acquired; running unguarded");
 
-    // Self-heal stale launcher Exec= paths on EVERY startup, not only when
-    // the Settings dialog instantiates these helpers (#126). After an
-    // AppImage update the versioned filename changes, so a previously
-    // written autostart / menu entry points at the old binary; the next
-    // login (or menu launch) would run the stale version. Each ctor calls
+    // Self-heal stale launcher Exec= paths on EVERY normal startup, not only
+    // when the Settings dialog instantiates these helpers (#126). After an
+    // AppImage update the versioned filename changes, so a previously written
+    // autostart / menu entry points at the old binary; the next login (or
+    // menu launch) would run the stale version. Each ctor calls
     // desktop_entry::refreshIfStale, which rewrites the entry to the current
-    // path — a no-op when the entry is absent, already current, or we're a
-    // fixed-path dev build. Only the genuine widget process reaches here:
-    // the single-instance defer paths above return before this point. The
-    // newer version always ends up primary (takeover), so it is what
-    // refreshes the entries.
-    [[maybe_unused]] Autostart autostartRefresh;
-    [[maybe_unused]] MenuEntry menuEntryRefresh;
+    // $APPIMAGE — a no-op when the entry is absent, already current, or we're
+    // a fixed-path dev build. The entry tracks whichever binary actually runs
+    // as the widget: the single-instance handshake makes a just-launched
+    // *different-version* process take over and become primary (so an update
+    // re-points the launchers), and that primary is what reaches here.
+    // Skipped in --open-settings recovery — that process is the deliberately
+    // non-authoritative config editor (it never claims the single-instance
+    // socket), so it must not rewrite the user's launchers either.
+    if (!openSettings) {
+        [[maybe_unused]] Autostart autostartRefresh;
+        [[maybe_unused]] MenuEntry menuEntryRefresh;
+    }
 
     QQmlApplicationEngine engine;
     // Expose the guard to QML as a context property — NOT

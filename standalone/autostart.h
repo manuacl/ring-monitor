@@ -34,10 +34,11 @@ class Autostart : public QObject
 public:
     explicit Autostart(QObject *parent = nullptr);
 
-    // True iff the autostart .desktop file exists. The Exec line is kept
-    // fresh by the constructor's refreshIfStale (an AppImage update that
-    // moved the binary is re-pointed on the next launch, #126), so this
-    // need only report presence.
+    // True iff the autostart .desktop file exists. On AppImage installs the
+    // Exec line is kept fresh by the constructor's refreshIfStale (an update
+    // that moved the binary is re-pointed on the next launch, #126); a
+    // fixed-path build has nothing to drift. Either way this need only
+    // report presence.
     bool isEnabled() const;
 
     // Creates (true) or removes (false) the autostart file. No-op if

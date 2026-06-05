@@ -87,29 +87,28 @@ In bad cases, the entire page fails to render.
 Plasma 6 ALSO auto-generates `cfg_<key>Default` for the "Reset to
 defaults" feature — placeholders are needed for those too.
 
-**Fix:** in EVERY config page, declare empty placeholders for every
-config key it doesn't handle, AND for the `Default` variant of every
-key (including its own).
+**Fix:** all placeholders live ONCE in
+`contents/ui/platforms/plasma/PlaceholderKCM.qml` — a `KCM.SimpleKCM`
+subclass declaring `property var cfg_<key>` + `cfg_<key>Default` for
+every `main.xml` entry. Every config page uses it as its root type and
+overrides only the keys it actually bridges (overriding a base
+`property var` with a `property alias` is legal QML):
 
 ```qml
-KCM.SimpleKCM {
-    // Keys we actually handle
-    property string cfg_orientation
-    property alias  cfg_textOpacity: textSlider.value
+Platform.PlaceholderKCM {
+    // Keys this page actually handles — everything else is an
+    // inherited placeholder from the base.
+    property alias cfg_orientation: body.orientation
+    property alias cfg_textOpacity: textSlider.value
     // ...
-
-    // HACK: KDE bug 484541
-    property var cfg_metricOrder
-    property var cfg_metricOrderDefault
-    property var cfg_enabledMetrics
-    property var cfg_enabledMetricsDefault
-    property var cfg_showCpuCores
-    property var cfg_showCpuCoresDefault
-    property var cfg_orientationDefault
-    property var cfg_textOpacityDefault
-    // ... etc
 }
 ```
+
+Adding a config key = one `cfg_X` + `cfg_XDefault` pair in
+`PlaceholderKCM.qml` + the owning page's alias — no edit on the other
+pages. `tests/config-pages-placeholders.test.mjs` enforces both halves
+(base covers every `main.xml` key; every `config.qml` page extends the
+base).
 
 ## Gotcha 2: `KCM.SimpleKCM` can't have `anchors.fill: parent` content
 

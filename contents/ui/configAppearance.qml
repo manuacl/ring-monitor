@@ -1,19 +1,15 @@
 import QtQuick
-import org.kde.kcmutils as KCM
 import "core" as Core
 import "platforms/plasma" as Platform
 
 // Plasma-side wrapper for the Appearance config page. All of the
 // rendering lives in AppearanceBody.qml — this file's only job is to
 // bridge Plasma's cfg_* magic property convention to the body's plain
-// properties via `property alias` declarations.
-//
-// HACK: KDE bug 484541 — Plasma sets every cfg_<key> on every page,
-// and Plasma 6 also generates cfg_<key>Default for the "Reset" feature.
-// Placeholders for keys handled on other pages keep the journal quiet.
-// See docs/config-dialog.md.
+// properties via `property alias` declarations. The KDE-484541
+// placeholders for keys handled on other pages come from the
+// PlaceholderKCM base.
 
-KCM.SimpleKCM {
+Platform.PlaceholderKCM {
     id: page
 
     // ── Bidirectional bridge: cfg_<key> ↔ body.<property> ────────────
@@ -33,58 +29,6 @@ KCM.SimpleKCM {
     property alias cfg_textColorMode: body.textColorMode
     property alias cfg_customTextColorLight: body.customTextColorLight
     property alias cfg_customTextColorDark: body.customTextColorDark
-
-    // KDE bug 484541 placeholders — keys handled on other pages and the
-    // *Default variants Plasma auto-generates for "Reset to defaults".
-    property var cfg_metricOrder
-    property var cfg_metricOrderDefault
-    property var cfg_enabledMetrics
-    property var cfg_enabledMetricsDefault
-    property var cfg_enabledPartitions
-    property var cfg_enabledPartitionsDefault
-    property var cfg_partitionOrder
-    property var cfg_partitionOrderDefault
-    property var cfg_partitionOptOut
-    property var cfg_partitionOptOutDefault
-    property var cfg_partitionLabels
-    property var cfg_partitionLabelsDefault
-    property var cfg_diskPartitionColors
-    property var cfg_diskPartitionColorsDefault
-    property var cfg_showCpuCores
-    property var cfg_showCpuCoresDefault
-    property var cfg_mergeCpuTemp
-    property var cfg_mergeCpuTempDefault
-    property var cfg_mergeGpuTemp
-    property var cfg_mergeGpuTempDefault
-    property var cfg_splitDiskIo
-    property var cfg_splitDiskIoDefault
-    property var cfg_tempUnit
-    property var cfg_orientationDefault
-    property var cfg_ringSizeDefault
-    property var cfg_ringSpacingPercentDefault
-    property var cfg_windowAnchorCornerDefault
-    property var cfg_windowMarginXDefault
-    property var cfg_windowMarginYDefault
-    property var cfg_textOpacityDefault
-    property var cfg_trackOpacityDefault
-    property var cfg_arcOpacityDefault
-    property var cfg_colorThemeDefault
-    property var cfg_colorModeDefault
-    property var cfg_customColorLightDefault
-    property var cfg_customColorDarkDefault
-    property var cfg_textColorModeDefault
-    property var cfg_customTextColorLightDefault
-    property var cfg_customTextColorDarkDefault
-    property var cfg_tempUnitDefault
-    // Update-check keys (handled on the About page via UpdateChecker).
-    property var cfg_checkForUpdatesEnabled
-    property var cfg_checkForUpdatesEnabledDefault
-    property var cfg_lastUpdateCheck
-    property var cfg_lastUpdateCheckDefault
-    property var cfg_latestKnownVersion
-    property var cfg_latestKnownVersionDefault
-    property var cfg_acknowledgedVersion
-    property var cfg_acknowledgedVersionDefault
 
     // ColorPicker is platform-specific (Plasma wraps KQuickControls.ColorButton,
     // standalone wraps a plain Button + QtQuick.Dialogs.ColorDialog).

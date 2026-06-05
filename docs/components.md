@@ -652,6 +652,22 @@ plasma-isolation seam, enforced by the `finish-branch` skill). See
 [`docs/plasma-isolation/plan.md`](plasma-isolation/plan.md) for the
 broader context.
 
+### `PlaceholderKCM.qml`
+
+`KCM.SimpleKCM` subclass declaring the KDE-bug-484541 `cfg_<key>` +
+`cfg_<key>Default` placeholder pair for every `main.xml` entry, once.
+Every config page (`configMetrics.qml`, `configAppearance.qml`,
+`configAbout.qml`) uses it as its root type and overrides only the
+keys it bridges with `property alias` — overriding a base
+`property var` with an alias is legal QML, so the per-page blocks
+collapse into this single seam. Adding a config key touches this file
+plus the owning page's alias; the other pages need nothing.
+
+Guarded by `tests/config-pages-placeholders.test.mjs` (text-level:
+base covers every `main.xml` key, every `config.qml` page extends the
+base). Full gotcha walkthrough:
+[`docs/config-dialog.md`](config-dialog.md) § Gotcha 1.
+
 ### `Theme.qml`
 
 Item re-exposing Kirigami theme tokens under a stable surface:

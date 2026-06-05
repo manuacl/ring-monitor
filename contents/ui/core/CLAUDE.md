@@ -156,6 +156,21 @@ re-applies on every value change and survives the self-assign. Canonical use:
 the bug only because it had no external change). Regression-guarded by the
 `SCENARIO_swatch_*` tests in `tst_DiskPartitionPicker.qml` / `tst_AppearanceBody.qml`.
 
+### cfg-bridged properties: never written from a housekeeping path
+
+Never write a property bridged to `cfg_*` (or to the standalone
+settings bridge) from a discovery / housekeeping path — it dirties the
+KCM ("Apply settings?") with no user action, even past an
+unchanged-map guard, when the recompute *adds or removes* entries.
+Stage the recomputed value in a non-`cfg` property; flush it into the
+bridged property from user-gesture setters only (the page is
+legitimately dirty there). Canonical:
+`MetricsBody._stagedLabelsJson` / `_flushLabelCache` (issue #132).
+Sanctioned exception: seeding an *empty* bridged property with a
+computed default (`MetricsBody._seedDefaultIfEmpty` — empty means
+"use the default" by design, so re-seeding while empty never
+overwrites a user-chosen state).
+
 ### Reactive argless data: expose as a `property`, not a `function`
 
 When a component publishes data a view binds to (a list, a snapshot) and

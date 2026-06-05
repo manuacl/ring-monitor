@@ -296,6 +296,14 @@ Window {
     // guard catches drift between main.xml and ConfigStore but does
     // not catch drift between ConfigStore and this dialog — see the
     // standalone-settings-dialog.test.mjs text guard for that).
+    //
+    // Pull order is load-bearing for partitionLabels: it must come
+    // AFTER the partition CSVs. Its change handler resyncs the staged
+    // label cache (MetricsBody._stagedLabelsJson) from the saved value,
+    // clobbering any merge the CSV pulls just triggered; the dialog's
+    // show-refresh (_refreshDiskPartitions) re-merges discovery right
+    // after wiring, which only heals the staged copy because labels
+    // were pulled last (issue #132 staging seam).
     readonly property var _bridgeMap: [
         // MetricsBody
         [metricsBody, "metricOrderCsv", "metricOrder"], [metricsBody, "enabledMetricsCsv", "enabledMetrics"], [metricsBody, "enabledPartitionsCsv", "enabledPartitions"], [metricsBody, "partitionOrderCsv", "partitionOrder"], [metricsBody, "partitionLabelsJson", "partitionLabels"], [metricsBody, "partitionOptOutCsv", "partitionOptOut"], [metricsBody, "partitionColorsJson", "diskPartitionColors"], [metricsBody, "showCpuCores", "showCpuCores"], [metricsBody, "mergeCpuTemp", "mergeCpuTemp"], [metricsBody, "mergeGpuTemp", "mergeGpuTemp"], [metricsBody, "splitDiskIo", "splitDiskIo"], [metricsBody, "tempUnit", "tempUnit"],

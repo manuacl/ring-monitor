@@ -58,12 +58,21 @@ For the Metrics page, `MetricsBody` additionally owns:
   as greyed, non-draggable `PartitionRow`s (its `!available` variant)
   **below** the draggable picker — each with a "not connected" tag and a
   trash button wired to `removeStalePartition`, which clears the id from both
-  CSVs and the label cache. The friendly name comes from `partitionLabelsJson`,
-  a UUID→label cache maintained by `_refreshLabelCache` (persisted via the
-  `partitionLabels` config key) so a disconnected partition shows its
-  last-known label instead of a raw UUID. `_refreshLabelCache` skips the write
-  when the cache is unchanged (and treats the unset `""` as equal to `"{}"`) so
-  merely opening the dialog or toggling a checkbox doesn't dirty the config.
+  CSVs and the label cache. The friendly name comes from the UUID→label cache
+  (persisted via the `partitionLabels` config key) so a disconnected partition
+  shows its last-known label instead of a raw UUID. The cache is **staged**
+  (issue #132): `_refreshLabelCache` merges discovery results into the
+  non-cfg `_stagedLabelsJson` display copy (which `stalePartitionList` reads),
+  and `_flushLabelCache` persists it into the cfg-bridged
+  `partitionLabelsJson` only from a user-gesture setter (partition toggle,
+  reorder commit, color change, stale-row trash) — the page is legitimately
+  dirty there, so the housekeeping write rides along. Discovery alone never
+  dirties the KCM, even when the merge *adds* entries (the case the older
+  unchanged-map guard, which also treats `""` as `"{}"`, couldn't cover).
+  Trade-off: labels merged this session but never flushed aren't persisted —
+  the stale row still shows the friendly name for the session (staged read),
+  and only a partition unplugged in a *previous* session with no cached entry
+  falls back to its UUID.
   **Destructive-action gate:** discovery on Plasma populates incrementally
   (`DiskPartitions._refresh` per `rowsInserted`), so a non-empty
   `diskPartitions` does not mean discovery is complete. `stalePartitionList`

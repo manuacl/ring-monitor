@@ -266,7 +266,7 @@ for qml in $(git diff --name-only --diff-filter=A origin/main...HEAD | grep '^co
     base=$(basename "$qml" .qml)
     # Exclude top-level wrappers + Main.qml (entry points, not
     # reusable components → no tst_*.qml expected).
-    case "$base" in main|Main|configMetrics|configAppearance|configGeneral) continue ;; esac
+    case "$base" in main|Main|configMetrics|configAppearance|configAbout) continue ;; esac
     test_file="tests/qml/tst_${base}.qml"
     if [ ! -f "$test_file" ]; then
         echo "CREATE: $test_file (stub)"
@@ -295,7 +295,7 @@ done
 # if missing.
 for qml in $(git diff --name-only --diff-filter=A origin/main...HEAD | grep '^contents/ui/\(core/\|platforms/plasma/\|platforms/standalone/\)\?.*\.qml$'); do
     base=$(basename "$qml" .qml)
-    case "$base" in main|Main|configMetrics|configAppearance|configGeneral) continue ;; esac
+    case "$base" in main|Main|configMetrics|configAppearance|configAbout) continue ;; esac
     if ! grep -q "$base" docs/components.md 2>/dev/null; then
         echo "CREATE: docs/components.md entry for $base (stub)"
         # Same shape: `## $base` + TODO line.
@@ -321,7 +321,7 @@ fi
 # Excludes platforms/plasma/ (adapters), main.qml, config* (parent shells).
 for qml in $(echo "$changed" | grep '^contents/ui/\(core/\)\?.*\.qml$' | grep -v '^contents/ui/platforms/plasma/'); do
     base=$(basename "$qml" .qml)
-    case "$base" in main|configMetrics|configAppearance|configGeneral) continue ;; esac
+    case "$base" in main|configMetrics|configAppearance|configAbout) continue ;; esac
     # Was it modified (not added)? Added files are handled by 4d.
     if ! git diff --name-only --diff-filter=M origin/main...HEAD | grep -qx "$qml"; then
         continue
@@ -538,7 +538,12 @@ If the user declines or there is nothing to add: proceed to step 7.
 
 ### 7. Push + open the PR (phase B)
 
-**Only run if 1 → 6 are all green.**
+**Only run if 1 → 6 are all green — AND the user has explicitly asked
+to push in the current conversation.** Per root `CLAUDE.md` § Working
+rules ("Never `git push` without an explicit user request"), invoking
+this skill is not push authorization by itself: present the phase-A
+summary, then ask for the go before 7b. A green audit waits; it never
+auto-publishes.
 
 ```bash
 # 7a. Gather context for drafting the PR.

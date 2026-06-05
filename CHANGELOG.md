@@ -20,6 +20,10 @@ user-facing only.
   config-dialog open logged a "Setting initial properties failed" line per
   missing key. New `tests/config-pages-placeholders.test.mjs` drift-catcher
   derives the expected `cfg_*` set from `main.xml` for all three config pages.
+- docs: root `CLAUDE.md` gains the "never `git push` without an explicit user
+  request" working rule (finish-branch step 7 now asks before phase B); the
+  finish-branch 4f exclusion list swaps the stale `configGeneral` for
+  `configAbout`, removing a false-positive WARN on config-page placeholders.
 
 ## [0.12.1] — 2026-06-03
 

@@ -20,7 +20,10 @@ The combined runner is `tests/run-all.sh`. Both are reproduced in CI
 - `ReorderLogic.js` → `reorder-logic.test.mjs`
 
 QML tests stay `tst_<ComponentName>.qml` to match qmltestrunner's
-convention.
+convention. A component's test file at the 500-line cap → split per
+concern as `tst_<Component><Concern>.qml` (e.g.
+`tst_MetricsBodyLabelCache.qml`); never trim existing assertions to
+fit — qmltestrunner picks up every `tst_*.qml`, so the split is free.
 
 The `finish-branch` skill enforces both: every `core/*.js` must have
 its paired `tests/<kebab>.test.mjs`, and a missing `tst_<Name>.qml`

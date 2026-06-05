@@ -12,6 +12,15 @@ user-facing only.
 
 ## [Unreleased]
 
+### Technical
+
+- fix(config): add the missing KDE-484541 placeholders on the About page
+  (`cfg_partitionOptOut`, `cfg_diskPartitionColors` + `Default` variants) —
+  #58/#67 introduced the keys without extending configAbout.qml, so every
+  config-dialog open logged a "Setting initial properties failed" line per
+  missing key. New `tests/config-pages-placeholders.test.mjs` drift-catcher
+  derives the expected `cfg_*` set from `main.xml` for all three config pages.
+
 ## [0.12.1] — 2026-06-03
 
 ### Fixed

@@ -14,6 +14,15 @@ user-facing only.
 
 ### Technical
 
+- fix(config): stage the partition-label cache instead of writing it on
+  discovery (#132) — `MetricsBody._refreshLabelCache` now merges into a
+  non-cfg `_stagedLabelsJson` (read by `stalePartitionList`) and a new
+  `_flushLabelCache` persists it to the cfg-bridged `partitionLabelsJson`
+  only from user-gesture setters, so opening the Metrics page no longer
+  dirties the KCM ("Apply settings?") when the saved cache misses entries
+  for referenced partitions. SCENARIO guards in the new
+  `tests/qml/tst_MetricsBodyLabelCache.qml` (split file: `tst_MetricsBody.qml`
+  is at the 500-line cap).
 - fix(config): add the missing KDE-484541 placeholders on the About page
   (`cfg_partitionOptOut`, `cfg_diskPartitionColors` + `Default` variants) —
   #58/#67 introduced the keys without extending configAbout.qml, so every

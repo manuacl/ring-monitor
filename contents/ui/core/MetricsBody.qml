@@ -60,9 +60,15 @@ ColumnLayout {
     property string partitionOptOutCsv: ""
     // UUID→label JSON cache so a disconnected partition shows its last-known
     // volume name on the stale row instead of a bare UUID (the system stops
-    // exposing the label once the filesystem is gone). Maintained by
-    // _refreshLabelCache; see DiskMetrics.mergeLabelCache.
+    // exposing the label once the filesystem is gone). Written ONLY by
+    // _flushLabelCache (a user-gesture path) — discovery merges land in
+    // _stagedLabelsJson so housekeeping never dirties the KCM (issue #132).
     property string partitionLabelsJson: ""
+    // Display copy of the label cache: saved entries + this session's
+    // discovery merges. stalePartitionList reads it; flushed to the
+    // cfg-bridged property above on the first user gesture (issue #132).
+    property string _stagedLabelsJson: ""
+    onPartitionLabelsJsonChanged: _stagedLabelsJson = partitionLabelsJson
     // JSON partition-id→custom-color map, bridged to cfg_diskPartitionColors.
     // A partition with no entry inherits the shared ring color (issue #67).
     property string partitionColorsJson: ""
@@ -162,6 +168,7 @@ ColumnLayout {
         } else {
             body.enabledPartitionsCsv = Catalog.toggleEnabled(Catalog.parseCsv(body.enabledPartitionsCsv), id, on).join(",");
         }
+        _flushLabelCache();
     }
 
     // Per-partition custom ring color (issue #67). "" = no override → the
@@ -171,9 +178,11 @@ ColumnLayout {
     }
     function setPartitionColor(id, color) {
         body.partitionColorsJson = DiskMetrics.withColor(body.partitionColorsJson, id, color);
+        _flushLabelCache();
     }
     function clearPartitionColor(id) {
         body.partitionColorsJson = DiskMetrics.withoutColor(body.partitionColorsJson, id);
+        _flushLabelCache();
     }
 
     // Bound the color map so a custom color can't outlive its partition. The
@@ -213,6 +222,7 @@ ColumnLayout {
 
     function commitPartitionOrder() {
         body.partitionOrderCsv = currentPartitionOrder().join(",");
+        _flushLabelCache();
     }
 
     // Wrapper-injected "discovery settled" gate. Default false → no stale
@@ -228,7 +238,7 @@ ColumnLayout {
     readonly property var stalePartitionList: {
         if (!body.partitionsReady || !body.diskPartitions || body.diskPartitions.length === 0)
             return [];
-        return DiskMetrics.stalePartitions(body.enabledPartitionsCsv, body.partitionOrderCsv, body.diskPartitions, body.partitionLabelsJson);
+        return DiskMetrics.stalePartitions(body.enabledPartitionsCsv, body.partitionOrderCsv, body.diskPartitions, body._stagedLabelsJson);
     }
 
     // The set of ids whose label is worth caching: everything currently
@@ -250,7 +260,15 @@ ColumnLayout {
     }
 
     function _refreshLabelCache() {
-        body.partitionLabelsJson = body._settledMap(body.partitionLabelsJson, DiskMetrics.mergeLabelCache(body.partitionLabelsJson, body.diskPartitions || [], body._referencedPartitionIds()));
+        body._stagedLabelsJson = body._settledMap(body._stagedLabelsJson, DiskMetrics.mergeLabelCache(body._stagedLabelsJson, body.diskPartitions || [], body._referencedPartitionIds()));
+    }
+
+    // Persist the staged cache. Called only from user-gesture setters — the
+    // page is already legitimately dirty, so the cache write rides along
+    // instead of dirtying the KCM on mere discovery (issue #132).
+    function _flushLabelCache() {
+        _refreshLabelCache();
+        body.partitionLabelsJson = body._settledMap(body.partitionLabelsJson, body._stagedLabelsJson);
     }
 
     // Trash action on a stale row: drop the id from the selection, the order,
@@ -264,7 +282,7 @@ ColumnLayout {
         body.enabledPartitionsCsv = Catalog.toggleEnabled(Catalog.parseCsv(body.enabledPartitionsCsv), id, false).join(",");
         body.partitionOrderCsv = Catalog.toggleEnabled(Catalog.parseCsv(body.partitionOrderCsv), id, false).join(",");
         clearPartitionColor(id);
-        _refreshLabelCache();
+        _flushLabelCache();
     }
 
     // Seed the selection with the backend default when nothing is chosen yet,

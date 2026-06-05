@@ -146,6 +146,7 @@ ColumnLayout {
             body.mergeCpuTemp = false;
         if (!on && id === "gpu" && body.mergeGpuTemp)
             body.mergeGpuTemp = false;
+        _flushLabelCache();
     }
 
     function _removableIds() {
@@ -281,8 +282,10 @@ ColumnLayout {
     function removeStalePartition(id) {
         body.enabledPartitionsCsv = Catalog.toggleEnabled(Catalog.parseCsv(body.enabledPartitionsCsv), id, false).join(",");
         body.partitionOrderCsv = Catalog.toggleEnabled(Catalog.parseCsv(body.partitionOrderCsv), id, false).join(",");
+        // clearPartitionColor also flushes the label cache; it runs after both
+        // CSV writes, so its refresh already sees the id unreferenced and
+        // prunes it — no extra _flushLabelCache() needed here.
         clearPartitionColor(id);
-        _flushLabelCache();
     }
 
     // Seed the selection with the backend default when nothing is chosen yet,

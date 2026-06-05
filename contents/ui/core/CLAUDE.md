@@ -166,6 +166,9 @@ Stage the recomputed value in a non-`cfg` property; flush it into the
 bridged property from user-gesture setters only (the page is
 legitimately dirty there). Canonical:
 `MetricsBody._stagedLabelsJson` / `_flushLabelCache` (issue #132).
+Sanctioned exception: one-shot seeding of an *empty* bridged property
+with a computed default (`MetricsBody._seedDefaultIfEmpty` — empty →
+default once, never touching user-chosen state).
 
 ### Reactive argless data: expose as a `property`, not a `function`
 

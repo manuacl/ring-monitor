@@ -39,6 +39,7 @@ Item {
 
         function init() {
             body.partitionsReady = true;
+            body.enabledMetricsCsv = "cpu,ram";
             body.partitionLabelsJson = "";
             body.enabledPartitionsCsv = "";
             body.partitionOrderCsv = "";
@@ -75,6 +76,19 @@ Item {
             const saved = JSON.parse(body.partitionLabelsJson);
             compare(saved["u-b"], "bazzite", "staged label flushed on user gesture");
             compare(saved["u-c"], "photos", "newly-toggled partition cached too");
+        }
+
+        function test_metric_toggle_also_flushes_staged_labels() {
+            // setEnabled (a metric checkbox, not a partition gesture) dirties
+            // the page legitimately too — the staged cache rides along so a
+            // metrics-only Apply doesn't strand session-discovered labels.
+            body.partitionLabelsJson = '{"u-a":"sync"}';
+            body.enabledPartitionsCsv = "u-a,u-b";
+            body.diskPartitions = [{ id: "u-a", label: "sync" }, { id: "u-b", label: "bazzite" }];
+            wait(20);
+            compare(body.partitionLabelsJson, '{"u-a":"sync"}');
+            body.setEnabled("ram", false);
+            compare(JSON.parse(body.partitionLabelsJson)["u-b"], "bazzite", "metric toggle flushed the staged labels");
         }
 
         function test_stale_row_label_comes_from_staged_cache() {

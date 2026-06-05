@@ -57,7 +57,9 @@ rather than receiving a tsunami of findings. For each block, report
 PASS / FAIL with useful details.
 
 **Phase B — push + PR + version tag**: only fire if phase A is fully
-green. Steps 7 (push + open PR) and 8 (recommend & apply `bump:X`
+green AND the user has explicitly asked to push (see step 7's gate —
+a green audit alone never authorizes publishing). Once the user gives
+the go, steps 7 (push + open PR) and 8 (recommend & apply `bump:X`
 label) run back-to-back.
 
 ### 1. Pre-commit — file-size + qmllint + qmlformat
@@ -266,7 +268,7 @@ for qml in $(git diff --name-only --diff-filter=A origin/main...HEAD | grep '^co
     base=$(basename "$qml" .qml)
     # Exclude top-level wrappers + Main.qml (entry points, not
     # reusable components → no tst_*.qml expected).
-    case "$base" in main|Main|configMetrics|configAppearance|configGeneral) continue ;; esac
+    case "$base" in main|Main|configMetrics|configAppearance|configAbout) continue ;; esac
     test_file="tests/qml/tst_${base}.qml"
     if [ ! -f "$test_file" ]; then
         echo "CREATE: $test_file (stub)"
@@ -295,7 +297,7 @@ done
 # if missing.
 for qml in $(git diff --name-only --diff-filter=A origin/main...HEAD | grep '^contents/ui/\(core/\|platforms/plasma/\|platforms/standalone/\)\?.*\.qml$'); do
     base=$(basename "$qml" .qml)
-    case "$base" in main|Main|configMetrics|configAppearance|configGeneral) continue ;; esac
+    case "$base" in main|Main|configMetrics|configAppearance|configAbout) continue ;; esac
     if ! grep -q "$base" docs/components.md 2>/dev/null; then
         echo "CREATE: docs/components.md entry for $base (stub)"
         # Same shape: `## $base` + TODO line.
@@ -321,7 +323,7 @@ fi
 # Excludes platforms/plasma/ (adapters), main.qml, config* (parent shells).
 for qml in $(echo "$changed" | grep '^contents/ui/\(core/\)\?.*\.qml$' | grep -v '^contents/ui/platforms/plasma/'); do
     base=$(basename "$qml" .qml)
-    case "$base" in main|configMetrics|configAppearance|configGeneral) continue ;; esac
+    case "$base" in main|Main|configMetrics|configAppearance|configAbout) continue ;; esac
     # Was it modified (not added)? Added files are handled by 4d.
     if ! git diff --name-only --diff-filter=M origin/main...HEAD | grep -qx "$qml"; then
         continue
@@ -538,7 +540,12 @@ If the user declines or there is nothing to add: proceed to step 7.
 
 ### 7. Push + open the PR (phase B)
 
-**Only run if 1 → 6 are all green.**
+**Only run if 1 → 6 are all green — AND the user has explicitly asked
+to push in the current conversation.** Per root `CLAUDE.md` § Working
+rules ("Never `git push` without an explicit user request"), invoking
+this skill is not push authorization by itself: present the phase-A
+summary, then ask for the go before 7b. A green audit waits; it never
+auto-publishes.
 
 ```bash
 # 7a. Gather context for drafting the PR.
@@ -632,9 +639,9 @@ for a multi-agent cloud review. Phase A only catches the mechanical
 rules (file size, qmllint, tests, plasma isolation, doc
 consistency) — `/code-review` is where deeper feedback (design
 smells, edge cases, security, naming) lands. Auto-firing it from
-step 9 closes the loop in one flow: phase A green → push → PR
+step 9 closes the loop in one flow: user's push go → push → PR
 opened → labelled → review feedback, no separate manual fire
-required.
+required after the step-7 confirmation.
 
 Invoke via the Skill tool, same chaining mechanism as step 8
 (`bump-label`):
@@ -720,9 +727,10 @@ The `±` marker means "auto-fixed — review before pushing". A run with
 only ✓ and `±` is OK to push; the user should still scan each `±` line
 to decide whether to flesh out the stub now or commit as-is and iterate.
 
-- **All green** → chain into phase B (push + `gh pr create` + bump
-  label), then return the PR URL and the chosen bump: "PR opened:
-  <url> (tagged bump:minor)".
+- **All green** → ask the user for the explicit push go (step 7's
+  gate), THEN chain into phase B (push + `gh pr create` + bump label)
+  and return the PR URL and the chosen bump: "PR opened: <url>
+  (tagged bump:minor)".
 - **Any FAIL** → **do not push, do not create a PR**. Cite the
   file:line, suggest the precise fix (e.g. `qmlformat-qt6 --inplace
   contents/ui/Foo.qml`), do not apply the fix automatically — let the

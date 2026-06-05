@@ -178,10 +178,10 @@ but follow the same isolation seam: their only job is to bridge
 Plasma 6 sets every `cfg_<key>` (and the auto-generated
 `cfg_<key>Default` for "Reset to defaults") on each opened config
 page. Pages that don't bridge a key still receive the assignment and
-log a warning. **Placeholder pattern**: declare `property var
-cfg_<key>` (and `cfg_<key>Default`) for every key handled on another
-page, so the assignments land somewhere instead of polluting the
-journal. Full discussion in
+log a warning. **Single seam**: `PlaceholderKCM.qml` (this dir)
+declares `property var` placeholders for every `main.xml` key; each
+config page extends it as its root type and overrides only its bridged
+keys with `property alias`. Full discussion in
 [`docs/config-dialog.md`](../../../docs/config-dialog.md).
 
 ### Adding a persisted config key: six touch points
@@ -193,8 +193,8 @@ different value (or the standalone build never reads it):
 1. `contents/config/main.xml` — the `<entry>` + default (source of truth).
 2. `platforms/plasma/ConfigStore.qml` — `readonly property X: Plasmoid.configuration.X`.
 3. `platforms/standalone/ConfigStore.qml` — `property X: <default>` (mirror the default byte-for-byte).
-4. `configMetrics.qml` (or the owning page) — `property alias cfg_X: body.X` + the `cfg_XDefault` placeholder.
-5. `configAppearance.qml` **and `configAbout.qml`** (every *other* page than the one handling the key) — `cfg_X` + `cfg_XDefault` 484541 placeholders. Missing one only shows as a journal warning at runtime (the dialog still loads), so it slips past the headless tests — `configAbout` is the easy miss (caught live in #77).
+4. `configMetrics.qml` (or the owning page) — `property alias cfg_X: body.X`.
+5. `PlaceholderKCM.qml` (this dir) — the `cfg_X` + `cfg_XDefault` 484541 placeholder pair, declared ONCE for all pages (which extend it). Was previously a per-page placeholder block and `configAbout` was the easy miss twice (#77, then #58/#67's keys); `tests/config-pages-placeholders.test.mjs` now derives the key set from `main.xml` + the page list from `config.qml` and fails on a missing base entry or a page not extending the base.
 6. `platforms/standalone/SettingsDialog.qml` — a `_bridgeMap` entry `[body, "X", "X"]` (+ the pair in `standalone-settings-dialog.test.mjs`).
 
 The `config-store` / `standalone-config-store` / `standalone-settings-dialog`

@@ -12,6 +12,27 @@ user-facing only.
 
 ## [Unreleased]
 
+### Technical
+
+- fix(config): add the missing KDE-484541 placeholders on the About page
+  (`cfg_partitionOptOut`, `cfg_diskPartitionColors` + `Default` variants) —
+  #58/#67 introduced the keys without extending configAbout.qml, so every
+  config-dialog open logged a "Setting initial properties failed" line per
+  missing key. New `tests/config-pages-placeholders.test.mjs` drift-catcher
+  derives the expected `cfg_*` set from `main.xml` for all three config pages.
+- docs: root `CLAUDE.md` gains the "never `git push` without an explicit user
+  request" working rule (finish-branch step 7 now asks before phase B); the
+  finish-branch 4f exclusion list swaps the stale `configGeneral` for
+  `configAbout`, removing a false-positive WARN on config-page placeholders.
+- refactor(config): the per-page 484541 placeholder blocks (~160 duplicated
+  lines across the three config pages) collapse into a single
+  `platforms/plasma/PlaceholderKCM.qml` base that every page extends,
+  overriding only its bridged keys with `property alias`. Review findings on
+  this PR also hardened the guard test (page list derived from `config.qml`,
+  `\s+`-tolerant key extraction shared with the config-store tests, sanity
+  floor raised to 30) and aligned the remaining finish-branch auto-push
+  passages with the new explicit-go gate.
+
 ## [0.12.1] — 2026-06-03
 
 ### Fixed

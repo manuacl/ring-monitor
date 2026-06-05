@@ -1,19 +1,14 @@
 import QtQuick
-import org.kde.kcmutils as KCM
 import "platforms/plasma" as Platform
 import "core" as Core
 
 // Plasma-side wrapper for the About config page. Wires the shared
 // ConfigStore (read + the recordUpdateCheck / acknowledgeVersion
 // writers) into the portable AboutBody. Same wrapper-vs-body split
-// pattern as the other config pages.
-//
-// HACK: KDE bug 484541 — Plasma sets every cfg_<key> on every page,
-// and Plasma 6 also generates cfg_<key>Default for the "Reset"
-// feature. We declare placeholders for the keys this page does NOT
-// bridge to keep the journal quiet.
+// pattern as the other config pages. The KDE-484541 placeholders for
+// keys this page does NOT bridge come from the PlaceholderKCM base.
 
-KCM.SimpleKCM {
+Platform.PlaceholderKCM {
     id: page
 
     // Bridged to body via signals so writes go through ConfigStore
@@ -27,64 +22,6 @@ KCM.SimpleKCM {
     property alias cfg_lastUpdateCheck: lastCheckProxy.value
     property alias cfg_latestKnownVersion: latestVersionProxy.value
     property alias cfg_acknowledgedVersion: acknowledgedProxy.value
-
-    // KDE bug 484541 placeholders for keys handled on other pages.
-    property var cfg_metricOrder
-    property var cfg_metricOrderDefault
-    property var cfg_enabledMetrics
-    property var cfg_enabledMetricsDefault
-    property var cfg_enabledPartitions
-    property var cfg_enabledPartitionsDefault
-    property var cfg_partitionOrder
-    property var cfg_partitionOrderDefault
-    property var cfg_partitionLabels
-    property var cfg_partitionLabelsDefault
-    property var cfg_showCpuCores
-    property var cfg_showCpuCoresDefault
-    property var cfg_mergeCpuTemp
-    property var cfg_mergeCpuTempDefault
-    property var cfg_mergeGpuTemp
-    property var cfg_mergeGpuTempDefault
-    property var cfg_splitDiskIo
-    property var cfg_splitDiskIoDefault
-    property var cfg_tempUnit
-    property var cfg_tempUnitDefault
-    property var cfg_orientation
-    property var cfg_orientationDefault
-    property var cfg_ringSize
-    property var cfg_ringSizeDefault
-    property var cfg_ringSpacingPercent
-    property var cfg_ringSpacingPercentDefault
-    property var cfg_windowAnchorCorner
-    property var cfg_windowAnchorCornerDefault
-    property var cfg_windowMarginX
-    property var cfg_windowMarginXDefault
-    property var cfg_windowMarginY
-    property var cfg_windowMarginYDefault
-    property var cfg_textOpacity
-    property var cfg_textOpacityDefault
-    property var cfg_trackOpacity
-    property var cfg_trackOpacityDefault
-    property var cfg_arcOpacity
-    property var cfg_arcOpacityDefault
-    property var cfg_colorTheme
-    property var cfg_colorThemeDefault
-    property var cfg_colorMode
-    property var cfg_colorModeDefault
-    property var cfg_customColorLight
-    property var cfg_customColorLightDefault
-    property var cfg_customColorDark
-    property var cfg_customColorDarkDefault
-    property var cfg_textColorMode
-    property var cfg_textColorModeDefault
-    property var cfg_customTextColorLight
-    property var cfg_customTextColorLightDefault
-    property var cfg_customTextColorDark
-    property var cfg_customTextColorDarkDefault
-    property var cfg_checkForUpdatesEnabledDefault
-    property var cfg_lastUpdateCheckDefault
-    property var cfg_latestKnownVersionDefault
-    property var cfg_acknowledgedVersionDefault
 
     // Internal "proxies" hold the cfg_* values so the body can read
     // the live state without each prop becoming a top-level alias.

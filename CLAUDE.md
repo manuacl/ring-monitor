@@ -58,6 +58,11 @@ The deeper docs live in `docs/`:
 These apply everywhere in the repo regardless of which layer you're
 editing.
 
+- **Never `git push` without an explicit user request.** A green
+  audit, an open PR, or an invoked pipeline skill (`finish-branch`
+  included) is NOT authorization — ask and wait for the user's go in
+  the current conversation before any push, every time. Local commits
+  are fine; publishing is the user's call.
 - **English-only repo.** All committed files — code, comments,
   `docs/*.md`, every `CLAUDE.md`, `README.md`, commit messages, PR
   titles/bodies, and `.claude/skills/*/SKILL.md` — are written

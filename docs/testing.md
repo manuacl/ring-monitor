@@ -59,6 +59,7 @@ Text-level guards (Plasma adapter — `org.kde.plasma.plasmoid` /
 |---|---|
 | `config-store.test.mjs` | every persisted key declared + bound to `Plasmoid.configuration.X` |
 | `metrics-backend.test.mjs` | public surface + universal Sensor instances + `SensorTreeModel` discovery + Instantiator pattern |
+| `config-pages-placeholders.test.mjs` | `PlaceholderKCM.qml` declares `cfg_<key>` + `cfg_<key>Default` for every `main.xml` entry, and every `config.qml` page extends it (KDE bug 484541 seam; key set and page list both derived at test time) |
 
 Text-level guards (standalone adapter + C++ files — no
 `qmltestrunner` path for files that import `RingMonitor.Standalone`

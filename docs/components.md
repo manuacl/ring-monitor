@@ -64,8 +64,8 @@ For the Metrics page, `MetricsBody` additionally owns:
   (issue #132): `_refreshLabelCache` merges discovery results into the
   non-cfg `_stagedLabelsJson` display copy (which `stalePartitionList` reads),
   and `_flushLabelCache` persists it into the cfg-bridged
-  `partitionLabelsJson` only from a user-gesture setter (partition toggle,
-  reorder commit, color change, stale-row trash) — the page is legitimately
+  `partitionLabelsJson` only from a user-gesture setter (metric or partition
+  toggle, reorder commit, color change, stale-row trash) — the page is legitimately
   dirty there, so the housekeeping write rides along. Discovery alone never
   dirties the KCM, even when the merge *adds* entries (the case the older
   unchanged-map guard, which also treats `""` as `"{}"`, couldn't cover).
@@ -88,11 +88,23 @@ For the Metrics page, `MetricsBody` additionally owns:
   `partitionColorsJson` map (bridged to `cfg_diskPartitionColors`) and exposes
   `partitionColor` / `setPartitionColor` / `clearPartitionColor` (thin
   delegations to `DiskMetrics`' color helpers). `_refreshColorMap` bounds the
-  map to `enabled ∪ order ∪ discovered` (via `DiskMetrics.pruneMap`) on every
-  refresh — the picker lets you color any discovered partition, so a discovered
-  one's color is kept even when unchecked/unordered; only a color whose
-  partition is both gone and unreferenced is pruned, so it can't outlive its
-  partition. The picker view itself is the separate
+  map to `enabled ∪ order ∪ discovered` (via `DiskMetrics.pruneMap`) — the
+  picker lets you color any discovered partition (`orderPartitions` renders
+  newly-discovered ids before they reach `partitionOrderCsv`), so a discovered
+  one's color is kept even when unchecked/unordered; the referenced half keeps
+  the color of a configured-but-unplugged partition so a replug restores it.
+  Only a color whose partition is both gone and unreferenced is pruned, so it
+  can't outlive its partition. Like the label cache, the map is **staged**
+  (issue #134): the prune lands in the non-cfg `_stagedColorsJson` display
+  copy (which `partitionColor` reads) and `_flushColorMap` persists it only
+  from user-gesture setters (`_flushStaged` flushes both staged maps) — so
+  pruning a gone partition's color on dialog open never dirties the KCM. The
+  prune is additionally gated on `partitionsReady` + a non-empty
+  `diskPartitions` (same gate as `stalePartitionList`): at
+  `Component.onCompleted` the async discovery hasn't landed yet, so an
+  ungated prune would see a keep-set missing its discovered half and drop a
+  discovered-but-unreferenced partition's saved color before discovery could
+  vouch for it. The picker view itself is the separate
   [`DiskPartitionPicker.qml`](#diskpartitionpickerqml) — the body injects itself
   as that component's `controller`. The body takes a `colorPickerComponent`
   (same injection contract as `AppearanceBody`) for the per-row swatch, and a

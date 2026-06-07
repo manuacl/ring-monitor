@@ -13,14 +13,15 @@ Autostart::Autostart(QObject *parent) : QObject(parent)
     // is a no-op when the entry is absent, already current, or we're a
     // fixed-path dev build (so a source run can't hijack the entry).
     //
-    // The stable-copy refresh comes first so refreshIfStale renders an
-    // Exec= against an up-to-date copy (#136). Gated on the entry
-    // existing: a launch with both toggles off must not create the copy.
-    // Pre-copy installs migrate here — their entry exists with an
-    // absolute Exec=, so this creates the copy and refreshIfStale
-    // rewrites the entry to it.
+    // The stable-copy refresh (#136) is asynchronous: the AppImage copy
+    // (>100 MB) must not block the GUI thread during QML construction,
+    // so refreshIfStale below heals with the best CURRENTLY renderable
+    // Exec= (the stable copy if present, else the live path) and the
+    // worker converges both entries to the stable path on completion.
+    // Gated on the entry existing: a launch with both toggles off must
+    // not create the copy. Pre-copy installs migrate here.
     if (QFileInfo::exists(desktopFilePath()))
-        desktop_entry::ensureStableCopy();
+        desktop_entry::ensureStableCopyAsync();
     desktop_entry::refreshIfStale(desktopFilePath(), buildDesktopFileContent());
 }
 
@@ -31,15 +32,9 @@ QString Autostart::desktopFilePath() const
 
 QString Autostart::buildDesktopFileContent() const
 {
-    return QStringLiteral("[Desktop Entry]\n"
-                          "Type=Application\n"
-                          "Name=Ring Monitor\n"
-                          "Comment=Modern minimal circular system monitor\n"
-                          "Exec=%1\n"
-                          "Icon=utilities-system-monitor\n"
-                          "Categories=System;Monitor;\n"
-                          "X-GNOME-Autostart-enabled=true\n")
-        .arg(desktop_entry::execLine());
+    // Template lives in desktop_entry so the async copy worker can
+    // re-render the entry from its thread without touching this QObject.
+    return desktop_entry::autostartFileContent();
 }
 
 bool Autostart::isEnabled() const
@@ -55,9 +50,11 @@ void Autostart::setEnabled(bool on)
         return;
 
     if (on) {
-        // Copy first: buildDesktopFileContent() points Exec= at the stable
-        // copy only once it exists (#136).
-        desktop_entry::ensureStableCopy();
+        // The entry is written immediately with the best currently
+        // renderable Exec= (stable copy if it already exists, else the
+        // live path); the async worker re-points it at the fresh copy
+        // when the copy lands (#136).
+        desktop_entry::ensureStableCopyAsync();
         desktop_entry::writeDesktopFile(path, buildDesktopFileContent());
     } else {
         desktop_entry::removeDesktopFile(path);

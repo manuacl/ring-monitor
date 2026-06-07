@@ -681,17 +681,32 @@ over:
   only fires when the app runs — an upgrade followed by a re-login
   (never launching the new file) booted to nothing. The copy always
   exists, so login always starts *some* install; the next launch of a
-  newer AppImage refreshes it (`ensureStableCopy()`, atomic sibling-temp
-  + `rename(2)` because a login-launched instance may have the old copy
-  FUSE-mounted). Gated on `runningAsAppImage()` (a dev build must not
-  shadow a real install) and created only when an entry exists or a
-  toggle is enabled; removed when both toggles are off
+  newer AppImage refreshes it. Gated on `runningAsAppImage()` (a dev
+  build must not shadow a real install) and created only when an entry
+  exists or a toggle is enabled; removed when both toggles are off
   (`removeStableCopyIfOrphaned()`).
+- **The copy is asynchronous** (`ensureStableCopyAsync()`): cheap stats
+  on the GUI thread, then the >100 MB `QFile::copy` on a **detached**
+  worker (inline it froze the first post-upgrade launch; detached — not
+  pooled — so a copy stuck on a hung mount can't wedge process exit,
+  same rationale as ProcReader's statvfs worker), with an atomic
+  in-flight guard. Entries are written immediately with the best
+  currently-renderable `Exec=` (copy if present, else live path); on
+  completion the worker re-renders BOTH entries and re-runs the orphan
+  check — that convergence pass is why the `.desktop` templates live in
+  `desktop_entry` (`autostartFileContent()` / `menuFileContent()`), not
+  on the writer QObjects. The swap is atomic (sibling temp +
+  `rename(2)`, a login instance may have the old copy FUSE-mounted); a
+  chmod failure aborts it (non-executable copy = silent EACCES at
+  login); every failure path `qWarning`s. The mtime handle opens
+  `ReadWrite` on purpose — for `QFile`, `WriteOnly` implies `Truncate`
+  and would wipe the fresh copy.
 
 Text-level-guarded by `tests/desktop-entry.test.mjs` (the shared
-logic), with `tests/autostart.test.mjs` / `tests/menu-entry.test.mjs`
-asserting each writer delegates to `execLine()` and maintains the
-stable copy from its ctor / `setEnabled`.
+logic, worker invariants, templates), with `tests/autostart.test.mjs` /
+`tests/menu-entry.test.mjs` asserting each writer delegates to its
+`desktop_entry` content helper and maintains the stable copy from its
+ctor / `setEnabled`.
 
 ### Don't bind `QtDialogs.ColorDialog.selectedColor` to a source property
 

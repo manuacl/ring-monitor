@@ -55,29 +55,62 @@ test("stableExecPath is a fixed, version-independent path", () => {
     );
 });
 
-test("ensureStableCopy is gated on runningAsAppImage (no dev-build shadowing)", () => {
+test("ensureStableCopyAsync is gated on runningAsAppImage (no dev-build shadowing)", () => {
     // A throwaway source build must never overwrite the stable copy a real
     // AppImage install relies on at login.
-    const fn = SRC.slice(SRC.indexOf("bool ensureStableCopy()"));
+    const fn = SRC.slice(SRC.indexOf("void ensureStableCopyAsync()"));
     const body = fn.slice(0, fn.indexOf("\n}\n"));
     assert.match(
         body,
-        /!\s*runningAsAppImage\(\)\s*\)?\s*\n?\s*return false/,
-        "ensureStableCopy must return false when not running as an AppImage",
+        /!\s*runningAsAppImage\(\)\s*\)?\s*\n?\s*return/,
+        "ensureStableCopyAsync must bail when not running as an AppImage",
     );
 });
 
-test("ensureStableCopy no-ops when running FROM the copy itself", () => {
+test("the staleness check no-ops when running FROM the copy itself", () => {
     // A login launch runs the copy: the copy IS the source, so copying
     // would clobber the file backing our own FUSE mount. Canonical compare
     // so a symlinked ~/.local/bin still matches.
-    const fn = SRC.slice(SRC.indexOf("bool ensureStableCopy()"));
+    const fn = SRC.slice(SRC.indexOf("bool stableCopyStale("));
     const body = fn.slice(0, fn.indexOf("\n}\n"));
     assert.match(
         body,
         /\.canonicalFilePath\(\)\s*==\s*\w+\.canonicalFilePath\(\)/,
-        "ensureStableCopy must compare source and copy canonically and bail when they are the same file",
+        "stableCopyStale must compare source and copy canonically and bail when they are the same file",
     );
+});
+
+test("the AppImage copy runs on a DETACHED worker with in-flight dedup", () => {
+    // The copy (>100 MB) froze the first post-upgrade launch when it ran
+    // inline in the QML ctors. Detached (not pooled): a QThreadPool dtor
+    // would block process exit on a copy stuck on a hung mount — same
+    // rationale as ProcReader's statvfs worker. The atomic in-flight guard
+    // means a hung copy freezes one thread, never a pile.
+    const fn = SRC.slice(SRC.indexOf("void ensureStableCopyAsync()"));
+    const body = fn.slice(0, fn.indexOf("\n}\n"));
+    assert.match(body, /std::thread\(/, "the copy must run on a std::thread, not the GUI thread");
+    assert.match(body, /\.detach\(\)/, "the worker must be detached so a stuck copy cannot wedge process exit");
+    assert.match(body, /std::atomic<bool>[\s\S]*?\.exchange\(true\)/, "an atomic in-flight guard must drop re-entrant requests");
+});
+
+test("the worker re-renders BOTH entries and re-checks orphaning after the copy lands", () => {
+    // Entries rendered before the copy existed carry the live-path
+    // fallback; without this convergence pass they would keep the
+    // version-stamped Exec= until the NEXT launch. The orphan re-check
+    // covers a disable that raced the copy.
+    const fn = SRC.slice(SRC.indexOf("void ensureStableCopyAsync()"));
+    const body = fn.slice(0, fn.indexOf("\n}\n"));
+    assert.match(
+        body,
+        /refreshIfStale\(\s*autostartFilePath\(\)\s*,\s*autostartFileContent\(\)\s*\)/,
+        "the worker must re-render the autostart entry after the copy",
+    );
+    assert.match(
+        body,
+        /refreshIfStale\(\s*menuFilePath\(\)\s*,\s*menuFileContent\(\)\s*\)/,
+        "the worker must re-render the menu entry after the copy",
+    );
+    assert.match(body, /removeStableCopyIfOrphaned\(\)/, "the worker must re-run the orphan check (disable racing the copy)");
 });
 
 test("the stable-copy replace is atomic (sibling temp + rename(2))", () => {
@@ -85,7 +118,7 @@ test("the stable-copy replace is atomic (sibling temp + rename(2))", () => {
     // rename(2) keeps its inode alive while new launches see the fresh
     // file. QFile::rename refuses an existing destination, so the POSIX
     // call is used directly.
-    const fn = SRC.slice(SRC.indexOf("bool ensureStableCopy()"));
+    const fn = SRC.slice(SRC.indexOf("bool writeStableCopy("));
     const body = fn.slice(0, fn.indexOf("\n}\n"));
     assert.match(
         body,
@@ -93,6 +126,53 @@ test("the stable-copy replace is atomic (sibling temp + rename(2))", () => {
         "the payload copy must target the sibling temp file, never the destination directly",
     );
     assert.match(body, /::rename\(/, "the temp file must be moved over the destination via POSIX rename(2)");
+});
+
+test("a chmod failure ABORTS the swap; a setFileTime failure only warns", () => {
+    // Non-executable copy behind Exec= = login fails with EACCES and no
+    // visible error → abort and keep the previous launchable copy. A lost
+    // mtime only costs a redundant re-copy next launch → warn + continue.
+    const fn = SRC.slice(SRC.indexOf("bool writeStableCopy("));
+    const body = fn.slice(0, fn.indexOf("\n}\n"));
+    assert.match(
+        body,
+        /if\s*\(!QFile::setPermissions\([\s\S]*?QFile::remove\(\s*tmp\s*\);\s*\n\s*return false/,
+        "a setPermissions failure must remove the temp file and abort",
+    );
+    assert.match(
+        body,
+        /if\s*\(!f\.open\([\s\S]*?\|\|\s*!f\.setFileTime\(/,
+        "the open and setFileTime returns must both be checked",
+    );
+    // Every failure path leaves a greppable journal trace — a silent
+    // failure either resurrects #136 invisibly or re-copies forever.
+    const warnings = (body.match(/qWarning\(/g) || []).length;
+    assert.ok(warnings >= 4, `every writeStableCopy failure path must qWarning (found ${warnings}, expected >=4)`);
+});
+
+test("the mtime handle opens ReadWrite — QFile WriteOnly implies Truncate", () => {
+    // SCENARIO: a 'cleanup' to WriteOnly would WIPE the bytes just copied
+    // (QIODevice docs: for file devices, WriteOnly implies Truncate unless
+    // combined with ReadWrite/Append). setFileTime only needs an open
+    // handle; ReadWrite is the non-destructive way to get one.
+    const fn = SRC.slice(SRC.indexOf("bool writeStableCopy("));
+    const body = fn.slice(0, fn.indexOf("\n}\n"));
+    assert.match(body, /f\.open\(QIODevice::ReadWrite\)/, "the setFileTime handle must open ReadWrite");
+    assert.doesNotMatch(body, /f\.open\(QIODevice::WriteOnly\)/, "WriteOnly would truncate the fresh copy");
+});
+
+test("the .desktop templates live in desktop_entry (worker-renderable)", () => {
+    // The async worker re-renders entries from its own thread; templates
+    // on the writer QObjects would force cross-thread object access.
+    const auto = SRC.slice(SRC.indexOf("QString autostartFileContent()"));
+    const autoBody = auto.slice(0, auto.indexOf("\n}\n"));
+    assert.match(autoBody, /X-GNOME-Autostart-enabled=true/, "the autostart template must carry the GNOME autostart key");
+    assert.match(autoBody, /Exec=%1/, "the autostart template must render Exec= from execLine()");
+    const menu = SRC.slice(SRC.indexOf("QString menuFileContent()"));
+    const menuBody = menu.slice(0, menu.indexOf("\n}\n"));
+    assert.match(menuBody, /Type=Application/, "the menu template must declare Type=Application");
+    assert.match(menuBody, /StartupWMClass=ring-monitor-standalone/, "the menu template must set StartupWMClass to the window's WM_CLASS");
+    assert.doesNotMatch(menuBody, /X-GNOME-Autostart-enabled/, "the autostart-only key must not leak into the menu template");
 });
 
 test("removeStableCopyIfOrphaned spares the copy while either entry references it", () => {

@@ -28,13 +28,14 @@ const SRC = readFileSync(
     "utf8",
 );
 
-test("autostart.cpp builds the Exec= line via desktop_entry::execLine", () => {
-    // Whitespace-tolerant: matches the call regardless of formatting.
-    // The shared helper is what carries quoteExecArg(currentExecPath()).
+test("autostart.cpp renders its content via desktop_entry::autostartFileContent", () => {
+    // The template (incl. the execLine() Exec= resolution) lives in
+    // desktop_entry so the async copy worker can re-render the entry from
+    // its thread; the writer must delegate, not own a second copy of it.
     assert.match(
         SRC,
-        /desktop_entry::execLine\s*\(\s*\)/,
-        "buildDesktopFileContent must use the shared desktop_entry::execLine()",
+        /desktop_entry::autostartFileContent\s*\(\s*\)/,
+        "buildDesktopFileContent must delegate to desktop_entry::autostartFileContent()",
     );
 });
 
@@ -52,13 +53,8 @@ test("Autostart self-heals a stale entry on construction (#126)", () => {
     );
 });
 
-test("autostart entry declares X-GNOME-Autostart-enabled", () => {
-    assert.match(
-        SRC,
-        /X-GNOME-Autostart-enabled=true/,
-        "the autostart .desktop must carry the GNOME autostart key",
-    );
-});
+// The template content itself (X-GNOME-Autostart-enabled etc.) is guarded
+// in desktop-entry.test.mjs, where the template now lives.
 
 test("setEnabled routes writes/removes through the shared desktop_entry helpers", () => {
     // The mkpath + write + remove plumbing is shared with MenuEntry via
@@ -77,27 +73,24 @@ test("setEnabled routes writes/removes through the shared desktop_entry helpers"
 });
 
 test("setEnabled maintains the stable copy (#136)", () => {
-    // Enable: the copy must exist BEFORE the content is rendered, since
-    // execLine() only points Exec= at it once it exists. Disable: the
-    // copy is removed iff no other entry references it.
+    // Enable: kick the async copy (the entry converges to the stable path
+    // when the worker finishes). Disable: the copy is removed iff no
+    // other entry references it.
     const fn = SRC.slice(SRC.indexOf("Autostart::setEnabled"));
     const body = fn.slice(0, fn.indexOf("\n}\n"));
-    const ensureIdx = body.search(/desktop_entry::ensureStableCopy\(\)/);
-    const writeIdx = body.search(/desktop_entry::writeDesktopFile\(/);
-    assert.ok(ensureIdx >= 0, "setEnabled(true) must call ensureStableCopy");
-    assert.ok(writeIdx >= 0 && ensureIdx < writeIdx, "ensureStableCopy must precede writeDesktopFile");
+    assert.match(body, /desktop_entry::ensureStableCopyAsync\(\)/, "setEnabled(true) must kick ensureStableCopyAsync");
     assert.match(body, /desktop_entry::removeStableCopyIfOrphaned\(\)/, "setEnabled(false) must clean up an orphaned copy");
 });
 
-test("constructor refreshes the stable copy only when the entry exists (#136)", () => {
+test("constructor kicks the stable-copy refresh only when the entry exists (#136)", () => {
     // A launch with the toggle off must not create the copy; a pre-copy
     // install (entry with an absolute Exec=) migrates here.
     const ctor = SRC.slice(SRC.indexOf("Autostart::Autostart"));
     const body = ctor.slice(0, ctor.indexOf("\n}\n"));
     assert.match(
         body,
-        /if\s*\(\s*QFileInfo::exists\(\s*desktopFilePath\(\)\s*\)\s*\)\s*\n?\s*desktop_entry::ensureStableCopy\(\)/,
-        "the ctor must gate ensureStableCopy on the entry existing",
+        /if\s*\(\s*QFileInfo::exists\(\s*desktopFilePath\(\)\s*\)\s*\)\s*\n?\s*desktop_entry::ensureStableCopyAsync\(\)/,
+        "the ctor must gate ensureStableCopyAsync on the entry existing",
     );
 });
 

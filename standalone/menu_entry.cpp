@@ -13,10 +13,10 @@ MenuEntry::MenuEntry(QObject *parent) : QObject(parent)
     // binary with no user action — closes the "toggle claims healthy while
     // broken" trap. No-op when the file is absent or already current.
     //
-    // Stable-copy refresh first, gated on the entry existing — same
+    // Async stable-copy refresh, gated on the entry existing — same
     // shape and rationale as the Autostart ctor (#136).
     if (QFileInfo::exists(desktopFilePath()))
-        desktop_entry::ensureStableCopy();
+        desktop_entry::ensureStableCopyAsync();
     desktop_entry::refreshIfStale(desktopFilePath(), buildDesktopFileContent());
 }
 
@@ -27,25 +27,9 @@ QString MenuEntry::desktopFilePath() const
 
 QString MenuEntry::buildDesktopFileContent() const
 {
-    // Icon=utilities-system-monitor is a stock freedesktop icon name —
-    // same choice as the autostart entry, so no icon file has to be
-    // extracted from the AppImage and cleaned up on removal.
-    //
-    // StartupWMClass ties the launched window back to this entry so the
-    // taskbar groups it under the launcher icon. The standalone window's
-    // WM_CLASS is the binary basename (the value the docs' KWin window
-    // rule matches); a non-matching StartupWMClass is simply ignored by
-    // the shell, so this only ever helps.
-    return QStringLiteral("[Desktop Entry]\n"
-                          "Type=Application\n"
-                          "Name=Ring Monitor\n"
-                          "Comment=Modern minimal circular system monitor\n"
-                          "Exec=%1\n"
-                          "Icon=utilities-system-monitor\n"
-                          "Categories=System;Monitor;\n"
-                          "Terminal=false\n"
-                          "StartupWMClass=ring-monitor-standalone\n")
-        .arg(desktop_entry::execLine());
+    // Template lives in desktop_entry so the async copy worker can
+    // re-render the entry from its thread without touching this QObject.
+    return desktop_entry::menuFileContent();
 }
 
 bool MenuEntry::isEnabled() const
@@ -61,9 +45,11 @@ void MenuEntry::setEnabled(bool on)
         return;
 
     if (on) {
-        // Copy first: buildDesktopFileContent() points Exec= at the stable
-        // copy only once it exists (#136).
-        desktop_entry::ensureStableCopy();
+        // The entry is written immediately with the best currently
+        // renderable Exec= (stable copy if it already exists, else the
+        // live path); the async worker re-points it at the fresh copy
+        // when the copy lands (#136).
+        desktop_entry::ensureStableCopyAsync();
         desktop_entry::writeDesktopFile(path, buildDesktopFileContent());
     } else {
         desktop_entry::removeDesktopFile(path);

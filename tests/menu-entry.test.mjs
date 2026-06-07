@@ -37,22 +37,16 @@ test("menu entry path delegates to the shared desktop_entry::menuFilePath", () =
     );
 });
 
-test("menu_entry.cpp builds the Exec= line via desktop_entry::execLine", () => {
+test("menu_entry.cpp renders its content via desktop_entry::menuFileContent", () => {
+    // The template (incl. the execLine() Exec= resolution) lives in
+    // desktop_entry so the async copy worker can re-render the entry from
+    // its thread; the writer must delegate, not own a second copy of it.
+    // Template content (Type=Application, Icon, StartupWMClass, no
+    // autostart key) is guarded in desktop-entry.test.mjs.
     assert.match(
         SRC,
-        /desktop_entry::execLine\s*\(\s*\)/,
-        "buildDesktopFileContent must use the shared desktop_entry::execLine() rather than re-implementing AppImage-path resolution",
-    );
-});
-
-test("menu entry declares a launcher (Type=Application + Icon)", () => {
-    assert.match(SRC, /Type=Application/, "must declare Type=Application");
-    assert.match(SRC, /Icon=/, "must declare an Icon so it renders in the menu");
-    // The autostart-only key must NOT leak into the menu entry.
-    assert.doesNotMatch(
-        SRC,
-        /X-GNOME-Autostart-enabled/,
-        "the menu entry must not carry the autostart key",
+        /desktop_entry::menuFileContent\s*\(\s*\)/,
+        "buildDesktopFileContent must delegate to desktop_entry::menuFileContent()",
     );
 });
 
@@ -80,36 +74,24 @@ test("constructor self-heals a stale Exec= via desktop_entry::refreshIfStale", (
 });
 
 test("setEnabled maintains the stable copy (#136)", () => {
-    // Enable: the copy must exist BEFORE the content is rendered, since
-    // execLine() only points Exec= at it once it exists. Disable: the
-    // copy is removed iff no other entry references it.
+    // Enable: kick the async copy (the entry converges to the stable path
+    // when the worker finishes). Disable: the copy is removed iff no
+    // other entry references it.
     const fn = SRC.slice(SRC.indexOf("MenuEntry::setEnabled"));
     const body = fn.slice(0, fn.indexOf("\n}\n"));
-    const ensureIdx = body.search(/desktop_entry::ensureStableCopy\(\)/);
-    const writeIdx = body.search(/desktop_entry::writeDesktopFile\(/);
-    assert.ok(ensureIdx >= 0, "setEnabled(true) must call ensureStableCopy");
-    assert.ok(writeIdx >= 0 && ensureIdx < writeIdx, "ensureStableCopy must precede writeDesktopFile");
+    assert.match(body, /desktop_entry::ensureStableCopyAsync\(\)/, "setEnabled(true) must kick ensureStableCopyAsync");
     assert.match(body, /desktop_entry::removeStableCopyIfOrphaned\(\)/, "setEnabled(false) must clean up an orphaned copy");
 });
 
-test("constructor refreshes the stable copy only when the entry exists (#136)", () => {
+test("constructor kicks the stable-copy refresh only when the entry exists (#136)", () => {
     // A launch with the toggle off must not create the copy; a pre-copy
     // install (entry with an absolute Exec=) migrates here.
     const ctor = SRC.slice(SRC.indexOf("MenuEntry::MenuEntry"));
     const body = ctor.slice(0, ctor.indexOf("\n}\n"));
     assert.match(
         body,
-        /if\s*\(\s*QFileInfo::exists\(\s*desktopFilePath\(\)\s*\)\s*\)\s*\n?\s*desktop_entry::ensureStableCopy\(\)/,
-        "the ctor must gate ensureStableCopy on the entry existing",
+        /if\s*\(\s*QFileInfo::exists\(\s*desktopFilePath\(\)\s*\)\s*\)\s*\n?\s*desktop_entry::ensureStableCopyAsync\(\)/,
+        "the ctor must gate ensureStableCopyAsync on the entry existing",
     );
 });
 
-test("menu entry declares StartupWMClass for taskbar grouping", () => {
-    // The launched window should group under the launcher icon. The
-    // standalone window's WM_CLASS is the binary basename.
-    assert.match(
-        SRC,
-        /StartupWMClass=ring-monitor-standalone/,
-        "buildDesktopFileContent must set StartupWMClass to the standalone window's WM_CLASS",
-    );
-});

@@ -42,14 +42,29 @@ QString execLine();
 // and the next launch of a newer AppImage refreshes it.
 QString stableExecPath();
 
-// Create or refresh the stable copy from the running AppImage. No-op
-// (false) when not an AppImage run (a dev build must not shadow a real
+// The full rendered .desktop contents for the two writers. Centralised
+// here (not in the writer classes) so the async copy worker below can
+// re-render both entries once the stable copy lands, without touching
+// any QObject from its thread.
+QString autostartFileContent();
+QString menuFileContent();
+
+// Create or refresh the stable copy from the running AppImage,
+// asynchronously. The cheap staleness stats run on the caller's thread;
+// no-op when not an AppImage run (a dev build must not shadow a real
 // install), when running FROM the copy itself, or when the copy is
 // already current (size + mtime match — the copy preserves the source
-// mtime so this stays a cheap stat). The replace is atomic (sibling
-// temp file + rename(2)) because a login-launched instance may have the
-// old copy FUSE-mounted while we swap it.
-bool ensureStableCopy();
+// mtime so this stays a cheap stat). When work is needed, the actual
+// copy runs on a DETACHED worker thread (a copy stuck on a hung mount
+// must not block GUI startup or process exit — same rationale as
+// ProcReader's statvfs worker), with an in-flight guard so a hung copy
+// freezes one thread, never a pile. On success the worker re-renders
+// BOTH .desktop entries (their Exec= converges to the stable path
+// without waiting for the next launch) and re-runs the orphan check in
+// case a disable raced the copy. The replace is atomic (sibling temp
+// file + rename(2)) because a login-launched instance may have the old
+// copy FUSE-mounted while we swap it.
+void ensureStableCopyAsync();
 
 // Remove the stable copy once neither .desktop entry references it
 // (both toggles off) — an AppImage has no uninstaller to clean it up

@@ -36,7 +36,17 @@ user-facing only.
   the cross-version handoff). Copy created when a toggle is enabled or a
   pre-copy entry migrates at startup; removed when both toggles are off
   (`removeStableCopyIfOrphaned()`). Entry paths centralised as
-  `desktop_entry::autostartFilePath()` / `menuFilePath()`.
+  `desktop_entry::autostartFilePath()` / `menuFilePath()`. Review
+  hardening: the copy runs on a detached worker thread (the >100 MB
+  `QFile::copy` froze the first post-upgrade launch when inline in the
+  QML ctors; detached so a copy stuck on a hung mount can't wedge quit —
+  statvfs precedent), with an atomic in-flight guard; on completion the
+  worker re-renders both entries (Exec= converges to the stable path
+  without waiting for the next launch) and re-runs the orphan check. A
+  chmod failure aborts the swap (a non-executable copy = silent EACCES
+  at login); every failure path `qWarning`s; the `.desktop` templates
+  moved to `desktop_entry` (`autostartFileContent()` /
+  `menuFileContent()`) so the worker renders them off-thread.
 - fix(config): stage the partition-label cache instead of writing it on
   discovery (#132) — `MetricsBody._refreshLabelCache` now merges into a
   non-cfg `_stagedLabelsJson` (read by `stalePartitionList`) and a new

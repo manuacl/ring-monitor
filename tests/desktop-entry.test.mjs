@@ -7,16 +7,19 @@
 // AppImage launches silently and would otherwise have to be re-proven
 // in two writers:
 //
-// 1. execLine() = `env QT_QPA_PLATFORM=xcb ` + quoteExecArg(currentExecPath()).
-//    Without the quote, an AppImage under a path with spaces
-//    (`~/Applications/Ring Monitor.AppImage`) breaks launching: the
-//    XDG launcher tokenises on whitespace.
+// 1. execLine() = `env QT_QPA_PLATFORM=xcb ` + quoteExecArg(<target>),
+//    where <target> prefers the stable copy (#136) and falls back to
+//    currentExecPath(). Without the quote, an AppImage under a path
+//    with spaces (`~/Applications/Ring Monitor.AppImage`) breaks
+//    launching: the XDG launcher tokenises on whitespace.
 // 2. The XDG-spec escape order: backslash MUST be escaped before `"`,
 //    `$`, and backtick — otherwise the inserted backslashes from the
 //    later passes get doubled.
 // 3. currentExecPath() matches $APPDIR with a trailing slash, so a
 //    sibling AppImage mount with a coincidental prefix doesn't hijack
 //    the Exec path.
+// 4. The stable copy (#136): version-independent path, atomic replace,
+//    AppImage-gated, removed only when orphaned.
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -30,11 +33,92 @@ const SRC = readFileSync(
     "utf8",
 );
 
-test("execLine wraps currentExecPath through quoteExecArg", () => {
+test("execLine prefers the stable copy and falls back to the live path (#136)", () => {
+    const fn = SRC.slice(SRC.indexOf("QString execLine()"));
+    const body = fn.slice(0, fn.indexOf("\n}\n"));
+    // Version-stamped AppImage filenames die on upgrade; the stable copy's
+    // path never does. The fallback covers a copy that couldn't be created
+    // (unwritable ~/.local/bin) — a healed Exec= beats a dangling one.
+    assert.match(body, /runningAsAppImage\(\)/, "the stable-copy preference must be gated on AppImage runs");
+    assert.match(body, /stableExecPath\(\)/, "execLine must reference the stable copy");
+    assert.match(body, /currentExecPath\(\)/, "execLine must keep the live-path fallback");
+    assert.match(body, /quoteExecArg\(/, "the chosen target must go through quoteExecArg");
+});
+
+test("stableExecPath is a fixed, version-independent path", () => {
+    // The permanence is the whole point of #136 — a version stamp in the
+    // basename would recreate the bug the copy exists to fix.
     assert.match(
         SRC,
-        /quoteExecArg\s*\(\s*currentExecPath\s*\(\s*\)\s*\)/,
-        "execLine must wrap currentExecPath() through quoteExecArg",
+        /\.local\/bin\/ring-monitor\.AppImage/,
+        "the stable copy must live at ~/.local/bin/ring-monitor.AppImage (no version stamp)",
+    );
+});
+
+test("ensureStableCopy is gated on runningAsAppImage (no dev-build shadowing)", () => {
+    // A throwaway source build must never overwrite the stable copy a real
+    // AppImage install relies on at login.
+    const fn = SRC.slice(SRC.indexOf("bool ensureStableCopy()"));
+    const body = fn.slice(0, fn.indexOf("\n}\n"));
+    assert.match(
+        body,
+        /!\s*runningAsAppImage\(\)\s*\)?\s*\n?\s*return false/,
+        "ensureStableCopy must return false when not running as an AppImage",
+    );
+});
+
+test("ensureStableCopy no-ops when running FROM the copy itself", () => {
+    // A login launch runs the copy: the copy IS the source, so copying
+    // would clobber the file backing our own FUSE mount. Canonical compare
+    // so a symlinked ~/.local/bin still matches.
+    const fn = SRC.slice(SRC.indexOf("bool ensureStableCopy()"));
+    const body = fn.slice(0, fn.indexOf("\n}\n"));
+    assert.match(
+        body,
+        /\.canonicalFilePath\(\)\s*==\s*\w+\.canonicalFilePath\(\)/,
+        "ensureStableCopy must compare source and copy canonically and bail when they are the same file",
+    );
+});
+
+test("the stable-copy replace is atomic (sibling temp + rename(2))", () => {
+    // A still-running login instance may have the old copy FUSE-mounted;
+    // rename(2) keeps its inode alive while new launches see the fresh
+    // file. QFile::rename refuses an existing destination, so the POSIX
+    // call is used directly.
+    const fn = SRC.slice(SRC.indexOf("bool ensureStableCopy()"));
+    const body = fn.slice(0, fn.indexOf("\n}\n"));
+    assert.match(
+        body,
+        /QFile::copy\([^,]+,\s*tmp\s*\)/,
+        "the payload copy must target the sibling temp file, never the destination directly",
+    );
+    assert.match(body, /::rename\(/, "the temp file must be moved over the destination via POSIX rename(2)");
+});
+
+test("removeStableCopyIfOrphaned spares the copy while either entry references it", () => {
+    const fn = SRC.slice(SRC.indexOf("void removeStableCopyIfOrphaned()"));
+    const body = fn.slice(0, fn.indexOf("\n}\n"));
+    assert.match(body, /autostartFilePath\(\)/, "the orphan check must probe the autostart entry");
+    assert.match(body, /menuFilePath\(\)/, "the orphan check must probe the menu entry");
+    assert.match(
+        body,
+        /QFile::remove\(\s*stableExecPath\(\)\s*\)/,
+        "the copy must be removed once neither entry exists",
+    );
+});
+
+test("the two entry paths resolve to their XDG dirs", () => {
+    // Centralised here (not in the writers) so the orphan check can probe
+    // both without reaching into the writer classes.
+    assert.match(
+        SRC,
+        /QStandardPaths::ConfigLocation\s*\)[\s\S]{0,80}?\/autostart\//,
+        "autostartFilePath must resolve under ConfigLocation/autostart",
+    );
+    assert.match(
+        SRC,
+        /QStandardPaths::writableLocation\(\s*QStandardPaths::ApplicationsLocation\s*\)/,
+        "menuFilePath must resolve to ApplicationsLocation (~/.local/share/applications)",
     );
 });
 

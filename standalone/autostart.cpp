@@ -3,7 +3,6 @@
 #include "desktop_entry.h"
 
 #include <QFileInfo>
-#include <QStandardPaths>
 
 Autostart::Autostart(QObject *parent) : QObject(parent)
 {
@@ -13,14 +12,21 @@ Autostart::Autostart(QObject *parent) : QObject(parent)
     // current path on construction — parity with MenuEntry. refreshIfStale
     // is a no-op when the entry is absent, already current, or we're a
     // fixed-path dev build (so a source run can't hijack the entry).
+    //
+    // The stable-copy refresh comes first so refreshIfStale renders an
+    // Exec= against an up-to-date copy (#136). Gated on the entry
+    // existing: a launch with both toggles off must not create the copy.
+    // Pre-copy installs migrate here — their entry exists with an
+    // absolute Exec=, so this creates the copy and refreshIfStale
+    // rewrites the entry to it.
+    if (QFileInfo::exists(desktopFilePath()))
+        desktop_entry::ensureStableCopy();
     desktop_entry::refreshIfStale(desktopFilePath(), buildDesktopFileContent());
 }
 
 QString Autostart::desktopFilePath() const
 {
-    const QString dir = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation)
-                        + QStringLiteral("/autostart");
-    return dir + QLatin1Char('/') + QLatin1String(desktop_entry::kDesktopFileName);
+    return desktop_entry::autostartFilePath();
 }
 
 QString Autostart::buildDesktopFileContent() const
@@ -48,10 +54,15 @@ void Autostart::setEnabled(bool on)
     if (on == wasEnabled)
         return;
 
-    if (on)
+    if (on) {
+        // Copy first: buildDesktopFileContent() points Exec= at the stable
+        // copy only once it exists (#136).
+        desktop_entry::ensureStableCopy();
         desktop_entry::writeDesktopFile(path, buildDesktopFileContent());
-    else
+    } else {
         desktop_entry::removeDesktopFile(path);
+        desktop_entry::removeStableCopyIfOrphaned();
+    }
 
     // Emit regardless of write success so an observer (the Settings
     // checkbox) re-syncs to the real on-disk state — a failed write must

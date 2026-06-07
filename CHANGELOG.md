@@ -14,6 +14,19 @@ user-facing only.
 
 ### Technical
 
+- fix(standalone): point the `.desktop` `Exec=` at a stable AppImage copy
+  (#136) — `desktop_entry::stableExecPath()` =
+  `~/.local/bin/ring-monitor.AppImage`, maintained by `ensureStableCopy()`
+  (AppImage-gated, size+mtime freshness, atomic sibling-temp +
+  `rename(2)`). The #126 launch-time self-heal couldn't cover an upgrade
+  followed by a re-login without launching the new file: the
+  version-stamped path was gone and login started nothing. Now login
+  always starts the copy (worst case the previous version, refreshed on
+  the next manual launch — the single-instance takeover already handles
+  the cross-version handoff). Copy created when a toggle is enabled or a
+  pre-copy entry migrates at startup; removed when both toggles are off
+  (`removeStableCopyIfOrphaned()`). Entry paths centralised as
+  `desktop_entry::autostartFilePath()` / `menuFilePath()`.
 - fix(config): stage the partition-label cache instead of writing it on
   discovery (#132) — `MetricsBody._refreshLabelCache` now merges into a
   non-cfg `_stagedLabelsJson` (read by `stalePartitionList`) and a new

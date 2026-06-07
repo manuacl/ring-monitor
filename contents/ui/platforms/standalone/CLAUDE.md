@@ -675,11 +675,23 @@ over:
   lives under `$APPDIR/` (trailing-slash match) — otherwise the env
   vars were inherited from a parent that is itself an AppImage and the
   Exec would point at the wrong app.
+- On AppImage runs, `Exec=` points at the **stable copy**
+  (`stableExecPath()` = `~/.local/bin/ring-monitor.AppImage`), not the
+  version-stamped download (#136). The launch-time self-heal (#126)
+  only fires when the app runs — an upgrade followed by a re-login
+  (never launching the new file) booted to nothing. The copy always
+  exists, so login always starts *some* install; the next launch of a
+  newer AppImage refreshes it (`ensureStableCopy()`, atomic sibling-temp
+  + `rename(2)` because a login-launched instance may have the old copy
+  FUSE-mounted). Gated on `runningAsAppImage()` (a dev build must not
+  shadow a real install) and created only when an entry exists or a
+  toggle is enabled; removed when both toggles are off
+  (`removeStableCopyIfOrphaned()`).
 
 Text-level-guarded by `tests/desktop-entry.test.mjs` (the shared
 logic), with `tests/autostart.test.mjs` / `tests/menu-entry.test.mjs`
-asserting each writer delegates to `execLine()` and targets the right
-directory.
+asserting each writer delegates to `execLine()` and maintains the
+stable copy from its ctor / `setEnabled`.
 
 ### Don't bind `QtDialogs.ColorDialog.selectedColor` to a source property
 

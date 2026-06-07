@@ -34,9 +34,10 @@ class MenuEntry : public QObject
 public:
     explicit MenuEntry(QObject *parent = nullptr);
 
-    // True iff the menu .desktop file exists. Does NOT validate its
-    // Exec line against the current binary — a stale Exec from a
-    // previous install path is refreshed by toggling off then on.
+    // True iff the menu .desktop file exists. On AppImage installs the
+    // Exec line is kept fresh by the constructor (stable-copy refresh +
+    // refreshIfStale, #126/#136); a fixed-path build has nothing to
+    // drift. Either way this need only report presence.
     bool isEnabled() const;
 
     // Creates (true) or removes (false) the menu entry. No-op if

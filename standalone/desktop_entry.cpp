@@ -5,9 +5,27 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QSaveFile>
+#include <QStandardPaths>
 #include <QString>
 
+#include <cstdio>
+
 namespace desktop_entry {
+
+QString autostartFilePath()
+{
+    return QStandardPaths::writableLocation(QStandardPaths::ConfigLocation)
+        + QStringLiteral("/autostart/") + QLatin1String(kDesktopFileName);
+}
+
+QString menuFilePath()
+{
+    // XDG: per-user application launchers live under
+    // $XDG_DATA_HOME/applications (writableLocation(ApplicationsLocation)
+    // resolves to ~/.local/share/applications on a default profile).
+    return QStandardPaths::writableLocation(QStandardPaths::ApplicationsLocation)
+        + QLatin1Char('/') + QLatin1String(kDesktopFileName);
+}
 
 bool runningAsAppImage()
 {
@@ -60,6 +78,14 @@ QString quoteExecArg(const QString &arg)
     return QLatin1Char('"') + escaped + QLatin1Char('"');
 }
 
+QString stableExecPath()
+{
+    // ~/.local/bin is the systemd file-hierarchy location for user
+    // executables. The basename is fixed (no version stamp) — that
+    // permanence is the whole point (#136).
+    return QDir::homePath() + QStringLiteral("/.local/bin/ring-monitor.AppImage");
+}
+
 QString execLine()
 {
     // env QT_QPA_PLATFORM=xcb forces XWayland under Wayland sessions
@@ -70,7 +96,76 @@ QString execLine()
     // Only the path is quoted: `env` and the `KEY=VALUE` token are
     // fixed identifiers free of reserved chars, the path is the only
     // piece a user can introduce spaces / special chars into.
-    return QStringLiteral("env QT_QPA_PLATFORM=xcb ") + quoteExecArg(currentExecPath());
+    //
+    // AppImage runs prefer the stable copy when it exists: the
+    // downloaded file's version-stamped name dies on every upgrade,
+    // the copy's path never does (#136). Falls back to the live path
+    // when the copy couldn't be created (unwritable ~/.local/bin) —
+    // a launch-time-healed Exec= beats a dangling one.
+    const bool useStableCopy = runningAsAppImage() && QFileInfo::exists(stableExecPath());
+    const QString target = useStableCopy ? stableExecPath() : currentExecPath();
+    return QStringLiteral("env QT_QPA_PLATFORM=xcb ") + quoteExecArg(target);
+}
+
+bool ensureStableCopy()
+{
+    // AppImage installs only: a dev / source build has a fixed
+    // applicationFilePath() — nothing drifts, nothing to copy, and a
+    // throwaway build binary must never shadow a real install's copy.
+    if (!runningAsAppImage())
+        return false;
+    const QFileInfo src(currentExecPath());
+    const QFileInfo dst(stableExecPath());
+    // Running FROM the copy (a login launch): the copy IS the source.
+    // Canonical compare so a symlinked ~/.local/bin still matches.
+    if (dst.exists() && src.canonicalFilePath() == dst.canonicalFilePath())
+        return false;
+    // Freshness on (size, mtime): the copy below preserves the source
+    // mtime, so an unchanged AppImage is a cheap stat no-op while a
+    // re-download or different build re-triggers.
+    if (dst.exists() && dst.size() == src.size()
+        && dst.lastModified() == src.lastModified())
+        return false;
+    if (!QDir().mkpath(dst.absolutePath()))
+        return false;
+    // Copy to a sibling temp, then rename(2) over the destination — the
+    // QSaveFile pattern, hand-rolled because the payload is a whole file
+    // copy, not a buffer write. Atomicity matters here: a still-running
+    // login instance may have the old copy FUSE-mounted, and rename keeps
+    // its inode alive while new launches see the fresh file. (QFile::rename
+    // refuses an existing destination, hence POSIX rename directly.)
+    const QString tmp = stableExecPath() + QStringLiteral(".part");
+    QFile::remove(tmp);
+    if (!QFile::copy(src.absoluteFilePath(), tmp))
+        return false;
+    // Browsers strip +x from downloads; the user chmod'ed their original
+    // to run it, but the copy must be executable on its own.
+    QFile::setPermissions(tmp,
+                          QFile::permissions(tmp) | QFileDevice::ExeOwner
+                              | QFileDevice::ExeGroup | QFileDevice::ExeOther);
+    {
+        // Preserve the source mtime — the freshness check above depends
+        // on it. setFileTime needs an open handle (WriteOnly is enough).
+        QFile f(tmp);
+        if (f.open(QIODevice::ReadWrite))
+            f.setFileTime(src.lastModified(), QFileDevice::FileModificationTime);
+    }
+    if (::rename(QFile::encodeName(tmp).constData(),
+                 QFile::encodeName(stableExecPath()).constData()) != 0) {
+        QFile::remove(tmp);
+        return false;
+    }
+    return true;
+}
+
+void removeStableCopyIfOrphaned()
+{
+    // The copy exists to be referenced by the .desktop entries; once
+    // both toggles are off nothing points at it, and an AppImage has no
+    // uninstaller to clean it up later.
+    if (QFileInfo::exists(autostartFilePath()) || QFileInfo::exists(menuFilePath()))
+        return;
+    QFile::remove(stableExecPath());
 }
 
 bool writeDesktopFile(const QString &path, const QString &content)

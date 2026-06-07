@@ -26,11 +26,14 @@ const SRC = readFileSync(
     "utf8",
 );
 
-test("menu entry is written to the XDG applications dir", () => {
+test("menu entry path delegates to the shared desktop_entry::menuFilePath", () => {
+    // The XDG dir resolution (ApplicationsLocation) lives in
+    // desktop_entry.cpp — guarded there — so the orphan check and the
+    // writer can't drift on the path.
     assert.match(
         SRC,
-        /QStandardPaths::writableLocation\(\s*QStandardPaths::ApplicationsLocation\s*\)/,
-        "desktopFilePath must resolve to ApplicationsLocation (~/.local/share/applications), not the autostart dir",
+        /desktop_entry::menuFilePath\s*\(\s*\)/,
+        "desktopFilePath must delegate to desktop_entry::menuFilePath()",
     );
 });
 
@@ -73,6 +76,31 @@ test("constructor self-heals a stale Exec= via desktop_entry::refreshIfStale", (
         ctor.slice(0, ctor.indexOf("\n}")),
         /desktop_entry::refreshIfStale\(/,
         "the constructor must call desktop_entry::refreshIfStale to refresh a moved AppImage's launcher",
+    );
+});
+
+test("setEnabled maintains the stable copy (#136)", () => {
+    // Enable: the copy must exist BEFORE the content is rendered, since
+    // execLine() only points Exec= at it once it exists. Disable: the
+    // copy is removed iff no other entry references it.
+    const fn = SRC.slice(SRC.indexOf("MenuEntry::setEnabled"));
+    const body = fn.slice(0, fn.indexOf("\n}\n"));
+    const ensureIdx = body.search(/desktop_entry::ensureStableCopy\(\)/);
+    const writeIdx = body.search(/desktop_entry::writeDesktopFile\(/);
+    assert.ok(ensureIdx >= 0, "setEnabled(true) must call ensureStableCopy");
+    assert.ok(writeIdx >= 0 && ensureIdx < writeIdx, "ensureStableCopy must precede writeDesktopFile");
+    assert.match(body, /desktop_entry::removeStableCopyIfOrphaned\(\)/, "setEnabled(false) must clean up an orphaned copy");
+});
+
+test("constructor refreshes the stable copy only when the entry exists (#136)", () => {
+    // A launch with the toggle off must not create the copy; a pre-copy
+    // install (entry with an absolute Exec=) migrates here.
+    const ctor = SRC.slice(SRC.indexOf("MenuEntry::MenuEntry"));
+    const body = ctor.slice(0, ctor.indexOf("\n}\n"));
+    assert.match(
+        body,
+        /if\s*\(\s*QFileInfo::exists\(\s*desktopFilePath\(\)\s*\)\s*\)\s*\n?\s*desktop_entry::ensureStableCopy\(\)/,
+        "the ctor must gate ensureStableCopy on the entry existing",
     );
 });
 

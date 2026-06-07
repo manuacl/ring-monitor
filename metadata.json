@@ -12,7 +12,7 @@
             }
         ],
         "Category": "System Information",
-        "Version": "0.12.1",
+        "Version": "0.12.2",
         "License": "GPL-3.0+",
         "Website": "https://github.com/manuacl/ring-monitor",
         "BugReportUrl": "https://github.com/manuacl/ring-monitor/issues",

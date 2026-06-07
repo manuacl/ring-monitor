@@ -12,6 +12,8 @@ user-facing only.
 
 ## [Unreleased]
 
+## [0.12.2] — 2026-06-07
+
 ### Fixed
 
 - **Autostart survives an AppImage upgrade even without relaunching**

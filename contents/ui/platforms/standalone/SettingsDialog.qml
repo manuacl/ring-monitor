@@ -144,12 +144,14 @@ Window {
     // via the panel layout); AboutBody gates the row on
     // `autostartAvailable`, which only this side sets to true.
     //
-    // Load-bearing for #126: this dialog is constructed eagerly by both
-    // standalone roots (Main.qml + SettingsOnlyRoot.qml), so building it
-    // also builds Autostart on every startup — and Autostart's ctor
-    // self-heals a stale Exec= after an AppImage update. If this dialog is
-    // ever made lazy (a Loader), that self-heal stops firing on launch;
-    // add an explicit startup refresh then.
+    // Load-bearing for #126/#136: this dialog is constructed eagerly by
+    // both standalone roots (Main.qml + SettingsOnlyRoot.qml), so building
+    // it also builds Autostart on every startup — and Autostart's ctor
+    // self-heals a stale Exec= AND kicks the async stable-copy refresh
+    // after an AppImage update. If this dialog is ever made lazy (a
+    // Loader), both stop firing on launch; restore an explicit startup
+    // refresh then (refreshIfStale + ensureStableCopyAsync, see
+    // standalone/desktop_entry.h).
     Autostart {
         id: autostartHelper
     }

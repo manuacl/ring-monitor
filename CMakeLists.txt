@@ -43,6 +43,11 @@ set(CMAKE_AUTOMOC ON)
 # wake-up IPC in single_instance.cpp (issues #103 / #104).
 find_package(Qt6 6.6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Network)
 
+# std::thread for the detached stable-copy worker in desktop_entry.cpp
+# (#136). Qt usually pulls -pthread in transitively, but relying on that
+# is fragile across toolchains — link it explicitly.
+find_package(Threads REQUIRED)
+
 # XCB is used by desktop_hints.cpp for the X11/XWayland EWMH hints
 # (sticky, skip-taskbar, skip-pager). The Qt 6 native interface gives
 # us the xcb_connection_t; we still need the xcb headers + lib to
@@ -170,6 +175,8 @@ target_link_libraries(ring-monitor-standalone PRIVATE
     # libnvidia-ml.so.1. ${CMAKE_DL_LIBS} is -ldl on glibc, empty on
     # platforms where dl* live in libc — portable either way.
     ${CMAKE_DL_LIBS}
+    # std::thread — detached stable-copy worker (desktop_entry.cpp, #136).
+    Threads::Threads
 )
 
 # Native Wayland (wlr-layer-shell) when layer-shell-qt is present. The

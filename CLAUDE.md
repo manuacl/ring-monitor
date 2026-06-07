@@ -73,6 +73,10 @@ editing.
 - **No nested ternaries.** `a ? x : b ? y : c ? z : d` → use a lookup
   map, a `switch`, or extract a named function. Single ternaries are
   OK.
+- **No leading-underscore QML `id`s** (`id: _x`). qmlformat 6.11 exits 1
+  with empty output on any file containing one (Qt regression), which
+  false-fails format audits on newer dev boxes. `_`-prefixed *properties*
+  are fine (the internal-test-hook convention); only `id:` is affected.
 - **500 lines max per source / test file.** Enforced by both the
   pre-commit hook and CI over `contents/ui/**/*.{qml,js}` and
   `tests/{*.test.mjs,qml/*.qml}`. When a file outgrows it: split —

@@ -12,6 +12,16 @@ user-facing only.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Autostart survives an AppImage upgrade even without relaunching**
+  (standalone). The previous fix (#126) refreshed the login entry when the
+  new version was launched — but upgrading, deleting the old file, and
+  re-logging in without ever running the new build still booted to nothing.
+  The login and menu entries now point at a stable copy of the AppImage
+  (`~/.local/bin/ring-monitor.AppImage`), so login always starts the widget;
+  the copy is refreshed the next time you run a newer AppImage (#136).
+
 ### Technical
 
 - fix(standalone): point the `.desktop` `Exec=` at a stable AppImage copy

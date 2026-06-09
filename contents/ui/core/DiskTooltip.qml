@@ -64,11 +64,26 @@ Item {
 
     onSamplingActiveChanged: {
         if (samplingActive) {
+            root._applyPopupType();
             showDelay.restart();
         } else {
             showDelay.stop();
             root._show = false;
         }
+    }
+
+    // popupType decided per-show: a separate-surface Window popup ONLY when the host
+    // window is too small to contain the tooltip in-scene (the standalone window,
+    // sized to the rings). On a full-screen host (Plasma desktop view) an in-scene
+    // popup isn't clipped AND honors the item-relative x/y above — a Window popup
+    // ignores x/y and auto-places (Qt 6.11). Set while hidden (hover-enter) so the
+    // type is stable before open. Mirrors ProcessTooltip — keep the two in sync.
+    function _applyPopupType() {
+        if (tip.popupType === undefined)
+            return;   // Qt < 6.8 — in-scene only (fine: Plasma overlay is large)
+        var win = root.Window.window;
+        var hostTooSmall = !win || win.width < root.Screen.width * 0.6 || win.height < root.Screen.height * 0.6;
+        tip.popupType = hostTooSmall ? QQC2.Popup.Window : QQC2.Popup.Item;
     }
 
     on_DisplayedChanged: if (!root._displayed)
@@ -77,30 +92,27 @@ Item {
     QQC2.ToolTip {
         id: tip
         parent: root
-        // A Window-type popup so it ISN'T clipped to the host window. `popupType`
-        // is Qt 6.8+ but the floor is 6.6 — a declarative `popupType:` is a hard
-        // load error on < 6.8 (takes the whole widget down, this is core/). Set it
-        // imperatively + guarded. Full rationale: core/CLAUDE.md.
-        Component.onCompleted: if (tip.popupType !== undefined)
-            tip.popupType = QQC2.Popup.Window
+        // popupType set per-show via root._applyPopupType() (Window only on a small
+        // host window; in-scene on a full-screen host so x/y are honored). `popupType`
+        // is Qt 6.8+ but the floor is 6.6 — only touched when present. core/CLAUDE.md.
         visible: root.armed && root._show
         // Content-driven width, bound explicitly (a Window popup won't auto-adopt
         // it) AND grow-only via the high-water mark. Height stays implicit.
         width: Math.max(root._maxContentWidth, col.implicitWidth) + leftPadding + rightPadding
-        // Edge-aware: prefer below-and-right, FLIP on screen overflow.
+        // Edge-aware: beside the ring (right), top-aligned with it; FLIP on overflow.
         x: {
             var gx = root.mapToGlobal(0, 0).x;
             var screenRight = root.Screen.virtualX + root.Screen.width;
-            if (gx + width > screenRight)
-                return root.width - width;  // overflow right → right-align (grow left)
-            return 0;                       // default → left-align (grow right)
+            if (gx + root.width + width > screenRight)
+                return -width;              // overflow right → left of the ring
+            return root.width;              // default → right of the ring
         }
         y: {
             var gy = root.mapToGlobal(0, 0).y;
             var screenBottom = root.Screen.virtualY + root.Screen.height;
-            if (gy + root.height + height > screenBottom)
-                return -height;             // overflow bottom → above the ring
-            return root.height;             // default → below the ring
+            if (gy + height > screenBottom)
+                return Math.min(0, screenBottom - gy - height);  // clamp up to stay on-screen
+            return 0;                       // default → top aligned with the ring
         }
 
         contentItem: ColumnLayout {

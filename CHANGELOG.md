@@ -12,6 +12,11 @@ user-facing only.
 
 ## [Unreleased]
 
+### Other
+
+- Fix a dangling code-comment reference in `ProcessTooltip.qml`
+  (`_useWindowPopup` → `_applyPopupType`); no behavior change.
+
 ### Fixed
 
 - Hover tooltips (top processes on the CPU ring, per-partition on the disk

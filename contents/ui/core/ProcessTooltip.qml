@@ -147,7 +147,7 @@ Item {
         // are plain QtQuick.) Re-evaluates when the tooltip's width/height
         // settle after layout.
         // In-scene popups honor item-relative x/y (a Window popup ignores them and
-        // auto-places — see _useWindowPopup). Beside the ring, top-aligned, flip on
+        // auto-places — see _applyPopupType). Beside the ring, top-aligned, flip on
         // screen overflow. mapToGlobal only feeds the overflow test, not the value.
         x: {
             var gx = root.mapToGlobal(0, 0).x;

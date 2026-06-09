@@ -12,6 +12,27 @@ user-facing only.
 
 ## [Unreleased]
 
+### Fixed
+
+- Hover tooltips (top processes on the CPU ring, per-partition on the disk
+  ring) now open **beside** the ring with their top edge level with the ring
+  top, instead of dropping below it. On the standalone build under a native
+  Wayland compositor the tooltip still auto-places (a separate-surface popup
+  can't be positioned there); everywhere else it sits beside the ring.
+
+### Technical
+
+- fix(ui): top-align the hover tooltips with the ring instead of dropping
+  them below. The CPU (#69) and disk (#68) tooltips now open beside the ring
+  with their top edge level with the ring top (flip side / clamp up on screen
+  overflow). The placement uses item-relative `x`/`y`, which only an in-scene
+  popup honors — a `Window`-type popup ignores `x`/`y` on Qt 6.11 and
+  auto-places. So `popupType` is now chosen per-show in `_applyPopupType()`:
+  `Window` only when the host window is too small to contain the popup in-scene
+  (the standalone window), in-scene otherwise (the full-screen Plasma desktop
+  view). `ProcessTooltip.qml` + `DiskTooltip.qml` (duplicated chrome, kept in
+  sync); rationale in `contents/ui/core/CLAUDE.md`.
+
 ## [0.12.2] — 2026-06-07
 
 ### Fixed

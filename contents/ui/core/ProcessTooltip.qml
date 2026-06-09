@@ -73,11 +73,27 @@ Item {
 
     onSamplingActiveChanged: {
         if (samplingActive) {
+            root._applyPopupType();
             showDelay.restart();
         } else {
             showDelay.stop();
             root._show = false;
         }
+    }
+
+    // popupType is decided per-show (not once at completion) because it depends on
+    // the host window, which must be a separate-surface Window popup ONLY when it's
+    // too small to contain the tooltip in-scene (the standalone window, sized to the
+    // rings). On a full-screen host (the Plasma desktop view) an in-scene popup isn't
+    // clipped AND honors the item-relative x/y above — a Window popup ignores x/y and
+    // auto-places (Qt 6.11), so it can't be positioned beside/top-aligned. Set while
+    // hidden (hover-enter, 500 ms before show) so the type is stable before open.
+    function _applyPopupType() {
+        if (tip.popupType === undefined)
+            return;   // Qt < 6.8 — in-scene only (fine: Plasma overlay is large)
+        var win = root.Window.window;
+        var hostTooSmall = !win || win.width < root.Screen.width * 0.6 || win.height < root.Screen.height * 0.6;
+        tip.popupType = hostTooSmall ? QQC2.Popup.Window : QQC2.Popup.Item;
     }
 
     // Reset the width high-water mark on dismiss, so a one-off wide sample doesn't
@@ -102,8 +118,8 @@ Item {
         // loads with the in-scene default — fine on Plasma's large overlay,
         // clipped on the small standalone window (the AppImage bundles Qt ≥ 6.8,
         // so shipped standalone gets the Window popup). See core/CLAUDE.md.
-        Component.onCompleted: if (tip.popupType !== undefined)
-            tip.popupType = QQC2.Popup.Window
+        // popupType set per-show via root._applyPopupType() (Window only on a small
+        // host window; in-scene on a full-screen host so x/y are honored).
         visible: root.armed && root._show
         // Content-driven width, bound explicitly, AND grow-only. A Window-type
         // popup does NOT auto-adopt its contentItem's implicitWidth the way an
@@ -122,27 +138,30 @@ Item {
         // assign back. The name's maximumWidth caps how far one long name can
         // stretch it. Height stays implicit.
         width: Math.max(root._maxContentWidth, col.implicitWidth) + leftPadding + rightPadding
-        // Edge-aware placement: prefer below-and-right of the ring, but FLIP to
-        // the opposite side when that side would run off the screen, so the
+        // Edge-aware placement: beside the ring (right) and top-aligned with it,
+        // but FLIP to the opposite side when it would run off the screen, so the
         // tooltip stays fully visible wherever the widget sits (the standalone
-        // anchors top-RIGHT by default, where growing right/down overflows).
+        // anchors top-RIGHT by default, where growing right overflows).
         // mapToGlobal gives the ring's on-screen position; Screen.virtual* +
         // Screen.width/height bound the current monitor. (No Plasma dep — these
         // are plain QtQuick.) Re-evaluates when the tooltip's width/height
         // settle after layout.
+        // In-scene popups honor item-relative x/y (a Window popup ignores them and
+        // auto-places — see _useWindowPopup). Beside the ring, top-aligned, flip on
+        // screen overflow. mapToGlobal only feeds the overflow test, not the value.
         x: {
             var gx = root.mapToGlobal(0, 0).x;
             var screenRight = root.Screen.virtualX + root.Screen.width;
-            if (gx + width > screenRight)
-                return root.width - width;  // overflow right → right-align (grow left)
-            return 0;                       // default → left-align (grow right)
+            if (gx + root.width + width > screenRight)
+                return -width;              // overflow right → left of the ring
+            return root.width;              // default → right of the ring
         }
         y: {
             var gy = root.mapToGlobal(0, 0).y;
             var screenBottom = root.Screen.virtualY + root.Screen.height;
-            if (gy + root.height + height > screenBottom)
-                return -height;             // overflow bottom → above the ring
-            return root.height;             // default → below the ring
+            if (gy + height > screenBottom)
+                return Math.min(0, screenBottom - gy - height);  // clamp up to stay on-screen
+            return 0;                       // default → top aligned with the ring
         }
 
         contentItem: ColumnLayout {

@@ -191,23 +191,36 @@ A `QQC2.ToolTip` / `Popup` raised from a ring (the #69 process tooltip,
 host, whose window is sized to the rings (tiny); on Plasma the overlay is
 large. Cost ~4 live iterations:
 
-- **`popupType: QQC2.Popup.Window`, not the default — but set it GUARDED,
-  not declaratively.** An in-scene (`Item`) popup — the pre-6.8 default — is
-  clipped to the host window's rect, so over the tiny standalone window only a
-  sliver shows. A `Window`-type popup is a separate surface that escapes it.
-  BUT `popupType` is **Qt 6.8+** and the project floor is **Qt 6.6**
-  (`CMakeLists.txt`): a *declarative* `popupType: QQC2.Popup.Window` is a hard
-  load error on < 6.8 ("Cannot assign to non-existent property") that takes the
-  **whole widget** down (this file is in `core/`, loaded by both hosts — so a
-  Plasma 6.6/6.7 host loses the widget entirely, and the AppImage smoke-test on
-  the 6.6 floor goes red). Set it imperatively + guarded instead:
-  `Component.onCompleted: if (tip.popupType !== undefined) tip.popupType = QQC2.Popup.Window`
-  — on ≥ 6.8 it's the Window popup; on 6.6/6.7 the component still loads with the
-  in-scene default (fine on Plasma's large overlay, clipped on the small
-  standalone window). The **shipped AppImage bundles Qt 6.8** (`release.yml`) so
-  standalone users get the Window popup; `ci.yml`'s AppImage smoke-test stays
-  pinned to Qt 6.6 to guard the fallback-load path. Don't "tidy" it back to a
-  declarative assignment. Canonical: `ProcessTooltip.qml`.
+- **`popupType: QQC2.Popup.Window` only when the host window is too small to
+  contain the popup in-scene — NOT unconditionally, and NOT declaratively.** Two
+  forces pull opposite ways:
+  - An in-scene (`Item`) popup — the pre-6.8 default — is clipped to the host
+    window's rect, so over the tiny standalone window only a sliver shows. A
+    `Window`-type popup is a separate surface that escapes the clip.
+  - BUT a `Window`-type popup **ignores the popup's `x`/`y` entirely** (Qt 6.11,
+    verified live: item-relative *and* global values both no-op'd, the popup
+    auto-placed regardless) — so it **can't be positioned** beside/top-aligned.
+    An in-scene popup **does** honor item-relative `x`/`y`.
+
+  So decide per-show: Window only when the host clips (the standalone window,
+  sized to the rings), in-scene otherwise (the full-screen Plasma desktop view,
+  which doesn't clip and lets `x`/`y` place the popup). Heuristic in
+  `root._applyPopupType()`, called from `onSamplingActiveChanged` on hover-enter
+  (while hidden, so the type is stable before open):
+  `hostTooSmall = !win || win.width < Screen.width*0.6 || win.height < Screen.height*0.6`.
+  Trade-off accepted: on a small host (standalone, or a Plasma *panel* popup) the
+  Window popup auto-places and the beside/top-aligned `x`/`y` don't apply — fine,
+  that's the pre-existing behavior; the precise placement is a desktop-host nicety.
+
+  Still **guard** the assignment — `popupType` is **Qt 6.8+** and the floor is
+  **Qt 6.6** (`CMakeLists.txt`); a *declarative* `popupType:` is a hard load error
+  on < 6.8 ("Cannot assign to non-existent property") that takes the **whole
+  widget** down (this file is `core/`, loaded by both hosts). `_applyPopupType()`
+  early-returns when `tip.popupType === undefined` (< 6.8 → in-scene default, fine
+  on Plasma's large overlay, clipped on the small standalone window). The shipped
+  AppImage bundles Qt ≥ 6.8 (`release.yml`); `ci.yml`'s smoke-test stays pinned to
+  6.6 to guard the fallback-load path. Don't "tidy" it to a declarative or
+  unconditional assignment. Canonical: `ProcessTooltip.qml` / `DiskTooltip.qml`.
 - **Bind `width` to the content's `implicitWidth` — don't rely on
   auto-sizing, and don't hardcode a fixed width.** A `Window`-type popup
   does **not** adopt its `contentItem`'s `implicitWidth` the way an
@@ -228,11 +241,13 @@ large. Cost ~4 live iterations:
   alone: the mark starts at 0 and the tracker only updates it on a *change*,
   so a bare-mark bind renders a one-char sliver on the first frame until the
   next layout tick. Canonical: `ProcessTooltip._maxContentWidth`.
-- **Place it edge-aware**, not at a fixed offset: the standalone window
-  anchors **top-right**, so growing down-and-right runs off screen. Flip
-  the side on overflow via `item.mapToGlobal()` + `Screen.virtualX/Y` +
-  `Screen.width/height` (all plain QtQuick — no Plasma dep). Canonical:
-  `ProcessTooltip.qml`'s `x`/`y` bindings.
+- **Place it edge-aware** (in-scene host only — see above): beside the ring
+  (item-relative `x: root.width`, `y: 0` → tooltip top level with the ring top),
+  flipping side (`-width`) / clamping up on screen overflow. The `x`/`y` values
+  are **item-relative** (parent = the ring), which is what an in-scene popup
+  honors; `mapToGlobal()` + `Screen.virtualX/Y` + `Screen.width/height` (plain
+  QtQuick, no Plasma dep) feed only the overflow *test*, not the returned value.
+  Canonical: `ProcessTooltip.qml`'s `x`/`y` bindings.
 - **The body must be the popup's DIRECT `contentItem` — never a `Loader`.**
   Tempting to factor this chrome into a shared `HoverTooltip` base that takes
   the body as a `Component` and hosts it in a `Loader` `contentItem` (a

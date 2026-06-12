@@ -358,13 +358,28 @@ GridLayout {
                 formatValue: function (p) {
                     return ProcessRanking.formatMemory(p.rssKb) + " · " + ProcessRanking.formatMemPercent(p.rssKb, content.metrics.memTotalKb);
                 }
-                footerText: qsTr("used") + "  " + ProcessRanking.formatMemory(content.metrics.memUsedKb) + " / " + ProcessRanking.formatMemory(content.metrics.memTotalKb)
+                // First-hover warm-up: sensors deliver ~500 ms after enable, so
+                // memTotalKb is 0 on the very first show → gate on it being known
+                // to avoid "used 0 KiB / 0 KiB" for the first half-second.
+                // Empty footerText hides the separator+footer in ProcessTooltip.
+                footerText: content.metrics.memTotalKb > 0 ? qsTr("used") + "  " + ProcessRanking.formatMemory(content.metrics.memUsedKb) + " / " + ProcessRanking.formatMemory(content.metrics.memTotalKb) : ""
             }
             Binding {
                 target: content
                 property: "_memTooltipHovered"
                 value: memTooltip.samplingActive
                 when: ringDelegate.modelData === "ram"
+            }
+            // If the delegate is destroyed while hovered (metric unchecked in
+            // settings → Repeater teardown), Binding destruction does NOT
+            // restore the target value — only a `when` flip does. Without
+            // this reset, the content-scope bool would stay true and keep
+            // processSamplingActive permanently armed.
+            Component.onDestruction: {
+                if (ringDelegate.modelData === "cpu")
+                    content._cpuTooltipHovered = false;
+                if (ringDelegate.modelData === "ram")
+                    content._memTooltipHovered = false;
             }
 
             // Disk ring: hover reveals the per-partition tooltip (#68). `details`

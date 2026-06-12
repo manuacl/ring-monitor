@@ -77,6 +77,13 @@ Item {
                 "combinedPercent": 0
             })
         property bool diskIoSamplingActive: false
+        // Process sampling gate (issue #70): MainContent drives this from the
+        // OR of the cpu / ram tooltip hover booleans.
+        property bool processSamplingActive: false
+        // Memory total/used: used by the ram tooltip footerText and the
+        // formatValue closure. Zero default = sensors not yet delivered.
+        property real memTotalKb: 0
+        property real memUsedKb: 0
     }
 
     QtObject {
@@ -111,6 +118,11 @@ Item {
             configStub.mergeGpuTemp = false;
             configStub.splitDiskIo = false;
             metricsStub.diskIoSamplingActive = false;
+            metricsStub.processSamplingActive = false;
+            metricsStub.memTotalKb = 0;
+            metricsStub.memUsedKb = 0;
+            content._cpuTooltipHovered = false;
+            content._memTooltipHovered = false;
         }
 
         // ── Disk-I/O sampling gate (issue #77) ──────────────────────
@@ -253,6 +265,37 @@ Item {
             metricsStub.availableMetrics = null;
             tryCompare(content, "count", 3);
             compare(content.enabledList, ["cpu", "ram", "gpu"]);
+        }
+
+        // ── Process sampling gate: delegate-destroy-while-hovered (#70) ──
+
+        // SCENARIO_destroy_cpu_delegate_while_hovered_releases_sampling_gate:
+        // If the cpu ring is unchecked in settings while its tooltip is open,
+        // the Repeater destroys the delegate. Binding destruction does NOT
+        // restore its target value, so without Component.onDestruction the
+        // content-scope _cpuTooltipHovered stays true and
+        // metrics.processSamplingActive never goes false — background process
+        // polling runs forever with no tooltip. The fix: onDestruction resets
+        // the latch so the OR Binding drops to false.
+        function test_SCENARIO_destroy_cpu_delegate_while_hovered_releases_sampling_gate() {
+            // Baseline: cpu ring is on screen, gate is idle.
+            configStub.enabledMetrics = "cpu,ram";
+            configStub.metricOrder = "cpu,ram";
+            tryCompare(content, "count", 2);
+            tryCompare(metricsStub, "processSamplingActive", false);
+
+            // Simulate tooltip hover-enter by directly setting the latch.
+            content._cpuTooltipHovered = true;
+            tryCompare(metricsStub, "processSamplingActive", true);
+
+            // User unchecks the cpu metric → Repeater destroys the cpu delegate
+            // (Component.onDestruction must reset _cpuTooltipHovered to false).
+            configStub.enabledMetrics = "ram";
+            tryCompare(content, "count", 1);
+
+            // Gate must fall back to false — no permanent background sampling.
+            tryCompare(metricsStub, "processSamplingActive", false);
+            compare(content._cpuTooltipHovered, false);
         }
     }
 }

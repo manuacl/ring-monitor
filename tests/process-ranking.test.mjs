@@ -151,6 +151,15 @@ test('rankByMemory: ties break by pid ascending (deterministic, no flicker)', ()
     assert.deepEqual(out.map(r => r.pid), [2, 5, 9]);
 });
 
+test('rankByMemory: coerces a string pid to a number so the tiebreak stays numeric', () => {
+    // Mirror of the rankByCpu guard: the Plasma ProcessDataModel Value role
+    // isn't guaranteed numeric, and both rankers share _cleanRecords — pin the
+    // memory path too so a future split of the cleaning code can't regress it.
+    const out = PR.rankByMemory([rec('9', 'late', 0, 1000), rec('2', 'early', 0, 1000), rec('5', 'mid', 0, 1000)]);
+    assert.deepEqual(out.map(r => r.pid), [2, 5, 9]);
+    assert.equal(typeof out[0].pid, 'number');
+});
+
 test('rankByMemory: absent rssKb ranks as 0 (kept, not dropped)', () => {
     // Records without rssKb are still valid; they rank below those with it.
     const out = PR.rankByMemory([

@@ -108,7 +108,7 @@ Item {
         // which is what users mean by "free" — see MemInfoParser.js header.
         var memRaw = reader.read("/proc/meminfo");
         var mem = MemInfoParser.parseMemInfo(memRaw);
-        sampler._memTotalKb = mem.total || 0;
+        sampler._memTotalKb = (mem.total !== null) ? mem.total : 0;
         // Null-check (the parser's missing-field sentinel), NOT truthiness:
         // available === 0 is a real reading (full OOM) and must yield used = total.
         sampler._memUsedKb = (mem.total !== null && mem.available !== null) ? (mem.total - mem.available) : 0;

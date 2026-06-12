@@ -20,8 +20,13 @@ test("Plasma ProcessSampler exposes the tooltip surface MetricsBackend forwards"
     assert.match(SRC, /property\s+var\s+topProcesses/, "must expose topProcesses");
     assert.match(SRC, /property\s+var\s+topMemProcesses/, "must expose topMemProcesses (RAM tooltip ranking)");
     assert.match(SRC, /property\s+var\s+loadAverages/, "must expose loadAverages");
-    assert.match(SRC, /property\s+real\s+memUsedKb/, "must expose memUsedKb (RAM footer)");
-    assert.match(SRC, /property\s+real\s+memTotalKb/, "must expose memTotalKb (RAM footer)");
+    // Public surface: readonly, forwarded from internal backing vars so that
+    // onActiveChanged can zero them on deactivate (sensors retain stale values).
+    assert.match(SRC, /readonly\s+property\s+real\s+memUsedKb:\s*sampler\._memUsedKb/, "memUsedKb must be readonly and forward the internal backing var");
+    assert.match(SRC, /readonly\s+property\s+real\s+memTotalKb:\s*sampler\._memTotalKb/, "memTotalKb must be readonly and forward the internal backing var");
+    // Internal backing vars must exist with a 0 initialiser.
+    assert.match(SRC, /property\s+real\s+_memUsedKb:\s*0/, "must declare _memUsedKb backing var initialised to 0");
+    assert.match(SRC, /property\s+real\s+_memTotalKb:\s*0/, "must declare _memTotalKb backing var initialised to 0");
     assert.match(SRC, /property\s+int\s+coreCount/, "must take coreCount (injected) for the per-core→total normalisation");
 });
 
@@ -58,6 +63,15 @@ test("Plasma ProcessSampler only samples while active (no background polling, #6
     assert.match(SRC, /Timer\s*{[\s\S]*?running:\s*sampler\.active/, "the snapshot Timer's running must be bound to active");
 });
 
+test("Plasma ProcessSampler zeroes _memUsedKb/_memTotalKb on deactivate (stale-sensor guard)", () => {
+    // Sensors retain their last value while disabled; without an explicit zero
+    // a re-hover shows the previous session's footer numbers for ~500 ms until
+    // ksysguard re-delivers. The backing vars must be zeroed in onActiveChanged
+    // alongside _top/_memTop — mirrors standalone _reset() (same-surface doctrine).
+    assert.match(SRC, /onActiveChanged[\s\S]{0,400}sampler\._memUsedKb\s*=\s*0/, "onActiveChanged must zero _memUsedKb on deactivate");
+    assert.match(SRC, /onActiveChanged[\s\S]{0,400}sampler\._memTotalKb\s*=\s*0/, "onActiveChanged must zero _memTotalKb on deactivate");
+});
+
 test("Plasma ProcessSampler wires the load-average sensors for the footer", () => {
     assert.match(SRC, /sensorId:\s*"cpu\/loadaverages\/loadaverage1"/, "must read cpu/loadaverages/loadaverage1");
     assert.match(SRC, /sensorId:\s*"cpu\/loadaverages\/loadaverage5"/, "must read cpu/loadaverages/loadaverage5");
@@ -79,7 +93,9 @@ test("Plasma ProcessSampler wires the RAM footer sensors for the RAM tooltip (is
     // Active gate: same no-background-subscription rationale as the load sensors.
     assert.match(SRC, /memUsedSensor[\s\S]{0,100}enabled:\s*sampler\.active/, "memUsedSensor must be gated on sampler.active");
     assert.match(SRC, /memTotalSensor[\s\S]{0,100}enabled:\s*sampler\.active/, "memTotalSensor must be gated on sampler.active");
-    // Byte → kB division at the property read site.
-    assert.match(SRC, /memUsedSensor\.value[\s\S]{0,40}\/\s*1024/, "memUsedKb must divide the sensor value by 1024 (bytes → kB)");
-    assert.match(SRC, /memTotalSensor\.value[\s\S]{0,40}\/\s*1024/, "memTotalKb must divide the sensor value by 1024 (bytes → kB)");
+    // Byte → kB division written into the backing var inside _collect() — the
+    // assignment site, not a direct binding, because the backing-var pattern
+    // is what allows onActiveChanged to zero them on deactivate.
+    assert.match(SRC, /_memUsedKb\s*=\s*\(memUsedSensor\.value[\s\S]{0,40}\/\s*1024/, "_memUsedKb must be assigned from memUsedSensor.value / 1024 in _collect()");
+    assert.match(SRC, /_memTotalKb\s*=\s*\(memTotalSensor\.value[\s\S]{0,40}\/\s*1024/, "_memTotalKb must be assigned from memTotalSensor.value / 1024 in _collect()");
 });

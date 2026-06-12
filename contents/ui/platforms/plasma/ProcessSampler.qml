@@ -34,12 +34,17 @@ Item {
     readonly property var loadAverages: [load1Sensor.value || 0, load5Sensor.value || 0, load15Sensor.value || 0]
     // ksysguard memory/physical/* reports bytes; surface is kB to match the
     // standalone /proc/meminfo counterpart (both sides expose kB so consumers
-    // need no platform branch).
-    readonly property real memUsedKb: (memUsedSensor.value || 0) / 1024
-    readonly property real memTotalKb: (memTotalSensor.value || 0) / 1024
+    // need no platform branch). Backing vars let onActiveChanged zero them on
+    // deactivate — sensors retain their last value while disabled, so a
+    // re-hover would flash the previous session's numbers. Mirrors standalone
+    // _reset() behaviour (same-surface doctrine).
+    readonly property real memUsedKb: sampler._memUsedKb
+    readonly property real memTotalKb: sampler._memTotalKb
 
     property var _top: []
     property var _memTop: []
+    property real _memUsedKb: 0
+    property real _memTotalKb: 0
 
     // Column order follows enabledAttributes: 0 = name, 1 = pid, 2 = usage, 3 = memory.
     // "memory" is the KDE System Monitor "Memory" column (RSS minus shared);
@@ -78,6 +83,8 @@ Item {
         }
         sampler._top = ProcessRanking.rankByCpu(records);
         sampler._memTop = ProcessRanking.rankByMemory(records);
+        sampler._memUsedKb = (memUsedSensor.value || 0) / 1024;
+        sampler._memTotalKb = (memTotalSensor.value || 0) / 1024;
     }
 
     // Only clear on deactivate; the Timer below (triggeredOnStart) is the single
@@ -88,6 +95,11 @@ Item {
     onActiveChanged: if (!active) {
         sampler._top = [];
         sampler._memTop = [];
+        // Sensors retain stale values while disabled; zero backing vars so the
+        // footer shows no stale numbers during the ~500 ms before ksysguard
+        // re-delivers on next activate. Mirrors standalone _reset().
+        sampler._memUsedKb = 0;
+        sampler._memTotalKb = 0;
     }
 
     // Load averages for the tooltip footer (ksysguard cpu/loadaverages/*).

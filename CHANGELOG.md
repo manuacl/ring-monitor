@@ -12,6 +12,8 @@ user-facing only.
 
 ## [Unreleased]
 
+## [0.13.0] — 2026-06-12
+
 ### Added
 
 - Standalone: choose which monitor the widget lives on — new "Screen"

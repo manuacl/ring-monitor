@@ -53,6 +53,7 @@ Item {
             body.windowAnchorCorner = "top-right";
             body.windowMarginX = 0;
             body.windowMarginY = 0;
+            body.windowScreen = "";
             body.textOpacity = 1.0;
             body.trackOpacity = 0.15;
             body.arcOpacity = 1.0;
@@ -231,6 +232,46 @@ Item {
             compare(body.customTextColorLight.toString().toLowerCase(), "#22cc44", "model takes the picked light colour");
             body.customTextColorLight = "#66ddaa";
             tryCompare(sw, "color", "#66ddaa", 1000, "light swatch tracks the model via the Binding");
+        }
+
+        // ── Screen combo: windowScreen ↔ _screenCombo invariants ─────────
+        // A stored name that is not in the current screen list must display
+        // as index 0 ("Current screen") WITHOUT clearing the stored value —
+        // only onActivated writes windowScreen; the display falls back silently.
+        function test_windowScreen_unknown_name_displays_index_0_store_intact() {
+            body.windowScreen = "GHOST-1";
+            compare(body._screenCombo.currentIndex, 0, "unknown name falls back to index 0");
+            compare(body.windowScreen, "GHOST-1", "store is untouched by the display fallback");
+        }
+
+        // "" means "follow the window's current screen" (index 0 = "Current
+        // screen"). Only verified when the offscreen test host does not expose
+        // a screen whose name is itself an empty string (that would be an
+        // environment artefact, not a user-visible screen name).
+        function test_windowScreen_empty_string_displays_index_0() {
+            if (body._screenNames.indexOf("") >= 0)
+                skip("offscreen platform exposes a blank-named screen — not a real-world configuration");
+            body.windowScreen = "";
+            compare(body._screenCombo.currentIndex, 0, "empty windowScreen maps to index 0");
+        }
+
+        // Programmatic currentIndex assignment must NOT write windowScreen —
+        // the only write path is onActivated (user gesture).  A config reload
+        // or model churn that changes the index must not clobber the store.
+        function test_windowScreen_programmatic_index_change_does_not_write_store() {
+            body.windowScreen = "GHOST-1";
+            // Directly override the combo's currentIndex (bypasses onActivated).
+            body._screenCombo.currentIndex = 0;
+            compare(body.windowScreen, "GHOST-1", "direct index set must not write windowScreen");
+        }
+
+        // When at least one real screen is available, setting windowScreen to
+        // that name must select index 1 (the first non-"Current screen" slot).
+        function test_windowScreen_known_name_selects_index_1() {
+            if (body._screenNames.length === 0)
+                skip("no screens exposed by this test host");
+            body.windowScreen = body._screenNames[0];
+            compare(body._screenCombo.currentIndex, 1, "first screen name maps to combo index 1");
         }
 
         // SCENARIO: the ColorPicker self-assigns `color = selectedColor` on

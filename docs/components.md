@@ -154,7 +154,10 @@ panel container may ignore them):
     window to (e.g. `"HDMI-1"`, `"DP-2"`); empty string means follow the
     window's current screen. A stored name that no longer matches any
     connected monitor falls back to the current screen without overwriting
-    the store.
+    the store. Known limit: the name identifies the CONNECTOR, not the
+    monitor (the standard Qt/KScreen idiom) — re-plugging the same monitor
+    into a different port yields a new name, so the pin silently falls
+    back to the current screen until re-picked.
 
   The placement controls are hidden by default — the body exposes
   `windowPlacementVisible` (default `false`) which the standalone

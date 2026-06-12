@@ -62,6 +62,8 @@ Window {
     readonly property var _targetScreen: WindowPlacement.pickScreen(Qt.application.screens, configStoreAdapter.windowScreen || "")
     readonly property int _screenW: _targetScreen ? _targetScreen.width : Screen.width
     readonly property int _screenH: _targetScreen ? _targetScreen.height : Screen.height
+    readonly property int _screenVX: _targetScreen ? _targetScreen.virtualX : Screen.virtualX
+    readonly property int _screenVY: _targetScreen ? _targetScreen.virtualY : Screen.virtualY
     readonly property int _targetWidth: Math.min(content.vertical ? _ringSize : _stripLength, _screenW - _marginX)
     readonly property int _targetHeight: Math.min(content.vertical ? _stripLength : _ringSize, _screenH - _marginY)
     // On the native-Wayland (layer-shell) path the window must stay
@@ -118,7 +120,7 @@ Window {
             root.visible = true;
             return;
         }
-        var origin = WindowPlacement.computeX11Origin(root._corner, root._screenW, root._screenH, root._targetWidth, root._targetHeight, root._marginX, root._marginY, root._targetScreen ? root._targetScreen.virtualX : Screen.virtualX, root._targetScreen ? root._targetScreen.virtualY : Screen.virtualY);
+        var origin = WindowPlacement.computeX11Origin(root._corner, root._screenW, root._screenH, root._targetWidth, root._targetHeight, root._marginX, root._marginY, root._screenVX, root._screenVY);
         WindowAnchor.setGeometry(root, origin.x, origin.y, root._targetWidth, root._targetHeight);
     }
     // Defer the first anchor so `applyDesktopWindowHints` (called

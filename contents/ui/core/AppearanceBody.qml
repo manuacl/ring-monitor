@@ -233,14 +233,14 @@ Kirigami.FormLayout {
         QQC2.ComboBox {
             id: screenCombo
             Layout.fillWidth: true
-            // Index 0 = "" (follow the window's current screen). Subsequent
-            // entries are the connected screen names from Qt.application.screens.
-            // A stored name for a currently-disconnected monitor yields index 0
-            // ("Current screen") WITHOUT writing the store — only onActivated
-            // writes, so the name survives a temporary unplug.
+            // Index 0 = "" (follow the window's current screen). A stored name
+            // for a disconnected monitor yields index 0 WITHOUT writing the
+            // store — only onActivated writes, so the name survives an unplug.
             model: [qsTr("Current screen")].concat(body._screenNames)
             currentIndex: body._screenNames.indexOf(body.windowScreen) + 1
-            onActivated: body.windowScreen = currentIndex === 0 ? "" : body._screenNames[currentIndex - 1]
+            // Signal param + bounds: a same-frame hot-unplug can shrink
+            // _screenNames under the activated index — fall back to "".
+            onActivated: index => body.windowScreen = (index > 0 && index <= body._screenNames.length) ? body._screenNames[index - 1] : ""
         }
     }
 

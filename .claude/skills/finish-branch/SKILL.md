@@ -22,7 +22,8 @@ run the pipeline in **orchestrator mode** below. If it is not —
 this repo's skills travel with the repo, while `orchestrate` is a
 home-level skill that may not exist on a contributor's machine —
 skip that subsection entirely and use the **fallback contract**,
-which is this skill's original delegation behavior, unchanged.
+which reproduces this skill's original delegation behavior (one
+deliberate exception, noted at the end of this section).
 
 ### Orchestrator mode (only when `orchestrate` is available)
 
@@ -40,13 +41,20 @@ Routing for this pipeline (instantiates the orchestrate matrix):
 | 1–3 | mechanical audit blocks (pre-commit repro, test runs, rule greps) | haiku, one agent per block, dispatched in ONE parallel batch (read-only + run-checks, no file collisions) |
 | 4 | diff ↔ tests/docs consistency + stub creation | sonnet (stub content is a judgement call); the only writing agent — keep it out of the read-only batch |
 | 5 | git state checks | orchestrator inline (three commands) |
-| 6 | CLAUDE.md lessons reflection | orchestrator inline — NEVER delegated (rule below) |
-| 7 | PR title + body draft | sonnet; the push / `gh pr create` themselves stay with the orchestrator |
-| 8–9 | `bump-label`, `/code-review` | skill chaining, unchanged |
+| 6 | CLAUDE.md lessons reflection | orchestrator inline — NEVER delegated (both-modes note at the end of this section) |
+| 7 | PR title + body draft | sonnet, returning the title + body as TEXT; the push / `gh pr create` themselves stay with the orchestrator |
+| 8–9 | `bump-label`, `/code-review` | skill chaining, unchanged (triage row below is the orchestrator's own follow-up) |
 | 9-triage | rank review findings vs threat-model priorities | orchestrator inline |
+
+Keep this table in sync when the procedure gains, loses, or renumbers
+a step — it has no mechanical link to the `### N.` sections below.
 
 Conventions on top of the matrix:
 
+- The parallel batch trades phase A's strict stop-at-first-red
+  ORDERING for wall-clock: the checks are independent, so run them
+  together, but report failures in step order and fix the
+  lowest-numbered red block first.
 - Audit agents return raw `PASS:`/`FAIL:` lines (their final message
   is the return value); the orchestrator assembles the phase-A
   summary table itself.
@@ -60,8 +68,8 @@ Conventions on top of the matrix:
 ### Fallback contract (no `orchestrate` in the environment)
 
 You may delegate any part of this pipeline to as many subagents as the
-work warrants — e.g. one agent per audit block, parallel finders for
-the step-6 reflection, a dedicated agent to draft the PR body. **Pick
+work warrants — e.g. one agent per audit block, a dedicated agent to
+draft the PR body. **Pick
 the model per task complexity**: a cheap/fast model for mechanical
 greps and check-running, a stronger model for judgement calls (the
 CLAUDE.md-lesson reflection, triaging review findings). When in doubt,
@@ -75,8 +83,12 @@ The parent then re-launches that task on a stronger model. A clean
 "this is over my head, here's what I got" hand-back is the desired
 outcome, not a failure.
 
-Step 6 (reflection) and the phase-B gates stay with the main session
-in both modes.
+**Both modes**: step 6 (the reflection — step 6's own text says it is
+yours to do, not a question to delegate) and the phase-B gates stay
+with the main session. (The original delegation text listed the
+step-6 reflection as a delegation example; that example contradicted
+step 6 and was dropped — the only deliberate deviation from the
+otherwise-verbatim fallback.)
 
 ## When to use
 

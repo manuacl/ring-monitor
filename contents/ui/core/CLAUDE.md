@@ -202,6 +202,17 @@ the list frozen; switching it to `readonly property var topProcesses`
 fixed it. Argument-taking getters (`metricValue(id)`) stay functions —
 the caller re-invokes them from a binding that already tracks the arg.
 
+### One backend gate, several hover sources → content-scope bools + a single Binding
+
+Never point two `when:`-gated `Binding`s at the same target property
+(e.g. `metrics.processSamplingActive`): both delegates' Bindings stay
+active simultaneously and the inactive one's `false` clobbers the
+hovered one's `true`. Route each tooltip's hover into its own
+content-scope bool (`_cpuTooltipHovered`, `_memTooltipHovered` — the
+`when:` keeps exactly one delegate driving each), OR-ed by ONE Binding
+onto the backend property. Canonical: `MainContent.qml` (#70). The GPU
+tooltip (#71) adds its third source the same way.
+
 ### A QQC2 popup over the widget needs `popupType: Window` + a `width` bound to `implicitWidth`
 
 A `QQC2.ToolTip` / `Popup` raised from a ring (the #69 process tooltip,

@@ -43,17 +43,44 @@ function cornerToAnchorSpec(corner) {
 // `marginX`/`marginY` inset from the anchored horizontal/vertical edge;
 // the opposite-corner cases subtract the window extent so the content
 // stays fully on-screen. Callers pass an already screen-capped winW/winH.
-function computeX11Origin(corner, screenW, screenH, winW, winH, marginX, marginY) {
+//
+// `screenX`/`screenY`: virtual-desktop origin of the target screen.
+// QWindow::setGeometry is virtual-desktop-absolute on X11; without these
+// offsets every anchor always lands on the leftmost screen (issue #142).
+// Omitting them (or passing undefined/non-finite) is back-compat with the
+// single-screen case where the origin is implicitly (0, 0).
+function computeX11Origin(corner, screenW, screenH, winW, winH, marginX, marginY, screenX, screenY) {
     var spec = cornerToAnchorSpec(corner);
-    var x = spec.left ? marginX : screenW - winW - marginX;
-    var y = spec.top ? marginY : screenH - winH - marginY;
+    var ox = isFinite(screenX) ? screenX : 0;
+    var oy = isFinite(screenY) ? screenY : 0;
+    var x = ox + (spec.left ? marginX : screenW - winW - marginX);
+    var y = oy + (spec.top ? marginY : screenH - winH - marginY);
     return { x: x, y: y };
+}
+
+// Find a screen by name from the Qt.application.screens array.
+// Returns the first entry whose `.name === name`, or null when:
+//   - `name` is falsy (no preference — caller uses the current screen)
+//   - `screens` is not an array
+//   - no entry matches (unknown name)
+// The caller is responsible for falling back to the window's current screen.
+function pickScreen(screens, name) {
+    if (!name || !Array.isArray(screens)) {
+        return null;
+    }
+    for (var i = 0; i < screens.length; i++) {
+        if (screens[i].name === name) {
+            return screens[i];
+        }
+    }
+    return null;
 }
 
 if (typeof module !== "undefined" && module.exports) {
     module.exports = {
         CORNERS: CORNERS,
         cornerToAnchorSpec: cornerToAnchorSpec,
-        computeX11Origin: computeX11Origin
+        computeX11Origin: computeX11Origin,
+        pickScreen: pickScreen
     };
 }

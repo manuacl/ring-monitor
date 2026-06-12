@@ -46,6 +46,7 @@ const BRIDGED_KEYS = [
     ["windowAnchorCorner", "windowAnchorCorner"],
     ["windowMarginX", "windowMarginX"],
     ["windowMarginY", "windowMarginY"],
+    ["windowScreen", "windowScreen"],
     ["textOpacity", "textOpacity"],
     ["trackOpacity", "trackOpacity"],
     ["arcOpacity", "arcOpacity"],

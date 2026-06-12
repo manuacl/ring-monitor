@@ -54,6 +54,7 @@ Settings {
     property string windowAnchorCorner: "top-right"
     property int windowMarginX: 0
     property int windowMarginY: 0
+    property string windowScreen: ""
     property real textOpacity: 1.0
     property real trackOpacity: 0.15
     property real arcOpacity: 1.0

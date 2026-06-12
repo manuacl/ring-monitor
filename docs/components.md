@@ -138,8 +138,8 @@ panel container may ignore them):
   eats into the available area and rings shrink to compensate, so
   the slider would be a visual no-op. Same opt-in pattern as
   `AboutBody.autostartAvailable`.
-- Window placement (issue #98) — three keys the standalone window
-  uses to position itself; the Plasma panel ignores all three
+- Window placement (issue #98, #142) — four keys the standalone window
+  uses to position itself; the Plasma panel ignores all of them
   (plasmashell owns the slot). The corner → origin / anchor math is
   the pure module `platforms/standalone/WindowPlacement.js`, shared by
   the X11 and Wayland-layer-shell paths.
@@ -150,14 +150,28 @@ panel container may ignore them):
     horizontal edge (left or right, per the corner).
   - `windowMarginY` (Int, 0-200 px) — inset from the anchored vertical
     edge (top or bottom).
+  - `windowScreen` (String, default `""`) — monitor name to pin the
+    window to (e.g. `"HDMI-1"`, `"DP-2"`); empty string means follow the
+    window's current screen. A stored name that no longer matches any
+    connected monitor falls back to the current screen without overwriting
+    the store.
 
-  The controls are hidden by default — the body exposes
+  The placement controls are hidden by default — the body exposes
   `windowPlacementVisible` (default `false`) which the standalone
   `SettingsDialog` flips to `true`. The Plasma wrapper leaves it default
-  AND hardcodes the three keys (`"top-right"`, `0`, `0`); they are never
+  AND hardcodes the four keys (`"top-right"`, `0`, `0`, `""`); they are never
   read on the Plasma side, so the hardcode makes the "unused on Plasma"
   intent explicit. Same opt-in pattern as `AboutBody.autostartAvailable`.
-  Defaults (`top-right`, 0, 0) reproduce the pre-#98 top-right anchor.
+  Defaults (`top-right`, 0, 0, `""`) reproduce the pre-#98 top-right anchor
+  with no screen pinning.
+
+**Text color rationale.** `textColorMode: "system"` is the default — it
+follows `Kirigami.Theme.textColor`, pushing users toward the neutral gray
+that fits the "anneaux modernes épurés" aesthetic. `"custom"` exposes a
+light/dark color pair gated by the same `colorMode` (auto/light/dark)
+used by the ring color, so a user on a transparent panel or on the
+standalone build can pin the text to whatever reads best against their
+wallpaper.
 
 ## `MainContent.qml` — implicit dimensions
 

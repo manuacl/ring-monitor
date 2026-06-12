@@ -12,6 +12,13 @@ user-facing only.
 
 ## [Unreleased]
 
+### Added
+
+- Standalone: choose which monitor the widget lives on — new "Screen"
+  selector in Settings → Appearance ("Current screen" by default, which
+  follows the window). Fixes the widget being stuck on the leftmost /
+  primary monitor on multi-screen setups, including under GNOME (#142).
+
 ### Other
 
 - Add `CHANGELOG.md` to the docs-only exclusion in the bump heuristic

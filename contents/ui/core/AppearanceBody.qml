@@ -81,17 +81,16 @@ Kirigami.FormLayout {
         };
     })
 
-    // The four standalone-window anchor corner values, parallel to the
-    // combo's qsTr() label list below — keep both in the same order. Must
-    // stay a subset of platforms/standalone/WindowPlacement.js `CORNERS`
-    // (a flat string array so qmlformat keeps it inline; an object {value,
-    // text} model would expand past the 500-line cap).
+    // Corner values parallel the combo labels below — same order; subset of WindowPlacement.js CORNERS.
     readonly property var _cornerValues: ["top-left", "top-right", "bottom-left", "bottom-right"]
-
-    // Re-evaluates on monitor hot-plug: the binding tracks Qt.application.screens.
-    readonly property var _screenNames: Qt.application.screens.map(function (s) {
-        return s.name;
-    })
+    // Re-evaluates on hot-plug. Qt.application.screens is a QQmlListProperty — array-like, not a JS Array.
+    readonly property var _screenNames: {
+        var screens = Qt.application.screens;
+        var out = [];
+        for (var i = 0; i < screens.length; i++)
+            out.push(screens[i].name);
+        return out;
+    }
 
     RowLayout {
         Kirigami.FormData.label: qsTr("Orientation:")

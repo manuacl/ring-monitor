@@ -64,6 +64,18 @@ Always tested regardless of directory: every `.js` (here or under
 [`tests/CLAUDE.md`](../../../tests/CLAUDE.md) for the naming and
 patterns.
 
+**QML list properties are NOT JS Arrays.** A dual-loaded module that
+takes a list QML obtains from the engine (`Qt.application.screens`,
+a `list<T>` property) must guard with array-likeness
+(`typeof x.length === "number"` + index access), never
+`Array.isArray()` — the QML side passes a `QQmlListProperty` wrapper,
+for which `Array.isArray()` is `false` and Array methods (`.map`…) are
+not guaranteed. Node tests pass real Arrays, so an `Array.isArray`
+guard passes every unit test and still returns the fallback on every
+live QML call (live bug in #142's `pickScreen`: the screen pin
+silently never applied). Add an array-like-object case to the
+module's tests to pin the guard.
+
 ## Component-side gotchas
 
 ### `Ring.qml`: non-percent metrics decouple sweep input from display

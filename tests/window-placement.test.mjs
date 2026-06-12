@@ -112,8 +112,23 @@ test("pickScreen returns null when no screen matches the name", () => {
     assert.strictEqual(WP.pickScreen(SCREENS, "VGA-0"), null);
 });
 
-test("pickScreen returns null when screens is not an array", () => {
+test("pickScreen returns null when screens lacks a numeric length", () => {
+    // null and undefined fail the !screens guard.
     assert.strictEqual(WP.pickScreen(null, "HDMI-1"), null);
+    assert.strictEqual(WP.pickScreen(undefined, "HDMI-1"), null);
+    // A plain object has no length property — typeof undefined !== "number".
     assert.strictEqual(WP.pickScreen({}, "HDMI-1"), null);
-    assert.strictEqual(WP.pickScreen("HDMI-1", "HDMI-1"), null);
+    // A number has no length property either.
+    assert.strictEqual(WP.pickScreen(42, "HDMI-1"), null);
+});
+
+// SCENARIO: Qt.application.screens is a QQmlListProperty — array-like (length +
+// integer index) but not a JS Array. Array.isArray() returned false, so pickScreen
+// always returned null at runtime and the screen pin silently never applied.
+// Guard on numeric `length` instead; this case proves the fix.
+test("pickScreen works with a QQmlListProperty-like array-like object", () => {
+    const qmlLike = { length: 2, 0: { name: "DP-2", width: 2560 }, 1: { name: "HDMI-A-1", width: 1920 } };
+    assert.deepEqual(WP.pickScreen(qmlLike, "DP-2"), qmlLike[0]);
+    assert.deepEqual(WP.pickScreen(qmlLike, "HDMI-A-1"), qmlLike[1]);
+    assert.strictEqual(WP.pickScreen(qmlLike, "VGA-0"), null);
 });

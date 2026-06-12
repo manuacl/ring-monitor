@@ -103,8 +103,13 @@ Window {
             // hidden, then show. Re-runs (slider drag, screen reconfig)
             // re-commit live — `visible = true` is then a harmless no-op.
             // When the target screen changed, hide first so the layer
-            // surface is re-created on the correct wl_output.
-            if (root._targetScreen && root.screen !== root._targetScreen) {
+            // surface is re-created on the correct wl_output. Compare by
+            // name, not object identity: Window.screen and the entries of
+            // Qt.application.screens can wrap the same QScreen in distinct
+            // QML objects, so `!==` may hold on the same physical screen —
+            // which would re-run the destroy/recreate cycle (a visible
+            // blink) on every re-anchor while pinned.
+            if (root._targetScreen && (!root.screen || root.screen.name !== root._targetScreen.name)) {
                 root.visible = false;
                 root.screen = root._targetScreen;
             }

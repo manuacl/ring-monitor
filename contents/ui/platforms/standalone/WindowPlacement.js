@@ -58,14 +58,17 @@ function computeX11Origin(corner, screenW, screenH, winW, winH, marginX, marginY
     return { x: x, y: y };
 }
 
-// Find a screen by name from the Qt.application.screens array.
+// Find a screen by name from an array-like screens list.
 // Returns the first entry whose `.name === name`, or null when:
 //   - `name` is falsy (no preference — caller uses the current screen)
-//   - `screens` is not an array
+//   - `screens` is null/undefined or has no numeric `length`
 //   - no entry matches (unknown name)
+// QML passes Qt.application.screens, a QQmlListProperty — array-like
+// (length + integer index) but not a JS Array, so Array.isArray() returns
+// false. Guard on a numeric `length` instead.
 // The caller is responsible for falling back to the window's current screen.
 function pickScreen(screens, name) {
-    if (!name || !Array.isArray(screens)) {
+    if (!name || !screens || typeof screens.length !== "number") {
         return null;
     }
     for (var i = 0; i < screens.length; i++) {

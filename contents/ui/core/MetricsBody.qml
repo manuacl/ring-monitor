@@ -6,18 +6,15 @@ import "MetricsCatalog.js" as Catalog
 import "DiskMetrics.js" as DiskMetrics
 import "ColorThemes.js" as ColorThemes
 
-// Body of the Metrics config page. Owns the reorderable list, the
-// internal ListModel, and the per-row UI (CheckBox + drag handle +
-// optional sub-toggle for CPU cores).
+// Body of the Metrics config page. Owns the reorderable list, the internal
+// ListModel, and the per-row UI (CheckBox + drag handle + sub-toggles).
 //
 // Bidirectional state is exposed as plain QML properties; the wrapper
-// (configMetrics.qml) bridges them to Plasma's cfg_* magic via
-// `property alias` declarations. The body never touches Plasma APIs
-// directly.
+// (configMetrics.qml) bridges them to Plasma's cfg_* magic via `property
+// alias` declarations — the body never touches Plasma APIs directly.
 //
 // i18n strings use qsTr() rather than Plasma's i18n() — see
-// docs/plasma-isolation/plan.md for the rationale (works in both
-// Plasma applet runtime and a future standalone build).
+// docs/plasma-isolation/plan.md for the rationale (works on both hosts).
 
 ColumnLayout {
     id: body
@@ -59,19 +56,21 @@ ColumnLayout {
     // Removable partitions opted out of auto-show (CSV of UUIDs), bridged to cfg_partitionOptOut.
     property string partitionOptOutCsv: ""
     // UUID→label JSON cache so a disconnected partition shows its last-known
-    // volume name on the stale row instead of a bare UUID (the system stops
-    // exposing the label once the filesystem is gone). Written ONLY by
-    // _flushLabelCache (a user-gesture path) — discovery merges land in
-    // _stagedLabelsJson so housekeeping never dirties the KCM (issue #132).
+    // volume name on the stale row instead of a bare UUID. Staged seam
+    // (issue #132): discovery merges land in _stagedLabelsJson (the display
+    // copy stalePartitionList reads); _flushLabelCache persists it from
+    // user-gesture paths only. Rule: core/CLAUDE.md § cfg-bridged properties.
     property string partitionLabelsJson: ""
-    // Display copy of the label cache: saved entries + this session's
-    // discovery merges. stalePartitionList reads it; flushed to the
-    // cfg-bridged property above on the first user gesture (issue #132).
     property string _stagedLabelsJson: ""
     onPartitionLabelsJsonChanged: _stagedLabelsJson = partitionLabelsJson
-    // JSON partition-id→custom-color map, bridged to cfg_diskPartitionColors.
-    // A partition with no entry inherits the shared ring color (issue #67).
+    // JSON partition-id→custom-color map, bridged to cfg_diskPartitionColors;
+    // no entry = inherit the shared ring color (issue #67). Same staged seam
+    // as the label cache above (issue #134): the housekeeping prune lands in
+    // _stagedColorsJson (the display copy partitionColor reads), flushed by
+    // _flushColorMap on user gesture.
     property string partitionColorsJson: ""
+    property string _stagedColorsJson: ""
+    onPartitionColorsJsonChanged: _stagedColorsJson = partitionColorsJson
     property bool showCpuCores: false
     property bool mergeCpuTemp: false
     property bool mergeGpuTemp: false
@@ -111,10 +110,9 @@ ColumnLayout {
 
     function loadOrder() {
         orderModel.clear();
-        // mergeWithCatalog appends any catalog id missing from the
-        // persisted CSV — so a release adding new metrics (e.g. 0.4 →
-        // cpuTemp / gpuTemp) populates the config list without forcing
-        // existing users to reset their config or migrate manually.
+        // mergeWithCatalog appends any catalog id missing from the persisted
+        // CSV — a release adding new metrics populates existing users' config
+        // list without a manual migration (e.g. 0.4 → cpuTemp / gpuTemp).
         const ids = Catalog.mergeWithCatalog(Catalog.parseCsv(body.metricOrderCsv));
         for (let i = 0; i < ids.length; i++) {
             orderModel.append({
@@ -146,7 +144,7 @@ ColumnLayout {
             body.mergeCpuTemp = false;
         if (!on && id === "gpu" && body.mergeGpuTemp)
             body.mergeGpuTemp = false;
-        _flushLabelCache();
+        _flushStaged();
     }
 
     function _removableIds() {
@@ -169,36 +167,49 @@ ColumnLayout {
         } else {
             body.enabledPartitionsCsv = Catalog.toggleEnabled(Catalog.parseCsv(body.enabledPartitionsCsv), id, on).join(",");
         }
-        _flushLabelCache();
+        _flushStaged();
     }
 
-    // Per-partition custom ring color (issue #67). "" = no override → the
-    // partition inherits the shared ring color; clearing drops it back there.
+    // Per-partition custom ring color (issue #67). "" = no override → inherit
+    // the shared ring color. The setters are user gestures → flush immediately.
     function partitionColor(id) {
-        return DiskMetrics.colorFor(body.partitionColorsJson, id);
+        return DiskMetrics.colorFor(body._stagedColorsJson, id);
     }
     function setPartitionColor(id, color) {
-        body.partitionColorsJson = DiskMetrics.withColor(body.partitionColorsJson, id, color);
-        _flushLabelCache();
+        body._stagedColorsJson = DiskMetrics.withColor(body._stagedColorsJson, id, color);
+        _flushStaged();
     }
     function clearPartitionColor(id) {
-        body.partitionColorsJson = DiskMetrics.withoutColor(body.partitionColorsJson, id);
-        _flushLabelCache();
+        body._stagedColorsJson = DiskMetrics.withoutColor(body._stagedColorsJson, id);
+        _flushStaged();
     }
 
-    // Bound the color map so a custom color can't outlive its partition. The
-    // keep-set is `enabled ∪ order ∪ discovered`: the picker lets you color ANY
-    // currently-discovered partition (orderPartitions renders newly-discovered
-    // ids before they reach partitionOrderCsv), so dropping a discovered
-    // partition's color would silently lose the user's input; the referenced
-    // half keeps the color of a configured-but-unplugged partition so a replug
-    // restores it. Only a color whose partition is BOTH gone (undiscovered) AND
-    // unreferenced is pruned. The _settledMap guard avoids a spurious write.
+    // Bound the staged color map so a custom color can't outlive its
+    // partition. Keep-set = enabled ∪ order ∪ discovered; only an entry whose
+    // partition is BOTH gone AND unreferenced is pruned — full rationale:
+    // docs/components.md § MetricsBody.
     function _refreshColorMap() {
-        const discovered = (body.diskPartitions || []).map(function (p) {
+        // Prune only once discovery settles (same gate as stalePartitionList):
+        // at Component.onCompleted diskPartitions is still [], so the keep-set
+        // would lack its discovered half and drop colors (issue #134).
+        if (!body.partitionsReady || !body.diskPartitions || body.diskPartitions.length === 0)
+            return;
+        const discovered = body.diskPartitions.map(function (p) {
             return p.id;
         });
-        body.partitionColorsJson = body._settledMap(body.partitionColorsJson, DiskMetrics.pruneMap(body.partitionColorsJson, body._referencedPartitionIds().concat(discovered)));
+        body._stagedColorsJson = body._settledMap(body._stagedColorsJson, DiskMetrics.pruneMap(body._stagedColorsJson, body._referencedPartitionIds().concat(discovered)));
+    }
+
+    // Persist the staged color map; see _flushLabelCache for the rationale.
+    function _flushColorMap() {
+        _refreshColorMap();
+        body.partitionColorsJson = body._settledMap(body.partitionColorsJson, body._stagedColorsJson);
+    }
+
+    // One flush point for every staged map (labels + colors); user-gesture only.
+    function _flushStaged() {
+        _flushLabelCache();
+        _flushColorMap();
     }
 
     function currentPartitionOrder() {
@@ -223,14 +234,13 @@ ColumnLayout {
 
     function commitPartitionOrder() {
         body.partitionOrderCsv = currentPartitionOrder().join(",");
-        _flushLabelCache();
+        _flushStaged();
     }
 
     // Wrapper-injected "discovery settled" gate. Default false → no stale
-    // rows until a wrapper confirms readiness, since the Plasma side
-    // populates diskPartitions incrementally and a not-yet-enumerated
-    // partition must not surface as stale (the trash action is destructive).
-    // Full rationale: docs/components.md § MetricsBody.
+    // rows until a wrapper confirms readiness (Plasma populates diskPartitions
+    // incrementally; the trash action is destructive). Full rationale:
+    // docs/components.md § MetricsBody.
     property bool partitionsReady: false
 
     // Configured partitions that are no longer discovered (unplugged disk).
@@ -248,12 +258,10 @@ ColumnLayout {
         return Catalog.parseCsv(body.enabledPartitionsCsv).concat(Catalog.parseCsv(body.partitionOrderCsv));
     }
 
-    // Settle a recomputed UUID→string map against the current value: return the
-    // value to persist, treating the unset "" as equal to "{}" and an unchanged
-    // map as a no-op — so merely opening the dialog (or any toggle) doesn't
-    // dirty the KCM page / queue a standalone QSettings write. Assigning the
-    // returned value back is itself a no-op when unchanged (QML doesn't notify
-    // on an equal value). Shared by _refreshLabelCache and _refreshColorMap.
+    // Settle a recomputed UUID→string map against the current value: treat the
+    // unset "" as equal to "{}" and an unchanged map as a no-op, so a
+    // housekeeping recompute (or a flush with nothing staged) never produces
+    // a spurious write. Shared by the label-cache and color-map paths.
     function _settledMap(current, next) {
         if (next === current || (next === "{}" && current === ""))
             return current;
@@ -264,34 +272,29 @@ ColumnLayout {
         body._stagedLabelsJson = body._settledMap(body._stagedLabelsJson, DiskMetrics.mergeLabelCache(body._stagedLabelsJson, body.diskPartitions || [], body._referencedPartitionIds()));
     }
 
-    // Persist the staged cache. Called only from user-gesture setters — the
-    // page is already legitimately dirty, so the cache write rides along
-    // instead of dirtying the KCM on mere discovery (issue #132).
+    // Persist the staged cache. User-gesture paths only — the page is already
+    // legitimately dirty there, so the cache write rides along (issue #132).
     function _flushLabelCache() {
         _refreshLabelCache();
         body.partitionLabelsJson = body._settledMap(body.partitionLabelsJson, body._stagedLabelsJson);
     }
 
     // Trash action on a stale row: drop the id from the selection, the order,
-    // the label cache, and any custom color so nothing lingers in the config.
-    // The explicit clearPartitionColor is load-bearing, NOT redundant with
-    // _refreshColorMap: a stale partition is undiscovered, but the
-    // enabled-change hook fires _refreshColorMap while the id is still in
-    // partitionOrderCsv (so it's still referenced → not pruned), and the
-    // order-change hook doesn't refresh the color map at all.
+    // the label cache, and any custom color. The explicit clearPartitionColor
+    // is load-bearing, NOT redundant with the prune: the enabled-change hook
+    // refreshes while the id is still in partitionOrderCsv (still referenced),
+    // the order-change hook doesn't refresh colors, and the prune is gated off
+    // when nothing is discovered. It also flushes both staged maps, and runs
+    // after both CSV writes — the label refresh sees the id unreferenced.
     function removeStalePartition(id) {
         body.enabledPartitionsCsv = Catalog.toggleEnabled(Catalog.parseCsv(body.enabledPartitionsCsv), id, false).join(",");
         body.partitionOrderCsv = Catalog.toggleEnabled(Catalog.parseCsv(body.partitionOrderCsv), id, false).join(",");
-        // clearPartitionColor also flushes the label cache; it runs after both
-        // CSV writes, so its refresh already sees the id unreferenced and
-        // prunes it — no extra _flushLabelCache() needed here.
         clearPartitionColor(id);
     }
 
     // Seed the selection with the backend default when nothing is chosen yet,
-    // so the picker reflects what the widget actually renders (the default
-    // ring) as a checked, editable row. Empty selection = always the default
-    // (the disk metric shows ≥1 partition); to hide it, disable the metric.
+    // so the picker shows what the widget actually renders as a checked row.
+    // Empty selection = always the default; to hide it, disable the metric.
     function _seedDefaultIfEmpty() {
         if (body.enabledPartitionsCsv === "" && body.defaultPartitionIds && body.defaultPartitionIds.length > 0)
             body.enabledPartitionsCsv = body.defaultPartitionIds.join(",");

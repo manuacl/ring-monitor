@@ -12,6 +12,18 @@ user-facing only.
 
 ## [Unreleased]
 
+### Technical
+
+- fix(config): stage the partition-color map like the label cache (#134) —
+  `MetricsBody._refreshColorMap` now prunes into a non-cfg `_stagedColorsJson`
+  (read by `partitionColor`) flushed by `_flushColorMap` from user-gesture
+  setters only (`_flushStaged` covers both staged maps), and the prune is
+  gated on `partitionsReady` + non-empty `diskPartitions` so the
+  `Component.onCompleted` run (discovery still async/empty) can no longer
+  drop a discovered-but-unreferenced partition's saved color or dirty the
+  KCM on dialog open. SCENARIO guards in the new
+  `tests/qml/tst_MetricsBodyColorMap.qml`.
+
 ## [0.13.0] — 2026-06-12
 
 ### Added

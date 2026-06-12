@@ -177,7 +177,13 @@ unchanged-map guard, when the recompute *adds or removes* entries.
 Stage the recomputed value in a non-`cfg` property; flush it into the
 bridged property from user-gesture setters only (the page is
 legitimately dirty there). Canonical:
-`MetricsBody._stagedLabelsJson` / `_flushLabelCache` (issue #132).
+`MetricsBody._stagedLabelsJson` / `_flushLabelCache` (issue #132) and
+its color sibling `_stagedColorsJson` / `_flushColorMap` (issue #134);
+`_flushStaged` is the single gesture-side flush point. Corollary: a
+*prune* whose keep-set depends on async discovery must also gate on
+the readiness flag (`partitionsReady`) — run it before discovery
+settles and the keep-set lacks its discovered half, silently dropping
+saved user input (#134's color-loss case).
 Sanctioned exception: seeding an *empty* bridged property with a
 computed default (`MetricsBody._seedDefaultIfEmpty` — empty means
 "use the default" by design, so re-seeding while empty never

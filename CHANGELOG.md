@@ -14,6 +14,9 @@ user-facing only.
 
 ### Other
 
+- Route the `finish-branch` skill's delegation through the `orchestrate`
+  skill (routing matrix, prompt contract, escalation rule); per-step
+  tier mapping documented in the skill. No pipeline behavior change.
 - Fix a dangling code-comment reference in `ProcessTooltip.qml`
   (`_useWindowPopup` → `_applyPopupType`); no behavior change.
 

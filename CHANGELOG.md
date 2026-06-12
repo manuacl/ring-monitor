@@ -14,6 +14,8 @@ user-facing only.
 
 ### Technical
 
+- RAM ring tooltip: top-20 processes by memory (RES + %MEM) with used/total footer, on both platforms (#70).
+
 - fix(config): stage the partition-color map like the label cache (#134) —
   `MetricsBody._refreshColorMap` now prunes into a non-cfg `_stagedColorsJson`
   (read by `partitionColor`) flushed by `_flushColorMap` from user-gesture

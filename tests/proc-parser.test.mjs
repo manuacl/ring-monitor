@@ -13,15 +13,15 @@ const Stat = require('../contents/ui/platforms/standalone/ProcStatParser.js');
 // A /proc/<pid>/stat line with the fields we read at their real offsets.
 // After "(comm)" the tokens are: state ppid pgrp session tty_nr tpgid flags
 // minflt cminflt majflt cmajflt utime stime ... — so utime is the 12th token
-// after comm, stime the 13th.
-const stat = (pid, comm, utime, stime) =>
-    `${pid} (${comm}) S 1 ${pid} ${pid} 0 -1 4194304 999 0 0 0 ${utime} ${stime} 0 0 20 0 12 0 99999`;
+// after comm, stime the 13th, and rss (field 24) is the 22nd (index [21]).
+const stat = (pid, comm, utime, stime, rssPages = 512) =>
+    `${pid} (${comm}) S 1 ${pid} ${pid} 0 -1 4194304 999 0 0 0 ${utime} ${stime} 0 0 20 0 12 0 99999 0 ${rssPages} 0 0 0 0 0 0 0 0 0 0 0 0 17 0 0 0`;
 
 // ── parsePidStat ──────────────────────────────────────────────────────────
 
 test('parsePidStat: extracts pid, name, jiffies = utime + stime', () => {
     const r = P.parsePidStat(stat(42, 'bash', 100, 50));
-    assert.deepEqual(r, { pid: 42, name: 'bash', jiffies: 150 });
+    assert.deepEqual(r, { pid: 42, name: 'bash', jiffies: 150, rssPages: 512 });
 });
 
 test('parsePidStat: comm with spaces (split on the LAST paren)', () => {
@@ -46,6 +46,53 @@ test('parsePidStat: no parens / non-string / empty → null', () => {
 
 test('parsePidStat: truncated line (no utime/stime) → null', () => {
     assert.equal(P.parsePidStat('99 (short) S 1 99'), null);
+});
+
+test('parsePidStat: rssPages parsed from field 24 of the stat line', () => {
+    const r = P.parsePidStat(stat(100, 'firefox', 200, 100, 4096));
+    assert.equal(r.rssPages, 4096);
+    assert.equal(r.jiffies, 300);
+});
+
+test('parsePidStat: comm with spaces still parses rssPages correctly', () => {
+    const r = P.parsePidStat(stat(55, 'Web Content', 10, 5, 1024));
+    assert.equal(r.name, 'Web Content');
+    assert.equal(r.rssPages, 1024);
+});
+
+test('parsePidStat: comm with nested parens still parses rssPages correctly', () => {
+    const r = P.parsePidStat(stat(7, '(sd-pam)', 3, 4, 256));
+    assert.equal(r.name, '(sd-pam)');
+    assert.equal(r.rssPages, 256);
+});
+
+test('parsePidStat: missing rss field → rssPages 0, record otherwise intact', () => {
+    // A stat line truncated before field 24 must still yield a valid record
+    // (utime/stime are present); a broken rss must not hide the process from
+    // the CPU ranking.
+    const truncated = '42 (bash) S 1 42 42 0 -1 4194304 0 0 0 0 100 50';
+    const r = P.parsePidStat(truncated);
+    assert.equal(r.rssPages, 0);
+    assert.equal(r.jiffies, 150);
+    assert.equal(r.pid, 42);
+});
+
+test('parsePidStat: garbage rss field → rssPages 0, record otherwise intact', () => {
+    // Non-numeric rss (e.g. a kernel that extends the field with a suffix)
+    // must degrade gracefully to 0 without dropping the process.
+    const line = '10 (kworker) S 0 0 0 0 -1 4096 0 0 0 0 5 3 0 0 20 0 1 0 999 0 xyz 0 0 0 0 0 0 0 0 0 0 0 0 17 0 0 0';
+    const r = P.parsePidStat(line);
+    assert.equal(r.rssPages, 0);
+    assert.equal(r.jiffies, 8);
+});
+
+test('parsePidStat: negative rss field → rssPages 0, record otherwise intact', () => {
+    // The kernel should never emit a negative rss, but guard it anyway
+    // to keep the tooltip free of negative KiB values.
+    const line = '10 (proc) S 0 0 0 0 -1 4096 0 0 0 0 5 3 0 0 20 0 1 0 999 0 -1 0 0 0 0 0 0 0 0 0 0 0 0 17 0 0 0';
+    const r = P.parsePidStat(line);
+    assert.equal(r.rssPages, 0);
+    assert.equal(r.jiffies, 8);
 });
 
 // ── parseLoadAvg ────────────────────────────────────────────────────────────

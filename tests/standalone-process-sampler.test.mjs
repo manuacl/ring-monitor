@@ -46,3 +46,68 @@ test("ProcessSampler is Plasma-free (standalone isolation)", () => {
     // touches /proc only — no ksysguard, no plasmoid.
     assert.doesNotMatch(SRC, /import\s+org\.kde\.(?!kirigami)/, "must not import a non-Kirigami org.kde.* module");
 });
+
+test("ProcessSampler exposes the RAM tooltip surface (issue #70)", () => {
+    // Same-surface rule: the Plasma adapter exposes these three as readonly
+    // properties; the standalone sampler must match byte-for-byte so the RAM
+    // tooltip QML can bind without a platform branch.
+    assert.match(SRC, /readonly\s+property\s+var\s+topMemProcesses/, "must expose topMemProcesses as a readonly property (not a function — frozen-binding trap)");
+    assert.match(SRC, /readonly\s+property\s+real\s+memUsedKb/, "must expose memUsedKb as a readonly property");
+    assert.match(SRC, /readonly\s+property\s+real\s+memTotalKb/, "must expose memTotalKb as a readonly property");
+});
+
+test("ProcessSampler builds memory ranking from curMap snapshot, no prev/cur delta", () => {
+    // RSS is a point-in-time field — no delta required — so the ranking is
+    // built from curMap directly. This means topMemProcesses has data on the
+    // very first tick (unlike topProcesses, which needs a second tick for a
+    // jiffy delta). Guard that rankByMemory is called and that rssPages is
+    // converted via the cached pageKb factor.
+    assert.match(SRC, /ProcessRanking\.rankByMemory\s*\(/, "must rank by memory via the shared core/ProcessRanking");
+    assert.match(SRC, /rssKb\s*:\s*\w+\.rssPages\s*\*\s*pageKb/, "must convert rssPages → rssKb using the cached pageKb factor");
+});
+
+test("ProcessSampler caches pageSize once, never calls it inside the per-pid loop", () => {
+    // reader.pageSize() is a C++ round-trip; calling it for every process on
+    // every tick would be O(N) calls per tick instead of O(1). The value is
+    // constant for the process lifetime, so it must be cached once.
+    assert.match(SRC, /reader\.pageSize\s*\(\s*\)/, "must call reader.pageSize() to seed the cache");
+    // The per-pid loop iterates over curMap entries. Guard that pageSize() is
+    // not inside that loop by checking it is NOT called in the for…in block.
+    const forInBlock = SRC.match(/for\s*\(\s*var\s+\w+\s+in\s+curMap\s*\)[\s\S]*?(?=\n\s*\/\/\s*Memory ranking|\n\s*var\s+memRaw|\n\s*sampler\._memTop)/);
+    assert.ok(forInBlock, "must find the for…in curMap loop body");
+    assert.doesNotMatch(forInBlock[0], /reader\.pageSize\s*\(/, "reader.pageSize() must NOT be called inside the per-pid loop (call it once and cache)");
+});
+
+test("ProcessSampler reads /proc/meminfo inside _sample, not on a background timer", () => {
+    // The meminfo read must happen inside _sample() — which is gated on the
+    // hover Timer — not at the MetricsBackend level or on an independent Timer.
+    // This preserves the "no background polling while the tooltip is closed"
+    // guarantee.
+    assert.match(SRC, /reader\.read\(["']\/proc\/meminfo["']\)/, "must read /proc/meminfo for the RAM footer");
+    assert.match(SRC, /MemInfoParser\.parseMemInfo\s*\(/, "must parse /proc/meminfo via MemInfoParser");
+    // Confirm the read is wired to MemInfoParser (not MetricsBackend's own
+    // reader) by checking the import is present in this file.
+    assert.match(SRC, /import\s+["']MemInfoParser\.js["']\s+as\s+MemInfoParser/, "must import MemInfoParser.js");
+});
+
+test("ProcessSampler computes memUsedKb as total − available", () => {
+    // MemTotal − MemAvailable is the kernel's honest "used" figure (same
+    // formula as `free -h`). Guard the arithmetic so it can't regress to
+    // MemTotal − MemFree (which counts reclaimable page cache as used).
+    assert.match(SRC, /mem\.total\s*-\s*mem\.available/, "memUsedKb must be MemTotal − MemAvailable (not MemFree)");
+    // Guard must be a null-check (the parser's missing-field sentinel), not
+    // truthiness: available === 0 is a real reading (full OOM) and must yield
+    // used = total, not the 0 fallback.
+    assert.match(SRC, /mem\.total\s*!==\s*null\s*&&\s*mem\.available\s*!==\s*null/, "memUsedKb guard must null-check, not truthiness-check (available can be 0)");
+});
+
+test("ProcessSampler resets RAM surface in _reset()", () => {
+    // When the tooltip closes (active → false) _reset() clears _memTop,
+    // _memUsedKb, and _memTotalKb so a re-hover doesn't flash stale data
+    // before the first tick fires.
+    const resetBlock = SRC.match(/function\s+_reset\s*\(\s*\)\s*{[\s\S]*?}/);
+    assert.ok(resetBlock, "must find the _reset() body");
+    assert.match(resetBlock[0], /_memTop\s*=\s*\[\s*\]/, "_reset must clear _memTop");
+    assert.match(resetBlock[0], /_memUsedKb\s*=\s*0/, "_reset must zero _memUsedKb");
+    assert.match(resetBlock[0], /_memTotalKb\s*=\s*0/, "_reset must zero _memTotalKb");
+});

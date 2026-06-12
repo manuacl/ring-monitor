@@ -22,7 +22,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms", "standalone", "MetricsBackend.qml"), "utf8");
 
 // Same public surface as platforms/plasma/MetricsBackend.qml.
-const PUBLIC_PROPS = ["coreValues", "loading", "availableMetrics", "availablePartitions", "defaultPartitionIds", "processSamplingActive", "topProcesses", "loadAverages", "diskIo", "diskIoSamplingActive"];
+const PUBLIC_PROPS = ["coreValues", "loading", "availableMetrics", "availablePartitions", "defaultPartitionIds", "processSamplingActive", "topProcesses", "loadAverages", "diskIo", "diskIoSamplingActive", "topMemProcesses", "memUsedKb", "memTotalKb"];
 const PUBLIC_FUNCS = ["metricValue", "metricRawTemp", "metricTempPercent", "partitionValue", "partitionDetail"];
 
 test("standalone MetricsBackend exposes the public properties main.qml depends on", () => {
@@ -310,4 +310,14 @@ test("standalone MetricsBackend forwards the CPU process tooltip to ProcessSampl
     assert.match(SOURCE, /property\s+alias\s+processSamplingActive\s*:\s*processSampler\.active/, "processSamplingActive must alias the sampler's active gate");
     assert.match(SOURCE, /topProcesses\s*:\s*processSampler\.topProcesses/, "topProcesses must forward the sampler's ranked list (a property, for binding reactivity)");
     assert.match(SOURCE, /loadAverages\s*:\s*processSampler\.loadAverages/, "loadAverages must forward the sampler's value");
+});
+
+test("standalone MetricsBackend forwards the RAM tooltip surface from ProcessSampler (#70)", () => {
+    // Same-surface rule: topMemProcesses / memUsedKb / memTotalKb must be
+    // forwarded as readonly properties (not functions) so a UI binding on the
+    // RAM-ring tooltip updates live as the sampler re-ranks. Reactive argless
+    // data = readonly property — the frozen-binding trap applies here too.
+    assert.match(SOURCE, /topMemProcesses\s*:\s*processSampler\.topMemProcesses/, "topMemProcesses must forward the sampler's RAM-ranked list");
+    assert.match(SOURCE, /memUsedKb\s*:\s*processSampler\.memUsedKb/, "memUsedKb must forward the sampler's computed value");
+    assert.match(SOURCE, /memTotalKb\s*:\s*processSampler\.memTotalKb/, "memTotalKb must forward the sampler's computed value");
 });

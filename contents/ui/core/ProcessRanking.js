@@ -26,6 +26,30 @@ function _toNonNegative(value) {
     return n;
 }
 
+// Validate and normalise an array of raw process records. Drops non-objects
+// and records missing pid. Coerces pid to Number (Plasma ProcessDataModel
+// Value role isn't guaranteed numeric — a string pid would turn the
+// a.pid - b.pid tiebreak into NaN, making the sort non-deterministic).
+// Carries rssKb ONLY when the producer set it, preserving the "not sampled"
+// vs "genuine 0 KB" distinction rankByMemory relies on.
+function _cleanRecords(records) {
+    var cleaned = [];
+    for (var i = 0; i < records.length; i++) {
+        var r = records[i];
+        if (!r || r.pid === undefined || r.pid === null)
+            continue;
+        var rec = {
+            pid: Number(r.pid),
+            name: (r.name === undefined || r.name === null) ? "" : String(r.name),
+            cpuPercent: _toNonNegative(r.cpuPercent)
+        };
+        if (r.rssKb !== undefined && r.rssKb !== null)
+            rec.rssKb = _toNonNegative(r.rssKb);
+        cleaned.push(rec);
+    }
+    return cleaned;
+}
+
 // Sort `records` by cpuPercent descending and cap to `limit`. Returns a NEW
 // array (never mutates the input). Ties break by pid ascending so the order is
 // deterministic across ticks — without it two equal-CPU rows could swap places
@@ -35,30 +59,29 @@ function rankByCpu(records, limit) {
     var cap = (limit === undefined) ? DEFAULT_LIMIT : limit;
     if (!Array.isArray(records) || cap <= 0)
         return [];
-    var cleaned = [];
-    for (var i = 0; i < records.length; i++) {
-        var r = records[i];
-        if (!r || r.pid === undefined || r.pid === null)
-            continue;
-        // Coerce pid to a Number so the tiebreak (a.pid - b.pid) stays numeric
-        // even if a backend hands it as a string (the Plasma ProcessDataModel
-        // Value role isn't guaranteed numeric); a NaN compare there would make
-        // the sort non-deterministic — the flicker the tiebreak exists to stop.
-        var rec = {
-            pid: Number(r.pid),
-            name: (r.name === undefined || r.name === null) ? "" : String(r.name),
-            cpuPercent: _toNonNegative(r.cpuPercent)
-        };
-        // rssKb is the optional RAM-tooltip forward hook — carry it ONLY when
-        // the producer actually set it, so a future rankByMemory can tell
-        // "not sampled" (absent) from a genuine 0 KB. v1 never sets it.
-        if (r.rssKb !== undefined && r.rssKb !== null)
-            rec.rssKb = _toNonNegative(r.rssKb);
-        cleaned.push(rec);
-    }
+    var cleaned = _cleanRecords(records);
     cleaned.sort(function (a, b) {
         if (b.cpuPercent !== a.cpuPercent)
             return b.cpuPercent - a.cpuPercent;
+        return a.pid - b.pid;
+    });
+    return cleaned.slice(0, cap);
+}
+
+// Sort `records` by rssKb descending and cap to `limit`. Returns a NEW array
+// (never mutates the input). Records with absent rssKb rank as 0 (kept, not
+// dropped — the backend may not sample memory for every tick). Ties break by
+// pid ascending for the same flicker-prevention reason as rankByCpu.
+function rankByMemory(records, limit) {
+    var cap = (limit === undefined) ? DEFAULT_LIMIT : limit;
+    if (!Array.isArray(records) || cap <= 0)
+        return [];
+    var cleaned = _cleanRecords(records);
+    cleaned.sort(function (a, b) {
+        var aKb = (a.rssKb !== undefined) ? a.rssKb : 0;
+        var bKb = (b.rssKb !== undefined) ? b.rssKb : 0;
+        if (bKb !== aKb)
+            return bKb - aKb;
         return a.pid - b.pid;
     });
     return cleaned.slice(0, cap);
@@ -83,11 +106,42 @@ function formatLoadAverages(loads) {
     return out.join("  ");
 }
 
+// Humanise a KiB count for the RAM-tooltip value column. Boundaries: <1024 KiB
+// stays KiB (integer), <1024 MiB shows MiB (one decimal), else GiB (one
+// decimal). One decimal for MiB/GiB matches what `top` shows for %MEM at the
+// precision the tooltip needs; integers for sub-MiB avoids ".0 KiB" noise.
+function formatMemory(rssKb) {
+    var kb = _toNonNegative(rssKb);
+    if (kb < 1024)
+        return Math.round(kb) + " KiB";
+    var mb = kb / 1024;
+    if (mb < 1024)
+        return mb.toFixed(1) + " MiB";
+    return (mb / 1024).toFixed(1) + " GiB";
+}
+
+// "(rssKb / totalKb) * 100" formatted to one decimal + "%" — matches `top`'s
+// %MEM precision. Guards: totalKb not finite or <= 0 → "0.0%"; clamped at 100%
+// so a transient rss spike above total (e.g. during a fork-bomb) doesn't show
+// ">100%".
+function formatMemPercent(rssKb, totalKb) {
+    var total = Number(totalKb);
+    if (!isFinite(total) || total <= 0)
+        return "0.0%";
+    var pct = (_toNonNegative(rssKb) / total) * 100;
+    if (pct > 100)
+        pct = 100;
+    return pct.toFixed(1) + "%";
+}
+
 if (typeof module !== "undefined" && module.exports) {
     module.exports = {
         DEFAULT_LIMIT: DEFAULT_LIMIT,
         rankByCpu: rankByCpu,
+        rankByMemory: rankByMemory,
         formatCpuPercent: formatCpuPercent,
         formatLoadAverages: formatLoadAverages,
+        formatMemory: formatMemory,
+        formatMemPercent: formatMemPercent,
     };
 }

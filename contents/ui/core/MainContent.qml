@@ -60,6 +60,15 @@ GridLayout {
     readonly property bool vertical: content.configStore.orientation === "vertical"
     readonly property int count: Math.max(1, content.enabledList.length)
 
+    // Hover state forwarded from the cpu/ram tooltip delegates to content
+    // scope. The two delegates live in separate Repeater instances, so
+    // driving metrics.processSamplingActive from two when-gated Bindings
+    // on the same target property would let one delegate's `false` clobber
+    // the other's `true`. Instead each delegate writes its own boolean here
+    // and a single content-scope Binding OR's them into the backend gate.
+    property bool _cpuTooltipHovered: false
+    property bool _memTooltipHovered: false
+
     // Effective temperature mode: "celsius" or "fahrenheit", resolved
     // from the user's preference + the system locale's measurement
     // system. Computed once at this layer and forwarded to delegates so
@@ -331,11 +340,31 @@ GridLayout {
                 }
                 footerText: qsTr("load") + "  " + ProcessRanking.formatLoadAverages(content.metrics.loadAverages)
             }
+            // Forward each tooltip's hover state to content scope; see
+            // _cpuTooltipHovered/_memTooltipHovered for why the indirection exists.
             Binding {
-                target: content.metrics
-                property: "processSamplingActive"
+                target: content
+                property: "_cpuTooltipHovered"
                 value: cpuTooltip.samplingActive
                 when: ringDelegate.modelData === "cpu"
+            }
+
+            // RAM ring: hover reveals the top-processes-by-memory tooltip (#70).
+            ProcessTooltip {
+                id: memTooltip
+                armed: ringDelegate.modelData === "ram"
+                title: qsTr("Top processes — Memory")
+                processes: content.metrics.topMemProcesses
+                formatValue: function (p) {
+                    return ProcessRanking.formatMemory(p.rssKb) + " · " + ProcessRanking.formatMemPercent(p.rssKb, content.metrics.memTotalKb);
+                }
+                footerText: qsTr("used") + "  " + ProcessRanking.formatMemory(content.metrics.memUsedKb) + " / " + ProcessRanking.formatMemory(content.metrics.memTotalKb)
+            }
+            Binding {
+                target: content
+                property: "_memTooltipHovered"
+                value: memTooltip.samplingActive
+                when: ringDelegate.modelData === "ram"
             }
 
             // Disk ring: hover reveals the per-partition tooltip (#68). `details`
@@ -360,6 +389,19 @@ GridLayout {
                 when: ringDelegate._isDisk && content.metrics.diskTooltipActive !== undefined
             }
         }
+    }
+
+    // Process sampling gate: active when EITHER the cpu or the ram tooltip is
+    // hovered. Driven once at content scope (not per-delegate) — two
+    // when-gated Bindings on the same metrics property from separate delegate
+    // instances would conflict (the `false` from the idle delegate clobbers
+    // the `true` from the hovered one). `when` guards backends that predate
+    // the surface.
+    Binding {
+        target: content.metrics
+        property: "processSamplingActive"
+        value: content._cpuTooltipHovered || content._memTooltipHovered
+        when: content.metrics !== undefined && content.metrics.processSamplingActive !== undefined
     }
 
     // Disk-I/O sampling runs only while a diskIo ring is on screen: the backend

@@ -60,6 +60,7 @@ Item {
     readonly property string windowAnchorCorner: "top-right"
     readonly property int windowMarginX: 0
     readonly property int windowMarginY: 0
+    readonly property string windowScreen: ""
     readonly property real textOpacity: Plasmoid.configuration.textOpacity
     readonly property real trackOpacity: Plasmoid.configuration.trackOpacity
     readonly property real arcOpacity: Plasmoid.configuration.arcOpacity

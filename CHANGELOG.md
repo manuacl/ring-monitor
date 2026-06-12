@@ -12,6 +12,13 @@ user-facing only.
 
 ## [Unreleased]
 
+### Added
+
+- Standalone: choose which monitor the widget lives on — new "Screen"
+  selector in Settings → Appearance ("Current screen" by default, which
+  follows the window). Fixes the widget being stuck on the leftmost /
+  primary monitor on multi-screen setups, including under GNOME (#142).
+
 ### Other
 
 - Add `CHANGELOG.md` to the docs-only exclusion in the bump heuristic
@@ -34,6 +41,16 @@ user-facing only.
 
 ### Technical
 
+- feat(standalone): window-screen pinning (issue #142). The standalone widget
+  can now be pinned to a specific monitor via a "Screen" ComboBox in Settings →
+  Appearance; leave it at "Current screen" (default) to follow the window's
+  position. The new `windowScreen` config key (string, default `""`) is unused
+  on Plasma (plasmashell positions the widget in its panel). `WindowPlacement.js`
+  gained `pickScreen(screens, name)` to match monitor names, and `computeX11Origin`
+  now takes trailing `screenX, screenY` params (virtual-desktop offsets) so X11
+  anchoring compensates for multi-monitor layouts; Wayland path calls
+  `window.screen = resolvedScreen` then reconfigures, and both re-anchor on
+  hot-plug and setting change.
 - style(plasma): rename `ProcessSampler.qml`'s `_load1/_load5/_load15`
   sensor ids to `load1Sensor/load5Sensor/load15Sensor` — leading-underscore
   QML `id`s trip the qmlformat 6.11 empty-output regression (root

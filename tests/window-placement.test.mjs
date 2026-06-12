@@ -68,3 +68,67 @@ test("computeX11Origin treats an unknown corner as top-right", () => {
         WP.computeX11Origin("top-right", SCREEN_W, SCREEN_H, WIN_W, WIN_H, 0, 0)
     );
 });
+
+test("computeX11Origin shifts all corners by screenX/screenY offsets", () => {
+    const sx = 1920;
+    const sy = 200;
+    // Each corner's result must equal the no-offset result shifted by (sx, sy).
+    ["top-left", "top-right", "bottom-left", "bottom-right"].forEach((c) => {
+        const base = WP.computeX11Origin(c, SCREEN_W, SCREEN_H, WIN_W, WIN_H, 10, 10);
+        const shifted = WP.computeX11Origin(c, SCREEN_W, SCREEN_H, WIN_W, WIN_H, 10, 10, sx, sy);
+        assert.deepEqual(shifted, { x: base.x + sx, y: base.y + sy });
+    });
+});
+
+test("computeX11Origin omitting screenX/screenY reproduces the old return values", () => {
+    // Back-compat: the two-trailing-params form with undefined must match the
+    // original six-arg expectations exactly (same values as the existing tests).
+    const o = (c) => WP.computeX11Origin(c, SCREEN_W, SCREEN_H, WIN_W, WIN_H, 0, 0, undefined, undefined);
+    assert.deepEqual(o("top-left"), { x: 0, y: 0 });
+    assert.deepEqual(o("top-right"), { x: 1720, y: 0 });
+    assert.deepEqual(o("bottom-left"), { x: 0, y: 480 });
+    assert.deepEqual(o("bottom-right"), { x: 1720, y: 480 });
+});
+
+// ── pickScreen ──────────────────────────────────────────────────────
+
+const SCREENS = [
+    { name: "HDMI-1", width: 1920, height: 1080 },
+    { name: "DP-1", width: 2560, height: 1440 }
+];
+
+test("pickScreen returns the first screen whose name matches", () => {
+    assert.deepEqual(WP.pickScreen(SCREENS, "HDMI-1"), SCREENS[0]);
+    assert.deepEqual(WP.pickScreen(SCREENS, "DP-1"), SCREENS[1]);
+});
+
+test("pickScreen returns null when name is falsy", () => {
+    assert.strictEqual(WP.pickScreen(SCREENS, ""), null);
+    assert.strictEqual(WP.pickScreen(SCREENS, null), null);
+    assert.strictEqual(WP.pickScreen(SCREENS, undefined), null);
+});
+
+test("pickScreen returns null when no screen matches the name", () => {
+    assert.strictEqual(WP.pickScreen(SCREENS, "VGA-0"), null);
+});
+
+test("pickScreen returns null when screens lacks a numeric length", () => {
+    // null and undefined fail the !screens guard.
+    assert.strictEqual(WP.pickScreen(null, "HDMI-1"), null);
+    assert.strictEqual(WP.pickScreen(undefined, "HDMI-1"), null);
+    // A plain object has no length property — typeof undefined !== "number".
+    assert.strictEqual(WP.pickScreen({}, "HDMI-1"), null);
+    // A number has no length property either.
+    assert.strictEqual(WP.pickScreen(42, "HDMI-1"), null);
+});
+
+// SCENARIO: Qt.application.screens is a QQmlListProperty — array-like (length +
+// integer index) but not a JS Array. Array.isArray() returned false, so pickScreen
+// always returned null at runtime and the screen pin silently never applied.
+// Guard on numeric `length` instead; this case proves the fix.
+test("pickScreen works with a QQmlListProperty-like array-like object", () => {
+    const qmlLike = { length: 2, 0: { name: "DP-2", width: 2560 }, 1: { name: "HDMI-A-1", width: 1920 } };
+    assert.deepEqual(WP.pickScreen(qmlLike, "DP-2"), qmlLike[0]);
+    assert.deepEqual(WP.pickScreen(qmlLike, "HDMI-A-1"), qmlLike[1]);
+    assert.strictEqual(WP.pickScreen(qmlLike, "VGA-0"), null);
+});

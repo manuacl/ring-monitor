@@ -48,15 +48,24 @@ Window {
     readonly property int _gridSpacing: Math.round(_ringSize * _ringSpacingPercent / 100)
     readonly property int _stripLength: _ringSize * content.count + (content.count - 1) * _gridSpacing
     // Window placement: which screen corner to anchor to, plus the
-    // per-axis inset (px) from that corner's edges. The cap subtracts the
-    // anchored-axis margin so the window always fits between the corner
-    // and the opposite edge. Defaults (top-right, 0, 0) reproduce the
-    // historic anchor. Math lives in WindowPlacement.js.
+    // per-axis inset (px) from that corner's edges, and which monitor to
+    // land on (empty = follow the window's current screen). The cap
+    // subtracts the anchored-axis margin so the window always fits between
+    // the corner and the opposite edge. Defaults (top-right, 0, 0, "")
+    // reproduce the historic anchor. Math lives in WindowPlacement.js.
     readonly property string _corner: configStoreAdapter.windowAnchorCorner || "top-right"
     readonly property int _marginX: (configStoreAdapter.windowMarginX !== undefined) ? configStoreAdapter.windowMarginX : 0
     readonly property int _marginY: (configStoreAdapter.windowMarginY !== undefined) ? configStoreAdapter.windowMarginY : 0
-    readonly property int _targetWidth: Math.min(content.vertical ? _ringSize : _stripLength, Screen.width - _marginX)
-    readonly property int _targetHeight: Math.min(content.vertical ? _stripLength : _ringSize, Screen.height - _marginY)
+    // _targetScreen: non-null when the user has chosen a specific monitor.
+    // Null means "follow the window's current screen". Re-resolves
+    // automatically on monitor hot-plug/unplug via Qt.application.screens.
+    readonly property var _targetScreen: WindowPlacement.pickScreen(Qt.application.screens, configStoreAdapter.windowScreen || "")
+    readonly property int _screenW: _targetScreen ? _targetScreen.width : Screen.width
+    readonly property int _screenH: _targetScreen ? _targetScreen.height : Screen.height
+    readonly property int _screenVX: _targetScreen ? _targetScreen.virtualX : Screen.virtualX
+    readonly property int _screenVY: _targetScreen ? _targetScreen.virtualY : Screen.virtualY
+    readonly property int _targetWidth: Math.min(content.vertical ? _ringSize : _stripLength, _screenW - _marginX)
+    readonly property int _targetHeight: Math.min(content.vertical ? _stripLength : _ringSize, _screenH - _marginY)
     // On the native-Wayland (layer-shell) path the window must stay
     // hidden until its layer surface is configured — the wlr-layer-shell
     // role is assigned when the wl_surface is created on show(), so
@@ -95,12 +104,23 @@ Window {
             // to anchor to; margins inset from them. Configure while still
             // hidden, then show. Re-runs (slider drag, screen reconfig)
             // re-commit live — `visible = true` is then a harmless no-op.
+            // When the target screen changed, hide first so the layer
+            // surface is re-created on the correct wl_output. Compare by
+            // name, not object identity: Window.screen and the entries of
+            // Qt.application.screens can wrap the same QScreen in distinct
+            // QML objects, so `!==` may hold on the same physical screen —
+            // which would re-run the destroy/recreate cycle (a visible
+            // blink) on every re-anchor while pinned.
+            if (root._targetScreen && (!root.screen || root.screen.name !== root._targetScreen.name)) {
+                root.visible = false;
+                root.screen = root._targetScreen;
+            }
             var spec = WindowPlacement.cornerToAnchorSpec(root._corner);
             WaylandLayerShell.configure(root, spec.left, spec.top, root._marginX, root._marginY, root._targetWidth, root._targetHeight);
             root.visible = true;
             return;
         }
-        var origin = WindowPlacement.computeX11Origin(root._corner, Screen.width, Screen.height, root._targetWidth, root._targetHeight, root._marginX, root._marginY);
+        var origin = WindowPlacement.computeX11Origin(root._corner, root._screenW, root._screenH, root._targetWidth, root._targetHeight, root._marginX, root._marginY, root._screenVX, root._screenVY);
         WindowAnchor.setGeometry(root, origin.x, origin.y, root._targetWidth, root._targetHeight);
     }
     // Defer the first anchor so `applyDesktopWindowHints` (called
@@ -141,6 +161,12 @@ Window {
             Qt.callLater(root._anchor);
         }
         function on_MarginYChanged() {
+            Qt.callLater(root._anchor);
+        }
+        // Covers both a settings change (user picks a different monitor)
+        // and hot-plug re-resolution (chosen screen disappears/reappears
+        // via Qt.application.screens).
+        function on_TargetScreenChanged() {
             Qt.callLater(root._anchor);
         }
     }

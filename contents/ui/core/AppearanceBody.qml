@@ -48,14 +48,9 @@ Kirigami.FormLayout {
     // § AppearanceBody.
     property bool ringSpacingVisible: false
 
-    // Hidden by default (standalone SettingsDialog flips it on). `ringSize`
-    // drives the rings' implicit size, but on the Plasma desktop containment
-    // the user sizes the widget by dragging the frame — which overrides the
-    // implicit size — so the slider looks like it does nothing once placed.
-    // Unlike ringSpacing/window-placement, the value stays bound (not hardcoded)
-    // on Plasma: it's a legitimate implicit size, just frame-overridden, not
-    // an actively-wrong value. Standalone (frameless auto-sized window) is the
-    // host where the slider has visible effect.
+    // Hidden by default (standalone SettingsDialog flips it on). The slider
+    // is inert on Plasma (dragged frame overrides implicit size). Full rationale:
+    // docs/components.md § AppearanceBody.
     property bool ringSizeVisible: false
 
     // ── Bridged via aliases in the wrapper (cfg_orientation ↔ body.orientation, etc.) ──
@@ -65,6 +60,7 @@ Kirigami.FormLayout {
     property string windowAnchorCorner: "top-right"
     property int windowMarginX: 0
     property int windowMarginY: 0
+    property string windowScreen: ""
     property real textOpacity: 1.0
     property real trackOpacity: 0.15
     property real arcOpacity: 1.0
@@ -85,12 +81,16 @@ Kirigami.FormLayout {
         };
     })
 
-    // The four standalone-window anchor corner values, parallel to the
-    // combo's qsTr() label list below — keep both in the same order. Must
-    // stay a subset of platforms/standalone/WindowPlacement.js `CORNERS`
-    // (a flat string array so qmlformat keeps it inline; an object {value,
-    // text} model would expand past the 500-line cap).
+    // Corner values parallel the combo labels below — same order; subset of WindowPlacement.js CORNERS.
     readonly property var _cornerValues: ["top-left", "top-right", "bottom-left", "bottom-right"]
+    // Re-evaluates on hot-plug. Qt.application.screens is a QQmlListProperty — array-like, not a JS Array.
+    readonly property var _screenNames: {
+        var screens = Qt.application.screens;
+        var out = [];
+        for (var i = 0; i < screens.length; i++)
+            out.push(screens[i].name);
+        return out;
+    }
 
     RowLayout {
         Kirigami.FormData.label: qsTr("Orientation:")
@@ -111,12 +111,8 @@ Kirigami.FormLayout {
         Kirigami.FormData.isSection: true
     }
 
-    // Ring size — the per-ring side in pixels. The standalone window
-    // is frameless and transparent, so the user only ever sees the
-    // rings themselves; the container auto-sizes around them
-    // (`ringSize × count + spacings` along the stack axis). On Plasma
-    // the panel container may stretch / shrink the widget regardless
-    // of this setting. Range 80-800 in 20px steps.
+    // Ring size — per-ring side in pixels; range 80–800 in 20px steps.
+    // docs/components.md § AppearanceBody for rationale.
     RowLayout {
         Kirigami.FormData.label: qsTr("Ring size:")
         Layout.fillWidth: true
@@ -139,12 +135,7 @@ Kirigami.FormLayout {
         }
     }
 
-    // Ring spacing — gap between rings as a percent of ringSize. 0%
-    // makes the rings touch; the historic visual default (12px at
-    // ringSize=180) corresponds to 7%. Stepping at 1% keeps the
-    // slider feel of a "fine" adjustment vs the bigger ringSize one.
-    // Whole row hidden via `ringSpacingVisible` on Plasma (the
-    // standalone SettingsDialog flips it on) — see the docblock above.
+    // Ring spacing — gap between rings as a percent of ringSize (0–25 %).
     RowLayout {
         Kirigami.FormData.label: qsTr("Ring spacing:")
         Layout.fillWidth: true
@@ -180,10 +171,8 @@ Kirigami.FormLayout {
             id: anchorCornerCombo
             Layout.fillWidth: true
             // Labels parallel body._cornerValues — same order.
+            // Unknown value → top-right fallback (matches WindowPlacement.js).
             model: [qsTr("Top left"), qsTr("Top right"), qsTr("Bottom left"), qsTr("Bottom right")]
-            // Unknown value (hand-edited config) → top-right, matching the
-            // WindowPlacement.js / Main.qml fallback, so the picker never
-            // disagrees with where the window actually anchors.
             currentIndex: {
                 const i = body._cornerValues.indexOf(body.windowAnchorCorner);
                 return i >= 0 ? i : body._cornerValues.indexOf("top-right");
@@ -233,6 +222,25 @@ Kirigami.FormLayout {
             text: body.windowMarginY + " px"
             Layout.minimumWidth: Kirigami.Units.gridUnit * 3
             horizontalAlignment: Text.AlignRight
+        }
+    }
+
+    RowLayout {
+        Kirigami.FormData.label: qsTr("Screen:")
+        Layout.fillWidth: true
+        visible: body.windowPlacementVisible
+
+        QQC2.ComboBox {
+            id: screenCombo
+            Layout.fillWidth: true
+            // Index 0 = "" (follow the window's current screen). A stored name
+            // for a disconnected monitor yields index 0 WITHOUT writing the
+            // store — only onActivated writes, so the name survives an unplug.
+            model: [qsTr("Current screen")].concat(body._screenNames)
+            currentIndex: body._screenNames.indexOf(body.windowScreen) + 1
+            // Signal param + bounds: a same-frame hot-unplug can shrink
+            // _screenNames under the activated index — fall back to "".
+            onActivated: index => body.windowScreen = (index > 0 && index <= body._screenNames.length) ? body._screenNames[index - 1] : ""
         }
     }
 
@@ -402,12 +410,7 @@ Kirigami.FormLayout {
         Kirigami.FormData.isSection: true
     }
 
-    // Text color: "system" follows Kirigami.Theme.textColor (the default
-    // — pushes users toward the neutral gray that fits the "anneaux
-    // modernes épurés" aesthetic). "custom" exposes a L/D pair gated by
-    // the same colorMode (auto/light/dark) used by the ring color, so a
-    // user on a transparent panel or in standalone mode can pin the
-    // text to whatever reads best against their wallpaper.
+    // "system" default vs "custom" pair rationale: docs/components.md § AppearanceBody.
     RowLayout {
         Kirigami.FormData.label: qsTr("Text color:")
 
@@ -479,6 +482,7 @@ Kirigami.FormLayout {
     readonly property alias _anchorCornerCombo: anchorCornerCombo
     readonly property alias _windowMarginXSlider: windowMarginXSlider
     readonly property alias _windowMarginYSlider: windowMarginYSlider
+    readonly property alias _screenCombo: screenCombo
     readonly property alias _textSlider: textSlider
     readonly property alias _trackSlider: trackSlider
     readonly property alias _arcSlider: arcSlider

@@ -51,7 +51,7 @@ test("ConfigStore properties are readonly (reads-only-by-design contract)", () =
 // Keys deliberately overridden in the Plasma adapter rather than
 // bound through to `Plasmoid.configuration`. Each entry must come
 // with a dedicated test below explaining the override.
-const HARDCODED_OVERRIDES = new Set(["ringSpacingPercent", "windowAnchorCorner", "windowMarginX", "windowMarginY"]);
+const HARDCODED_OVERRIDES = new Set(["ringSpacingPercent", "windowAnchorCorner", "windowMarginX", "windowMarginY", "windowScreen"]);
 
 test("ConfigStore binds each property to the matching Plasmoid.configuration key", () => {
     for (const key of EXPECTED_KEYS) {
@@ -83,7 +83,7 @@ test("ConfigStore hardcodes ringSpacingPercent to 0 on Plasma (frame-fixed widge
 });
 
 test("ConfigStore hardcodes the window-placement keys on Plasma (unused — plasmashell positions the slot)", () => {
-    // windowAnchorCorner / windowMarginX / windowMarginY are only
+    // windowAnchorCorner / windowMarginX / windowMarginY / windowScreen are only
     // consumed by the standalone Window anchoring code (Main.qml's
     // WindowAnchor.setGeometry / WaylandLayerShell.configure). On Plasma
     // the slot position is plasmashell's job and AppearanceBody hides the
@@ -106,7 +106,12 @@ test("ConfigStore hardcodes the window-placement keys on Plasma (unused — plas
         /readonly\s+property\s+int\s+windowMarginY\s*:\s*0\b/,
         "ConfigStore must hardcode windowMarginY to 0 (Plasma-specific override)",
     );
-    for (const key of ["windowAnchorCorner", "windowMarginX", "windowMarginY"]) {
+    assert.match(
+        SOURCE,
+        /readonly\s+property\s+string\s+windowScreen\s*:\s*""/,
+        "ConfigStore must hardcode windowScreen to \"\" (Plasma-specific override)",
+    );
+    for (const key of ["windowAnchorCorner", "windowMarginX", "windowMarginY", "windowScreen"]) {
         assert.doesNotMatch(
             SOURCE,
             new RegExp(`${key}\\s*:\\s*Plasmoid\\.configuration\\.${key}`),

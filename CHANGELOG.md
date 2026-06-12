@@ -14,6 +14,10 @@ user-facing only.
 
 ### Other
 
+- Add `CHANGELOG.md` to the docs-only exclusion in the bump heuristic
+  (`bump-label` skill + `finish-branch` check 4h-bis): the mandatory
+  per-PR CHANGELOG entry made every docs-only PR a false `patch`
+  (caught on PR #143).
 - Route the `finish-branch` skill's delegation through the `orchestrate`
   skill (routing matrix, prompt contract, escalation rule); per-step
   tier mapping documented in the skill. No pipeline behavior change.

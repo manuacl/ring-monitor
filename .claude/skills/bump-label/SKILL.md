@@ -68,9 +68,14 @@ Heuristic, in order of precedence (first match wins):
 |---|---|
 | Commit body has `BREAKING CHANGE:` or subject like `feat!:` / `fix(scope)!:` | `major` |
 | Any commit starts with `feat:` or `feat(scope):` | `minor` |
-| Only `docs/`, `README.md`, `CLAUDE.md`, `.claude/` touched | `none` |
+| Only `docs/`, `README.md`, `CLAUDE.md`, `CHANGELOG.md`, `.claude/` touched | `none` |
 | Any commit starts with `fix:` / `perf:` / `refactor:` | `patch` |
 | Mixed / nothing matched | `patch` (conservative default for real code changes) |
+
+`CHANGELOG.md` belongs in the docs-only row because project policy
+makes a CHANGELOG entry mandatory on EVERY PR — so a docs-only branch
+always carries it, and leaving it out of the pattern silently turned
+every such PR into a false `patch` (caught live on PR #143).
 
 ```bash
 changed=$(git diff --name-only origin/main...HEAD)
@@ -80,7 +85,7 @@ if echo "$commits" | grep -qE '(BREAKING CHANGE|^[a-z]+(\([^)]+\))?!:)'; then
     recommended=major
 elif echo "$commits" | grep -qE '^feat(\([^)]+\))?:'; then
     recommended=minor
-elif ! echo "$changed" | grep -qvE '^(docs/|README\.md|CLAUDE\.md|\.claude/)'; then
+elif ! echo "$changed" | grep -qvE '^(docs/|README\.md|CLAUDE\.md|CHANGELOG\.md|\.claude/)'; then
     recommended=none
 elif echo "$commits" | grep -qE '^(fix|perf|refactor)(\([^)]+\))?:'; then
     recommended=patch

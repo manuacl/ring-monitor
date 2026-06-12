@@ -29,7 +29,7 @@ Item {
     // divide before per-core discovery has populated.
     property int coreCount: 1
     readonly property var topProcesses: sampler._top
-    readonly property var loadAverages: [_load1.value || 0, _load5.value || 0, _load15.value || 0]
+    readonly property var loadAverages: [load1Sensor.value || 0, load5Sensor.value || 0, load15Sensor.value || 0]
 
     property var _top: []
 
@@ -77,17 +77,17 @@ Item {
     // tooltip is never hovered — matches the ProcessDataModel gate and the
     // standalone path (which reads /proc/loadavg only while sampling).
     Sensors.Sensor {
-        id: _load1
+        id: load1Sensor
         sensorId: "cpu/loadaverages/loadaverage1"
         enabled: sampler.active
     }
     Sensors.Sensor {
-        id: _load5
+        id: load5Sensor
         sensorId: "cpu/loadaverages/loadaverage5"
         enabled: sampler.active
     }
     Sensors.Sensor {
-        id: _load15
+        id: load15Sensor
         sensorId: "cpu/loadaverages/loadaverage15"
         enabled: sampler.active
     }

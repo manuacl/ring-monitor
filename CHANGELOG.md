@@ -30,6 +30,11 @@ user-facing only.
 
 ### Technical
 
+- style(plasma): rename `ProcessSampler.qml`'s `_load1/_load5/_load15`
+  sensor ids to `load1Sensor/load5Sensor/load15Sensor` — leading-underscore
+  QML `id`s trip the qmlformat 6.11 empty-output regression (root
+  `CLAUDE.md` rule), which false-failed the finish-branch 1b audit on any
+  dev box with Qt ≥ 6.11. No behavior change; CI (Qt 6.6) was unaffected.
 - fix(ui): top-align the hover tooltips with the ring instead of dropping
   them below. The CPU (#69) and disk (#68) tooltips now open beside the ring
   with their top edge level with the ring top (flip side / clamp up on screen

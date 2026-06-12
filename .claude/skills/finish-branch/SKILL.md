@@ -16,6 +16,49 @@ opened on red**.
 
 ## Running this skill with agents
 
+**Probe first**: if the `orchestrate` skill is available in the
+session (listed in the available-skills list, or already active),
+run the pipeline in **orchestrator mode** below. If it is not —
+this repo's skills travel with the repo, while `orchestrate` is a
+home-level skill that may not exist on a contributor's machine —
+skip that subsection entirely and use the **fallback contract**,
+which is this skill's original delegation behavior, unchanged.
+
+### Orchestrator mode (only when `orchestrate` is available)
+
+Invoke the `orchestrate` skill (if it isn't already active in the
+session) and apply its routing matrix, minimal-context prompt
+contract, and escalation rule to the steps below. The main session
+is the integrator — it dispatches, verifies every agent result
+before building on it, owns git (commit, push, PR) and every user
+gate; subagents do the hands-on work on the cheapest capable model.
+
+Routing for this pipeline (instantiates the orchestrate matrix):
+
+| step | work | route |
+|---|---|---|
+| 1–3 | mechanical audit blocks (pre-commit repro, test runs, rule greps) | haiku, one agent per block, dispatched in ONE parallel batch (read-only + run-checks, no file collisions) |
+| 4 | diff ↔ tests/docs consistency + stub creation | sonnet (stub content is a judgement call); the only writing agent — keep it out of the read-only batch |
+| 5 | git state checks | orchestrator inline (three commands) |
+| 6 | CLAUDE.md lessons reflection | orchestrator inline — NEVER delegated (rule below) |
+| 7 | PR title + body draft | sonnet; the push / `gh pr create` themselves stay with the orchestrator |
+| 8–9 | `bump-label`, `/code-review` | skill chaining, unchanged |
+| 9-triage | rank review findings vs threat-model priorities | orchestrator inline |
+
+Conventions on top of the matrix:
+
+- Audit agents return raw `PASS:`/`FAIL:` lines (their final message
+  is the return value); the orchestrator assembles the phase-A
+  summary table itself.
+- Every delegated prompt carries the orchestrate contract: goal,
+  exact paths, the 3–5 rules that apply, the verification command,
+  the expected return shape, and the in-prompt ESCALATION block.
+- Escalation follows the orchestrate rule (two failures → one tier
+  up; scope failure → re-decompose at the same tier, don't pay more
+  for the same overflow).
+
+### Fallback contract (no `orchestrate` in the environment)
+
 You may delegate any part of this pipeline to as many subagents as the
 work warrants — e.g. one agent per audit block, parallel finders for
 the step-6 reflection, a dedicated agent to draft the PR body. **Pick
@@ -31,6 +74,9 @@ report back to the parent** rather than guessing or pushing through.
 The parent then re-launches that task on a stronger model. A clean
 "this is over my head, here's what I got" hand-back is the desired
 outcome, not a failure.
+
+Step 6 (reflection) and the phase-B gates stay with the main session
+in both modes.
 
 ## When to use
 

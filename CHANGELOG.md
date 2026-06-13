@@ -16,6 +16,10 @@ user-facing only.
 
 - Hover the RAM ring to see the **top-20 processes by memory** — each row shows the process name, resident size (KiB/MiB/GiB), and its share of total RAM. A footer shows overall used/total memory. Works on both the Plasma widget and the standalone app (#70).
 
+### Fixed
+
+- Standalone app: the ring tooltips (CPU, RAM, disk) now open **beside the ring, top-aligned** — on the side that keeps them on screen — instead of below-left of it, and no longer flicker on Wayland (#150).
+
 ### Technical
 
 - RAM ring tooltip: top-20 processes by memory (RES + %MEM) with used/total footer, on both platforms (#70).

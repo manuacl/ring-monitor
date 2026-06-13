@@ -122,8 +122,13 @@ Item {
         // popup into the screen from there (it flips gravity at the screen edge). Widget
         // right-anchored → anchor at the ring's top-left, popup grows left. Widget
         // left-anchored (openRight) → anchor at the ring's top-right, popup grows right.
-        // Either way the tooltip ends up beside the ring, top-aligned.
-        x: root.openRight ? root.width : 0
+        // Either way the tooltip ends up beside the ring, top-aligned. The shift applies
+        // ONLY to a Window popup (which ignores its own x/y, so the marker is the sole
+        // lever); an in-scene Item popup keeps the marker at the ring origin so the
+        // item-relative x/y flip below stays correct (openRight is moot there, and the
+        // flip handles screen overflow). Safe on Qt < 6.8: popupType is undefined →
+        // never equals Window → marker stays at 0.
+        x: (root.openRight && tip.popupType === QQC2.Popup.Window) ? root.width : 0
         y: 0
         width: 1
         height: 1

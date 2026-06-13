@@ -10,9 +10,10 @@ import assert from "node:assert";
 //
 // Four placement features must be present in both files and stay in lock-step:
 //   1. `property bool openRight` input — which side the Window popup opens toward.
-//   2. anchorMarker.x binding — `root.openRight ? root.width : 0` — pins the
-//      1×1 anchor at the ring's interior-facing top corner so the compositor
-//      grows the popup into the screen.
+//   2. anchorMarker.x binding — `(root.openRight && tip.popupType === QQC2.Popup.Window)
+//      ? root.width : 0` — pins the 1×1 anchor at the ring's interior-facing top corner
+//      so the compositor grows the Window popup into the screen (guarded to the Window
+//      popup; an in-scene Item popup keeps the marker at the origin).
 //   3. `closePolicy: QQC2.Popup.NoAutoClose` — tooltip is hover-driven only;
 //      combined with the transparent-for-input flag so the popup doesn't steal
 //      the pointer from the ring's HoverHandler and flicker (QTBUG-38084).
@@ -56,21 +57,22 @@ test("DiskTooltip.qml declares property bool openRight", () => {
     );
 });
 
-// 2. Both bind anchorMarker.x to `root.openRight ? root.width : 0`
-//    Matches the literal in the source (checked against both QML files).
+// 2. Both bind anchorMarker.x to the guarded shift
+//    `(root.openRight && tip.popupType === QQC2.Popup.Window) ? root.width : 0`.
+//    The popupType guard keeps the shift to the Window popup only — an in-scene
+//    Item popup leaves the marker at the ring origin so its own x/y flip stays
+//    correct (review finding #150). Checked against both QML files.
 
 for (const { name, src } of FILES) {
-    test(`${name} has anchorMarker with x bound to openRight ? root.width : 0`, () => {
-        // Match the anchorMarker block and its x binding in sequence: the id
-        // declaration followed (within the same block) by the ternary binding.
-        // We do two focused assertions rather than one complex regex:
+    test(`${name} has anchorMarker with the Window-guarded x shift`, () => {
+        // Two focused assertions rather than one complex regex:
         //   (a) the marker id exists
-        //   (b) the ternary binding expression exists in the file
+        //   (b) the guarded ternary binding expression exists in the file
         assert.match(src, /id:\s*anchorMarker/, `${name} must declare 'id: anchorMarker'`);
         assert.match(
             src,
-            /x:\s*root\.openRight\s*\?\s*root\.width\s*:\s*0/,
-            `${name} anchorMarker.x must bind to 'root.openRight ? root.width : 0'`
+            /x:\s*\(root\.openRight\s*&&\s*tip\.popupType\s*===\s*QQC2\.Popup\.Window\)\s*\?\s*root\.width\s*:\s*0/,
+            `${name} anchorMarker.x must bind to '(root.openRight && tip.popupType === QQC2.Popup.Window) ? root.width : 0'`
         );
     });
 }

@@ -103,8 +103,10 @@ Item {
         // Anchor at the ring's interior-facing top corner; the compositor grows the
         // popup inward (gravity flips at the screen edge). Right-anchored widget →
         // anchor at ring top-left (grows left); left-anchored (openRight) → ring
-        // top-right (grows right). Mirrors ProcessTooltip.
-        x: root.openRight ? root.width : 0
+        // top-right (grows right). The shift applies ONLY to a Window popup (an in-scene
+        // Item popup keeps the marker at the ring origin so its own x/y flip stays
+        // correct; safe on Qt < 6.8 where popupType is undefined). Mirrors ProcessTooltip.
+        x: (root.openRight && tip.popupType === QQC2.Popup.Window) ? root.width : 0
         y: 0
         width: 1
         height: 1

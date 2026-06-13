@@ -3,11 +3,12 @@ import org.kde.ksysguard.sensors as Sensors
 import org.kde.ksysguard.process as Process
 import "../../core/ProcessRanking.js" as ProcessRanking
 
-// Plasma source for the CPU-ring process tooltip (issue #69) — the counterpart
-// of platforms/standalone/ProcessSampler.qml, satisfying the same surface
-// (active / topProcesses / loadAverages) from `org.kde.ksysguard.process`
-// `ProcessDataModel` instead of /proc. Split out of MetricsBackend.qml so that
-// adapter stays under the 500-line cap and this stays a focused unit.
+// Plasma source for the CPU and RAM ring process tooltips (issues #69/#70) —
+// the counterpart of platforms/standalone/ProcessSampler.qml, satisfying the
+// same surface (active / topProcesses / topMemProcesses / loadAverages /
+// memUsedKb / memTotalKb) from `org.kde.ksysguard.process` `ProcessDataModel`
+// and `Sensors.Sensor` instead of /proc. Split out of MetricsBackend.qml so
+// that adapter stays under the 500-line cap and this stays a focused unit.
 //
 // ProcessDataModel: rows = processes, columns = enabledAttributes (in order),
 // read via data(index(row, col), Value). It only updates while `enabled`, so
@@ -29,16 +30,31 @@ Item {
     // divide before per-core discovery has populated.
     property int coreCount: 1
     readonly property var topProcesses: sampler._top
+    readonly property var topMemProcesses: sampler._memTop
     readonly property var loadAverages: [load1Sensor.value || 0, load5Sensor.value || 0, load15Sensor.value || 0]
+    // ksysguard memory/physical/* reports bytes; surface is kB to match the
+    // standalone /proc/meminfo counterpart (both sides expose kB so consumers
+    // need no platform branch). Backing vars let onActiveChanged zero them on
+    // deactivate — sensors retain their last value while disabled, so a
+    // re-hover would flash the previous session's numbers. Mirrors standalone
+    // _reset() behaviour (same-surface doctrine).
+    readonly property real memUsedKb: sampler._memUsedKb
+    readonly property real memTotalKb: sampler._memTotalKb
 
     property var _top: []
+    property var _memTop: []
+    property real _memUsedKb: 0
+    property real _memTotalKb: 0
 
-    // Column order follows enabledAttributes: 0 = name, 1 = pid, 2 = usage.
+    // Column order follows enabledAttributes: 0 = name, 1 = pid, 2 = usage, 3 = memory.
+    // "memory" is the KDE System Monitor "Memory" column (RSS minus shared);
+    // the standalone /proc path reads true RSS — values diverge slightly by
+    // design (same-surface doctrine: shape identical, ecosystem-native values).
     Process.ProcessDataModel {
         id: procModel
         enabled: sampler.active
         flatList: true
-        enabledAttributes: ["name", "pid", "usage"]
+        enabledAttributes: ["name", "pid", "usage", "memory"]
     }
 
     function _collect() {
@@ -54,13 +70,21 @@ Item {
             var name = procModel.data(procModel.index(r, 0), Process.ProcessDataModel.Value);
             var pid = procModel.data(procModel.index(r, 1), Process.ProcessDataModel.Value);
             var usage = procModel.data(procModel.index(r, 2), Process.ProcessDataModel.Value);
+            var mem = procModel.data(procModel.index(r, 3), Process.ProcessDataModel.Value);
             records.push({
                 "pid": pid,
                 "name": name,
-                "cpuPercent": (usage || 0) / ncores
+                "cpuPercent": (usage || 0) / ncores,
+                // The "memory" attribute's Value is already KiB (live-probed:
+                // 9812 → "9,6 Mio") — no /1024 here, unlike the byte-reporting
+                // memory/physical/* sensors below.
+                "rssKb": (mem || 0)
             });
         }
         sampler._top = ProcessRanking.rankByCpu(records);
+        sampler._memTop = ProcessRanking.rankByMemory(records);
+        sampler._memUsedKb = (memUsedSensor.value || 0) / 1024;
+        sampler._memTotalKb = (memTotalSensor.value || 0) / 1024;
     }
 
     // Only clear on deactivate; the Timer below (triggeredOnStart) is the single
@@ -68,8 +92,15 @@ Item {
     // the model twice per hover-enter (and the first scan races ProcessDataModel's
     // post-enable repopulation, so it'd see a stale/empty model anyway). Mirrors
     // the standalone sampler, which also resets here and samples from the Timer.
-    onActiveChanged: if (!active)
-        sampler._top = []
+    onActiveChanged: if (!active) {
+        sampler._top = [];
+        sampler._memTop = [];
+        // Sensors retain stale values while disabled; zero backing vars so the
+        // footer shows no stale numbers during the ~500 ms before ksysguard
+        // re-delivers on next activate. Mirrors standalone _reset().
+        sampler._memUsedKb = 0;
+        sampler._memTotalKb = 0;
+    }
 
     // Load averages for the tooltip footer (ksysguard cpu/loadaverages/*).
     // On a host without the sensor, status stays unresolved and value || 0 → 0.
@@ -89,6 +120,20 @@ Item {
     Sensors.Sensor {
         id: load15Sensor
         sensorId: "cpu/loadaverages/loadaverage15"
+        enabled: sampler.active
+    }
+
+    // RAM footer data for the RAM tooltip (issue #70). ksysguard reports bytes;
+    // divided by 1024 here to surface kB and match the standalone /proc/meminfo
+    // counterpart. Same active-gate rationale as the load-average sensors above.
+    Sensors.Sensor {
+        id: memUsedSensor
+        sensorId: "memory/physical/used"
+        enabled: sampler.active
+    }
+    Sensors.Sensor {
+        id: memTotalSensor
+        sensorId: "memory/physical/total"
         enabled: sampler.active
     }
 

@@ -224,3 +224,8 @@ QString ProcReader::canonicalHome() const
 {
     return QFileInfo(QDir::homePath()).canonicalFilePath();
 }
+
+qlonglong ProcReader::pageSize() const
+{
+    return static_cast<qlonglong>(::sysconf(_SC_PAGESIZE));
+}

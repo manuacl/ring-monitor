@@ -20,7 +20,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms", "plasma", "MetricsBackend.qml"), "utf8");
 
 // Public surface main.qml consumes.
-const PUBLIC_PROPS = ["coreValues", "loading", "availableMetrics", "availablePartitions", "defaultPartitionIds", "removablePartitions", "removableTrackingActive", "mountedPartitionIds", "mountedAvailablePartitions", "processSamplingActive", "topProcesses", "loadAverages", "diskIo", "diskIoSamplingActive"];
+const PUBLIC_PROPS = ["coreValues", "loading", "availableMetrics", "availablePartitions", "defaultPartitionIds", "removablePartitions", "removableTrackingActive", "mountedPartitionIds", "mountedAvailablePartitions", "processSamplingActive", "topProcesses", "topMemProcesses", "loadAverages", "memUsedKb", "memTotalKb", "diskIo", "diskIoSamplingActive"];
 const PUBLIC_FUNCS = ["metricValue", "metricRawTemp", "metricTempPercent", "partitionValue"];
 
 // Universal-id sensor instances — sensors whose ksysguard id is the
@@ -242,4 +242,13 @@ test("MetricsBackend forwards the CPU process tooltip to ProcessSampler (#69)", 
     // ksysguard "usage" is per-core → the sampler must be told the core count
     // so it can divide to the chosen "total 0-100%" semantics.
     assert.match(SOURCE, /coreCount:\s*backend\.coreValues\.length/, "must pass coreCount (coreValues.length) so the sampler can normalise per-core usage to total");
+});
+
+test("MetricsBackend forwards the RAM tooltip surface from ProcessSampler (#70)", () => {
+    // topMemProcesses / memUsedKb / memTotalKb are properties (not functions)
+    // so UI bindings track them — frozen-binding trap documented in the repo:
+    // a function call breaks reactivity because QML only tracks property reads.
+    assert.match(SOURCE, /topMemProcesses\s*:\s*processSampler\.topMemProcesses/, "topMemProcesses must forward the sampler's memory-ranked list as a reactive property");
+    assert.match(SOURCE, /memUsedKb\s*:\s*processSampler\.memUsedKb/, "memUsedKb must forward the sampler's value as a reactive property");
+    assert.match(SOURCE, /memTotalKb\s*:\s*processSampler\.memTotalKb/, "memTotalKb must forward the sampler's value as a reactive property");
 });

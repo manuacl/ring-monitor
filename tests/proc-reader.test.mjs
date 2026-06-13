@@ -209,6 +209,23 @@ test("requestStatvfs dedups in-flight mounts and throttles re-reads", () => {
     assert.match(SRC, /kStatvfsMinIntervalMs/, "must throttle re-reads against kStatvfsMinIntervalMs");
 });
 
+test("ProcReader::pageSize is Q_INVOKABLE and returns sysconf(_SC_PAGESIZE)", () => {
+    // The QML sampler calls pageSize() once to convert rssPages (pages) from
+    // /proc/<pid>/stat field 24 to KiB. Must be Q_INVOKABLE so QML can call
+    // it, and must delegate to sysconf(_SC_PAGESIZE) — the POSIX call that
+    // reports the actual kernel page size for this process.
+    assert.match(
+        HEADER,
+        /Q_INVOKABLE\s+qlonglong\s+pageSize\s*\(\s*\)\s*const/,
+        "must declare Q_INVOKABLE qlonglong pageSize() const",
+    );
+    assert.match(
+        SRC,
+        /qlonglong ProcReader::pageSize[\s\S]*?sysconf\s*\(\s*_SC_PAGESIZE\s*\)/,
+        "pageSize() must call sysconf(_SC_PAGESIZE)",
+    );
+});
+
 test("proc_reader includes no Plasma headers (standalone isolation)", () => {
     assert.doesNotMatch(
         SRC,

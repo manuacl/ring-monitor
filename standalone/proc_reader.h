@@ -23,6 +23,8 @@
 #include <QVariantMap>
 #include <QtQmlIntegration/QtQmlIntegration>
 
+#include <unistd.h>
+
 // Lives at global scope rather than in `ringmonitor::` because
 // Qt 6's `QML_ELEMENT` auto-registration generates code calling
 // `qmlRegisterTypesAndRevisions<ProcReader>(…)` without
@@ -150,6 +152,12 @@ public:
     // it against the real mountpoints in /proc/mounts when picking the
     // default partition. Empty string if home can't be resolved.
     Q_INVOKABLE QString canonicalHome() const;
+
+    // System page size in bytes — the multiplier for converting the rss
+    // field of /proc/<pid>/stat (reported in pages) to KiB. The QML
+    // sampler calls this once and caches the result; the kernel reports
+    // the same value for every process.
+    Q_INVOKABLE qlonglong pageSize() const;
 
 signals:
     // Emitted on the GUI thread once an async requestStatvfs(mount)

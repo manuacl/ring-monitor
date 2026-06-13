@@ -10,9 +10,9 @@
 // forbids a `.js` importing a sibling `.js`, so `sumJiffies` is duplicated here
 // rather than reaching into `ProcStatParser.js`.
 
-// `/proc/<pid>/stat` → { pid, name, jiffies } or null if unparseable.
+// `/proc/<pid>/stat` → { pid, name, jiffies, rssPages } or null if unparseable.
 //
-//   pid (comm) state ppid ... utime stime cutime cstime ...
+//   pid (comm) state ppid ... utime stime cutime cstime ... rss ...
 //
 // Two traps the naive `split(" ")` falls into, both handled here:
 //   - `comm` (field 2) is wrapped in parens and can itself contain spaces
@@ -22,7 +22,12 @@
 //     jiffies; cutime/cstime (children) are deliberately excluded, matching
 //     `top`'s default (a process isn't "using" CPU its dead children spent).
 // After the comm, the remaining tokens start at `state` (field 3), so
-// field N lives at index N-3: utime → [11], stime → [12].
+// field N lives at index N-3: utime → [11], stime → [12], rss → [21]
+// (field 24, resident set size in pages — the QML sampler multiplies by
+// pageSize() to convert to KiB; the parser stays unit-free).
+// A missing or non-finite rss degrades to 0 rather than returning null:
+// utime/stime validity already gates the record, and a truncated rss
+// must not hide the process from the CPU ranking.
 function parsePidStat(raw) {
     if (typeof raw !== "string")
         return null;
@@ -39,7 +44,9 @@ function parsePidStat(raw) {
     var stime = parseInt(rest[12], 10);
     if (!isFinite(utime) || !isFinite(stime))
         return null;
-    return { pid: pid, name: name, jiffies: utime + stime };
+    var rssRaw = parseInt(rest[21], 10);
+    var rssPages = (isFinite(rssRaw) && rssRaw >= 0) ? rssRaw : 0;
+    return { pid: pid, name: name, jiffies: utime + stime, rssPages: rssPages };
 }
 
 // `/proc/loadavg` → [load1, load5, load15]. The line is

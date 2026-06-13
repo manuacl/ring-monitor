@@ -189,25 +189,29 @@ release-flow details live in [`releasing.md`](releasing.md).
 
 ## `ProcessRanking.js`
 
-Pure ranking + formatting for the CPU-ring process tooltip (issue #69),
-shared by both platform adapters. It consumes **already-normalised**
-process records and only sorts + formats — the "total 0-100%" CPU
-normalisation happens at the source (the standalone `/proc/<pid>/stat`
-delta is intrinsically total-normalised over the system-wide jiffy
-delta; the Plasma adapter divides ksysguard's reading by the core
-count), so this module stays platform-agnostic.
+Pure ranking + formatting for the CPU-ring and RAM-ring process tooltips
+(issues #69/#70), shared by both platform adapters. It consumes
+**already-normalised** process records and only sorts + formats — the
+"total 0-100%" CPU normalisation happens at the source (the standalone
+`/proc/<pid>/stat` delta is intrinsically total-normalised over the
+system-wide jiffy delta; the Plasma adapter divides ksysguard's reading
+by the core count), so this module stays platform-agnostic.
 
-Record shape: `{ pid, name, cpuPercent, rssKb? }`. `rssKb` is optional
-and **unused in the v1 CPU tooltip** — it's a forward hook for the
-companion RAM-ring tooltip, which will reuse this same enumeration and
-rank on memory instead (so that issue adds a `rankByMemory` here rather
-than re-plumbing both backends).
+Record shape: `{ pid, name, cpuPercent, rssKb? }`. `rssKb` is populated
+by the sampler when memory data is available and used by `rankByMemory`
+for the RAM-ring tooltip; `cpuPercent` drives `rankByCpu` for the
+CPU-ring tooltip. Both paths share a common `_cleanRecords` normaliser
+(coerces `pid` to `Number`, drops records with no `pid`) so the
+flicker-prevention tiebreak stays numeric on both.
 
 | Function | Purpose |
 |---|---|
-| `DEFAULT_LIMIT` | `20` — the issue-#69 cap (top 20 processes). |
+| `DEFAULT_LIMIT` | `20` — top-20 cap (issues #69/#70). |
 | `rankByCpu(records, limit)` | New array sorted by `cpuPercent` desc, capped to `limit` (default `DEFAULT_LIMIT`). Ties break by `pid` asc so the order is deterministic across ticks (no tooltip flicker). Drops records with no `pid`, coerces NaN/negative/undefined `cpuPercent` to 0, never mutates the input. Non-array input or `limit ≤ 0` → `[]`. |
+| `rankByMemory(records, limit)` | New array sorted by `rssKb` desc, capped to `limit` (default `DEFAULT_LIMIT`). Records with absent `rssKb` rank as 0 (kept, not dropped — the backend may not sample memory every tick). Ties break by `pid` asc. Same input guards as `rankByCpu`. |
 | `formatCpuPercent(value)` | `12.34` → `"12.3%"` (one decimal, `top`'s precision). NaN/negative/undefined → `"0.0%"`. |
+| `formatMemory(rssKb)` | Humanise a KiB count: `< 1024 KiB` → integer KiB, `< 1024 MiB` → one-decimal MiB, else one-decimal GiB. Matches `top`'s RES column precision. |
+| `formatMemPercent(rssKb, totalKb)` | `(rssKb / totalKb) * 100` to one decimal + `"%"`. Guards: `totalKb` not finite or `<= 0` → `"0.0%"`; clamped at 100% so a transient RSS spike above total doesn't show `">100%"`. |
 | `formatLoadAverages(loads)` | The three kernel load averages → `"0.42  0.55  0.61"` (two decimals, double-space separated). Pads a short/missing array with `0.00`; ignores entries past the first three. The `Load average:` label is added + translated by the QML caller. |
 
 Covered by `tests/process-ranking.test.mjs`.

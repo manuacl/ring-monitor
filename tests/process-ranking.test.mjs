@@ -125,3 +125,133 @@ test('formatLoadAverages: pads a short or missing array with 0.00', () => {
 test('formatLoadAverages: ignores extra entries beyond the first three', () => {
     assert.equal(PR.formatLoadAverages([0.1, 0.2, 0.3, 0.4, 0.5]), '0.10  0.20  0.30');
 });
+
+// ── rankByMemory ─────────────────────────────────────────────────────────
+
+test('rankByMemory: sorts by rssKb descending', () => {
+    const out = PR.rankByMemory([rec(1, 'a', 0, 500), rec(2, 'b', 0, 8000), rec(3, 'c', 0, 1200)]);
+    assert.deepEqual(out.map(r => r.name), ['b', 'c', 'a']);
+});
+
+test('rankByMemory: caps to the given limit', () => {
+    const input = [rec(1, 'a', 0, 100), rec(2, 'b', 0, 200), rec(3, 'c', 0, 300), rec(4, 'd', 0, 400)];
+    assert.equal(PR.rankByMemory(input, 2).length, 2);
+    assert.deepEqual(PR.rankByMemory(input, 2).map(r => r.name), ['d', 'c']);
+});
+
+test('rankByMemory: defaults to DEFAULT_LIMIT (20) when limit omitted', () => {
+    const input = [];
+    for (let i = 0; i < 50; i++)
+        input.push(rec(i, 'p' + i, 0, i * 100));
+    assert.equal(PR.rankByMemory(input).length, 20);
+});
+
+test('rankByMemory: ties break by pid ascending (deterministic, no flicker)', () => {
+    const out = PR.rankByMemory([rec(9, 'late', 0, 1000), rec(2, 'early', 0, 1000), rec(5, 'mid', 0, 1000)]);
+    assert.deepEqual(out.map(r => r.pid), [2, 5, 9]);
+});
+
+test('rankByMemory: coerces a string pid to a number so the tiebreak stays numeric', () => {
+    // Mirror of the rankByCpu guard: the Plasma ProcessDataModel Value role
+    // isn't guaranteed numeric, and both rankers share _cleanRecords — pin the
+    // memory path too so a future split of the cleaning code can't regress it.
+    const out = PR.rankByMemory([rec('9', 'late', 0, 1000), rec('2', 'early', 0, 1000), rec('5', 'mid', 0, 1000)]);
+    assert.deepEqual(out.map(r => r.pid), [2, 5, 9]);
+    assert.equal(typeof out[0].pid, 'number');
+});
+
+test('rankByMemory: absent rssKb ranks as 0 (kept, not dropped)', () => {
+    // Records without rssKb are still valid; they rank below those with it.
+    const out = PR.rankByMemory([
+        { pid: 1, name: 'norss', cpuPercent: 0 },
+        rec(2, 'hasrss', 0, 512),
+    ]);
+    assert.equal(out.length, 2);
+    assert.equal(out[0].name, 'hasrss');
+    assert.equal(out[1].name, 'norss');
+});
+
+test('rankByMemory: does not mutate the input array', () => {
+    const input = [rec(1, 'a', 0, 1000), rec(2, 'b', 0, 500)];
+    const snapshot = input.map(r => r.pid);
+    PR.rankByMemory(input);
+    assert.deepEqual(input.map(r => r.pid), snapshot);
+});
+
+test('rankByMemory: drops records with no pid', () => {
+    const out = PR.rankByMemory([rec(1, 'a', 0, 100), { name: 'nopid', rssKb: 999 }, { pid: null, rssKb: 800 }]);
+    assert.deepEqual(out.map(r => r.name), ['a']);
+});
+
+test('rankByMemory: non-array / non-positive limit → empty array', () => {
+    assert.deepEqual(PR.rankByMemory(null), []);
+    assert.deepEqual(PR.rankByMemory(undefined), []);
+    assert.deepEqual(PR.rankByMemory([rec(1, 'a', 0, 100)], 0), []);
+    assert.deepEqual(PR.rankByMemory([rec(1, 'a', 0, 100)], -1), []);
+});
+
+test('rankByMemory: cleaned records carry cpuPercent and conditional rssKb', () => {
+    const out = PR.rankByMemory([rec(1, 'a', 42.5, 1024)]);
+    assert.equal(out[0].cpuPercent, 42.5);
+    assert.equal(out[0].rssKb, 1024);
+});
+
+// ── formatMemory ─────────────────────────────────────────────────────────
+
+test('formatMemory: sub-1024 KiB → integer KiB', () => {
+    assert.equal(PR.formatMemory(836), '836 KiB');
+    assert.equal(PR.formatMemory(0), '0 KiB');
+    assert.equal(PR.formatMemory(1023), '1023 KiB');
+});
+
+test('formatMemory: exact 1024 KiB boundary → MiB', () => {
+    // 1024 KiB == 1.0 MiB; the boundary itself uses the MiB branch.
+    assert.equal(PR.formatMemory(1024), '1.0 MiB');
+});
+
+test('formatMemory: KiB in MiB range → one decimal MiB', () => {
+    assert.equal(PR.formatMemory(9830), '9.6 MiB');  // 9830/1024 ≈ 9.599
+    assert.equal(PR.formatMemory(1024 * 512), '512.0 MiB');
+});
+
+test('formatMemory: exact 1024 MiB boundary → GiB', () => {
+    assert.equal(PR.formatMemory(1024 * 1024), '1.0 GiB');
+});
+
+test('formatMemory: KiB in GiB range → one decimal GiB', () => {
+    assert.equal(PR.formatMemory(1024 * 1024 * 1.2), '1.2 GiB');
+});
+
+test('formatMemory: undefined / NaN / negative → "0 KiB"', () => {
+    assert.equal(PR.formatMemory(undefined), '0 KiB');
+    assert.equal(PR.formatMemory(NaN), '0 KiB');
+    assert.equal(PR.formatMemory(-500), '0 KiB');
+});
+
+// ── formatMemPercent ─────────────────────────────────────────────────────
+
+test('formatMemPercent: normal case, one decimal percent', () => {
+    // 1024 / 16384 * 100 = 6.25 → "6.3%" (toFixed rounds)
+    assert.equal(PR.formatMemPercent(1024, 16384), '6.3%');
+    assert.equal(PR.formatMemPercent(0, 16384), '0.0%');
+});
+
+test('formatMemPercent: totalKb zero or negative → "0.0%"', () => {
+    assert.equal(PR.formatMemPercent(1000, 0), '0.0%');
+    assert.equal(PR.formatMemPercent(1000, -1), '0.0%');
+});
+
+test('formatMemPercent: totalKb NaN / undefined → "0.0%"', () => {
+    assert.equal(PR.formatMemPercent(1000, NaN), '0.0%');
+    assert.equal(PR.formatMemPercent(1000, undefined), '0.0%');
+});
+
+test('formatMemPercent: clamps at 100% (rss spike above total)', () => {
+    assert.equal(PR.formatMemPercent(20000, 16384), '100.0%');
+});
+
+test('formatMemPercent: rssKb NaN / undefined / negative → "0.0%"', () => {
+    assert.equal(PR.formatMemPercent(undefined, 16384), '0.0%');
+    assert.equal(PR.formatMemPercent(NaN, 16384), '0.0%');
+    assert.equal(PR.formatMemPercent(-100, 16384), '0.0%');
+});

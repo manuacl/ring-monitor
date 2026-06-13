@@ -406,24 +406,23 @@ tooltip is shown (`usedPercent` stays always-on for the ring). Covered by
 
 ## `ProcessTooltip.qml`
 
-A ring's **top-processes tooltip** (issue #69), self-contained (chrome above —
-the `samplingActive`/`armed`/show-delay/Window-popup machinery lives here, the
-same shape `DiskTooltip` duplicates). **Generic over the ranked metric**
-(Open/Closed): the CPU ring wires it for CPU%, and the
-companion RAM-ring tooltip can reuse it as-is by injecting a memory
-`title` / `formatValue` / `footerText` (no edit here). Dropped in as a
-child of the ring delegate in `MainContent`; every other ring leaves it
-inert (`armed: false`). Pure QtQuick + Kirigami + QtQuick.Controls — no
-platform import, no metric-specific logic; everything comes in as props.
+A ring's **top-processes tooltip** (issues #69/#70), self-contained (chrome
+above — the `samplingActive`/`armed`/show-delay/Window-popup machinery lives
+here, the same shape `DiskTooltip` duplicates). **Generic over the ranked
+metric** (Open/Closed): the CPU ring wires it for CPU%, the RAM ring reuses it
+as-is by injecting memory `title` / `formatValue` / `footerText`. Dropped in as
+a child of the ring delegate in `MainContent`; every other ring leaves it inert
+(`armed: false`). Pure QtQuick + Kirigami + QtQuick.Controls — no platform
+import, no metric-specific logic; everything comes in as props.
 
 | Property / signal | Role |
 |---|---|
 | `armed` | Only the owning ring's delegate sets it true — gates the `HoverHandler` so sampling/showing never engage on other rings. |
-| `processes` | Ranked `[{pid, name, …}]` (= `backend.topProcesses`). One row each: name + dimmed `·PID` + the right-aligned value below. |
-| `title` | Header line (CPU ring passes `qsTr("Top processes — CPU")`). |
-| `formatValue` | `function(process) → string` for the right column — the parent injects the metric (CPU: `p ⇒ ProcessRanking.formatCpuPercent(p.cpuPercent)`). |
-| `footerText` | Footer line, empty → no footer (CPU ring passes the `load` average, formatted via `ProcessRanking.formatLoadAverages`). |
-| `samplingActive` (readonly) | True while the pointer is over the ring. `MainContent` binds `metrics.processSamplingActive` to it (gated on the owning ring), so the backend samples **only** while hovered. |
+| `processes` | Ranked `[{pid, name, …}]` (= `backend.topProcesses` or `backend.topMemProcesses`). One row each: name + dimmed `·PID` + the right-aligned value below. |
+| `title` | Header line (CPU: `qsTr("Top processes — CPU")`; RAM: `qsTr("Top processes — Memory")`). |
+| `formatValue` | `function(process) → string` for the right column — the parent injects the metric (CPU: `p ⇒ ProcessRanking.formatCpuPercent(p.cpuPercent)`; RAM: `p ⇒ ProcessRanking.formatMemory(p.rssKb) + " · " + ProcessRanking.formatMemPercent(p.rssKb, metrics.memTotalKb)`). |
+| `footerText` | Footer line, empty → no footer (CPU: load average via `ProcessRanking.formatLoadAverages`; RAM: `"used  <used> / <total>"`). |
+| `samplingActive` (readonly) | True while the pointer is over the ring. `MainContent` OR's the CPU and RAM delegates' states into a single `Binding` on `metrics.processSamplingActive`, so the backend samples **only** while either is hovered. |
 
 Sampling starts on hover-**enter** (immediately), but the `QQC2.ToolTip`
 only appears after a 500 ms delay — so the backend warms up during the
@@ -982,36 +981,55 @@ plasma5support import keeps it out of `qmltestrunner`.
 
 ### `ProcessSampler.qml` (one per platform)
 
-The source for the CPU-ring **process tooltip** (issue #69): top
-processes by CPU%, with a load-average footer. There are **two** —
+The source for the CPU-ring and RAM-ring **process tooltips** (issues
+#69/#70): top processes by CPU% or RSS, with load-average and
+used/total memory footers. There are **two** —
 `platforms/standalone/ProcessSampler.qml` and
 `platforms/plasma/ProcessSampler.qml` — each instantiated by its
-`MetricsBackend`, which forwards the surface (`processSamplingActive`,
-`topProcesses`, `loadAverages`). `topProcesses` is a **property** (not a
-function) so the tooltip's binding tracks it and the list refreshes live.
-Both rank through the shared
+`MetricsBackend`, which forwards the full surface:
+
+| Property forwarded by `MetricsBackend` | Provides |
+|---|---|
+| `processSamplingActive` (alias) | Gate: sampling runs only while true. |
+| `topProcesses` | Top-20 `[{pid, name, cpuPercent}]` by CPU%, re-ranked each tick. |
+| `topMemProcesses` | Top-20 `[{pid, name, rssKb}]` by RSS, re-ranked each tick. |
+| `loadAverages` | `[1, 5, 15]`-min load averages for the CPU tooltip footer. |
+| `memUsedKb` | MemTotal − MemAvailable in kB (RAM tooltip footer). |
+| `memTotalKb` | MemTotal in kB (RAM tooltip footer). |
+
+All six are **properties** (not functions) so tooltip bindings track them
+and lists refresh live. Both adapters rank through the shared
 [`core/ProcessRanking.js`](logic-modules.md#processrankingjs); CPU% is
 **total-normalised** (0-100%, rows sum toward the aggregate ring), not
-per-core. Both gate sampling on `active` so there's **no background
-process polling** — the tooltip flips it true on hover.
+per-core. Both gate all sampling on `active` so there's **no background
+process polling** — a tooltip flips it true on hover.
 
 - **Standalone** owns its own `ProcReader` + 500 ms `Timer`
   (`running: active`). Each tick reads `/proc/stat` (the system-wide
   jiffy denominator), lists `/proc` for pid dirs, reads each
   `/proc/<pid>/stat`, parses via
-  [`ProcParser.js`](logic-modules.md#procparserjs). The total
+  [`ProcParser.js`](logic-modules.md#procparserjs). CPU total
   normalisation is intrinsic (process jiffy delta over the system-wide
   delta). The prev snapshot is dropped when `active` flips off so a
   re-open starts fresh (a stale snapshot would yield a bogus first
-  delta). Guard: `tests/standalone-process-sampler.test.mjs`.
+  delta). RSS is derived directly from `rssPages * pageSize/1024` (no
+  delta needed); `pageSize` is cached once via `reader.pageSize()` at
+  startup. Memory footer values come from `/proc/meminfo` parsed by
+  `MemInfoParser.js` each tick; `memUsedKb = memTotal − memAvailable`
+  (MemAvailable is the kernel's reclaimable estimate, not raw MemFree).
+  Guard: `tests/standalone-process-sampler.test.mjs`.
 - **Plasma** uses `org.kde.ksysguard.process` `ProcessDataModel`
   (`enabled: active`, `flatList`, `enabledAttributes: [name, pid,
-  usage]`), reading the raw `Value` role per row. ksysguard's `usage` is
-  **per-core** (a thread reads ~100%, total can reach `coreCount*100` —
-  confirmed in libksysguard `processes.cpp`), so the sampler **divides by
-  `coreCount`** (injected = `coreValues.length`) to reach the same total
-  semantics. Load averages come from `cpu/loadaverages/loadaverage{1,5,15}`
-  sensors. Guard: `tests/plasma-process-sampler.test.mjs`.
+  usage, memory]`), reading the raw `Value` role per row. ksysguard's
+  `usage` is **per-core** (a thread reads ~100%, total can reach
+  `coreCount*100` — confirmed in libksysguard `processes.cpp`), so the
+  sampler **divides by `coreCount`** (injected = `coreValues.length`)
+  to reach the same total semantics. The `memory` attribute's `Value`
+  is already KiB (RSS minus shared). Load averages come from
+  `cpu/loadaverages/loadaverage{1,5,15}` sensors; memory footer values
+  from `memory/physical/used` and `memory/physical/total` sensors
+  (ksysguard reports bytes; divided by 1024 to surface kB, matching the
+  standalone unit). Guard: `tests/plasma-process-sampler.test.mjs`.
 
 Both files import a host-only module (`RingMonitor.Standalone` /
 `org.kde.ksysguard.*`) absent from the CI container, so they're

@@ -120,15 +120,15 @@ Item {
         return Catalog.tempToPercent(metricRawTemp(id));
     }
 
-    // ── CPU process tooltip (issue #69) ──────────────────────────────
-    // Same surface as the Plasma adapter; the /proc enumeration lives in the
-    // ProcessSampler child (own ProcReader + Timer, running only while active)
-    // so this adapter stays under the 500-line cap. We just forward.
-    // topProcesses is a property (not a function) so a UI binding tracks it
-    // and the tooltip list refreshes live as the sampler re-ranks.
+    // ── CPU + RAM process tooltips (issues #69 / #70) ───────────────
+    // /proc enumeration lives in the ProcessSampler child; we just forward.
+    // Properties (not functions) so bindings in the tooltips stay live.
     property alias processSamplingActive: processSampler.active
     readonly property var topProcesses: processSampler.topProcesses
     readonly property var loadAverages: processSampler.loadAverages
+    readonly property var topMemProcesses: processSampler.topMemProcesses
+    readonly property real memUsedKb: processSampler.memUsedKb
+    readonly property real memTotalKb: processSampler.memTotalKb
 
     ProcessSampler {
         id: processSampler

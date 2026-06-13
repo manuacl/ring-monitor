@@ -139,6 +139,14 @@ The contract:
     total across processes reaches `coreCount*100` (libksysguard
     `processes.cpp` divides the jiffy delta by elapsed time only, never
     by processor count). Divide by the core count for a total 0-100%.
+  - The **`memory` attribute's Value is KiB** (live-probed #70:
+    9812 → "9,6 Mio") while the `memory/physical/*` *sensors* report
+    **bytes** — the asymmetry is real, don't "harmonize" it with a
+    /1024 on the column (guarded by `plasma-process-sampler.test.mjs`).
+    Semantically it's the System Monitor "Memory" column (RSS−shared);
+    standalone shows true RSS — divergent on purpose (same-surface
+    doctrine, see the standalone layer's "intentionally different
+    values" list).
   - Gate updates with `enabled` (bind it to "tooltip visible") so the
     process table isn't polled in the background. Load averages are the
     `cpu/loadaverages/loadaverage{1,5,15}` sensors. Canonical use:

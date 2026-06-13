@@ -12,7 +12,13 @@ user-facing only.
 
 ## [Unreleased]
 
+### Added
+
+- Hover the RAM ring to see the **top-20 processes by memory** — each row shows the process name, resident size (KiB/MiB/GiB), and its share of total RAM. A footer shows overall used/total memory. Works on both the Plasma widget and the standalone app (#70).
+
 ### Technical
+
+- RAM ring tooltip: top-20 processes by memory (RES + %MEM) with used/total footer, on both platforms (#70).
 
 - fix(config): stage the partition-color map like the label cache (#134) —
   `MetricsBody._refreshColorMap` now prunes into a non-cfg `_stagedColorsJson`

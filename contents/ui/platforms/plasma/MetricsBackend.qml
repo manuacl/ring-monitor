@@ -124,14 +124,18 @@ Item {
         return Catalog.tempToPercent(metricRawTemp(id));
     }
 
-    // ── CPU process tooltip (issue #69) ──────────────────────────────
+    // ── CPU + RAM process tooltips (issues #69/#70) ──────────────────
     // Same surface as the standalone adapter; the ProcessDataModel enumeration
     // lives in the ProcessSampler child (running only while active) so this
-    // adapter stays under the 500-line cap. topProcesses is a property (not a
-    // function) so a UI binding tracks it and the tooltip list refreshes live.
+    // adapter stays under the 500-line cap. topProcesses / topMemProcesses are
+    // properties (not functions) so UI bindings track them and tooltip lists
+    // refresh live.
     property alias processSamplingActive: processSampler.active
     readonly property var topProcesses: processSampler.topProcesses
+    readonly property var topMemProcesses: processSampler.topMemProcesses
     readonly property var loadAverages: processSampler.loadAverages
+    readonly property real memUsedKb: processSampler.memUsedKb
+    readonly property real memTotalKb: processSampler.memTotalKb
 
     ProcessSampler {
         id: processSampler

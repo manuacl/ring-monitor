@@ -31,6 +31,12 @@ GridLayout {
     // openReleasePage / acknowledge / configureRequested actions used
     // by the in-widget badge.
     property var updateChecker
+    // Screen corner the host window is anchored to (standalone only; "" on Plasma,
+    // whose in-scene tooltip popups do their own screen-overflow flip). Drives which
+    // side the ring tooltips open toward so a Window popup grows into the screen, not
+    // off the edge: a left-anchored widget opens its tooltips RIGHT.
+    property string windowAnchorCorner: ""
+    readonly property bool _tooltipOpenRight: content.windowAnchorCorner === "top-left" || content.windowAnchorCorner === "bottom-left"
     signal configureRequested
 
     // ── Derived ──────────────────────────────────────────────────────
@@ -333,6 +339,7 @@ GridLayout {
             ProcessTooltip {
                 id: cpuTooltip
                 armed: ringDelegate.modelData === "cpu"
+                openRight: content._tooltipOpenRight
                 title: qsTr("Top processes — CPU")
                 processes: content.metrics.topProcesses
                 formatValue: function (p) {
@@ -353,6 +360,7 @@ GridLayout {
             ProcessTooltip {
                 id: memTooltip
                 armed: ringDelegate.modelData === "ram"
+                openRight: content._tooltipOpenRight
                 title: qsTr("Top processes — Memory")
                 processes: content.metrics.topMemProcesses
                 formatValue: function (p) {
@@ -391,6 +399,7 @@ GridLayout {
             DiskTooltip {
                 id: diskTooltip
                 armed: ringDelegate._isDisk
+                openRight: content._tooltipOpenRight
                 colors: content._diskColors
                 fallbackColor: content._ringColor
                 details: (ringDelegate._isDisk && diskTooltip.samplingActive) ? content._diskSelectedIds.map(function (id) {

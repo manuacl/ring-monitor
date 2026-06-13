@@ -38,6 +38,12 @@ Item {
     property var formatValue: null
     // Footer line (empty → no footer). The parent formats it (e.g. load avg).
     property string footerText: ""
+    // Which side of the ring the (Window-popup) tooltip opens toward. The parent sets
+    // it from the widget's screen edge so the tooltip grows into the screen, not off it:
+    // a left-anchored widget opens RIGHT, a right-anchored one opens LEFT (default).
+    // Only affects the Window-popup placement (see anchorMarker); the in-scene Plasma
+    // path keeps its own screen-overflow flip below.
+    property bool openRight: false
 
     // ── Output ───────────────────────────────────────────────────────
     // The parent binds the backend's sampling gate to this (gated on its ring).
@@ -101,9 +107,37 @@ Item {
     on_DisplayedChanged: if (!root._displayed)
         root._maxContentWidth = 0
 
+    // Anchor for the Window-popup placement. A Window-type QQC2 popup ignores its
+    // own x/y on Wayland (verified live, Qt 6.11) — the compositor places it via an
+    // xdg_positioner whose anchor rect is the popup's PARENT-ITEM bounding box, with
+    // the popup's top-right corner landing at the anchor rect's (left, bottom) and
+    // growing left+down. Parenting to a 1×1 marker at the ring's top-left therefore
+    // pins the tooltip's top-right corner to the ring's top-left corner (beside the
+    // ring, top-aligned) instead of the default bottom-left. The in-scene (Plasma)
+    // path is unaffected: the marker sits at the ring origin, so the item-relative
+    // x/y below resolve to the same scene point as parenting to the ring did.
+    Item {
+        id: anchorMarker
+        // Anchor at the ring's interior-facing top corner; the compositor grows the
+        // popup into the screen from there (it flips gravity at the screen edge). Widget
+        // right-anchored → anchor at the ring's top-left, popup grows left. Widget
+        // left-anchored (openRight) → anchor at the ring's top-right, popup grows right.
+        // Either way the tooltip ends up beside the ring, top-aligned.
+        x: root.openRight ? root.width : 0
+        y: 0
+        width: 1
+        height: 1
+    }
+
     QQC2.ToolTip {
         id: tip
-        parent: root
+        parent: anchorMarker
+        // Hover-driven only: visibility is `armed && _show` below, never auto-close.
+        // Paired with the transparent-for-input popup window (see contentItem): an
+        // input-grabbing Window popup would steal the pointer from the ring's
+        // HoverHandler and flicker (QTBUG-38084); a non-auto-closing, input-transparent
+        // popup leaves hover with the ring, so show/hide stays purely hover-gated.
+        closePolicy: QQC2.Popup.NoAutoClose
         // A Window-type popup so it ISN'T clipped to the host window: the
         // standalone window is sized to the rings (tiny), so an in-scene (Item)
         // popup — the pre-6.8 default — gets cropped to that rect and only a
@@ -167,6 +201,22 @@ Item {
         contentItem: ColumnLayout {
             id: col
             spacing: Kirigami.Units.smallSpacing
+            // When this content is reparented into a separate Window popup, mark that
+            // window transparent-for-input. A normal Window popup grabs the pointer on
+            // open (xdg_popup grab on Wayland) and steals it from the ring's
+            // HoverHandler → hover drops → the popup hides → reopens → flicker
+            // (QTBUG-38084). The tooltip is non-interactive, so dropping its input lets
+            // the pointer stay with the ring and the show/hide stays stable. Guarded to
+            // the separate popup window (in-scene popups share the host window). Works on
+            // Wayland (flags re-read after creation); on X11/XWayland flags are fixed at
+            // creation and there's no QML hook before Qt maps the popup, so a faint
+            // first-show flash remains (the 500 ms show-delay absorbs most of it) — a
+            // full X11 fix needs the flag set pre-map in the C++ platform layer.
+            onWindowChanged: {
+                var w = col.Window.window;
+                if (w && w !== root.Window.window)
+                    w.flags = w.flags | Qt.WindowTransparentForInput;
+            }
             // Feed the grow-only width high-water mark; never let it shrink.
             onImplicitWidthChanged: if (implicitWidth > root._maxContentWidth)
                 root._maxContentWidth = implicitWidth

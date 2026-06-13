@@ -20,6 +20,8 @@ user-facing only.
 
 - RAM ring tooltip: top-20 processes by memory (RES + %MEM) with used/total footer, on both platforms (#70).
 
+- fix(ui): anchor standalone ring tooltips beside the ring instead of compositing at default position. Tooltips (CPU #69, RAM #70, disk #68) on the standalone widget now open adjacent to the ring with their top edge level with the ring top, anchored to the window's interior-facing corner (left-anchored window opens tooltips to the right, right-anchored to the left). Implemented by anchoring the Window-type popup to a 1×1 marker item positioned at the ring's interior corner — a Window popup ignores its own `x`/`y`, so compositor anchoring to the marker's rect achieves the positioning. Fixed a Wayland hover-flicker (QTBUG-38084) by marking the popup window transparent-to-input so the pointer grab doesn't steal hover from the ring. Known limitation: X11/XWayland shows a faint first-show flash (window flags can't be set pre-map from QML). `ProcessTooltip.qml` + `DiskTooltip.qml` both apply this pattern (duplicated chrome kept in sync).
+
 - fix(config): stage the partition-color map like the label cache (#134) —
   `MetricsBody._refreshColorMap` now prunes into a non-cfg `_stagedColorsJson`
   (read by `partitionColor`) flushed by `_flushColorMap` from user-gesture

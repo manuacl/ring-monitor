@@ -297,5 +297,57 @@ Item {
             tryCompare(metricsStub, "processSamplingActive", false);
             compare(content._cpuTooltipHovered, false);
         }
+
+        // ── _tooltipOpenRight derivation (tooltip placement wiring) ────
+        //
+        // windowAnchorCorner drives which side the Window-popup tooltip opens
+        // toward. Left-anchored corners ("top-left", "bottom-left") make
+        // _tooltipOpenRight true so the tooltip grows into the screen.
+        // Right-anchored corners and the default "" keep it false.
+        //
+        // These tests exercise the live QML binding; the text guard in
+        // main-content-tooltip-wiring.test.mjs covers the structural wiring.
+
+        function init_corner() {
+            content.windowAnchorCorner = "";
+        }
+
+        function test_tooltipOpenRight_default_empty_is_false() {
+            content.windowAnchorCorner = "";
+            compare(content._tooltipOpenRight, false);
+        }
+
+        function test_tooltipOpenRight_top_left_is_true() {
+            content.windowAnchorCorner = "top-left";
+            compare(content._tooltipOpenRight, true);
+        }
+
+        function test_tooltipOpenRight_bottom_left_is_true() {
+            content.windowAnchorCorner = "bottom-left";
+            compare(content._tooltipOpenRight, true);
+        }
+
+        function test_tooltipOpenRight_top_right_is_false() {
+            content.windowAnchorCorner = "top-right";
+            compare(content._tooltipOpenRight, false);
+        }
+
+        function test_tooltipOpenRight_bottom_right_is_false() {
+            content.windowAnchorCorner = "bottom-right";
+            compare(content._tooltipOpenRight, false);
+        }
+
+        function test_tooltipOpenRight_reacts_when_corner_changes() {
+            // The binding is reactive: switching from a left corner to a right
+            // corner must update _tooltipOpenRight without any manual poke.
+            content.windowAnchorCorner = "top-left";
+            compare(content._tooltipOpenRight, true);
+            content.windowAnchorCorner = "top-right";
+            compare(content._tooltipOpenRight, false);
+            content.windowAnchorCorner = "bottom-left";
+            compare(content._tooltipOpenRight, true);
+            content.windowAnchorCorner = "";
+            compare(content._tooltipOpenRight, false);
+        }
     }
 }

@@ -12,6 +12,8 @@ user-facing only.
 
 ## [Unreleased]
 
+## [0.14.1] — 2026-06-14
+
 ### Technical
 
 - refactor(ui): mutualize the duplicated ring-tooltip placement chrome into a shared `TooltipBehavior.qml` helper (#149). The popup-type heuristic, show-delay `Timer`, grow-only width high-water mark, `samplingActive`/`_show`/`_displayed` state machine, and the Window-popup `anchorMarker` — previously copy-pasted across `ProcessTooltip.qml` and `DiskTooltip.qml` and guarded by the now-removed `tooltip-placement-sync.test.mjs` — now live once in a non-visual helper each tooltip instantiates (`TooltipBehavior { tip: tip }`, parenting its `QQC2.ToolTip` to `behavior.anchorMarker`). Each tooltip keeps its body as a DIRECT inline `ColumnLayout` `contentItem` (the Loader/default-property paths render a Window popup wrong — see `core/CLAUDE.md`), so the trap that forced the duplication is never reintroduced. New `tests/tooltip-behavior.test.mjs` (chrome in helper, body direct) + `tests/qml/tst_TooltipBehavior.qml`; helper registered in `CMakeLists.txt` for the standalone build.

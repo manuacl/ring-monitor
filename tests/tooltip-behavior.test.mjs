@@ -108,6 +108,19 @@ for (const { name, src } of TOOLTIPS) {
             /y:\s*behavior\.inSceneY/,
             `${name} must bind its in-scene y to behavior.inSceneY`
         );
+        // The armed gate and the side input must be forwarded into the helper,
+        // else the tooltip samples on every ring (armed) or always opens the
+        // default side (openRight).
+        assert.match(
+            src,
+            /armed\s*:\s*root\.armed/,
+            `${name} must forward 'armed: root.armed' into TooltipBehavior`
+        );
+        assert.match(
+            src,
+            /openRight\s*:\s*root\.openRight/,
+            `${name} must forward 'openRight: root.openRight' into TooltipBehavior`
+        );
     });
 }
 
@@ -127,6 +140,16 @@ for (const { name, src } of TOOLTIPS) {
             src,
             /contentItem\s*:\s*Loader\b/,
             `${name} must NOT host its body via a Loader contentItem`
+        );
+    });
+
+    // Hover-driven only: an auto-closing popup reintroduces the QTBUG-38084
+    // pointer-grab flicker (the guard the deleted tooltip-placement-sync test held).
+    test(`${name} keeps the popup hover-driven (closePolicy NoAutoClose)`, () => {
+        assert.match(
+            src,
+            /closePolicy\s*:\s*QQC2\.Popup\.NoAutoClose/,
+            `${name} must set 'closePolicy: QQC2.Popup.NoAutoClose'`
         );
     });
 

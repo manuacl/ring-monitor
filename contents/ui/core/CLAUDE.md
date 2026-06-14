@@ -318,6 +318,33 @@ large. Cost ~4 live iterations:
   Guarded by `tests/tooltip-behavior.test.mjs` (chrome lives in the helper, body
   stays a direct contentItem). Don't fold the body INTO the helper (reintroduces
   the Loader/default-property trap); don't re-duplicate the chrome OUT of it.
+- **`mapToGlobal()` is NOT a reactive binding dependency.** A binding that places
+  an item from `mapToGlobal()` (e.g. the in-scene tooltip side decision) freezes
+  at first eval — it does NOT re-run when the widget MOVES, only when a *tracked*
+  property (the popup's `width`, a bound `x`) changes. So after dragging the
+  widget across the screen the placement keeps the ring's STALE global position
+  and a wide tooltip opens on the wrong side. Re-trigger the binding with a nonce
+  bumped on the relevant event and read as the binding's first line — canonical:
+  `TooltipBehavior._placeNonce++` in `onSamplingActiveChanged` (hover-enter, ring
+  settled), read by `inSceneX`/`inSceneY`. Cost several live iterations on #149.
+- **In-scene tooltip placement: close instant + box-equals-content + side-by-fit.**
+  Three coupled rules for an in-scene `QQC2.ToolTip` placed beside a ring (all
+  three cost live iterations on #149; the standalone Window-popup path is
+  unaffected — it's placed via `anchorMarker`):
+  - **Close instantly: `exit: Transition {}`.** A fading-out popup lingers one
+    frame as an overlay with its content already emptied (`rows → 0` on
+    hover-leave) — both an empty-tooltip flash on dismiss AND, overlapping the
+    neighbour ring, a hover thief that makes the next ring's tooltip
+    open-then-immediately-close (the in-scene analogue of the Window popup's
+    QTBUG-38084 grab).
+  - **The popup box must equal its content** — apply the grow-only width mark to
+    the **Window** popup only (`popupType === Window ? max(mark, impl) : impl`).
+    A marked surplus plus a `Layout.maximumWidth`-capped column leaves trailing
+    empty space on the *ring-facing* side when placed left, detaching the text
+    from the ring.
+  - **Decide the side by the tooltip's OWN width fitting** (`spaceRight >= w +
+    gap`), not a fixed reference width — else a wide tooltip lands half-off-screen
+    or flips inconsistently from a narrow one at the boundary.
 
 ## Where the platform adapters live
 

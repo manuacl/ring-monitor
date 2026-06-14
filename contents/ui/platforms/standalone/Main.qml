@@ -285,6 +285,8 @@ Window {
         configStore: configStoreAdapter
         metrics: metricsAdapter
         updateChecker: updateCheckerAdapter
+        // So the ring tooltips open into the screen, not off the anchored edge.
+        windowAnchorCorner: root._corner
         // The update-badge click opens the same dialog as the
         // right-click menu — discoverable nudge for users who haven't
         // found the right-click yet.

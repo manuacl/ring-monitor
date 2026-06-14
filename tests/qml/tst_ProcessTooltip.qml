@@ -88,5 +88,28 @@ Item {
             tip.armed = false; // _displayed → false
             tryCompare(tip, "_maxContentWidth", 0);
         }
+
+        // ── openRight placement property ───────────────────────────────
+        // openRight controls which side of the ring the Window-popup opens toward
+        // so it grows into the screen (left-anchored widget → open right; the
+        // standalone Main.qml passes this from _tooltipOpenRight via MainContent).
+        // The anchorMarker.x binding (root.openRight ? root.width : 0) is covered
+        // by the text guard in tooltip-placement-sync.test.mjs.
+
+        function test_openRight_defaults_to_false() {
+            compare(tip.openRight, false);
+        }
+
+        function test_openRight_can_be_set_to_true() {
+            tip.openRight = true;
+            compare(tip.openRight, true);
+            tip.openRight = false;   // shared instance — restore default for other tests
+        }
+
+        function test_openRight_can_be_set_back_to_false() {
+            tip.openRight = true;
+            tip.openRight = false;
+            compare(tip.openRight, false);
+        }
     }
 }

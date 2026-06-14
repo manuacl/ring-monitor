@@ -369,8 +369,22 @@ carry the **same popup chrome** (each cost a live-debug iteration on #69;
 `popupType` (Qt 6.8+, so it isn't clipped to the tiny standalone window yet
 still loads on the 6.6 floor), an explicit **grow-only width** high-water mark
 (a Window popup won't adopt its content's `implicitWidth`, and live-resampling
-content would yoyo it), **edge-aware** x/y placement (flip on screen overflow),
-and a 500 ms **show-delay**.
+content would yoyo it), and a 500 ms **show-delay**.
+
+**Placement** is dual, because a Window-type popup ignores its own `x`/`y` on
+Wayland: the in-scene (Plasma) path uses item-relative `x`/`y` with a
+screen-overflow flip, while the Window (standalone) path parents the popup to a
+1×1 `anchorMarker` at the ring's interior-facing top corner — the compositor
+anchors the popup to that parent-item rect and grows it into the screen. The
+`openRight` prop (fed from `MainContent.windowAnchorCorner` → `_tooltipOpenRight`)
+picks the side: a left-anchored widget opens its tooltips right, a right-anchored
+one left, so the tooltip is always beside the ring, top-aligned, on-screen.
+
+**Flicker fix**: a Window popup takes an `xdg_popup` pointer grab on open and
+steals hover from the ring → hide → reopen loop (QTBUG-38084). The popup window
+is marked `Qt.WindowTransparentForInput` (the tooltip is non-interactive), which
+fixes it on Wayland; X11/XWayland keeps a faint first-show flash (flags are fixed
+at creation, no pre-map QML hook — #148 tracks the C++ fix).
 
 The chrome is **DUPLICATED** in the two files, not factored into a shared base.
 A short-lived `HoverTooltip.qml` base injected the body via a `Loader`
@@ -397,6 +411,7 @@ this view just lays them out, so it stays presentational.
 | `details` | `[partitionDetail]` in ring order (each `metrics.partitionDetail(id)`). `MainContent` computes it **only while hovered**, so `partitionDetail` — which kicks a statvfs (standalone) / reads total-free sensors (Plasma) — doesn't run every tick when no tooltip is up. |
 | `colors` | Per-ring colours aligned to `details` (`MainContent._diskColors`); the icon tints to its ring so each line maps to its gauge. |
 | `fallbackColor` | The shared ring colour, for a row with no per-partition colour. |
+| `openRight` | Which side the Window popup opens toward (see "Placement" above). `MainContent` feeds it `_tooltipOpenRight`. Default `false` (open left). |
 
 `MainContent` also binds `metrics.diskTooltipActive` to its `samplingActive`
 (guarded `!== undefined`, so a backend predating the surface stays inert) — on
@@ -422,6 +437,7 @@ import, no metric-specific logic; everything comes in as props.
 | `title` | Header line (CPU: `qsTr("Top processes — CPU")`; RAM: `qsTr("Top processes — Memory")`). |
 | `formatValue` | `function(process) → string` for the right column — the parent injects the metric (CPU: `p ⇒ ProcessRanking.formatCpuPercent(p.cpuPercent)`; RAM: `p ⇒ ProcessRanking.formatMemory(p.rssKb) + " · " + ProcessRanking.formatMemPercent(p.rssKb, metrics.memTotalKb)`). |
 | `footerText` | Footer line, empty → no footer (CPU: load average via `ProcessRanking.formatLoadAverages`; RAM: `"used  <used> / <total>"`). |
+| `openRight` | Which side the Window popup opens toward (see "Placement" above). `MainContent` feeds it `_tooltipOpenRight`. Default `false` (open left). |
 | `samplingActive` (readonly) | True while the pointer is over the ring. `MainContent` OR's the CPU and RAM delegates' states into a single `Binding` on `metrics.processSamplingActive`, so the backend samples **only** while either is hovered. |
 
 Sampling starts on hover-**enter** (immediately), but the `QQC2.ToolTip`

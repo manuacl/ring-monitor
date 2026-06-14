@@ -343,6 +343,24 @@ run the binary on a real compositor and verify the behaviour by eye (rings
 placement, Alt+Tab absence, desktop-click survival, right-click menu, settings
 dialog). CI green is necessary, not sufficient.
 
+### Relaunching the standalone for a live test: kill by PID, force stderr logging
+
+Two traps when re-running the freshly-built binary during a live-test loop:
+
+- **Kill by PID, NOT `pkill -x ring-monitor-standalone`.** The process `comm`
+  is truncated to 15 chars (`ring-monitor-st`), so `pkill -x` matches nothing
+  and kills no one. The old instance keeps running, the single-instance guard
+  then makes your new binary connect to it, get a `defer` reply, and **silently
+  exit** — so you test STALE code while believing you relaunched. Use
+  `for p in $(pidof ring-monitor-standalone); do kill "$p"; done` (and verify
+  `pidof` is empty before relaunch). Same `comm`-truncation reason the root
+  `pkill -f` self-match trap exists.
+- **Export `QT_FORCE_STDERR_LOGGING=1`.** `console.warn` / `qWarning` are routed
+  to journald, not stderr, when stdout isn't a tty — so a `… > /tmp/foo.log 2>&1`
+  redirect captures an **empty** file. Force stderr to see QML/C++ diagnostics in
+  the log. (`console.log` is debug-level and may be filtered regardless — use
+  `console.warn` for temporary live-probe logging.)
+
 ### Alt+Tab visibility under Plasma — known trade-off
 
 Under Plasma-X11 / Plasma-Wayland-XWayland, the window appears in

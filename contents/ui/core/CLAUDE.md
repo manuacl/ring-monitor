@@ -226,20 +226,30 @@ large. Cost ~4 live iterations:
   - An in-scene (`Item`) popup — the pre-6.8 default — is clipped to the host
     window's rect, so over the tiny standalone window only a sliver shows. A
     `Window`-type popup is a separate surface that escapes the clip.
-  - BUT a `Window`-type popup **ignores the popup's `x`/`y` entirely** (Qt 6.11,
-    verified live: item-relative *and* global values both no-op'd, the popup
-    auto-placed regardless) — so it **can't be positioned** beside/top-aligned.
-    An in-scene popup **does** honor item-relative `x`/`y`.
+  - A `Window`-type popup **ignores the popup's own `x`/`y`** on Wayland
+    (Qt 6.11, verified live). BUT placement is still controllable: the
+    compositor anchors the popup to the **parent-item's bounding rect** via
+    `xdg_positioner`. Empirical gravity: the popup's **top-right corner lands
+    at the anchor rect's (left, bottom)** and grows left+down; the compositor
+    flips the grow direction at the screen edge. Parenting `tip` to a 1×1
+    `anchorMarker` `Item` positioned at the ring's interior-facing top corner
+    therefore gives beside-the-ring, top-aligned placement on both hosts. An
+    in-scene popup still honors item-relative `x`/`y` on the same marker —
+    no change to the Plasma path.
 
-  So decide per-show: Window only when the host clips (the standalone window,
-  sized to the rings), in-scene otherwise (the full-screen Plasma desktop view,
-  which doesn't clip and lets `x`/`y` place the popup). Heuristic in
-  `root._applyPopupType()`, called from `onSamplingActiveChanged` on hover-enter
-  (while hidden, so the type is stable before open):
+  Side selection: `MainContent.windowAnchorCorner` (standalone; `""` on
+  Plasma) maps to `_tooltipOpenRight`, forwarded as `openRight` to each
+  tooltip. Left-anchored widget → `openRight: true` → marker at `x: root.width`
+  (ring's right edge), popup grows right. Right-anchored → `openRight: false`
+  → marker at `x: 0` (ring's left edge), popup grows left. Either way the
+  tooltip grows into the screen, beside the ring, top-aligned.
+
+  Decide per-show: Window only when the host clips (the standalone window,
+  sized to the rings); in-scene otherwise (the full-screen Plasma desktop view,
+  which doesn't clip). Heuristic in `root._applyPopupType()`, called from
+  `onSamplingActiveChanged` on hover-enter (while hidden, so the type is
+  stable before open):
   `hostTooSmall = !win || win.width < Screen.width*0.6 || win.height < Screen.height*0.6`.
-  Trade-off accepted: on a small host (standalone, or a Plasma *panel* popup) the
-  Window popup auto-places and the beside/top-aligned `x`/`y` don't apply — fine,
-  that's the pre-existing behavior; the precise placement is a desktop-host nicety.
 
   Still **guard** the assignment — `popupType` is **Qt 6.8+** and the floor is
   **Qt 6.6** (`CMakeLists.txt`); a *declarative* `popupType:` is a hard load error
@@ -270,13 +280,29 @@ large. Cost ~4 live iterations:
   alone: the mark starts at 0 and the tracker only updates it on a *change*,
   so a bare-mark bind renders a one-char sliver on the first frame until the
   next layout tick. Canonical: `ProcessTooltip._maxContentWidth`.
-- **Place it edge-aware** (in-scene host only — see above): beside the ring
-  (item-relative `x: root.width`, `y: 0` → tooltip top level with the ring top),
-  flipping side (`-width`) / clamping up on screen overflow. The `x`/`y` values
-  are **item-relative** (parent = the ring), which is what an in-scene popup
-  honors; `mapToGlobal()` + `Screen.virtualX/Y` + `Screen.width/height` (plain
-  QtQuick, no Plasma dep) feed only the overflow *test*, not the returned value.
-  Canonical: `ProcessTooltip.qml`'s `x`/`y` bindings.
+- **Place it edge-aware** (in-scene / Plasma path): the `tip` item-relative
+  `x`/`y` bind beside the ring (`x: root.width`, `y: 0` → top-aligned),
+  flipping side (`-width`) / clamping up on screen overflow.
+  `mapToGlobal()` + `Screen.virtualX/Y` + `Screen.width/height` (plain
+  QtQuick, no Plasma dep) feed only the overflow *test*, not the returned
+  coordinate. Window-popup placement is handled instead by the `anchorMarker`
+  parent (see above). Canonical: `ProcessTooltip.qml`'s `x`/`y` bindings.
+- **Flicker fix — mark the Window popup transparent-for-input.** A Window-type
+  QQC2 popup takes an `xdg_popup` pointer grab on open and steals the pointer
+  from the ring's `HoverHandler` → hover drops → popup hides → reopens →
+  flicker (QTBUG-38084). The tooltip is non-interactive, so dropping input is
+  safe. In the `contentItem`'s `onWindowChanged`, when the content's window
+  differs from the host's window (i.e. the separate popup surface just
+  appeared), set `Qt.WindowTransparentForInput` on it:
+  `w.flags = w.flags | Qt.WindowTransparentForInput`. Also set
+  `closePolicy: QQC2.Popup.NoAutoClose` (hover-driven only). Canonical:
+  `ProcessTooltip.qml` `contentItem.onWindowChanged`.
+- **Known limitation — X11/XWayland first-show flash.** The transparent-for-input
+  flag is set post-creation in `onWindowChanged`. Wayland re-reads it cleanly
+  (no flicker). X11/XWayland does NOT: window flags are fixed at creation, and
+  no QML hook fires before Qt maps the popup, so a faint flash on first show
+  remains. The 500 ms show-delay absorbs most of it. A full X11 fix requires
+  setting the flag pre-map in the C++ platform layer (future work).
 - **The body must be the popup's DIRECT `contentItem` — never a `Loader`.**
   Tempting to factor this chrome into a shared `HoverTooltip` base that takes
   the body as a `Component` and hosts it in a `Loader` `contentItem` (a

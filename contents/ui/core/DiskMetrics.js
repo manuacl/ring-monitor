@@ -28,6 +28,14 @@
 //                                         removable media (auto-show), minus user
 //                                         opt-outs, falling back to defaultIds
 //                                         when empty, capped at maxCount.
+//   tooltipPartitionIds(selectedIds, mountedAvailable)
+//                                       - the partitions the disk tooltip lists:
+//                                         the rendered ring selection when it's
+//                                         non-empty, else (aggregate mode, where
+//                                         the ring is disk/all) the live mounted
+//                                         filesystems behind the aggregate — so
+//                                         the tooltip isn't blank on Plasma when
+//                                         the user has selected no partition.
 //   filterToMounted(partitions, mountedIds)
 //                                       - keep only the partitions whose id is in
 //                                         the live mounted set; passthrough when
@@ -205,6 +213,26 @@ function resolveDiskRingIds(manualIds, removableMounts, optOutIds, defaultIds, m
     }
     if (typeof maxCount === "number" && maxCount >= 0)
         out = out.slice(0, maxCount);
+    return out;
+}
+
+// The ids the disk tooltip enumerates. With a manual/removable selection it
+// mirrors the rendered rings (selectedIds, already ordered + capped). In
+// aggregate mode the selection is empty and the disk ring shows the disk/all
+// gauge — ksysguard exposes no $HOME default on Plasma — so the tooltip would
+// have nothing to list and sit on "Gathering…" forever; fall back to the live
+// mounted filesystems behind the aggregate (mountedAvailable, [{id,label}]).
+// Returns a fresh array of ids; does not mutate the inputs.
+function tooltipPartitionIds(selectedIds, mountedAvailable) {
+    if (selectedIds && selectedIds.length > 0)
+        return selectedIds.slice();
+    var out = [];
+    var list = mountedAvailable || [];
+    for (var i = 0; i < list.length; i++) {
+        var id = list[i] && list[i].id;
+        if (id)
+            out.push(id);
+    }
     return out;
 }
 
@@ -429,6 +457,7 @@ if (typeof module !== "undefined" && module.exports) {
         sortByLabel: sortByLabel,
         orderPartitions: orderPartitions,
         resolveDiskRingIds: resolveDiskRingIds,
+        tooltipPartitionIds: tooltipPartitionIds,
         filterToMounted: filterToMounted,
         isPartitionShown: isPartitionShown,
         stalePartitions: stalePartitions,

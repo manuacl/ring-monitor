@@ -361,7 +361,7 @@ with rounding + custom unit, sweep angle at 0/50/100 %, dimensions,
 nestedValues array). The pure math is covered by
 `tests/ring-geometry.test.mjs`.
 
-## Hover-tooltip chrome (shared by convention, not by base)
+## Hover-tooltip chrome (`TooltipBehavior.qml`)
 
 Both ring hover tooltips — `ProcessTooltip` (#69) and `DiskTooltip` (#68) —
 carry the **same popup chrome** (each cost a live-debug iteration on #69;
@@ -386,19 +386,28 @@ is marked `Qt.WindowTransparentForInput` (the tooltip is non-interactive), which
 fixes it on Wayland; X11/XWayland keeps a faint first-show flash (flags are fixed
 at creation, no pre-map QML hook — #148 tracks the C++ fix).
 
-The chrome is **DUPLICATED** in the two files, not factored into a shared base.
-A short-lived `HoverTooltip.qml` base injected the body via a `Loader`
-`contentItem`, but a Window-type QQC2 popup renders WRONG with a Loader
-`contentItem` (in-scene/clipped, not a floating surface — caught live on Qt
-6.10, on both rings, identically on standalone). The body must be the popup's
-DIRECT `contentItem`, and a default-property slot would capture each file's own
-`HoverHandler`. So the two own their chrome independently; **keep them in sync**.
-Full rationale: `core/CLAUDE.md` § "The body must be the popup's DIRECT
-contentItem".
+All of that chrome lives **once** in the non-visual **`TooltipBehavior.qml`**
+helper (#149). Each tooltip instantiates it (`TooltipBehavior { id: behavior;
+armed: root.armed; openRight: root.openRight; tip: tip }`), parents its
+`QQC2.ToolTip` to `behavior.anchorMarker`, and binds `visible` / `width` to the
+behavior's `_show` / `_maxContentWidth`. The helper owns the `HoverHandler`, the
+show-delay `Timer`, the `samplingActive` / `_show` / `_displayed` state, the
+`_applyPopupType()` heuristic, and the `anchorMarker`.
+
+What the helper does **not** own is the **body**. A short-lived `HoverTooltip.qml`
+base that injected the body via a `Loader` `contentItem` rendered WRONG with a
+Window-type popup (in-scene/clipped, not a floating surface — caught live on Qt
+6.10, on both rings, identically on standalone), and a default-property slot
+captures the base's own `HoverHandler`. So each tooltip keeps its body as the
+popup's **DIRECT** inline `ColumnLayout` `contentItem`. The split — chrome shared,
+body per-file — is exactly what #149 extracted, and is guarded by
+`tests/tooltip-behavior.test.mjs`. Full rationale: `core/CLAUDE.md` § "The body
+must be the popup's DIRECT contentItem".
 
 ## `DiskTooltip.qml`
 
-The **per-disk hover tooltip** (issue #68), self-contained (chrome above). One
+The **per-disk hover tooltip** (issue #68); chrome from the shared
+`TooltipBehavior` (above), body here. One
 line per shown disk: a removable/fixed `Kirigami.Icon` tinted to that ring's
 colour (`isMask`), the volume label with a dimmed `mountpoint · fstype`
 sub-line, the usage % + used/total, and the free space. All strings come from
@@ -421,9 +430,9 @@ tooltip is shown (`usedPercent` stays always-on for the ring). Covered by
 
 ## `ProcessTooltip.qml`
 
-A ring's **top-processes tooltip** (issues #69/#70), self-contained (chrome
-above — the `samplingActive`/`armed`/show-delay/Window-popup machinery lives
-here, the same shape `DiskTooltip` duplicates). **Generic over the ranked
+A ring's **top-processes tooltip** (issues #69/#70); the
+`samplingActive`/`armed`/show-delay/Window-popup machinery comes from the shared
+`TooltipBehavior` (chrome above), the body stays here. **Generic over the ranked
 metric** (Open/Closed): the CPU ring wires it for CPU%, the RAM ring reuses it
 as-is by injecting memory `title` / `formatValue` / `footerText`. Dropped in as
 a child of the ring delegate in `MainContent`; every other ring leaves it inert

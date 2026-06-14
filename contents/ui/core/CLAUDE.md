@@ -304,15 +304,47 @@ large. Cost ~4 live iterations:
   remains. The 500 ms show-delay absorbs most of it. A full X11 fix requires
   setting the flag pre-map in the C++ platform layer (future work).
 - **The body must be the popup's DIRECT `contentItem` — never a `Loader`.**
-  Tempting to factor this chrome into a shared `HoverTooltip` base that takes
-  the body as a `Component` and hosts it in a `Loader` `contentItem` (a
-  default-property slot captures the base's own `HoverHandler`, so a Loader
-  looks like the only seam). But a `Window`-type popup renders WRONG with a
-  Loader `contentItem`: in-scene / clipped instead of a floating surface —
-  caught live on Qt 6.10, on BOTH the CPU and disk tooltips, and identically on
-  standalone. So `ProcessTooltip` and `DiskTooltip` each DUPLICATE the chrome
-  (direct `ColumnLayout` `contentItem`) rather than share a base. Fix-twice
-  debt, accepted: keep the two in sync. Don't re-attempt the extraction.
+  A `Window`-type popup renders WRONG with a Loader `contentItem`: in-scene /
+  clipped instead of a floating surface — caught live on Qt 6.10, on BOTH the
+  CPU and disk tooltips, and identically on standalone. The
+  default-property alternative is no better: a slot captures the base's own
+  `HoverHandler`, not the body. So the body can't be factored out — each
+  tooltip keeps its `QQC2.ToolTip` with an INLINE `ColumnLayout` `contentItem`.
+  But the popup CHROME is *not* the body: the popup-type heuristic, show-delay,
+  grow-only width mark, and edge `anchorMarker` are now extracted ONCE into the
+  non-visual **`TooltipBehavior.qml`** helper (#149), instantiated by each
+  tooltip (`TooltipBehavior { tip: tip }`) which parents its ToolTip to
+  `behavior.anchorMarker` and binds `visible`/`width` to the behavior's state.
+  Guarded by `tests/tooltip-behavior.test.mjs` (chrome lives in the helper, body
+  stays a direct contentItem). Don't fold the body INTO the helper (reintroduces
+  the Loader/default-property trap); don't re-duplicate the chrome OUT of it.
+- **`mapToGlobal()` is NOT a reactive binding dependency.** A binding that places
+  an item from `mapToGlobal()` (e.g. the in-scene tooltip side decision) freezes
+  at first eval — it does NOT re-run when the widget MOVES, only when a *tracked*
+  property (the popup's `width`, a bound `x`) changes. So after dragging the
+  widget across the screen the placement keeps the ring's STALE global position
+  and a wide tooltip opens on the wrong side. Re-trigger the binding with a nonce
+  bumped on the relevant event and read as the binding's first line — canonical:
+  `TooltipBehavior._placeNonce++` in `onSamplingActiveChanged` (hover-enter, ring
+  settled), read by `inSceneX`/`inSceneY`. Cost several live iterations on #149.
+- **In-scene tooltip placement: close instant + box-equals-content + side-by-fit.**
+  Three coupled rules for an in-scene `QQC2.ToolTip` placed beside a ring (all
+  three cost live iterations on #149; the standalone Window-popup path is
+  unaffected — it's placed via `anchorMarker`):
+  - **Close instantly: `exit: Transition {}`.** A fading-out popup lingers one
+    frame as an overlay with its content already emptied (`rows → 0` on
+    hover-leave) — both an empty-tooltip flash on dismiss AND, overlapping the
+    neighbour ring, a hover thief that makes the next ring's tooltip
+    open-then-immediately-close (the in-scene analogue of the Window popup's
+    QTBUG-38084 grab).
+  - **The popup box must equal its content** — apply the grow-only width mark to
+    the **Window** popup only (`popupType === Window ? max(mark, impl) : impl`).
+    A marked surplus plus a `Layout.maximumWidth`-capped column leaves trailing
+    empty space on the *ring-facing* side when placed left, detaching the text
+    from the ring.
+  - **Decide the side by the tooltip's OWN width fitting** (`spaceRight >= w +
+    gap`), not a fixed reference width — else a wide tooltip lands half-off-screen
+    or flips inconsistently from a narrow one at the boundary.
 
 ## Where the platform adapters live
 

@@ -10,14 +10,11 @@ import "DiskTooltipModel.js" as Model
 // space. All strings come from the pure DiskTooltipModel so this view stays
 // presentational.
 //
-// The popup chrome here is DUPLICATED from ProcessTooltip (#69), not shared:
-// extracting it into a HoverTooltip base required injecting the body via a
-// Loader contentItem, and a Window-type QQC2 popup renders WRONG with a Loader
-// contentItem (in-scene/clipped instead of a floating surface — caught live on
-// Qt 6.10, both rings). The body must be the popup's DIRECT contentItem. The
-// default-property alternative captures this file's own HoverHandler. So the
-// two tooltips each own their chrome; keep them in sync. See core/CLAUDE.md
-// § "QQC2 popup over the widget…".
+// The popup CHROME (popup-type heuristic, show-delay, grow-only width mark, edge
+// anchor) lives in the shared TooltipBehavior helper (#149). The BODY stays here
+// as the popup's DIRECT contentItem — a Window-type popup renders wrong with a
+// Loader contentItem, so the body is never factored out. See core/CLAUDE.md
+// § "The body must be the popup's DIRECT contentItem".
 //
 // Inputs (the parent — MainContent — wires them on the disk ring delegate):
 //   armed   - true only on the disk ring; gates the HoverHandler.
@@ -35,112 +32,56 @@ Item {
     property var colors: []
     property color fallbackColor: Kirigami.Theme.highlightColor
     property string title: qsTr("Disks")
-    // Which side the Window-popup tooltip opens toward (see ProcessTooltip): left-
-    // anchored widget opens RIGHT, right-anchored opens LEFT (default). Keep in sync.
+    // Which side the (Window-popup) tooltip opens toward — forwarded to the shared
+    // behavior. See TooltipBehavior / core/CLAUDE.md.
     property bool openRight: false
 
-    readonly property bool samplingActive: hover.hovered
+    readonly property bool samplingActive: behavior.samplingActive
 
     // Presentational rows from the pure model (label, subLabel, usageText,
     // freeText, iconName, removable); zipped with `colors` by index in the view.
     readonly property var _rows: Model.buildRows(root.details)
-    // Test hooks (underscore = internal).
+    // Test hooks (underscore = internal) — forward the chrome state the rendering
+    // tests drive from the shared behavior.
     readonly property alias _rowCount: rowRepeater.count
-    property bool _show: false
-    // Grow-only width high-water mark — see the popup's `width`. Reset on the
-    // dismiss edge so a one-off wide sample doesn't pin every later hover.
-    property real _maxContentWidth: 0
-    readonly property bool _displayed: root.armed && root._show
+    property alias _show: behavior._show
+    property alias _maxContentWidth: behavior._maxContentWidth
+    readonly property alias _displayed: behavior._displayed
 
     anchors.fill: parent
 
-    HoverHandler {
-        id: hover
-        enabled: root.armed
-    }
-
-    Timer {
-        id: showDelay
-        interval: 500
-        onTriggered: root._show = true
-    }
-
-    onSamplingActiveChanged: {
-        if (samplingActive) {
-            root._applyPopupType();
-            showDelay.restart();
-        } else {
-            showDelay.stop();
-            root._show = false;
-        }
-    }
-
-    // popupType decided per-show: a separate-surface Window popup ONLY when the host
-    // window is too small to contain the tooltip in-scene (the standalone window,
-    // sized to the rings). On a full-screen host (Plasma desktop view) an in-scene
-    // popup isn't clipped AND honors the item-relative x/y above — a Window popup
-    // ignores x/y and auto-places (Qt 6.11). Set while hidden (hover-enter) so the
-    // type is stable before open. Mirrors ProcessTooltip — keep the two in sync.
-    function _applyPopupType() {
-        if (tip.popupType === undefined)
-            return;   // Qt < 6.8 — in-scene only (fine: Plasma overlay is large)
-        var win = root.Window.window;
-        var hostTooSmall = !win || win.width < root.Screen.width * 0.6 || win.height < root.Screen.height * 0.6;
-        tip.popupType = hostTooSmall ? QQC2.Popup.Window : QQC2.Popup.Item;
-    }
-
-    on_DisplayedChanged: if (!root._displayed)
-        root._maxContentWidth = 0
-
-    // Anchor for the Window-popup placement — mirrors ProcessTooltip. A Window-type
-    // QQC2 popup ignores its own x/y on Wayland; the compositor anchors it to the
-    // popup's PARENT-ITEM rect (top-right corner → anchor's left/bottom, growing
-    // left+down). Parenting to a 1×1 marker at the ring's top-left pins the tooltip's
-    // top-right corner to the ring's top-left (beside the ring, top-aligned). The
-    // in-scene path is unaffected: the marker sits at the ring origin.
-    Item {
-        id: anchorMarker
-        // Anchor at the ring's interior-facing top corner; the compositor grows the
-        // popup inward (gravity flips at the screen edge). Right-anchored widget →
-        // anchor at ring top-left (grows left); left-anchored (openRight) → ring
-        // top-right (grows right). The shift applies ONLY to a Window popup (an in-scene
-        // Item popup keeps the marker at the ring origin so its own x/y flip stays
-        // correct; safe on Qt < 6.8 where popupType is undefined). Mirrors ProcessTooltip.
-        x: (root.openRight && tip.popupType === QQC2.Popup.Window) ? root.width : 0
-        y: 0
-        width: 1
-        height: 1
+    TooltipBehavior {
+        id: behavior
+        armed: root.armed
+        openRight: root.openRight
+        tip: tip
     }
 
     QQC2.ToolTip {
         id: tip
-        parent: anchorMarker
-        // popupType set per-show via root._applyPopupType() (Window only on a small
-        // host window; in-scene on a full-screen host so x/y are honored). `popupType`
-        // is Qt 6.8+ but the floor is 6.6 — only touched when present. core/CLAUDE.md.
-        // Hover-driven only + transparent-for-input popup window (see contentItem): a
-        // grabbing Window popup would steal the pointer from the ring's HoverHandler
-        // and flicker (QTBUG-38084). Keep in sync with ProcessTooltip.
+        parent: behavior.anchorMarker
+        // popupType set per-show via behavior._applyPopupType() (Window only on a
+        // small host window; in-scene on a full-screen host so x/y are honored).
+        // popupType is Qt 6.8+ but the floor is 6.6 — only touched when present.
+        // Hover-driven only + transparent-for-input popup window (see contentItem):
+        // a grabbing Window popup would steal the pointer from the ring's
+        // HoverHandler and flicker (QTBUG-38084). See core/CLAUDE.md.
         closePolicy: QQC2.Popup.NoAutoClose
-        visible: root.armed && root._show
+        // Close instantly (no fade) — see ProcessTooltip: a fading popup lingers
+        // empty (rows → 0) and steals the next ring's hover.
+        exit: Transition {}
+        visible: root.armed && behavior._show
         // Content-driven width, bound explicitly (a Window popup won't auto-adopt
-        // it) AND grow-only via the high-water mark. Height stays implicit.
-        width: Math.max(root._maxContentWidth, col.implicitWidth) + leftPadding + rightPadding
-        // Edge-aware: beside the ring (right), top-aligned with it; FLIP on overflow.
-        x: {
-            var gx = root.mapToGlobal(0, 0).x;
-            var screenRight = root.Screen.virtualX + root.Screen.width;
-            if (gx + root.width + width > screenRight)
-                return -width;              // overflow right → left of the ring
-            return root.width;              // default → right of the ring
-        }
-        y: {
-            var gy = root.mapToGlobal(0, 0).y;
-            var screenBottom = root.Screen.virtualY + root.Screen.height;
-            if (gy + height > screenBottom)
-                return Math.min(0, screenBottom - gy - height);  // clamp up to stay on-screen
-            return 0;                       // default → top aligned with the ring
-        }
+        // it) AND grow-only via the high-water mark — but the mark applies ONLY to
+        // the Window popup (standalone). On the in-scene (Plasma) path the box must
+        // equal its content so the text stays glued to the ring when placed left
+        // (see ProcessTooltip's width comment). Height stays implicit.
+        width: (tip.popupType === QQC2.Popup.Window ? Math.max(behavior._maxContentWidth, col.implicitWidth) : col.implicitWidth) + leftPadding + rightPadding
+        // In-scene (Plasma) placement, centralized in the shared behavior: beside
+        // the ring, centred on it, flipped/clamped to the screen. A Window popup
+        // (standalone) ignores x/y and is placed via behavior.anchorMarker instead.
+        x: behavior.inSceneX
+        y: behavior.inSceneY
 
         contentItem: ColumnLayout {
             id: col
@@ -149,15 +90,15 @@ Item {
             // the pointer from the ring's HoverHandler and flicker (QTBUG-38084). The
             // tooltip is non-interactive. Guarded to the separate popup window. Wayland
             // honors the post-creation flag; X11 keeps a faint first-show flash (needs a
-            // pre-map C++ fix). Keep in sync with ProcessTooltip.
+            // pre-map C++ fix). See core/CLAUDE.md.
             onWindowChanged: {
                 var w = col.Window.window;
                 if (w && w !== root.Window.window)
                     w.flags = w.flags | Qt.WindowTransparentForInput;
             }
             // Feed the grow-only width high-water mark; never let it shrink.
-            onImplicitWidthChanged: if (implicitWidth > root._maxContentWidth)
-                root._maxContentWidth = implicitWidth
+            onImplicitWidthChanged: if (implicitWidth > behavior._maxContentWidth)
+                behavior._maxContentWidth = implicitWidth
 
             QQC2.Label {
                 text: root.title

@@ -122,6 +122,15 @@ GridLayout {
     // (issue #67). diskPartitionColors only exists once both adapters expose it;
     // the `|| ""` keeps older configStores rendering on the shared color.
     readonly property var _diskColors: DiskMetrics.resolveRingColors(content._diskSelectedIds, content.configStore.diskPartitionColors || "", content._ringColor)
+    // The disk tooltip lists the rendered ring selection, OR — in aggregate mode
+    // (empty selection → the ring is the disk/all gauge) — the live mounted
+    // filesystems behind the aggregate, so it isn't blank on Plasma when no
+    // partition is selected. mountedAvailablePartitions is Plasma-only (the `|| []`
+    // keeps standalone, whose default selection is never empty, rendering as before).
+    readonly property var _diskTooltipIds: DiskMetrics.tooltipPartitionIds(content._diskSelectedIds, content.metrics.mountedAvailablePartitions || [])
+    // Colors aligned to _diskTooltipIds (each partition's custom color or the
+    // shared fallback) — in aggregate mode every fallback row gets _ringColor.
+    readonly property var _diskTooltipColors: DiskMetrics.resolveRingColors(content._diskTooltipIds, content.configStore.diskPartitionColors || "", content._ringColor)
 
     columns: vertical ? 1 : count
     // Spacing between rings is configurable as a percentage of
@@ -400,9 +409,9 @@ GridLayout {
                 id: diskTooltip
                 armed: ringDelegate._isDisk
                 openRight: content._tooltipOpenRight
-                colors: content._diskColors
+                colors: content._diskTooltipColors
                 fallbackColor: content._ringColor
-                details: (ringDelegate._isDisk && diskTooltip.samplingActive) ? content._diskSelectedIds.map(function (id) {
+                details: (ringDelegate._isDisk && diskTooltip.samplingActive) ? content._diskTooltipIds.map(function (id) {
                     return content.metrics.partitionDetail(id);
                 }) : []
             }

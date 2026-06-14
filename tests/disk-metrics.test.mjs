@@ -444,3 +444,57 @@ test("buildPartitionDetail: defaults — label falls back to id, missing stats �
     assert.equal(empty.id, "");
     assert.equal(empty.label, "");
 });
+
+// ── tooltipPartitionIds ──────────────────────────────────────────────
+
+test("tooltipPartitionIds: non-empty selectedIds → returned verbatim, mountedAvailable ignored", () => {
+    const selected = ["u-root", "u-photos"];
+    const mounted = [{ id: "u-sync", label: "sync" }];
+    const out = Disk.tooltipPartitionIds(selected, mounted);
+    assert.deepEqual(out, ["u-root", "u-photos"]);
+});
+
+test("tooltipPartitionIds: result is a copy — mutating it does not affect selectedIds", () => {
+    const selected = ["u-root", "u-photos"];
+    const out = Disk.tooltipPartitionIds(selected, []);
+    assert.notEqual(out, selected);
+    out.push("injected");
+    assert.deepEqual(selected, ["u-root", "u-photos"]);
+});
+
+test("tooltipPartitionIds: empty selectedIds → falls back to ids from mountedAvailable", () => {
+    const mounted = [
+        { id: "u-root", label: "root" },
+        { id: "u-photos", label: "photos" },
+    ];
+    const out = Disk.tooltipPartitionIds([], mounted);
+    assert.deepEqual(out, ["u-root", "u-photos"]);
+});
+
+test("tooltipPartitionIds: empty selectedIds AND empty mountedAvailable → []", () => {
+    assert.deepEqual(Disk.tooltipPartitionIds([], []), []);
+});
+
+test("tooltipPartitionIds: null selectedIds → treated as empty, falls back to mountedAvailable", () => {
+    const mounted = [{ id: "u-sync", label: "sync" }];
+    assert.deepEqual(Disk.tooltipPartitionIds(null, mounted), ["u-sync"]);
+    assert.deepEqual(Disk.tooltipPartitionIds(undefined, mounted), ["u-sync"]);
+});
+
+test("tooltipPartitionIds: null/undefined mountedAvailable → []", () => {
+    assert.deepEqual(Disk.tooltipPartitionIds([], null), []);
+    assert.deepEqual(Disk.tooltipPartitionIds([], undefined), []);
+    assert.deepEqual(Disk.tooltipPartitionIds(null, null), []);
+});
+
+test("tooltipPartitionIds: mountedAvailable entries with falsy/missing id are skipped", () => {
+    const mounted = [
+        { id: "u-root", label: "root" },
+        { id: "", label: "empty-id" },
+        { label: "no-id-at-all" },
+        null,
+        { id: "u-photos", label: "photos" },
+    ];
+    const out = Disk.tooltipPartitionIds([], mounted);
+    assert.deepEqual(out, ["u-root", "u-photos"]);
+});

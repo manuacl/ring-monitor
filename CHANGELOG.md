@@ -12,6 +12,8 @@ user-facing only.
 
 ## [Unreleased]
 
+## [0.14.0] — 2026-06-14
+
 ### Added
 
 - Hover the RAM ring to see the **top-20 processes by memory** — each row shows the process name, resident size (KiB/MiB/GiB), and its share of total RAM. A footer shows overall used/total memory. Works on both the Plasma widget and the standalone app (#70).

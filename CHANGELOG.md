@@ -12,6 +12,10 @@ user-facing only.
 
 ## [Unreleased]
 
+### Other
+
+- docs(core): correct the X11/XWayland tooltip first-show flash diagnosis (#148). Live testing disproved the pointer-grab premise — the transparent-for-input flag is already set pre-map and `exposed` never oscillates; the real cause is a `Window`-popup map-then-resize (maps at pre-layout size, then grows to the laid-out content one frame later, which Wayland hides via atomic commit and X11/XWayland shows). The proposed C++ pre-map flag fix was implemented, tested, and disproven (input transparency can't fix a layout-timing resize). Closed wontfix; `core/CLAUDE.md` note updated.
+
 ## [0.14.1] — 2026-06-14
 
 ### Technical

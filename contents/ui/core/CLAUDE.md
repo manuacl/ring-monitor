@@ -297,12 +297,21 @@ large. Cost ~4 live iterations:
   `w.flags = w.flags | Qt.WindowTransparentForInput`. Also set
   `closePolicy: QQC2.Popup.NoAutoClose` (hover-driven only). Canonical:
   `ProcessTooltip.qml` `contentItem.onWindowChanged`.
-- **Known limitation — X11/XWayland first-show flash.** The transparent-for-input
-  flag is set post-creation in `onWindowChanged`. Wayland re-reads it cleanly
-  (no flicker). X11/XWayland does NOT: window flags are fixed at creation, and
-  no QML hook fires before Qt maps the popup, so a faint flash on first show
-  remains. The 500 ms show-delay absorbs most of it. A full X11 fix requires
-  setting the flag pre-map in the C++ platform layer (future work).
+- **Known limitation — X11/XWayland first-show resize flash (#148, wontfix).**
+  A faint flash on the first show of each ring tooltip on X11/XWayland. It is
+  NOT a pointer grab (the original #148 theory — disproven live): the
+  transparent-for-input flag IS set pre-map (`onWindowChanged` runs when the
+  popup's QWindow is assigned, before its surface is created — verified
+  `transparent=1 exposed=0` at `QPlatformSurfaceEvent::SurfaceCreated`), and
+  `exposed` never oscillates, so there is no hide/reopen cycle. The real cause
+  is a map-then-resize: the `Window`-type popup maps at its pre-layout size
+  (the lazy `contentItem` hasn't finished its first layout pass) then resizes +
+  moves to the laid-out content one frame later. Wayland commits size + content
+  atomically so the intermediate frame is invisible; X11/XWayland shows it.
+  A C++ pre-map flag setter was built and tested — it cannot fix a layout-timing
+  resize and is reverted. A real fix would force the popup to map at its final
+  size from this shared `core/` path, which risks regressing the primary
+  Plasma/Wayland tooltip for a cosmetic, fallback-only artifact — not worth it.
 - **The body must be the popup's DIRECT `contentItem` — never a `Loader`.**
   A `Window`-type popup renders WRONG with a Loader `contentItem`: in-scene /
   clipped instead of a floating surface — caught live on Qt 6.10, on BOTH the

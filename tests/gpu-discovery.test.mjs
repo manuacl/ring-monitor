@@ -7,6 +7,7 @@ import {
     discoverGpu,
     parseTempCelsius,
     _sortedDrmCards,
+    _drmHwmonDir,
     _drmHwmonTempPath,
 } from "../contents/ui/platforms/standalone/GpuDiscovery.js";
 
@@ -77,8 +78,15 @@ test("_drmHwmonTempPath returns null when hwmon dir is empty or absent", () => {
 
 // ── discoverGpu ───────────────────────────────────────────────────────────
 
-// Minimal fake filesystem factory: vendor map + optional hwmon + busy-percent.
-function makeFs({ vendors = {}, hwmons = {}, busy = {} } = {}) {
+// Minimal fake filesystem factory.
+// vendors:   { cardN: vendorHex }
+// hwmons:    { cardN: ["hwmonM", ...] }
+// busy:      { cardN: "value\n" }     — gpu_busy_percent
+// vramUsed:  { cardN: "value\n" }     — mem_info_vram_used
+// vramTotal: { cardN: "value\n" }     — mem_info_vram_total
+// power:     { cardN: "value\n" }     — hwmonM/power1_input (per-card; the
+//                                       factory assumes the first hwmon entry)
+function makeFs({ vendors = {}, hwmons = {}, busy = {}, vramUsed = {}, vramTotal = {}, power = {} } = {}) {
     return {
         listDir(path) {
             if (path === "/sys/class/drm")
@@ -97,6 +105,23 @@ function makeFs({ vendors = {}, hwmons = {}, busy = {} } = {}) {
             for (const [card, val] of Object.entries(busy)) {
                 if (path === `/sys/class/drm/${card}/device/gpu_busy_percent`)
                     return val;
+            }
+            for (const [card, val] of Object.entries(vramUsed)) {
+                if (path === `/sys/class/drm/${card}/device/mem_info_vram_used`)
+                    return val;
+            }
+            for (const [card, val] of Object.entries(vramTotal)) {
+                if (path === `/sys/class/drm/${card}/device/mem_info_vram_total`)
+                    return val;
+            }
+            // power1_input lives inside the first hwmon dir for the card
+            for (const [card, val] of Object.entries(power)) {
+                const hwmonEntries = hwmons[card] || [];
+                if (hwmonEntries.length > 0) {
+                    const hwmonDir = `/sys/class/drm/${card}/device/hwmon/${hwmonEntries[0]}`;
+                    if (path === `${hwmonDir}/power1_input`)
+                        return val;
+                }
             }
             return "";
         },
@@ -229,4 +254,97 @@ test("vendor string is matched case-insensitively", () => {
     const result = discoverGpu(listDir, read);
     assert.ok(result);
     assert.equal(result.vendor, "amd");
+});
+
+// ── _drmHwmonDir ──────────────────────────────────────────────────────────
+
+test("_drmHwmonDir returns the full hwmonN dir path for the first entry", () => {
+    const listDir = (p) => (p.endsWith("/hwmon") ? ["hwmon3"] : []);
+    assert.equal(
+        _drmHwmonDir("/sys/class/drm/card0/device/hwmon", listDir),
+        "/sys/class/drm/card0/device/hwmon/hwmon3",
+    );
+});
+
+test("_drmHwmonDir returns null when hwmon dir is empty or absent", () => {
+    assert.equal(_drmHwmonDir("/sys/class/drm/card0/device/hwmon", () => []), null);
+    assert.equal(_drmHwmonDir("/sys/class/drm/card0/device/hwmon", () => null), null);
+});
+
+// ── AMD VRAM and power path discovery ─────────────────────────────────────
+
+test("discoverGpu AMD: vramUsedPath and vramTotalPath set when sysfs nodes present", () => {
+    const { listDir, read } = makeFs({
+        vendors: { card0: VENDOR_AMD },
+        hwmons:  { card0: ["hwmon2"] },
+        busy:    { card0: "50\n" },
+        vramUsed:  { card0: "4294967296\n" },
+        vramTotal: { card0: "8589934592\n" },
+    });
+    const result = discoverGpu(listDir, read);
+    assert.ok(result);
+    assert.equal(result.vramUsedPath,  "/sys/class/drm/card0/device/mem_info_vram_used");
+    assert.equal(result.vramTotalPath, "/sys/class/drm/card0/device/mem_info_vram_total");
+});
+
+test("discoverGpu AMD: powerPath set when power1_input present in hwmon dir", () => {
+    const { listDir, read } = makeFs({
+        vendors: { card0: VENDOR_AMD },
+        hwmons:  { card0: ["hwmon2"] },
+        busy:    { card0: "50\n" },
+        power:   { card0: "45000000\n" },  // 45 W in µW
+    });
+    const result = discoverGpu(listDir, read);
+    assert.ok(result);
+    assert.equal(result.powerPath, "/sys/class/drm/card0/device/hwmon/hwmon2/power1_input");
+});
+
+test("discoverGpu AMD: vram and power keys absent when sysfs nodes missing (graceful degrade)", () => {
+    // SCENARIO: older amdgpu kernel or minimal driver build without VRAM/power
+    // accounting; busyPath and tempPath must still resolve correctly.
+    const { listDir, read } = makeFs({
+        vendors: { card0: VENDOR_AMD },
+        hwmons:  { card0: ["hwmon2"] },
+        busy:    { card0: "30\n" },
+        // no vramUsed, vramTotal, or power entries
+    });
+    const result = discoverGpu(listDir, read);
+    assert.ok(result);
+    assert.equal(result.vendor, "amd");
+    assert.ok(result.busyPath !== null, "busyPath must still resolve");
+    assert.ok(result.tempPath !== null, "tempPath must still resolve");
+    assert.equal(result.vramUsedPath,  undefined, "vramUsedPath must be absent");
+    assert.equal(result.vramTotalPath, undefined, "vramTotalPath must be absent");
+    assert.equal(result.powerPath,     undefined, "powerPath must be absent");
+});
+
+test("discoverGpu AMD: power absent when no hwmon dir present, vram still resolves", () => {
+    // Card has VRAM nodes in device/ but no hwmon (unusual but possible during
+    // late driver init). powerPath must be absent; vram paths must be present.
+    const { listDir, read } = makeFs({
+        vendors:   { card0: VENDOR_AMD },
+        busy:      { card0: "10\n" },
+        vramUsed:  { card0: "2147483648\n" },
+        vramTotal: { card0: "8589934592\n" },
+        // no hwmons → no hwmon dir → no tempPath, no powerPath
+    });
+    const result = discoverGpu(listDir, read);
+    assert.ok(result);
+    assert.equal(result.tempPath,  null,      "tempPath must be null without hwmon");
+    assert.equal(result.powerPath, undefined, "powerPath must be absent without hwmon");
+    assert.equal(result.vramUsedPath,  "/sys/class/drm/card0/device/mem_info_vram_used");
+    assert.equal(result.vramTotalPath, "/sys/class/drm/card0/device/mem_info_vram_total");
+});
+
+test("discoverGpu Intel: no vram or power fields added (Intel branch unchanged)", () => {
+    const { listDir, read } = makeFs({
+        vendors: { card0: VENDOR_INTEL },
+        hwmons:  { card0: ["hwmon1"] },
+    });
+    const result = discoverGpu(listDir, read);
+    assert.ok(result);
+    assert.equal(result.vendor, "intel");
+    assert.equal(result.vramUsedPath,  undefined);
+    assert.equal(result.vramTotalPath, undefined);
+    assert.equal(result.powerPath,     undefined);
 });

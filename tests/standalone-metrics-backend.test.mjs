@@ -20,6 +20,10 @@ import assert from "node:assert";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms", "standalone", "MetricsBackend.qml"), "utf8");
+// GPU sampling was extracted into GpuSampler.qml (issue #71). The always-on
+// NVML + AMD/Intel sysfs logic and the new tooltip-gated detail surface live
+// there; MetricsBackend wires the sampler and forwards its values.
+const GPU_SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms", "standalone", "GpuSampler.qml"), "utf8");
 
 // Same public surface as platforms/plasma/MetricsBackend.qml.
 const PUBLIC_PROPS = ["coreValues", "loading", "availableMetrics", "availablePartitions", "defaultPartitionIds", "processSamplingActive", "topProcesses", "loadAverages", "diskIo", "diskIoSamplingActive", "topMemProcesses", "memUsedKb", "memTotalKb"];
@@ -181,21 +185,33 @@ test("standalone MetricsBackend coerces an unresolved temp to 0 (same-surface wi
     // just the _coerceTemp token's proximity, so _coerceTemp(0) or a
     // copy-paste using the wrong property reds the guard.
     assert.match(SOURCE, /["']cpuTemp["'][\s\S]{0,60}_coerceTemp\(\s*backend\._cpuTempC\s*\)/, "metricValue('cpuTemp') must coerce backend._cpuTempC");
-    assert.match(SOURCE, /["']gpuTemp["'][\s\S]{0,60}_coerceTemp\(\s*backend\._gpuTempC\s*\)/, "metricValue('gpuTemp') must coerce backend._gpuTempC");
+    assert.match(SOURCE, /["']gpuTemp["'][\s\S]{0,60}_coerceTemp\(\s*gpuSampler\.tempC\s*\)/, "metricValue('gpuTemp') must coerce gpuSampler.tempC (GPU temp now forwarded from GpuSampler)");
 });
 
-test("standalone MetricsBackend wires NVIDIA GPU usage + temperature via NvmlReader", () => {
-    // GPU comes from the NVML C++ helper (dlopen'd libnvidia-ml), not a
-    // subprocess. The adapter instantiates it, samples each tick, and
-    // only commits values when the sample is available (non-NVIDIA hosts
-    // report available:false → metrics stay 0).
-    assert.match(SOURCE, /NvmlReader\s*{/, "must instantiate the NvmlReader QML element");
-    assert.match(SOURCE, /import\s+RingMonitor\.Standalone/, "must import RingMonitor.Standalone (where NvmlReader is registered)");
-    assert.match(SOURCE, /\.sample\s*\(\s*\)/, "must call NvmlReader.sample()");
-    assert.match(SOURCE, /\.available\b/, "must gate on the sample's available flag");
-    assert.match(SOURCE, /id\s*===\s*["']gpu["'][\s\S]*?_gpuUsage/, "metricValue('gpu') must return GPU usage");
+test("standalone MetricsBackend wires NVIDIA GPU usage + temperature via GpuSampler", () => {
+    // GPU sampling is delegated to the GpuSampler child component (issue #71
+    // extraction). MetricsBackend instantiates it, calls sample() each tick,
+    // and reads usage/tempC/available/tempAvailable from the sampler's
+    // readonly properties. The NvmlReader + NVML logic lives inside GpuSampler.
+    assert.match(SOURCE, /GpuSampler\s*{/, "must instantiate the GpuSampler child component");
+    assert.match(SOURCE, /gpuSampler\.sample\s*\(\s*\)/, "MetricsBackend must call gpuSampler.sample() each tick");
+    assert.match(SOURCE, /id\s*===\s*["']gpu["'][\s\S]*?gpuSampler\.usage/, "metricValue('gpu') must return gpuSampler.usage");
     assert.match(SOURCE, /id\s*===\s*["']gpuTemp["']/, "metricValue must branch on id === 'gpuTemp'");
-    assert.match(SOURCE, /function\s+metricRawTemp[\s\S]*?id\s*===\s*["']gpu["'][\s\S]*?_coerceTemp\(\s*backend\._gpuTempC\s*\)/, "metricRawTemp('gpu') must coerce backend._gpuTempC");
+    assert.match(SOURCE, /function\s+metricRawTemp[\s\S]*?id\s*===\s*["']gpu["'][\s\S]*?_coerceTemp\(\s*gpuSampler\.tempC\s*\)/, "metricRawTemp('gpu') must coerce gpuSampler.tempC");
+    // GpuSampler: NvmlReader + sample() internals
+    assert.match(GPU_SOURCE, /NvmlReader\s*{/, "GpuSampler must instantiate the NvmlReader QML element");
+    assert.match(GPU_SOURCE, /import\s+RingMonitor\.Standalone/, "GpuSampler must import RingMonitor.Standalone (where NvmlReader is registered)");
+    assert.match(GPU_SOURCE, /gpuReader\.sample\s*\(\s*gpuSampler\.detailActive\s*\)/, "GpuSampler must call gpuReader.sample(gpuSampler.detailActive) — passes the gate so detail keys come back only when armed");
+    assert.match(GPU_SOURCE, /\.available\b/, "GpuSampler must gate on the sample's available flag");
+});
+
+test("standalone MetricsBackend exposes gpuDetailSamplingActive + gpuDetail() for the GPU tooltip (#71)", () => {
+    // MetricsBackend forwards the detail gate and snapshot so MainContent can
+    // arm the sampler and read the tooltip data without knowing about GpuSampler.
+    assert.match(SOURCE, /property\s+bool\s+gpuDetailSamplingActive/, "must declare gpuDetailSamplingActive (the cross-platform gate name, default false)");
+    assert.match(SOURCE, /detailActive\s*:\s*backend\.gpuDetailSamplingActive/, "GpuSampler.detailActive must be bound to backend.gpuDetailSamplingActive");
+    assert.match(SOURCE, /function\s+gpuDetail\s*\(\s*\)/, "must declare gpuDetail() to forward the sampler's detail snapshot");
+    assert.match(SOURCE, /gpuSampler\.gpuDetail\s*\(\s*\)/, "gpuDetail() must delegate to gpuSampler.gpuDetail()");
 });
 
 test("standalone MetricsBackend re-resolves the temp path within a bounded warm-up window", () => {
@@ -223,17 +239,16 @@ test("standalone MetricsBackend exposes availableMetrics gating swap + gpu on th
     assert.match(SOURCE, /property\s+var\s+availableMetrics\s*:/, "must declare readonly property var availableMetrics");
     assert.match(SOURCE, /Catalog\.availableMetricsFrom\s*\(/, "availableMetrics must build the list via the shared Catalog.availableMetricsFrom helper");
     assert.match(SOURCE, /_swapAvailable\s*=\s*mem\.swapTotal\s*>\s*0/, "must set _swapAvailable from mem.swapTotal > 0");
-    // _gpuAvailable: liveness model — derived from this tick's read success, not path non-emptiness.
-    // Fixes: AMD eGPU hot-unplug freezes ring at last-good value (ring must disappear ≤1 tick).
-    // Fixes: hybrid NVIDIA+AMD — AMD sysfs shadowing NVML after a transient NVML failure.
-    assert.match(SOURCE, /_gpuAvailable\s*=\s*nvml\.available/, "must set _gpuAvailable from the NVML sample's available flag (NVIDIA path)");
-    assert.match(SOURCE, /sysfsUsageValid\s*=\s*true/, "must set sysfsUsageValid when AMD sysfs busy read succeeds (liveness gate for _gpuAvailable)");
-    assert.match(SOURCE, /_gpuAvailable\s*=\s*nvml\.available\s*\|\|\s*sysfsUsageValid/, "must derive _gpuAvailable from liveness (sysfsUsageValid), not path non-emptiness");
+    // _gpuAvailable / _gpuTempAvailable: liveness model lives in GpuSampler;
+    // MetricsBackend reads the results via gpuSampler.available / .tempAvailable.
+    assert.match(GPU_SOURCE, /_gpuAvailable\s*=\s*nvml\.available/, "GpuSampler must set _gpuAvailable from the NVML sample's available flag (NVIDIA path)");
+    assert.match(GPU_SOURCE, /sysfsUsageValid\s*=\s*true/, "GpuSampler must set sysfsUsageValid when AMD sysfs busy read succeeds (liveness gate for _gpuAvailable)");
+    assert.match(GPU_SOURCE, /_gpuAvailable\s*=\s*nvml\.available\s*\|\|\s*sysfsUsageValid/, "GpuSampler must derive _gpuAvailable from liveness (sysfsUsageValid), not path non-emptiness");
     assert.match(SOURCE, /"cpuTemp":\s*backend\._cpuTempPath\s*!==\s*""/, 'availableMetrics map must gate "cpuTemp" on _cpuTempPath resolving');
     assert.match(SOURCE, /"swap":\s*backend\._swapAvailable/, 'availableMetrics map must gate "swap" on _swapAvailable');
-    assert.match(SOURCE, /"gpu":\s*backend\._gpuAvailable/, 'availableMetrics map must gate "gpu" on _gpuAvailable');
-    // gpuTemp now gates on _gpuTempAvailable (not _gpuAvailable) so Intel temp-only shows.
-    assert.match(SOURCE, /"gpuTemp":\s*backend\._gpuTempAvailable\s*&&\s*isFinite\(\s*backend\._gpuTempC\s*\)/, 'availableMetrics map must gate "gpuTemp" on _gpuTempAvailable AND a finite _gpuTempC');
+    assert.match(SOURCE, /"gpu":\s*gpuSampler\.available/, 'availableMetrics map must gate "gpu" on gpuSampler.available (forwarded from GpuSampler)');
+    // gpuTemp gates on gpuSampler.tempAvailable so Intel temp-only shows.
+    assert.match(SOURCE, /"gpuTemp":\s*gpuSampler\.tempAvailable\s*&&\s*isFinite\(\s*gpuSampler\.tempC\s*\)/, 'availableMetrics map must gate "gpuTemp" on gpuSampler.tempAvailable AND a finite gpuSampler.tempC');
 });
 
 test("standalone availableMetrics binding does not depend on _tick (no per-poll churn)", () => {
@@ -261,36 +276,39 @@ test("standalone MetricsBackend exposes removablePartitions + mountedPartitionId
     assert.match(SOURCE, /DiskMetrics\.isRemovableMount\s*\(/, "removablePartitions must classify mounts via DiskMetrics.isRemovableMount");
 });
 
-test("standalone MetricsBackend wires AMD/Intel GPU via GpuDiscovery sysfs", () => {
+test("GpuSampler wires AMD/Intel GPU via GpuDiscovery sysfs", () => {
     // AMD: gpu_busy_percent (usage) + hwmon temp. Intel: hwmon temp only
     // (i915-perf usage deferred — elevated perms). Discovery deferred to
     // the first non-NVIDIA tick via _resolveGpuPaths() with the same
-    // bounded-retry pattern as CPU temp.
-    assert.match(SOURCE, /import\s+["']GpuDiscovery\.js["']\s+as\s+GpuDisc/, "must import GpuDiscovery.js");
-    assert.match(SOURCE, /GpuDisc\.discoverGpu\s*\(/, "must call GpuDisc.discoverGpu to resolve AMD/Intel sysfs paths");
-    assert.match(SOURCE, /function\s+_resolveGpuPaths\s*\(/, "must declare _resolveGpuPaths() to wire the sysfs paths on startup");
-    assert.match(SOURCE, /property\s+string\s+_gpuBusyPath/, "must declare _gpuBusyPath for the gpu_busy_percent sysfs file");
-    assert.match(SOURCE, /property\s+string\s+_gpuTempPath/, "must declare _gpuTempPath for the hwmon temp sysfs file");
-    assert.match(SOURCE, /property\s+string\s+_gpuVendor/, "must declare _gpuVendor (diagnostic: 'amd'|'intel'|'')");
+    // bounded-retry pattern as CPU temp. This logic lives in GpuSampler,
+    // extracted from MetricsBackend when the 500-line cap was reached.
+    assert.match(GPU_SOURCE, /import\s+["']GpuDiscovery\.js["']\s+as\s+GpuDisc/, "GpuSampler must import GpuDiscovery.js");
+    assert.match(GPU_SOURCE, /GpuDisc\.discoverGpu\s*\(/, "GpuSampler must call GpuDisc.discoverGpu to resolve AMD/Intel sysfs paths");
+    assert.match(GPU_SOURCE, /function\s+_resolveGpuPaths\s*\(/, "GpuSampler must declare _resolveGpuPaths() to wire the sysfs paths on startup");
+    assert.match(GPU_SOURCE, /property\s+string\s+_gpuBusyPath/, "GpuSampler must declare _gpuBusyPath for the gpu_busy_percent sysfs file");
+    assert.match(GPU_SOURCE, /property\s+string\s+_gpuTempPath/, "GpuSampler must declare _gpuTempPath for the hwmon temp sysfs file");
+    assert.match(GPU_SOURCE, /property\s+string\s+_gpuVendor/, "GpuSampler must declare _gpuVendor (diagnostic: 'amd'|'intel'|'')");
     // Sysfs reads happen only after the path is resolved and non-empty.
-    assert.match(SOURCE, /backend\._gpuBusyPath[\s\S]{0,200}reader\.read\(\s*backend\._gpuBusyPath\s*\)/, "must read gpu_busy_percent when _gpuBusyPath is set");
-    assert.match(SOURCE, /backend\._gpuTempPath[\s\S]{0,200}reader\.read\(\s*backend\._gpuTempPath\s*\)/, "must read the hwmon temp file when _gpuTempPath is set");
-    assert.match(SOURCE, /GpuDisc\.parseTempCelsius\s*\(/, "must parse the sysfs temp via GpuDisc.parseTempCelsius (millidegrees → °C)");
+    assert.match(GPU_SOURCE, /gpuSampler\._gpuBusyPath[\s\S]{0,200}gpuSampler\.reader\.read\(\s*gpuSampler\._gpuBusyPath\s*\)/, "GpuSampler must read gpu_busy_percent when _gpuBusyPath is set");
+    assert.match(GPU_SOURCE, /gpuSampler\._gpuTempPath[\s\S]{0,200}gpuSampler\.reader\.read\(\s*gpuSampler\._gpuTempPath\s*\)/, "GpuSampler must read the hwmon temp file when _gpuTempPath is set");
+    assert.match(GPU_SOURCE, /GpuDisc\.parseTempCelsius\s*\(/, "GpuSampler must parse the sysfs temp via GpuDisc.parseTempCelsius (millidegrees → °C)");
     // _gpuTempAvailable: liveness model — derived from this tick's sysfs read success.
     // Fixes: Intel temp-only host shows gpuTemp ring without spurious usage ring.
     // Fixes: AMD eGPU hot-unplug — ring must disappear, not freeze at last-good value.
-    assert.match(SOURCE, /property\s+bool\s+_gpuTempAvailable/, "must declare _gpuTempAvailable for the gpuTemp availability gate");
-    assert.match(SOURCE, /sysfsTempValid\s*=\s*true/, "must set sysfsTempValid when AMD/Intel sysfs temp read succeeds (liveness gate for _gpuTempAvailable)");
-    assert.match(SOURCE, /_gpuTempAvailable\s*=\s*nvml\.available\s*\|\|\s*sysfsTempValid/, "must derive _gpuTempAvailable from liveness (sysfsTempValid), not path non-emptiness");
+    assert.match(GPU_SOURCE, /property\s+bool\s+_gpuTempAvailable/, "GpuSampler must declare _gpuTempAvailable for the gpuTemp availability gate");
+    assert.match(GPU_SOURCE, /sysfsTempValid\s*=\s*true/, "GpuSampler must set sysfsTempValid when AMD/Intel sysfs temp read succeeds (liveness gate for _gpuTempAvailable)");
+    assert.match(GPU_SOURCE, /_gpuTempAvailable\s*=\s*nvml\.available\s*\|\|\s*sysfsTempValid/, "GpuSampler must derive _gpuTempAvailable from liveness (sysfsTempValid), not path non-emptiness");
     // Resolve loop: runs only when NVML is unavailable; retries while a STILL-EXPECTED
     // path is empty so a late-loaded hwmon is picked up after the other path resolved.
     // Fixes (#83): && closed the gate the moment one path landed (AMD gpu_busy_percent
     // present at boot but amdgpu hwmon settling seconds later → temp ring lost all session).
     // #106: temp-only vendors (Intel/nouveau) have no busy path, so the busy-path term is
     // gated on needBusyPath — otherwise the gate would re-walk /sys every tick forever.
-    assert.match(SOURCE, /needBusyPath\s*&&\s*!backend\._gpuBusyPath\)\s*\|\|\s*!backend\._gpuTempPath/, "resolve gate retries while a still-expected path is empty; busy path required only for vendors that have one (#83/#106)");
-    assert.match(SOURCE, /if\s*\(\s*!nvml\.available\s*\)/, "the sysfs resolve+read branch must be gated on !nvml.available");
-    assert.match(SOURCE, /gpuPathsIncomplete\s*&&\s*backend\._gpuResolveAttempts\s*<\s*backend\._gpuMaxResolveAttempts/, "resolve gate must be bounded by the attempt cap");
+    assert.match(GPU_SOURCE, /needBusyPath\s*&&\s*!gpuSampler\._gpuBusyPath\)\s*\|\|\s*!gpuSampler\._gpuTempPath/, "GpuSampler resolve gate retries while a still-expected path is empty; busy path required only for vendors that have one (#83/#106)");
+    assert.match(GPU_SOURCE, /if\s*\(\s*!nvml\.available\s*\)/, "GpuSampler sysfs resolve+read branch must be gated on !nvml.available");
+    assert.match(GPU_SOURCE, /gpuPathsIncomplete\s*&&\s*gpuSampler\._gpuResolveAttempts\s*<\s*gpuSampler\._gpuMaxResolveAttempts/, "GpuSampler resolve gate must be bounded by the attempt cap");
+    // AMD detail paths — AMD power is in microwatts on amdgpu, divided by 1e6.
+    assert.match(GPU_SOURCE, /\/\s*1e6/, "GpuSampler must divide AMD power1_input (microwatts) by 1e6 to get watts");
 });
 
 test("standalone MetricsBackend polls on a Timer", () => {

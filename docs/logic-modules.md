@@ -391,10 +391,11 @@ entry.
 
 | Function | Purpose |
 |---|---|
-| `discoverGpu(listDir, read)` | Main entry. Returns `{ vendor, busyPath, tempPath }` for the first AMD or Intel DRM card (lowest card number wins), or `null` when none exists. `vendor` is `"amd"` or `"intel"`; `busyPath` is the `gpu_busy_percent` sysfs file or `null` (Intel, or AMD on older kernels); `tempPath` is `device/hwmon/hwmonN/temp1_input` or `null`. |
+| `discoverGpu(listDir, read)` | Main entry. Returns `{ vendor, busyPath, tempPath }` for the first AMD or Intel DRM card (lowest card number wins), or `null` when none exists. `vendor` is `"amd"` or `"intel"`; `busyPath` is the `gpu_busy_percent` sysfs file or `null` (Intel, or AMD on older kernels); `tempPath` is `device/hwmon/hwmonN/temp1_input` or `null`. The AMD branch additionally sets, **when the node exists** (key omitted otherwise — graceful degrade for the GPU tooltip, issue #71): `vramUsedPath` / `vramTotalPath` (`device/mem_info_vram_{used,total}`, bytes) and `powerPath` (`device/hwmon/hwmonN/power1_input`, **microwatts** — the consumer divides by 1e6 for watts). |
 | `parseTempCelsius(raw)` | Millidegrees-C sysfs reading → °C. Same formula as `CpuTempDiscovery.parseTempCelsius`; duplicated here to keep `GpuDiscovery.js` self-contained without a cross-module import. |
 | `_sortedDrmCards(entries)` | Filter a `listDir("/sys/class/drm")` result to `card\d+` entries, sorted numerically (card0 < card1) for a stable pick across boots. |
-| `_drmHwmonTempPath(hwmonBase, listDir)` | Walk a card's `device/hwmon/` directory and return the `temp1_input` path inside the first `hwmonN` found, or `null`. |
+| `_drmHwmonDir(hwmonBase, listDir)` | Walk a card's `device/hwmon/` directory and return the first `hwmonN` directory path, or `null`. Shared by `tempPath` (`/temp1_input`) and the AMD `powerPath` (`/power1_input`). |
+| `_drmHwmonTempPath(hwmonBase, listDir)` | Thin wrapper over `_drmHwmonDir` returning `<dir>/temp1_input` (or `null`). |
 
 Covered by `tests/gpu-discovery.test.mjs` (AMD with/without `gpu_busy_percent`,
 Intel temp-only, NVIDIA excluded, card-order stability, NVIDIA+AMD mixed

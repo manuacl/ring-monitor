@@ -252,3 +252,53 @@ test("MetricsBackend forwards the RAM tooltip surface from ProcessSampler (#70)"
     assert.match(SOURCE, /memUsedKb\s*:\s*processSampler\.memUsedKb/, "memUsedKb must forward the sampler's value as a reactive property");
     assert.match(SOURCE, /memTotalKb\s*:\s*processSampler\.memTotalKb/, "memTotalKb must forward the sampler's value as a reactive property");
 });
+
+// ── GPU tooltip detail (issue #71) ──────────────────────────────────
+
+const GPU_DETAIL_SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms", "plasma", "GpuDetailSensors.qml"), "utf8");
+
+test("MetricsBackend declares gpuDetailSamplingActive gate and gpuDetail function (#71)", () => {
+    // gpuDetailSamplingActive gates the GpuDetailSensors subscription — the
+    // daemon must not push detail leaves when no tooltip is shown.
+    assert.match(SOURCE, /property\s+bool\s+gpuDetailSamplingActive\s*:/, "must declare property bool gpuDetailSamplingActive");
+    assert.match(SOURCE, /function\s+gpuDetail\s*\(/, "must declare function gpuDetail()");
+});
+
+test("MetricsBackend instantiates GpuDetailSensors and wires gpuDeviceIds + active gate (#71)", () => {
+    assert.match(SOURCE, /GpuDetailSensors\s*{/, "must instantiate the GpuDetailSensors child");
+    assert.match(SOURCE, /gpuDeviceIds:\s*backend\._gpuDeviceIds/, "GpuDetailSensors.gpuDeviceIds must be driven by backend._gpuDeviceIds");
+    assert.match(SOURCE, /active:\s*backend\.gpuDetailSamplingActive/, "GpuDetailSensors.active must be the gpuDetailSamplingActive gate");
+});
+
+test("MetricsBackend assigns _gpuDeviceIds from classifyDiscoveredIds in _refreshDiscovery (#71)", () => {
+    assert.match(SOURCE, /property\s+var\s+_gpuDeviceIds\s*:/, "must declare property var _gpuDeviceIds");
+    assert.match(SOURCE, /_gpuDeviceIds\s*=\s*classified\.gpuDeviceIds/, "_refreshDiscovery must update _gpuDeviceIds from the classified bucket");
+});
+
+test("GpuDetailSensors subscribes the aggregate VRAM sensors and gates them with active (#71)", () => {
+    assert.match(GPU_DETAIL_SOURCE, /"gpu\/all\/usedVram"/, "must subscribe gpu/all/usedVram");
+    assert.match(GPU_DETAIL_SOURCE, /"gpu\/all\/totalVram"/, "must subscribe gpu/all/totalVram");
+    // Both must be gated: the daemon must not push detail leaves in the background.
+    const enabledCount = (GPU_DETAIL_SOURCE.match(/enabled:\s*gpuDetail\.active/g) || []).length;
+    assert.ok(enabledCount >= 2, `at least 2 sensors must carry enabled: gpuDetail.active (found ${enabledCount})`);
+});
+
+test("GpuDetailSensors builds per-device name/power/coreFrequency sensorIds from the Instantiator (#71)", () => {
+    assert.match(GPU_DETAIL_SOURCE, /Instantiator\s*{[\s\S]*?id:\s*deviceInst/, "must declare Instantiator { id: deviceInst }");
+    assert.match(GPU_DETAIL_SOURCE, /sensorId:\s*modelData\s*\+\s*["']\/name["']/, "must build name sensorId from modelData");
+    assert.match(GPU_DETAIL_SOURCE, /sensorId:\s*modelData\s*\+\s*["']\/power["']/, "must build power sensorId from modelData");
+    assert.match(GPU_DETAIL_SOURCE, /sensorId:\s*modelData\s*\+\s*["']\/coreFrequency["']/, "must build coreFrequency sensorId from modelData");
+});
+
+test("GpuDetailSensors uses _tick to drive reactive re-evaluation (#71)", () => {
+    assert.match(GPU_DETAIL_SOURCE, /property\s+int\s+_tick\s*:/, "must declare property int _tick");
+    assert.match(GPU_DETAIL_SOURCE, /onValueChanged:\s*gpuDetail\._tick\+\+/, "sensors must bump _tick onValueChanged");
+    assert.match(GPU_DETAIL_SOURCE, /onObjectAdded:\s*gpuDetail\._tick\+\+/, "Instantiator must bump _tick onObjectAdded");
+    assert.match(GPU_DETAIL_SOURCE, /onObjectRemoved:\s*gpuDetail\._tick\+\+/, "Instantiator must bump _tick onObjectRemoved");
+});
+
+test("GpuDetailSensors gpuExtra() reads _tick as a reactive dependency (#71)", () => {
+    // Reading _tick as the first line makes the function's result a tracked
+    // dependency in any QML binding that calls it.
+    assert.match(GPU_DETAIL_SOURCE, /function\s+gpuExtra\s*\(\s*\)\s*{[\s\S]{0,50}gpuDetail\._tick/, "gpuExtra() must read _tick as its first reactive dependency");
+});

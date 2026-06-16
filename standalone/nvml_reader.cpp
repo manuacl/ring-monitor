@@ -21,12 +21,24 @@ struct nvmlUtilization_t {
 
 constexpr int kNvmlSuccess = 0;
 constexpr int kNvmlTemperatureGpu = 0;  // nvmlTemperatureSensors_t
+constexpr int kNvmlClockSm = 1;         // nvmlClockType_t: GRAPHICS=0, SM=1, MEM=2
 
 typedef nvmlReturn_t (*fn_init_t)(void);                                  // nvmlInit_v2
 typedef nvmlReturn_t (*fn_shutdown_t)(void);                             // nvmlShutdown
 typedef nvmlReturn_t (*fn_handle_t)(unsigned int, nvmlDevice_t *);       // nvmlDeviceGetHandleByIndex_v2
 typedef nvmlReturn_t (*fn_util_t)(nvmlDevice_t, nvmlUtilization_t *);    // nvmlDeviceGetUtilizationRates
 typedef nvmlReturn_t (*fn_temp_t)(nvmlDevice_t, int, unsigned int *);    // nvmlDeviceGetTemperature
+
+// Detail-mode types — stable NVML ABI, same subset nvtop/conky self-declare.
+struct nvmlMemory_t {            // nvmlDeviceGetMemoryInfo (v1)
+    unsigned long long total;
+    unsigned long long free;
+    unsigned long long used;
+};
+typedef nvmlReturn_t (*fn_mem_t)(nvmlDevice_t, nvmlMemory_t *);           // nvmlDeviceGetMemoryInfo
+typedef nvmlReturn_t (*fn_power_t)(nvmlDevice_t, unsigned int *);         // nvmlDeviceGetPowerUsage (milliwatts)
+typedef nvmlReturn_t (*fn_clock_t)(nvmlDevice_t, int, unsigned int *);    // nvmlDeviceGetClockInfo (MHz)
+typedef nvmlReturn_t (*fn_name_t)(nvmlDevice_t, char *, unsigned int);    // nvmlDeviceGetName
 
 } // namespace
 
@@ -60,6 +72,14 @@ bool NvmlReader::ensureInit()
     _fnGetUtil = dlsym(_lib, "nvmlDeviceGetUtilizationRates");
     _fnGetTemp = dlsym(_lib, "nvmlDeviceGetTemperature");
 
+    // Detail-mode symbols — non-fatal if absent on older drivers. The
+    // required-symbol guard below stays limited to init/handle/util/temp;
+    // a driver that lacks e.g. GetPowerUsage still serves usage + temp.
+    _fnGetMem   = dlsym(_lib, "nvmlDeviceGetMemoryInfo");
+    _fnGetPower = dlsym(_lib, "nvmlDeviceGetPowerUsage");
+    _fnGetClock = dlsym(_lib, "nvmlDeviceGetClockInfo");
+    _fnGetName  = dlsym(_lib, "nvmlDeviceGetName");
+
     if (!init || !handle || !_fnGetUtil || !_fnGetTemp) {
         if (lastAttempt)
             qWarning() << "NvmlReader: required NVML symbols missing — GPU metrics unavailable";
@@ -92,7 +112,7 @@ bool NvmlReader::ensureInit()
     return true;
 }
 
-QVariantMap NvmlReader::sample()
+QVariantMap NvmlReader::sample(bool detailed)
 {
     QVariantMap out{
         { QStringLiteral("available"), false },
@@ -114,6 +134,38 @@ QVariantMap NvmlReader::sample()
     unsigned int temp = 0;
     if (reinterpret_cast<fn_temp_t>(_fnGetTemp)(_device, kNvmlTemperatureGpu, &temp) == kNvmlSuccess)
         out[QStringLiteral("tempC")] = static_cast<int>(temp);
+
+    if (detailed) {
+        // Same omit-on-failure discipline: each key appears only when its
+        // query succeeds. An older driver missing one of these entry points
+        // is handled by the _fnGetXxx null-check before cast+call.
+        if (_fnGetName) {
+            char buf[96] = {};
+            if (reinterpret_cast<fn_name_t>(_fnGetName)(_device, buf, sizeof(buf)) == kNvmlSuccess)
+                out[QStringLiteral("model")] = QString::fromUtf8(buf);
+        }
+
+        if (_fnGetMem) {
+            nvmlMemory_t mem{ 0, 0, 0 };
+            if (reinterpret_cast<fn_mem_t>(_fnGetMem)(_device, &mem) == kNvmlSuccess) {
+                out[QStringLiteral("vramUsedBytes")]  = static_cast<qulonglong>(mem.used);
+                out[QStringLiteral("vramTotalBytes")] = static_cast<qulonglong>(mem.total);
+            }
+        }
+
+        if (_fnGetPower) {
+            unsigned int mw = 0;
+            // NVML reports power in milliwatts; divide by 1000 for watts.
+            if (reinterpret_cast<fn_power_t>(_fnGetPower)(_device, &mw) == kNvmlSuccess)
+                out[QStringLiteral("powerW")] = mw / 1000.0;
+        }
+
+        if (_fnGetClock) {
+            unsigned int mhz = 0;
+            if (reinterpret_cast<fn_clock_t>(_fnGetClock)(_device, kNvmlClockSm, &mhz) == kNvmlSuccess)
+                out[QStringLiteral("clockMhz")] = static_cast<int>(mhz);
+        }
+    }
 
     return out;
 }

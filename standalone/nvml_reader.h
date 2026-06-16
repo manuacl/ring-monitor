@@ -43,19 +43,25 @@ public:
 
     // One GPU sample for device 0. Returns:
     //   { "available": bool, "usage": int (0-100 %), "tempC": int (°C) }
+    // When detailed == true, also returns (each only on query success):
+    //   "model"          QString  GPU product name (e.g. "NVIDIA GeForce RTX 4090")
+    //   "vramUsedBytes"  qulonglong  bytes currently allocated on the GPU
+    //   "vramTotalBytes" qulonglong  total framebuffer capacity in bytes
+    //   "powerW"         double   power draw in watts (NVML gives milliwatts)
+    //   "clockMhz"       int      SM (shader) clock in MHz
     // `available` is false when NVML can't be loaded or initialised (no
     // NVIDIA driver / library) — callers treat that like a sensor that
-    // isn't present. When available, `usage` / `tempC` are present only
-    // for the fields whose NVML query succeeded this tick: a transient
-    // per-field failure OMITS that key (rather than reporting 0), so the
-    // caller keeps its last-good value instead of glitching to 0.
+    // isn't present. When available, fields are present only for the
+    // queries that succeeded this tick: a transient per-field failure
+    // OMITS that key so the caller keeps its last-good value instead of
+    // glitching to 0.
     // NVML is lazily initialised (one-time ~150ms driver handshake) and
     // the device handle is cached; subsequent calls are microsecond-cheap,
     // safe to invoke from the GUI thread each tick. The first-call
     // handshake is a one-time GUI-thread stall during warm-up — accepted
     // deliberately over the lifetime/sync complexity of an off-thread init
     // for a single ~150ms hitch that overlaps the startup sweep.
-    Q_INVOKABLE QVariantMap sample();
+    Q_INVOKABLE QVariantMap sample(bool detailed = false);
 
 private:
     bool ensureInit();   // dlopen + dlsym + nvmlInit; returns _ready
@@ -76,4 +82,11 @@ private:
     void *_fnShutdown = nullptr;
     void *_fnGetUtil = nullptr;
     void *_fnGetTemp = nullptr;
+    // Detail-mode entry points — optional. Older drivers may lack some;
+    // ensureInit() resolves them best-effort and leaves them null if absent.
+    // sample(detailed=true) guards each with `if (_fnGetXxx)` before calling.
+    void *_fnGetMem = nullptr;
+    void *_fnGetPower = nullptr;
+    void *_fnGetClock = nullptr;
+    void *_fnGetName = nullptr;
 };

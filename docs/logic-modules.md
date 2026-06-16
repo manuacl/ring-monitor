@@ -484,6 +484,39 @@ figures are illustrative. btrfs (no classic reservation) shows no gap.
 
 Covered by `tests/disk-tooltip-model.test.mjs`.
 
+## `GpuTooltipModel.js`
+
+Shared (`core/`) presentational logic for the GPU-ring **hover tooltip**
+(issue #71). Same shape as `DiskTooltipModel`: both platform backends expose
+one per-device detail object and the view (`GpuTooltip.qml`) stays thin,
+iterating `buildStatRows()`'s output and rendering strings. All formatting +
+composition lives here so it's tested once.
+
+The `gpuDetail` contract each backend satisfies (one object):
+`{ model, usagePercent, vramUsedBytes, vramTotalBytes, tempC, powerW,
+clockMhz }`. **Every field may be absent** (undefined/NaN) — GPU telemetry is
+host-dependent, so NVIDIA (NVML) supplies all fields while AMD supplies some
+and Intel few. `buildStatRows()` skips any row whose source is absent, so the
+tooltip degrades gracefully per host rather than showing fake zeros. VRAM size
+follows the IEC binary convention (same `formatVram` idiom as
+`DiskTooltipModel.formatSize`), distinct from the SI rate units of
+`DiskIoScale`.
+
+| Function | Purpose |
+|---|---|
+| `formatVram(bytes)` | IEC binary size string (`8.0 GiB`, `24 GiB`, `512 MiB`) — one decimal below 10, integer above, rounding-boundary promotion. NaN / negative → `0 B`. |
+| `formatPower(watts)` | `42.5 W` below 100, `115 W` at/above (one decimal only where legible). `""` when the sensor is absent / non-finite, so the row is skipped. |
+| `formatClock(mhz)` | `1815 MHz` (integer). `""` when absent. |
+| `formatPercent(value)` | `73%` — rounded integer, negative clamped to 0. Used for engine utilisation. |
+| `composeVram(usedBytes, totalBytes)` | `6.2 GiB / 24 GiB · 26%` when `totalBytes > 0`; `""` when total is unknown (so the line hides rather than show `0 B / 0 B`). |
+| `buildStatRows(detail)` | Ordered view model `[{ label, value }]` — Model, Usage, VRAM, Temperature, Power, Clock — **omitting any line whose source field is absent**. A full-NVIDIA host shows all six; an Intel host may show only Model/Usage/Temperature. |
+| `rankProcesses(records, limit)` | Sort `[{ pid, name, vramBytes }]` by `vramBytes` descending, tiebreak `pid` ascending, cap to `limit` (default `DEFAULT_LIMIT = 20`). Absent `vramBytes` ranks as 0 (kept, not dropped). Non-array → `[]`. |
+| `formatProcessVram(bytes)` | Alias of `formatVram` (same unit family) for the process VRAM column. |
+
+Covered by `tests/gpu-tooltip-model.test.mjs`. No backend or view consumes it
+yet — PR1 of the #71 sequence lands the tested contract; the platform backends
+(VRAM/power/clock/model + NVIDIA processes) and `GpuTooltip.qml` view follow.
+
 ## `WindowPlacement.js`
 
 Standalone-only placement math for the root window (in

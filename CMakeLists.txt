@@ -157,6 +157,7 @@ qt_add_qml_module(ring-monitor-standalone
         contents/ui/core/DiskMetrics.js
         contents/ui/core/DiskIoScale.js
         contents/ui/core/DiskTooltipModel.js
+        contents/ui/core/GpuTooltipModel.js
         contents/ui/core/UpdateCheck.js
         contents/ui/core/ProcessRanking.js
         contents/ui/core/TooltipBehavior.qml

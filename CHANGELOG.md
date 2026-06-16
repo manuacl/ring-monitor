@@ -12,6 +12,10 @@ user-facing only.
 
 ## [Unreleased]
 
+### Technical
+
+- feat(core): add `GpuTooltipModel.js` — pure presentational logic for the GPU-ring hover tooltip (issue #71, PR1 of the sequence). Documents the shared `gpuDetail` contract (`model`, `usagePercent`, `vramUsedBytes`, `vramTotalBytes`, `tempC`, `powerW`, `clockMhz` — every field may be absent so the tooltip degrades per host) and exposes `formatVram` (IEC binary, mirrors `DiskTooltipModel.formatSize`), `formatPower`, `formatClock`, `formatPercent`, `composeVram`, `buildStatRows` (ordered rows, skips absent sensors), `rankProcesses` (by per-process VRAM, pid tiebreak) and `formatProcessVram`. No backend or view wired yet. Covered by `tests/gpu-tooltip-model.test.mjs` (43 cases); registered in `CMakeLists.txt` for the standalone build.
+
 ### Other
 
 - docs(core): correct the X11/XWayland tooltip first-show flash diagnosis (#148). Live testing disproved the pointer-grab premise — the transparent-for-input flag is already set pre-map and `exposed` never oscillates; the real cause is a `Window`-popup map-then-resize (maps at pre-layout size, then grows to the laid-out content one frame later, which Wayland hides via atomic commit and X11/XWayland shows). The proposed C++ pre-map flag fix was implemented, tested, and disproven (input transparency can't fix a layout-timing resize). Closed wontfix; `core/CLAUDE.md` note updated.

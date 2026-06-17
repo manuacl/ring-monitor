@@ -73,8 +73,13 @@ for which `Array.isArray()` is `false` and Array methods (`.map`…) are
 not guaranteed. Node tests pass real Arrays, so an `Array.isArray`
 guard passes every unit test and still returns the fallback on every
 live QML call (live bug in #142's `pickScreen`: the screen pin
-silently never applied). Add an array-like-object case to the
-module's tests to pin the guard.
+silently never applied). A C++ `Q_INVOKABLE` returning `QVariantList`
+(e.g. `NvmlReader.runningProcesses()`) is the **same trap**: it reaches
+QML array-*like*, `Array.isArray()` is `false`, and an `Array.isArray`
+guard in a dual-loaded `.js` module drops every element on the live call
+while Node unit tests (real Arrays) stay green — #71 had
+`GpuTooltipModel.dedupeByPid` turn 22 GPU processes into 0. Add an
+array-like-object case to the module's tests to pin the guard.
 
 ## Component-side gotchas
 

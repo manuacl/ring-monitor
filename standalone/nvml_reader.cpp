@@ -198,35 +198,39 @@ QVariantList NvmlReader::runningProcesses()
 
     QVariantList result;
 
-    // Two-pass protocol for each context type (compute, then graphics):
-    //   Pass 1: call with a null buffer to query the current count.
-    //   Pass 2: allocate exactly that many slots and fill them.
-    // NVML returns kNvmlErrorInsufficientSize (7) on pass 1 when count > 0
-    // and kNvmlSuccess when count == 0 (no processes, buffer not needed).
-    // A cap of kMaxProcesses guards against a pathological count value from
-    // a misbehaving or future driver.
+    // Buffer-based enumeration for each context type (compute, then graphics),
+    // the idiom NVML's own samples + nvtop/btop use. Pass a PRE-SIZED buffer
+    // with count == its capacity; NVML fills it and writes back the actual
+    // number. We deliberately do NOT probe with a null buffer first: that
+    // count-then-fill protocol is fragile across drivers — some branches
+    // reject infos==nullptr with NVML_ERROR_INVALID_ARGUMENT, and others
+    // answer the zero-count probe with NVML_SUCCESS+count instead of
+    // NVML_ERROR_INSUFFICIENT_SIZE; both made the old code skip the device and
+    // report no processes (a live RTX 2070 / driver 610 returned an empty list
+    // for every desktop graphics process). If the initial buffer is too small,
+    // NVML returns INSUFFICIENT_SIZE with count set to the needed size — grow
+    // once (capped) and refill.
+    constexpr unsigned int kInitialSlots = 256;  // covers any real desktop; grows if NVML asks
     void *fns[2] = { _fnComputeProcs, _fnGraphicsProcs };
     for (void *fnPtr : fns) {
         if (!fnPtr)
             continue;
         auto fn = reinterpret_cast<fn_procs_t>(fnPtr);
 
-        unsigned int count = 0;
-        const nvmlReturn_t probe = fn(_device, &count, nullptr);
-
-        if (probe == kNvmlSuccess && count == 0)
-            continue;   // no processes in this context type
-
-        if (probe != kNvmlErrorInsufficientSize || count == 0)
-            continue;   // unexpected return — skip gracefully, never crash
-
-        if (count > kMaxProcesses)
-            count = kMaxProcesses;
-
+        unsigned int count = kInitialSlots;
         std::vector<nvmlProcessInfo_v2_t> buf(count);
-        if (fn(_device, &count, buf.data()) != kNvmlSuccess)
-            continue;
+        nvmlReturn_t rc = fn(_device, &count, buf.data());
+        if (rc == kNvmlErrorInsufficientSize) {
+            if (count > kMaxProcesses)
+                count = kMaxProcesses;
+            buf.resize(count);
+            rc = fn(_device, &count, buf.data());
+        }
+        if (rc != kNvmlSuccess)
+            continue;   // NOT_SUPPORTED / transient — skip gracefully, never crash
 
+        if (count > buf.size())
+            count = buf.size();   // defensive: never read past the buffer
         for (unsigned int i = 0; i < count; ++i) {
             result.append(QVariantMap{
                 { QStringLiteral("pid"),       static_cast<int>(buf[i].pid) },

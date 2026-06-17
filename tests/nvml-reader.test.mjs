@@ -154,11 +154,15 @@ test("NvmlReader self-declares nvmlProcessInfo_v2_t struct", () => {
     assert.match(SRC, /fn_procs_t/, "must declare fn_procs_t typedef");
 });
 
-test("NvmlReader runningProcesses uses two-pass count-then-fill protocol", () => {
-    // Pass 1: query count with null buffer; pass 2: fill a sized vector.
-    // The guard on kNvmlErrorInsufficientSize is what distinguishes
-    // "zero processes" from "processes exist, need a buffer".
-    assert.match(SRC, /fn\s*\(\s*_device\s*,\s*&count\s*,\s*nullptr\s*\)/, "must make probe call with null buffer");
-    assert.match(SRC, /kNvmlErrorInsufficientSize/, "must check kNvmlErrorInsufficientSize on probe result");
-    assert.match(SRC, /std::vector<nvmlProcessInfo_v2_t>/, "must allocate a vector for the fill pass");
+test("NvmlReader runningProcesses uses a pre-sized buffer, never a null probe", () => {
+    // SCENARIO (#71 live): the old count-then-fill protocol probed with a NULL
+    // buffer (count=0). Drivers disagree on that probe — some reject nullptr
+    // with NVML_ERROR_INVALID_ARGUMENT, others answer with NVML_SUCCESS+count
+    // instead of INSUFFICIENT_SIZE — and the code skipped the device either way,
+    // reporting zero GPU processes on a live RTX 2070 / driver 610. The robust
+    // idiom (nvtop/btop) passes a PRE-SIZED buffer and grows once on
+    // INSUFFICIENT_SIZE. Guard that the null-buffer probe is gone for good.
+    assert.doesNotMatch(SRC, /fn\s*\(\s*_device\s*,\s*&count\s*,\s*nullptr\s*\)/, "must NOT probe with a null buffer (driver-dependent rejection)");
+    assert.match(SRC, /std::vector<nvmlProcessInfo_v2_t>\s+buf\s*\(\s*count\s*\)/, "must allocate a pre-sized buffer before the first call");
+    assert.match(SRC, /kNvmlErrorInsufficientSize/, "must still grow + refill on INSUFFICIENT_SIZE");
 });

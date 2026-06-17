@@ -337,6 +337,18 @@ test("rankProcesses: non-array input → empty array", () => {
     assert.deepEqual(M.rankProcesses("not-an-array"), []);
 });
 
+// SCENARIO (#71 live): a C++ QVariantList (NvmlReader.runningProcesses) reaches
+// QML as an array-LIKE object, NOT a true Array — Array.isArray() is false for
+// it. An Array.isArray guard stays green here yet dropped every live process
+// (standalone showed raw=22 → ranked=0). Pin the array-like path: a plain
+// object with numeric .length + indexed entries must be ranked, not dropped.
+test("rankProcesses: array-like (QVariantList) input is processed, not dropped", () => {
+    const arrayLike = { length: 2, 0: { pid: 2, name: "b", vramBytes: GiB }, 1: { pid: 1, name: "a", vramBytes: 2 * GiB } };
+    const out = M.rankProcesses(arrayLike);
+    assert.equal(out.length, 2);
+    assert.deepEqual(out.map(r => r.pid), [1, 2]);   // sorted by vram desc
+});
+
 test("rankProcesses: non-positive limit → empty array", () => {
     assert.deepEqual(M.rankProcesses([{ pid: 1, name: "a", vramBytes: 100 }], 0), []);
     assert.deepEqual(M.rankProcesses([{ pid: 1, name: "a", vramBytes: 100 }], -1), []);
@@ -394,6 +406,17 @@ test("dedupeByPid: non-array input → empty array", () => {
     assert.deepEqual(M.dedupeByPid(undefined), []);
     assert.deepEqual(M.dedupeByPid("not-an-array"), []);
     assert.deepEqual(M.dedupeByPid(42), []);
+});
+
+// SCENARIO (#71 live): the QVariantList from NvmlReader.runningProcesses arrives
+// as an array-LIKE object (numeric .length, indexed), not a true Array. The
+// Array.isArray guard returned [] for it → no GPU processes ever shown. Guard
+// must accept array-likes; index access is all dedupe needs.
+test("dedupeByPid: array-like (QVariantList) input is processed, not dropped", () => {
+    const arrayLike = { length: 2, 0: { pid: 42, name: "a", vramBytes: 100 * MiB }, 1: { pid: 42, name: "a", vramBytes: 300 * MiB } };
+    const out = M.dedupeByPid(arrayLike);
+    assert.equal(out.length, 1);
+    assert.equal(out[0].vramBytes, 300 * MiB);
 });
 
 test("dedupeByPid: skips records with missing or NaN pid", () => {

@@ -190,6 +190,39 @@ function formatProcessVram(bytes) {
     return formatVram(bytes);
 }
 
+// Collapse duplicate pids before rankProcesses: NVML may report a process once
+// per compute context and once per graphics context, producing multiple records
+// with the same pid. Keeps the record with the larger vramBytes; on a tie
+// keeps the first-seen record. Does NOT sort (rankProcesses handles that).
+// Non-array input → []. Records with missing/NaN pid are skipped.
+function dedupeByPid(records) {
+    if (!Array.isArray(records))
+        return [];
+    var seen = {};   // pid (number) → index into out[]
+    var out = [];
+    for (var i = 0; i < records.length; i++) {
+        var r = records[i];
+        if (!r)
+            continue;
+        var pid = Number(r.pid);
+        if (r.pid === undefined || r.pid === null || !isFinite(pid))
+            continue;
+        var vram = Number(r.vramBytes);
+        if (!isFinite(vram) || vram < 0)
+            vram = 0;
+        var name = (r.name === undefined || r.name === null) ? "" : String(r.name);
+        if (!(pid in seen)) {
+            seen[pid] = out.length;
+            out.push({ pid: pid, name: name, vramBytes: vram });
+        } else {
+            var prev = out[seen[pid]];
+            if (vram > prev.vramBytes)
+                out[seen[pid]] = { pid: pid, name: name, vramBytes: vram };
+        }
+    }
+    return out;
+}
+
 if (typeof module !== "undefined" && module.exports) {
     module.exports = {
         DEFAULT_LIMIT: DEFAULT_LIMIT,
@@ -200,6 +233,7 @@ if (typeof module !== "undefined" && module.exports) {
         composeVram: composeVram,
         buildStatRows: buildStatRows,
         rankProcesses: rankProcesses,
-        formatProcessVram: formatProcessVram
+        formatProcessVram: formatProcessVram,
+        dedupeByPid: dedupeByPid
     };
 }

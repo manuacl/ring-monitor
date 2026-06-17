@@ -1,6 +1,8 @@
 import QtQuick
 import RingMonitor.Standalone
 import "GpuDiscovery.js" as GpuDisc
+import "ProcParser.js" as ProcParser
+import "../../core/GpuTooltipModel.js" as GpuModel
 
 // Standalone GPU sampling — extracted from MetricsBackend to keep that file
 // under the 500-line cap. Owns the NVML reader, the AMD/Intel sysfs discovery,
@@ -16,8 +18,9 @@ import "GpuDiscovery.js" as GpuDisc
 //   readonly property real tempC
 //   readonly property bool available
 //   readonly property bool tempAvailable
-//   function sample()      — per-tick GPU work; MetricsBackend's Timer calls it
-//   function gpuDetail()   — tooltip detail snapshot (call only when detailActive)
+//   function sample()         — per-tick GPU work; MetricsBackend's Timer calls it
+//   function gpuDetail()      — tooltip detail snapshot (call only when detailActive)
+//   function gpuProcesses()   — NVIDIA-only top GPU processes for the tooltip; [] on AMD/Intel/Plasma
 
 Item {
     id: gpuSampler
@@ -82,6 +85,8 @@ Item {
     property real _gpuVramTotalBytes: NaN
     property real _gpuPowerW: NaN
     property real _gpuClockMhz: NaN
+    // NVML-sourced process list — populated while detailActive on NVIDIA; [] otherwise.
+    property var _gpuProcesses: []
 
     // ── Path discovery ───────────────────────────────────────────────────
     // Delegate to GpuDiscovery to find the first AMD or Intel DRM card and
@@ -146,6 +151,16 @@ Item {
                     gpuSampler._gpuPowerW = nvml.powerW;
                 if (nvml.clockMhz !== undefined && isFinite(nvml.clockMhz))
                     gpuSampler._gpuClockMhz = nvml.clockMhz;
+                // Enumerate GPU processes via NVML, resolve pid→name from /proc.
+                // dedupeByPid collapses NVML's compute+graphics duplicates first,
+                // reducing the number of /proc reads.
+                var raw = gpuReader.runningProcesses();
+                var deduped = GpuModel.dedupeByPid(raw);
+                for (var idx = 0; idx < deduped.length; idx++) {
+                    var rec = ProcParser.parsePidStat(gpuSampler.reader.read("/proc/" + deduped[idx].pid + "/stat"));
+                    deduped[idx].name = (rec && rec.name) ? rec.name : "";
+                }
+                gpuSampler._gpuProcesses = deduped;
             }
         }
         var sysfsUsageValid = false;
@@ -219,5 +234,10 @@ Item {
             "powerW": isFinite(gpuSampler._gpuPowerW) ? gpuSampler._gpuPowerW : undefined,
             "clockMhz": isFinite(gpuSampler._gpuClockMhz) ? gpuSampler._gpuClockMhz : undefined
         };
+    }
+
+    // NVIDIA-only top GPU processes for the tooltip; [] on AMD/Intel/Plasma.
+    function gpuProcesses() {
+        return gpuSampler._gpuProcesses;
     }
 }

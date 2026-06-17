@@ -365,3 +365,81 @@ test("formatProcessVram: alias for formatVram, same output", () => {
     assert.equal(M.formatProcessVram(0), "0 B");
     assert.equal(M.formatProcessVram(undefined), "0 B");
 });
+
+// ── dedupeByPid ──────────────────────────────────────────────────────
+
+test("dedupeByPid: collapses two entries with the same pid, keeping max vramBytes", () => {
+    const out = M.dedupeByPid([
+        { pid: 42, name: "a", vramBytes: 100 * MiB },
+        { pid: 42, name: "a", vramBytes: 300 * MiB }
+    ]);
+    assert.equal(out.length, 1);
+    assert.equal(out[0].pid, 42);
+    assert.equal(out[0].vramBytes, 300 * MiB);
+});
+
+test("dedupeByPid: keeps distinct pids untouched", () => {
+    const input = [
+        { pid: 1, name: "a", vramBytes: 100 * MiB },
+        { pid: 2, name: "b", vramBytes: 200 * MiB }
+    ];
+    const out = M.dedupeByPid(input);
+    assert.equal(out.length, 2);
+    assert.equal(out[0].pid, 1);
+    assert.equal(out[1].pid, 2);
+});
+
+test("dedupeByPid: non-array input → empty array", () => {
+    assert.deepEqual(M.dedupeByPid(null), []);
+    assert.deepEqual(M.dedupeByPid(undefined), []);
+    assert.deepEqual(M.dedupeByPid("not-an-array"), []);
+    assert.deepEqual(M.dedupeByPid(42), []);
+});
+
+test("dedupeByPid: skips records with missing or NaN pid", () => {
+    const out = M.dedupeByPid([
+        { pid: 1,         name: "good", vramBytes: 100 * MiB },
+        { name: "nopid",  vramBytes: 200 * MiB },
+        { pid: null,      name: "nullpid", vramBytes: 300 * MiB },
+        { pid: NaN,       name: "nanpid",  vramBytes: 400 * MiB }
+    ]);
+    assert.equal(out.length, 1);
+    assert.equal(out[0].pid, 1);
+});
+
+test("dedupeByPid: does not mutate the input array", () => {
+    const input = [
+        { pid: 1, name: "a", vramBytes: 100 * MiB },
+        { pid: 1, name: "a", vramBytes: 200 * MiB }
+    ];
+    const snapshot = JSON.parse(JSON.stringify(input));
+    M.dedupeByPid(input);
+    assert.deepEqual(input, snapshot);
+});
+
+test("dedupeByPid: coerces negative vramBytes to 0", () => {
+    const out = M.dedupeByPid([
+        { pid: 7, name: "a", vramBytes: -500 }
+    ]);
+    assert.equal(out.length, 1);
+    assert.equal(out[0].vramBytes, 0);
+});
+
+test("dedupeByPid: coerces non-finite vramBytes to 0", () => {
+    const out = M.dedupeByPid([
+        { pid: 7, name: "a", vramBytes: Infinity },
+        { pid: 8, name: "b", vramBytes: NaN }
+    ]);
+    assert.equal(out.length, 2);
+    assert.equal(out[0].vramBytes, 0);
+    assert.equal(out[1].vramBytes, 0);
+});
+
+test("dedupeByPid: tie on vramBytes keeps first-seen record (distinguishable by name)", () => {
+    const out = M.dedupeByPid([
+        { pid: 5, name: "first",  vramBytes: GiB },
+        { pid: 5, name: "second", vramBytes: GiB }
+    ]);
+    assert.equal(out.length, 1);
+    assert.equal(out[0].name, "first");
+});

@@ -1158,6 +1158,7 @@ directly through ksysguard `Sensors.Sensor` instances.
 | `tempAvailable` (readonly bool) | True when this tick's temp read succeeded — covers NVML, AMD hwmon, Intel hwmon, nouveau hwmon |
 | `sample()` | Per-tick GPU work; MetricsBackend's 500 ms Timer calls it. Passes `detailActive` to `NvmlReader.sample()` so NVML only returns extended fields when armed |
 | `gpuDetail()` | Returns last-good detail snapshot: `{model, usagePercent, vramUsedBytes, vramTotalBytes, tempC, powerW, clockMhz}` — each field is `undefined` when no source was found or all reads failed; never coerces NaN to 0 (MetricsBackend's `_coerceTemp` handles that for the ring surface) |
+| `gpuProcesses()` | Returns last-good NVIDIA top-GPU-processes snapshot: `[{pid, name, vramBytes}]` sorted by VRAM descending (up to 20 entries). NVIDIA only; AMD/Intel sysfs → `[]`; empty until NVML reads succeed and `detailActive` is true. Calls C++ `NvmlReader::runningProcesses()` (non-fatal NVML v2 symbols; requires driver ≥ R460) via `dedupeByPid` to collapse per-process compute + graphics duplicates, resolves pid→name from `/proc/<pid>/stat`. |
 
 **Always-on path** (identical semantics to the old MetricsBackend inline block):
 NVML (`NvmlReader.sample(detailActive)`) runs first; if `nvml.available` is
@@ -1173,7 +1174,9 @@ keys (`model`, `vramUsedBytes`, `vramTotalBytes`, `powerW`, `clockMhz`) are
 read from `nvml.*`; AMD sysfs reads `mem_info_vram_used` / `mem_info_vram_total`
 (bytes) and `power1_input` (microwatts → divided by 1e6 for watts). All detail
 reads use omit-on-failure: a non-finite result never overwrites a last-good
-stored value, so `gpuDetail()` returns stable values between ticks.
+stored value, so `gpuDetail()` returns stable values between ticks. NVIDIA
+`gpuProcesses()` also runs gated (requires driver ≥ R460); deduplication via
+`GpuTooltipModel.dedupeByPid` ensures each process appears once per tooltip.
 
 Text-guarded by `tests/standalone-metrics-backend.test.mjs` (the "GpuSampler
 wires AMD/Intel GPU via GpuDiscovery sysfs" and "NVIDIA GPU via GpuSampler"

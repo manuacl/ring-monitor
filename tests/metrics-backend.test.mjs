@@ -302,3 +302,10 @@ test("GpuDetailSensors gpuExtra() reads _tick as a reactive dependency (#71)", (
     // dependency in any QML binding that calls it.
     assert.match(GPU_DETAIL_SOURCE, /function\s+gpuExtra\s*\(\s*\)\s*{[\s\S]{0,50}gpuDetail\._tick/, "gpuExtra() must read _tick as its first reactive dependency");
 });
+
+test("Plasma MetricsBackend exposes gpuProcesses() returning [] (#71)", () => {
+    // Plasma has no per-process VRAM source — the stub keeps the cross-platform
+    // surface uniform so MainContent can call gpuProcesses() without branching.
+    assert.match(SOURCE, /function\s+gpuProcesses\s*\(\s*\)/, "must declare function gpuProcesses()");
+    assert.match(SOURCE, /function\s+gpuProcesses\s*\(\s*\)\s*\{[\s\S]*?return\s+\[\s*\]/, "gpuProcesses() must return []");
+});

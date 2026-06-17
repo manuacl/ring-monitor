@@ -421,6 +421,27 @@ GridLayout {
                 value: diskTooltip.samplingActive
                 when: ringDelegate._isDisk && content.metrics.diskTooltipActive !== undefined
             }
+
+            // GPU ring: hover reveals the detail tooltip (#71) — model, VRAM,
+            // temp, power, clock + (NVIDIA-only) top GPU processes. Like disk and
+            // unlike cpu/ram, there's a single gpu ring, so the backend gate is
+            // driven directly by one when-gated Binding (no content-scope fan-in).
+            // detail/processes are read ONLY while sampling (hover) so the gated
+            // NVML/sysfs detail reads (+ /proc name resolution) stay off when no
+            // tooltip is up; gpuDetailSamplingActive gates the backend detail path.
+            GpuTooltip {
+                id: gpuTooltip
+                armed: ringDelegate.modelData === "gpu"
+                openRight: content._tooltipOpenRight
+                detail: (ringDelegate.modelData === "gpu" && gpuTooltip.samplingActive) ? content.metrics.gpuDetail : ({})
+                processes: (ringDelegate.modelData === "gpu" && gpuTooltip.samplingActive) ? content.metrics.gpuProcesses : []
+            }
+            Binding {
+                target: content.metrics
+                property: "gpuDetailSamplingActive"
+                value: gpuTooltip.samplingActive
+                when: ringDelegate.modelData === "gpu" && content.metrics.gpuDetailSamplingActive !== undefined
+            }
         }
     }
 

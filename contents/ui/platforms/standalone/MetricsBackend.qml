@@ -235,14 +235,11 @@ Item {
         detailActive: backend.gpuDetailSamplingActive
     }
 
-    // gpuDetail() forwards the sampler's detail snapshot for the GPU tooltip.
-    function gpuDetail() {
-        return gpuSampler.gpuDetail();
-    }
-
-    function gpuProcesses() {
-        return gpuSampler.gpuProcesses();
-    }
+    // gpuDetail / gpuProcesses forward the sampler's reactive properties so
+    // view bindings stay live — a property read tracks the source, a function
+    // call evaluates once and freezes (core/CLAUDE.md § "Reactive argless data").
+    readonly property var gpuDetail: gpuSampler.gpuDetail
+    readonly property var gpuProcesses: gpuSampler.gpuProcesses
 
     property var _prev: null  // {all, cores} from the previous /proc/stat sample
     property real _aggregateUsage: 0

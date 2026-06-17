@@ -257,11 +257,12 @@ test("MetricsBackend forwards the RAM tooltip surface from ProcessSampler (#70)"
 
 const GPU_DETAIL_SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms", "plasma", "GpuDetailSensors.qml"), "utf8");
 
-test("MetricsBackend declares gpuDetailSamplingActive gate and gpuDetail function (#71)", () => {
+test("MetricsBackend declares gpuDetailSamplingActive gate and gpuDetail property (#71)", () => {
     // gpuDetailSamplingActive gates the GpuDetailSensors subscription — the
     // daemon must not push detail leaves when no tooltip is shown.
+    // gpuDetail is a readonly property var (not a function) so view bindings stay live.
     assert.match(SOURCE, /property\s+bool\s+gpuDetailSamplingActive\s*:/, "must declare property bool gpuDetailSamplingActive");
-    assert.match(SOURCE, /function\s+gpuDetail\s*\(/, "must declare function gpuDetail()");
+    assert.match(SOURCE, /readonly\s+property\s+var\s+gpuDetail\b/, "must declare readonly property var gpuDetail");
 });
 
 test("MetricsBackend instantiates GpuDetailSensors and wires gpuDeviceIds + active gate (#71)", () => {
@@ -297,15 +298,16 @@ test("GpuDetailSensors uses _tick to drive reactive re-evaluation (#71)", () => 
     assert.match(GPU_DETAIL_SOURCE, /onObjectRemoved:\s*gpuDetail\._tick\+\+/, "Instantiator must bump _tick onObjectRemoved");
 });
 
-test("GpuDetailSensors gpuExtra() reads _tick as a reactive dependency (#71)", () => {
-    // Reading _tick as the first line makes the function's result a tracked
-    // dependency in any QML binding that calls it.
-    assert.match(GPU_DETAIL_SOURCE, /function\s+gpuExtra\s*\(\s*\)\s*{[\s\S]{0,50}gpuDetail\._tick/, "gpuExtra() must read _tick as its first reactive dependency");
+test("GpuDetailSensors detail property reads _tick as a reactive dependency (#71)", () => {
+    // Reading _tick as the first expression in the binding makes every field a
+    // tracked dependency so the binding re-evaluates whenever any sensor value changes.
+    assert.match(GPU_DETAIL_SOURCE, /readonly\s+property\s+var\s+detail\s*:\s*\{[\s\S]{0,50}gpuDetail\._tick/, "detail property must read _tick as its first reactive dependency");
 });
 
-test("Plasma MetricsBackend exposes gpuProcesses() returning [] (#71)", () => {
-    // Plasma has no per-process VRAM source — the stub keeps the cross-platform
-    // surface uniform so MainContent can call gpuProcesses() without branching.
-    assert.match(SOURCE, /function\s+gpuProcesses\s*\(\s*\)/, "must declare function gpuProcesses()");
-    assert.match(SOURCE, /function\s+gpuProcesses\s*\(\s*\)\s*\{[\s\S]*?return\s+\[\s*\]/, "gpuProcesses() must return []");
+test("Plasma MetricsBackend exposes gpuProcesses as readonly property var [] (#71)", () => {
+    // Plasma has no per-process VRAM source — the empty-list property keeps the
+    // cross-platform surface uniform so the view doesn't branch on the host.
+    // Property (not function) so view bindings stay live.
+    assert.match(SOURCE, /readonly\s+property\s+var\s+gpuProcesses\b/, "must declare readonly property var gpuProcesses");
+    assert.match(SOURCE, /readonly\s+property\s+var\s+gpuProcesses\s*:\s*\[\s*\]/, "gpuProcesses must be an empty array literal");
 });

@@ -18,9 +18,9 @@ import "../../core/GpuTooltipModel.js" as GpuModel
 //   readonly property real tempC
 //   readonly property bool available
 //   readonly property bool tempAvailable
-//   function sample()         — per-tick GPU work; MetricsBackend's Timer calls it
-//   function gpuDetail()      — tooltip detail snapshot (call only when detailActive)
-//   function gpuProcesses()   — NVIDIA-only top GPU processes for the tooltip; [] on AMD/Intel/Plasma
+//   function sample()                      — per-tick GPU work; MetricsBackend's Timer calls it
+//   readonly property var gpuDetail        — tooltip detail snapshot; reactive (re-evaluates each tick)
+//   readonly property var gpuProcesses     — NVIDIA-only top GPU processes for the tooltip; [] on AMD/Intel/Plasma
 
 Item {
     id: gpuSampler
@@ -32,6 +32,9 @@ Item {
     // fast always-on path. Same ProcessSampler / DiskPartitionSensors gate
     // pattern used by the other tooltip backends.
     property bool detailActive: false
+    // Clear the process list on gate-off — a reopened tooltip must not flash last session's maybe-exited pids (#71 PR3 review).
+    onDetailActiveChanged: if (!gpuSampler.detailActive)
+        gpuSampler._gpuProcesses = []
 
     // ── Public surface ───────────────────────────────────────────────────
     readonly property real usage: gpuSampler._gpuUsage
@@ -152,15 +155,14 @@ Item {
                 if (nvml.clockMhz !== undefined && isFinite(nvml.clockMhz))
                     gpuSampler._gpuClockMhz = nvml.clockMhz;
                 // Enumerate GPU processes via NVML, resolve pid→name from /proc.
-                // dedupeByPid collapses NVML's compute+graphics duplicates first,
-                // reducing the number of /proc reads.
+                // rank+cap to DEFAULT_LIMIT first so only the displayed top-N pids hit /proc.
                 var raw = gpuReader.runningProcesses();
-                var deduped = GpuModel.dedupeByPid(raw);
-                for (var idx = 0; idx < deduped.length; idx++) {
-                    var rec = ProcParser.parsePidStat(gpuSampler.reader.read("/proc/" + deduped[idx].pid + "/stat"));
-                    deduped[idx].name = (rec && rec.name) ? rec.name : "";
+                var ranked = GpuModel.rankProcesses(GpuModel.dedupeByPid(raw), GpuModel.DEFAULT_LIMIT);
+                for (var idx = 0; idx < ranked.length; idx++) {
+                    var rec = ProcParser.parsePidStat(gpuSampler.reader.read("/proc/" + ranked[idx].pid + "/stat"));
+                    ranked[idx].name = (rec && rec.name) ? rec.name : "";
                 }
-                gpuSampler._gpuProcesses = deduped;
+                gpuSampler._gpuProcesses = ranked;
             }
         }
         var sysfsUsageValid = false;
@@ -170,7 +172,8 @@ Item {
             // require _gpuBusyPath for them (it would re-walk sysfs every tick
             // for the whole window). Unknown vendor → require both until ID'd.
             var needBusyPath = gpuSampler._gpuVendor === "" || gpuSampler._gpuVendor === "amd";
-            var gpuPathsIncomplete = (needBusyPath && !gpuSampler._gpuBusyPath) || !gpuSampler._gpuTempPath;
+            // Also keep retrying while an AMD detail path (VRAM/power) is unresolved — they can register after busy/temp (#71 PR2 review).
+            var gpuPathsIncomplete = (needBusyPath && !gpuSampler._gpuBusyPath) || !gpuSampler._gpuTempPath || (gpuSampler._gpuVendor === "amd" && (!gpuSampler._gpuVramUsedPath || !gpuSampler._gpuVramTotalPath || !gpuSampler._gpuPowerPath));
             if (gpuPathsIncomplete && gpuSampler._gpuResolveAttempts < gpuSampler._gpuMaxResolveAttempts) {
                 gpuSampler._gpuResolveAttempts++;
                 gpuSampler._resolveGpuPaths();
@@ -216,16 +219,18 @@ Item {
     }
 
     // ── GPU tooltip detail snapshot ───────────────────────────────────────
-    // Returns the last-good detail values gathered while detailActive was
-    // true. Each field is present (finite / non-empty) only when a source
-    // was found and a read succeeded; otherwise undefined — callers must
-    // check before rendering.
+    // Last-good detail values gathered while detailActive was true. Each
+    // field is present (finite / non-empty) only when a source was found
+    // and a read succeeded; otherwise undefined — callers must check before
+    // rendering.
     //
-    // tempC is returned as the raw last-good NaN (not coerced to 0) so a
-    // caller can distinguish "not read yet" from "genuinely 0°C". The ring
-    // surface (_coerceTemp) handles the NaN→0 coercion separately.
-    function gpuDetail() {
-        return {
+    // tempC is the raw last-good NaN (not coerced to 0) so a caller can
+    // distinguish "not read yet" from "genuinely 0°C". The ring surface
+    // (_coerceTemp) handles the NaN→0 coercion separately.
+    //
+    // readonly property var (not a function) so view bindings stay live:
+    // the binding re-evaluates each time any _gpu* prop changes.
+    readonly property var gpuDetail: ({
             "model": gpuSampler._gpuModel !== "" ? gpuSampler._gpuModel : undefined,
             "usagePercent": gpuSampler._gpuAvailable ? gpuSampler._gpuUsage : undefined,
             "vramUsedBytes": isFinite(gpuSampler._gpuVramUsedBytes) ? gpuSampler._gpuVramUsedBytes : undefined,
@@ -233,11 +238,8 @@ Item {
             "tempC": (gpuSampler._gpuTempAvailable && isFinite(gpuSampler._gpuTempC)) ? gpuSampler._gpuTempC : undefined,
             "powerW": isFinite(gpuSampler._gpuPowerW) ? gpuSampler._gpuPowerW : undefined,
             "clockMhz": isFinite(gpuSampler._gpuClockMhz) ? gpuSampler._gpuClockMhz : undefined
-        };
-    }
+        })
 
     // NVIDIA-only top GPU processes for the tooltip; [] on AMD/Intel/Plasma.
-    function gpuProcesses() {
-        return gpuSampler._gpuProcesses;
-    }
+    readonly property var gpuProcesses: gpuSampler._gpuProcesses
 }

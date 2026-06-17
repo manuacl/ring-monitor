@@ -164,6 +164,7 @@ qt_add_qml_module(ring-monitor-standalone
         contents/ui/core/TooltipBehavior.qml
         contents/ui/core/ProcessTooltip.qml
         contents/ui/core/DiskTooltip.qml
+        contents/ui/core/GpuTooltip.qml
 )
 
 target_link_libraries(ring-monitor-standalone PRIVATE

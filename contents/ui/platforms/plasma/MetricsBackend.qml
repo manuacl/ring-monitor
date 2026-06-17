@@ -127,7 +127,7 @@ Item {
     // ── GPU tooltip detail (issue #71) ──────────────────────────────
     // Tooltip-only sensors live in GpuDetailSensors (gated by active) so
     // the daemon doesn't push them in the background. Usage/temp come from
-    // the always-on ring sensors; gpuDetail() merges both sources.
+    // the always-on ring sensors; gpuDetail merges both sources.
     property bool gpuDetailSamplingActive: false
 
     GpuDetailSensors {
@@ -136,8 +136,11 @@ Item {
         active: backend.gpuDetailSamplingActive
     }
 
-    function gpuDetail() {
-        var extra = gpuDetailSensors.gpuExtra();
+    // Reactive properties (not functions) so view bindings stay live (core/CLAUDE.md
+    // § "Reactive argless data"): the PROPERTY gpuDetailSensors.detail + the reactive
+    // _gpuUsageValue / _gpuTempValue all NOTIFY, so this binding re-evaluates.
+    readonly property var gpuDetail: {
+        var extra = gpuDetailSensors.detail;
         var usage = backend._gpuUsageReady() ? backend._gpuUsageValue : undefined;
         var temp = backend._gpuTempReady() ? backend._gpuTempValue : undefined;
         return {
@@ -151,9 +154,8 @@ Item {
         };
     }
 
-    function gpuProcesses() {
-        return [];
-    }
+    // Plasma has no per-process VRAM source — empty list keeps the surface uniform.
+    readonly property var gpuProcesses: []
 
     // ── CPU + RAM process tooltips (issues #69/#70) ──────────────────
     // Same surface as the standalone adapter; the ProcessDataModel enumeration

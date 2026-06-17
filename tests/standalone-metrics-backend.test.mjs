@@ -205,13 +205,14 @@ test("standalone MetricsBackend wires NVIDIA GPU usage + temperature via GpuSamp
     assert.match(GPU_SOURCE, /\.available\b/, "GpuSampler must gate on the sample's available flag");
 });
 
-test("standalone MetricsBackend exposes gpuDetailSamplingActive + gpuDetail() for the GPU tooltip (#71)", () => {
+test("standalone MetricsBackend exposes gpuDetailSamplingActive + gpuDetail property for the GPU tooltip (#71)", () => {
     // MetricsBackend forwards the detail gate and snapshot so MainContent can
     // arm the sampler and read the tooltip data without knowing about GpuSampler.
+    // gpuDetail is a readonly property var (not a function) so view bindings stay live.
     assert.match(SOURCE, /property\s+bool\s+gpuDetailSamplingActive/, "must declare gpuDetailSamplingActive (the cross-platform gate name, default false)");
     assert.match(SOURCE, /detailActive\s*:\s*backend\.gpuDetailSamplingActive/, "GpuSampler.detailActive must be bound to backend.gpuDetailSamplingActive");
-    assert.match(SOURCE, /function\s+gpuDetail\s*\(\s*\)/, "must declare gpuDetail() to forward the sampler's detail snapshot");
-    assert.match(SOURCE, /gpuSampler\.gpuDetail\s*\(\s*\)/, "gpuDetail() must delegate to gpuSampler.gpuDetail()");
+    assert.match(SOURCE, /readonly\s+property\s+var\s+gpuDetail\b/, "must declare readonly property var gpuDetail");
+    assert.match(SOURCE, /readonly\s+property\s+var\s+gpuDetail\s*:\s*gpuSampler\.gpuDetail\b/, "gpuDetail must forward the sampler's reactive property");
 });
 
 test("standalone MetricsBackend re-resolves the temp path within a bounded warm-up window", () => {
@@ -340,12 +341,13 @@ test("standalone MetricsBackend forwards the RAM tooltip surface from ProcessSam
     assert.match(SOURCE, /memTotalKb\s*:\s*processSampler\.memTotalKb/, "memTotalKb must forward the sampler's computed value");
 });
 
-test("standalone MetricsBackend exposes gpuProcesses() forwarding to GpuSampler (#71)", () => {
-    // NVIDIA-only process list for the GPU tooltip. Plasma returns []; standalone
+test("standalone MetricsBackend exposes gpuProcesses as readonly property var forwarding GpuSampler (#71)", () => {
+    // NVIDIA-only process list for the GPU tooltip. Plasma is []; standalone
     // populates it via NVML while detailActive. MetricsBackend must forward it so
     // MainContent doesn't need to know about GpuSampler directly.
-    assert.match(SOURCE, /function\s+gpuProcesses\s*\(\s*\)/, "must declare function gpuProcesses()");
-    assert.match(SOURCE, /gpuSampler\.gpuProcesses\s*\(\s*\)/, "gpuProcesses() must delegate to gpuSampler.gpuProcesses()");
+    // Property (not function) so view bindings stay live.
+    assert.match(SOURCE, /readonly\s+property\s+var\s+gpuProcesses\b/, "must declare readonly property var gpuProcesses");
+    assert.match(SOURCE, /readonly\s+property\s+var\s+gpuProcesses\s*:\s*gpuSampler\.gpuProcesses\b/, "gpuProcesses must forward the sampler's reactive property");
 });
 
 test("GpuSampler enumerates NVIDIA processes via runningProcesses + dedupeByPid + parsePidStat (#71)", () => {
@@ -359,5 +361,5 @@ test("GpuSampler enumerates NVIDIA processes via runningProcesses + dedupeByPid 
     assert.match(GPU_SOURCE, /gpuReader\.runningProcesses\s*\(\s*\)/, "GpuSampler must call gpuReader.runningProcesses() inside the NVML detail branch");
     assert.match(GPU_SOURCE, /GpuModel\.dedupeByPid\s*\(/, "GpuSampler must collapse NVML duplicates via GpuModel.dedupeByPid before /proc reads");
     assert.match(GPU_SOURCE, /ProcParser\.parsePidStat\s*\(/, "GpuSampler must resolve pid→name via ProcParser.parsePidStat");
-    assert.match(GPU_SOURCE, /function\s+gpuProcesses\s*\(\s*\)/, "GpuSampler must declare gpuProcesses() on its public surface");
+    assert.match(GPU_SOURCE, /readonly\s+property\s+var\s+gpuProcesses\b/, "GpuSampler must declare readonly property var gpuProcesses on its public surface");
 });

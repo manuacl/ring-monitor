@@ -24,6 +24,7 @@
 // `import RingMonitor.Standalone; NvmlReader { id: gpu }`.
 
 #include <QObject>
+#include <QVariantList>
 #include <QVariantMap>
 #include <QtQmlIntegration/QtQmlIntegration>
 
@@ -63,6 +64,13 @@ public:
     // for a single ~150ms hitch that overlaps the startup sweep.
     Q_INVOKABLE QVariantMap sample(bool detailed = false);
 
+    // Returns the list of processes currently using GPU compute or graphics
+    // contexts: [{pid: int, vramBytes: qulonglong}, ...].
+    // Compute entries come first, graphics entries follow — no dedup, no
+    // sorting, no /proc access. Dedup and name resolution happen in QML/JS.
+    // Empty list when NVML is unavailable or the driver lacks the _v2 symbols.
+    Q_INVOKABLE QVariantList runningProcesses();
+
 private:
     bool ensureInit();   // dlopen + dlsym + nvmlInit; returns _ready
 
@@ -89,4 +97,8 @@ private:
     void *_fnGetPower = nullptr;
     void *_fnGetClock = nullptr;
     void *_fnGetName = nullptr;
+    // Process-enumeration entry points — optional (_v2 requires R460+).
+    // runningProcesses() guards each with a null-check before casting+calling.
+    void *_fnComputeProcs = nullptr;
+    void *_fnGraphicsProcs = nullptr;
 };

@@ -151,6 +151,10 @@ Item {
         };
     }
 
+    function gpuProcesses() {
+        return [];
+    }
+
     // ── CPU + RAM process tooltips (issues #69/#70) ──────────────────
     // Same surface as the standalone adapter; the ProcessDataModel enumeration
     // lives in the ProcessSampler child (running only while active) so this

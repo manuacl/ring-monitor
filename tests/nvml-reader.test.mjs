@@ -115,3 +115,50 @@ test("nvml_reader includes no Plasma headers (standalone isolation)", () => {
     assert.doesNotMatch(SRC, /#include\s*<plasma\//, "nvml_reader.cpp must not include Plasma headers");
     assert.doesNotMatch(HEADER, /#include\s*<plasma\//, "nvml_reader.h must not include Plasma headers");
 });
+
+test("NvmlReader resolves process-enumeration symbols via dlsym (non-fatal)", () => {
+    // _v2 symbols require R460+; older drivers leave them null and
+    // runningProcesses() returns an empty list — graceful degrade.
+    assert.match(SRC, /dlsym\s*\(\s*_lib\s*,\s*"nvmlDeviceGetComputeRunningProcesses_v2"/, "must dlsym nvmlDeviceGetComputeRunningProcesses_v2");
+    assert.match(SRC, /dlsym\s*\(\s*_lib\s*,\s*"nvmlDeviceGetGraphicsRunningProcesses_v2"/, "must dlsym nvmlDeviceGetGraphicsRunningProcesses_v2");
+});
+
+test("NvmlReader process symbols are NOT in the required-symbol fatal guard", () => {
+    // The fatal guard must stay limited to init/handle/util/temp — a driver
+    // missing process enumeration must still serve usage + temp + detail fields.
+    const guardMatch = SRC.match(/if\s*\(\s*!init\s*\|\|[^)]+\)/);
+    assert.ok(guardMatch, "required-symbol guard must be present");
+    const guardLine = guardMatch[0];
+    assert.doesNotMatch(guardLine, /_fnComputeProcs/, "guard must NOT include _fnComputeProcs (non-fatal)");
+    assert.doesNotMatch(guardLine, /_fnGraphicsProcs/, "guard must NOT include _fnGraphicsProcs (non-fatal)");
+});
+
+test("NvmlReader declares runningProcesses Q_INVOKABLE", () => {
+    // runningProcesses() must be callable from QML/JS so the tooltip model
+    // can query it without bridging through sample().
+    assert.match(HEADER, /Q_INVOKABLE\s+QVariantList\s+runningProcesses\s*\(\s*\)/, "header must declare Q_INVOKABLE QVariantList runningProcesses()");
+    assert.match(SRC, /QVariantList\s+NvmlReader::runningProcesses\s*\(\s*\)/, "cpp must implement NvmlReader::runningProcesses()");
+});
+
+test("NvmlReader declares kNvmlErrorInsufficientSize", () => {
+    // Two-pass protocol: NVML returns 7 on the probe call when processes exist
+    // but the buffer is null — the implementation must recognise this code.
+    assert.match(SRC, /kNvmlErrorInsufficientSize/, "must define kNvmlErrorInsufficientSize");
+    assert.match(SRC, /constexpr int kNvmlErrorInsufficientSize\s*=\s*7/, "kNvmlErrorInsufficientSize must equal 7");
+});
+
+test("NvmlReader self-declares nvmlProcessInfo_v2_t struct", () => {
+    // _v2 struct layout is stable NVML ABI (R460+), same approach as
+    // nvmlMemory_t / nvmlUtilization_t already self-declared above.
+    assert.match(SRC, /struct nvmlProcessInfo_v2_t/, "must self-declare nvmlProcessInfo_v2_t");
+    assert.match(SRC, /fn_procs_t/, "must declare fn_procs_t typedef");
+});
+
+test("NvmlReader runningProcesses uses two-pass count-then-fill protocol", () => {
+    // Pass 1: query count with null buffer; pass 2: fill a sized vector.
+    // The guard on kNvmlErrorInsufficientSize is what distinguishes
+    // "zero processes" from "processes exist, need a buffer".
+    assert.match(SRC, /fn\s*\(\s*_device\s*,\s*&count\s*,\s*nullptr\s*\)/, "must make probe call with null buffer");
+    assert.match(SRC, /kNvmlErrorInsufficientSize/, "must check kNvmlErrorInsufficientSize on probe result");
+    assert.match(SRC, /std::vector<nvmlProcessInfo_v2_t>/, "must allocate a vector for the fill pass");
+});

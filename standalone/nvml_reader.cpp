@@ -3,6 +3,7 @@
 #include <QDebug>
 
 #include <dlfcn.h>
+#include <vector>
 
 // ── Minimal self-declared NVML ABI ──────────────────────────────────
 // We declare only the handful of entry points + types we call, so the
@@ -39,6 +40,21 @@ typedef nvmlReturn_t (*fn_mem_t)(nvmlDevice_t, nvmlMemory_t *);           // nvm
 typedef nvmlReturn_t (*fn_power_t)(nvmlDevice_t, unsigned int *);         // nvmlDeviceGetPowerUsage (milliwatts)
 typedef nvmlReturn_t (*fn_clock_t)(nvmlDevice_t, int, unsigned int *);    // nvmlDeviceGetClockInfo (MHz)
 typedef nvmlReturn_t (*fn_name_t)(nvmlDevice_t, char *, unsigned int);    // nvmlDeviceGetName
+
+// Process-enumeration types — _v2 variants require R460+ but the _v2
+// struct is the only one that includes gpuInstanceId / computeInstanceId,
+// which ensures forward compatibility with MIG partitions. On older drivers
+// these symbols simply won't resolve and the fn pointers stay null.
+constexpr int kNvmlErrorInsufficientSize = 7;
+constexpr unsigned int kMaxProcesses = 1024;  // defensive cap against a pathological count
+
+struct nvmlProcessInfo_v2_t {
+    unsigned int       pid;
+    unsigned long long usedGpuMemory;
+    unsigned int       gpuInstanceId;
+    unsigned int       computeInstanceId;
+};
+typedef nvmlReturn_t (*fn_procs_t)(nvmlDevice_t, unsigned int *, nvmlProcessInfo_v2_t *);
 
 } // namespace
 
@@ -79,6 +95,11 @@ bool NvmlReader::ensureInit()
     _fnGetPower = dlsym(_lib, "nvmlDeviceGetPowerUsage");
     _fnGetClock = dlsym(_lib, "nvmlDeviceGetClockInfo");
     _fnGetName  = dlsym(_lib, "nvmlDeviceGetName");
+    // _v2 variants carry gpuInstanceId/computeInstanceId for MIG-awareness
+    // and are required by the two-pass count-then-fill protocol. R460+ only;
+    // older drivers leave these null and runningProcesses() returns empty.
+    _fnComputeProcs  = dlsym(_lib, "nvmlDeviceGetComputeRunningProcesses_v2");
+    _fnGraphicsProcs = dlsym(_lib, "nvmlDeviceGetGraphicsRunningProcesses_v2");
 
     if (!init || !handle || !_fnGetUtil || !_fnGetTemp) {
         if (lastAttempt)
@@ -168,6 +189,53 @@ QVariantMap NvmlReader::sample(bool detailed)
     }
 
     return out;
+}
+
+QVariantList NvmlReader::runningProcesses()
+{
+    if (!ensureInit())
+        return {};
+
+    QVariantList result;
+
+    // Two-pass protocol for each context type (compute, then graphics):
+    //   Pass 1: call with a null buffer to query the current count.
+    //   Pass 2: allocate exactly that many slots and fill them.
+    // NVML returns kNvmlErrorInsufficientSize (7) on pass 1 when count > 0
+    // and kNvmlSuccess when count == 0 (no processes, buffer not needed).
+    // A cap of kMaxProcesses guards against a pathological count value from
+    // a misbehaving or future driver.
+    void *fns[2] = { _fnComputeProcs, _fnGraphicsProcs };
+    for (void *fnPtr : fns) {
+        if (!fnPtr)
+            continue;
+        auto fn = reinterpret_cast<fn_procs_t>(fnPtr);
+
+        unsigned int count = 0;
+        const nvmlReturn_t probe = fn(_device, &count, nullptr);
+
+        if (probe == kNvmlSuccess && count == 0)
+            continue;   // no processes in this context type
+
+        if (probe != kNvmlErrorInsufficientSize || count == 0)
+            continue;   // unexpected return — skip gracefully, never crash
+
+        if (count > kMaxProcesses)
+            count = kMaxProcesses;
+
+        std::vector<nvmlProcessInfo_v2_t> buf(count);
+        if (fn(_device, &count, buf.data()) != kNvmlSuccess)
+            continue;
+
+        for (unsigned int i = 0; i < count; ++i) {
+            result.append(QVariantMap{
+                { QStringLiteral("pid"),       static_cast<int>(buf[i].pid) },
+                { QStringLiteral("vramBytes"), static_cast<qulonglong>(buf[i].usedGpuMemory) },
+            });
+        }
+    }
+
+    return result;
 }
 
 NvmlReader::~NvmlReader()

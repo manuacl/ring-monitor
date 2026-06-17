@@ -511,6 +511,7 @@ follows the IEC binary convention (same `formatVram` idiom as
 | `formatPercent(value)` | `73%` — rounded integer, negative clamped to 0. Used for engine utilisation. |
 | `composeVram(usedBytes, totalBytes)` | `6.2 GiB / 24 GiB · 26%` when `totalBytes > 0`; `""` when total is unknown (so the line hides rather than show `0 B / 0 B`). |
 | `buildStatRows(detail)` | Ordered view model `[{ label, value }]` — Model, Usage, VRAM, Temperature, Power, Clock — **omitting any line whose source field is absent**. A full-NVIDIA host shows all six; an Intel host may show only Model/Usage/Temperature. |
+| `dedupeByPid(records)` | Collapse duplicate pids (process appears once per compute context + once per graphics context in NVML enumeration) keeping max `vramBytes`. Input `[{pid, vramBytes}]` → output `[{pid, vramBytes}]` with duplicates merged. Non-array → `[]`. |
 | `rankProcesses(records, limit)` | Sort `[{ pid, name, vramBytes }]` by `vramBytes` descending, tiebreak `pid` ascending, cap to `limit` (default `DEFAULT_LIMIT = 20`). Absent `vramBytes` ranks as 0 (kept, not dropped). Non-array → `[]`. |
 | `formatProcessVram(bytes)` | Alias of `formatVram` (same unit family) for the process VRAM column. |
 

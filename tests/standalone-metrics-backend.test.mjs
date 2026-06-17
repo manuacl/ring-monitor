@@ -339,3 +339,25 @@ test("standalone MetricsBackend forwards the RAM tooltip surface from ProcessSam
     assert.match(SOURCE, /memUsedKb\s*:\s*processSampler\.memUsedKb/, "memUsedKb must forward the sampler's computed value");
     assert.match(SOURCE, /memTotalKb\s*:\s*processSampler\.memTotalKb/, "memTotalKb must forward the sampler's computed value");
 });
+
+test("standalone MetricsBackend exposes gpuProcesses() forwarding to GpuSampler (#71)", () => {
+    // NVIDIA-only process list for the GPU tooltip. Plasma returns []; standalone
+    // populates it via NVML while detailActive. MetricsBackend must forward it so
+    // MainContent doesn't need to know about GpuSampler directly.
+    assert.match(SOURCE, /function\s+gpuProcesses\s*\(\s*\)/, "must declare function gpuProcesses()");
+    assert.match(SOURCE, /gpuSampler\.gpuProcesses\s*\(\s*\)/, "gpuProcesses() must delegate to gpuSampler.gpuProcesses()");
+});
+
+test("GpuSampler enumerates NVIDIA processes via runningProcesses + dedupeByPid + parsePidStat (#71)", () => {
+    // SCENARIO: NVML returns compute + graphics entries for the same pid — dedupeByPid
+    // collapses them before /proc reads so each pid is only stat'd once. parsePidStat
+    // resolves the name; a process that exits between the NVML snapshot and the /proc
+    // read yields an empty-string name (tolerated).
+    assert.match(GPU_SOURCE, /import\s+["']ProcParser\.js["']\s+as\s+ProcParser/, "GpuSampler must import ProcParser.js");
+    assert.match(GPU_SOURCE, /import\s+["']\.\.\/\.\.\/core\/GpuTooltipModel\.js["']\s+as\s+GpuModel/, "GpuSampler must import core/GpuTooltipModel.js");
+    assert.match(GPU_SOURCE, /property\s+var\s+_gpuProcesses\s*:/, "GpuSampler must declare _gpuProcesses backing state");
+    assert.match(GPU_SOURCE, /gpuReader\.runningProcesses\s*\(\s*\)/, "GpuSampler must call gpuReader.runningProcesses() inside the NVML detail branch");
+    assert.match(GPU_SOURCE, /GpuModel\.dedupeByPid\s*\(/, "GpuSampler must collapse NVML duplicates via GpuModel.dedupeByPid before /proc reads");
+    assert.match(GPU_SOURCE, /ProcParser\.parsePidStat\s*\(/, "GpuSampler must resolve pid→name via ProcParser.parsePidStat");
+    assert.match(GPU_SOURCE, /function\s+gpuProcesses\s*\(\s*\)/, "GpuSampler must declare gpuProcesses() on its public surface");
+});

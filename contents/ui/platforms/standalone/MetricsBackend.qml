@@ -240,6 +240,10 @@ Item {
         return gpuSampler.gpuDetail();
     }
 
+    function gpuProcesses() {
+        return gpuSampler.gpuProcesses();
+    }
+
     property var _prev: null  // {all, cores} from the previous /proc/stat sample
     property real _aggregateUsage: 0
     property var _coreUsage: []

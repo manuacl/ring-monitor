@@ -13,8 +13,8 @@ import assert from "node:assert";
 //   2. `_tooltipOpenRight` (readonly bool) — derived from windowAnchorCorner:
 //      true when the widget is left-anchored (corner = "top-left" or
 //      "bottom-left"), so the tooltip grows into the screen rather than off it.
-//   3. All three tooltip instances (cpuTooltip, memTooltip, diskTooltip)
-//      receive `openRight: content._tooltipOpenRight`.
+//   3. All four tooltip instances (cpuTooltip, memTooltip, diskTooltip,
+//      gpuTooltip) receive `openRight: content._tooltipOpenRight`.
 //
 // The derivation logic lives in a QML binding (not a JS module), so it can't
 // be unit-tested via a Node require().  A text guard is the appropriate tool
@@ -109,12 +109,53 @@ test("MainContent wires cpuTooltip openRight from content._tooltipOpenRight", ()
     );
 });
 
-// Count exactly three occurrences (cpuTooltip, memTooltip, diskTooltip).
-test("MainContent passes openRight: content._tooltipOpenRight to all three tooltips", () => {
+// Count exactly four occurrences (cpuTooltip, memTooltip, diskTooltip, gpuTooltip).
+test("MainContent passes openRight: content._tooltipOpenRight to all four tooltips", () => {
     const hits = [...MAIN_CONTENT.matchAll(/openRight\s*:\s*content\._tooltipOpenRight/g)];
     assert.strictEqual(
         hits.length,
-        3,
-        `Expected exactly 3 occurrences of 'openRight: content._tooltipOpenRight' (cpuTooltip, memTooltip, diskTooltip), got ${hits.length}`
+        4,
+        `Expected exactly 4 occurrences of 'openRight: content._tooltipOpenRight' (cpuTooltip, memTooltip, diskTooltip, gpuTooltip), got ${hits.length}`
+    );
+});
+
+// ── 4. GPU tooltip wiring (#71) ─────────────────────────────────────
+//
+// The gpu ring follows the disk pattern (single ring → a direct when-gated
+// Binding to the backend gate, no content-scope fan-in): GpuTooltip is armed
+// only on the gpu ring, its detail/processes are read only while sampling, and
+// gpuDetailSamplingActive is bound to its samplingActive on the gpu ring.
+
+test("MainContent instantiates a GpuTooltip armed only on the gpu ring", () => {
+    assert.match(
+        MAIN_CONTENT,
+        /GpuTooltip\s*\{[\s\S]*?armed\s*:\s*ringDelegate\.modelData\s*===\s*"gpu"/,
+        "MainContent.qml must instantiate GpuTooltip with armed: ringDelegate.modelData === \"gpu\""
+    );
+});
+
+test("MainContent reads metrics.gpuDetail only while the gpu tooltip samples", () => {
+    // Gated on samplingActive so the backend's NVML/sysfs detail reads stay off
+    // when no tooltip is up — mirrors the disk tooltip's details binding.
+    assert.match(
+        MAIN_CONTENT,
+        /detail\s*:.*gpuTooltip\.samplingActive.*content\.metrics\.gpuDetail/,
+        "GpuTooltip.detail must be gated on gpuTooltip.samplingActive and read content.metrics.gpuDetail"
+    );
+});
+
+test("MainContent reads metrics.gpuProcesses only while the gpu tooltip samples", () => {
+    assert.match(
+        MAIN_CONTENT,
+        /processes\s*:.*gpuTooltip\.samplingActive.*content\.metrics\.gpuProcesses/,
+        "GpuTooltip.processes must be gated on gpuTooltip.samplingActive and read content.metrics.gpuProcesses"
+    );
+});
+
+test("MainContent binds gpuDetailSamplingActive to the gpu tooltip on the gpu ring", () => {
+    assert.match(
+        MAIN_CONTENT,
+        /property\s*:\s*"gpuDetailSamplingActive"[\s\S]*?value\s*:\s*gpuTooltip\.samplingActive[\s\S]*?when\s*:.*modelData\s*===\s*"gpu"/,
+        "MainContent.qml must bind metrics.gpuDetailSamplingActive to gpuTooltip.samplingActive, gated on the gpu ring"
     );
 });

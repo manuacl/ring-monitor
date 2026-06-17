@@ -459,6 +459,42 @@ widget…" for why. The data sources are the two
 [`ProcessSampler.qml`](#processsamplerqml-one-per-platform) adapters.
 Covered by `tests/qml/tst_ProcessTooltip.qml`.
 
+## `GpuTooltip.qml`
+
+The **GPU-ring detail tooltip** (issue #71); chrome from the shared
+`TooltipBehavior` (above), body here, the same direct-`contentItem` rule as the
+other two. A key/value stat panel (model, utilization, VRAM used/total, temp,
+power, clock) followed — on NVIDIA only — by a separator and a top-process
+sub-list. All strings come from the pure
+[`GpuTooltipModel`](logic-modules.md#gputooltipmodeljs): `buildStatRows(detail)`
+emits the ordered rows and **skips any field the host doesn't report**, so the
+panel degrades per hardware (NVIDIA shows all six rows; an Intel iGPU may show
+only Model + Usage + Temperature). Pure QtQuick + Kirigami — no platform import.
+
+| Property / signal | Role |
+|---|---|
+| `armed` | True only on the gpu ring; gates the `HoverHandler` so nothing samples/shows on other rings. |
+| `detail` | The per-device `gpuDetail` object (`{model, usagePercent, vramUsedBytes, vramTotalBytes, tempC, powerW, clockMhz}`, every field absent-able). `MainContent` reads `metrics.gpuDetail` **only while hovered**, so the gated NVML/sysfs detail reads don't run every tick. |
+| `processes` | Raw `[{pid, name, vramBytes}]` from `metrics.gpuProcesses` (NVIDIA only; `[]` on AMD/Intel/Plasma → no process section). The view ranks + caps them with `rankProcesses(…, DEFAULT_LIMIT)`. |
+| `title` | Header line; defaults to `qsTr("GPU")`. |
+| `openRight` | Which side the Window popup opens toward (see "Placement" above). `MainContent` feeds it `_tooltipOpenRight`. Default `false`. |
+| `samplingActive` (readonly) | True while the pointer is over the gpu ring. `MainContent` binds `metrics.gpuDetailSamplingActive` to it via one `when`-gated `Binding` — a single gpu ring, so it follows the **disk** pattern (direct per-delegate gate) rather than the cpu/ram content-scope fan-in. |
+
+`gpuDetail` / `gpuProcesses` are reactive `readonly property var` on **both**
+adapters (not functions): a function call isn't a tracked binding dependency, so
+the live tooltip would freeze — see
+[`core/CLAUDE.md`](../contents/ui/core/CLAUDE.md) § "Reactive argless data". The
+NVIDIA process list is ranked + capped to the displayed top-N **before** the
+standalone `GpuSampler` resolves pid→name from `/proc`, so only shown pids touch
+the GUI thread.
+
+**Known multi-GPU limitation** (single-aggregate-panel by design — the plan
+rejected per-GPU rows): on Plasma with more than one GPU, the VRAM row is the
+`gpu/all` aggregate (summed across cards) while model / power / clock come from
+the first Ready device. The "Model" row identifies which device those per-device
+fields belong to. The standalone (NVML) path reads device 0 throughout, so it is
+internally consistent. Covered by `tests/qml/tst_GpuTooltip.qml`.
+
 ## `MetricRow.qml`
 
 One row of the metrics list:

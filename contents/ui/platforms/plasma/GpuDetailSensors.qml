@@ -22,7 +22,7 @@ import org.kde.ksysguard.sensors as Sensors
 //                  Sensor subscription so the daemon pushes nothing while
 //                  no tooltip is up.
 // Surface (forwarded by MetricsBackend):
-//   gpuExtra()   - {model, vramUsedBytes, vramTotalBytes, powerW, clockMhz}
+//   detail (readonly property var) - {model, vramUsedBytes, vramTotalBytes, powerW, clockMhz}
 
 Item {
     id: gpuDetail
@@ -90,10 +90,11 @@ Item {
         return fallback;
     }
 
-    // Returns the detail object for the GPU tooltip.
-    // Reading _tick first makes every field a reactive dependency so the
-    // caller's binding re-evaluates whenever any sensor value changes.
-    function gpuExtra() {
+    // Detail object for the GPU tooltip. Reading _tick first makes every
+    // field a reactive dependency so the binding re-evaluates whenever any
+    // sensor value changes. readonly property var (not a function) so the
+    // MetricsBackend binding tracks it and stays live.
+    readonly property var detail: {
         gpuDetail._tick;
 
         // Aggregate VRAM — use undefined when not Ready so buildStatRows

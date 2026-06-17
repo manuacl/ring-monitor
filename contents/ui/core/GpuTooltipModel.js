@@ -58,6 +58,17 @@ function _present(v) {
     return isFinite(Number(v));
 }
 
+// A C++ QVariantList (e.g. NvmlReader.runningProcesses()) arrives in QML as an
+// array-LIKE object, not a true JS Array — Array.isArray() is FALSE for it, so
+// guard on a numeric .length + index access instead. Same trap as core/CLAUDE.md
+// § "QML list properties are NOT JS Arrays": Node tests pass real Arrays, so an
+// Array.isArray guard stays green in unit tests yet drops every live process
+// list (the standalone GPU tooltip showed raw=22 records → ranked=0). Index
+// access (records[i]) works on the array-like, which is all dedupe/rank need.
+function _isArrayLike(x) {
+    return x !== undefined && x !== null && typeof x.length === "number";
+}
+
 // "8.0 GiB" / "24 GiB" / "512 MiB" — one decimal below 10, integer above.
 // Mirrors DiskTooltipModel.formatSize exactly (same rounding-boundary logic).
 function formatVram(bytes) {
@@ -163,7 +174,7 @@ function buildStatRows(detail) {
 // may not sample VRAM for every process tick). Non-array input → [].
 function rankProcesses(records, limit) {
     var cap = (limit === undefined) ? DEFAULT_LIMIT : limit;
-    if (!Array.isArray(records) || cap <= 0)
+    if (!_isArrayLike(records) || cap <= 0)
         return [];
     var cleaned = [];
     for (var i = 0; i < records.length; i++) {
@@ -196,7 +207,7 @@ function formatProcessVram(bytes) {
 // keeps the first-seen record. Does NOT sort (rankProcesses handles that).
 // Non-array input → []. Records with missing/NaN pid are skipped.
 function dedupeByPid(records) {
-    if (!Array.isArray(records))
+    if (!_isArrayLike(records))
         return [];
     var seen = {};   // pid (number) → index into out[]
     var out = [];

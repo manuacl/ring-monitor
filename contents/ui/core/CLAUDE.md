@@ -73,8 +73,13 @@ for which `Array.isArray()` is `false` and Array methods (`.map`…) are
 not guaranteed. Node tests pass real Arrays, so an `Array.isArray`
 guard passes every unit test and still returns the fallback on every
 live QML call (live bug in #142's `pickScreen`: the screen pin
-silently never applied). Add an array-like-object case to the
-module's tests to pin the guard.
+silently never applied). A C++ `Q_INVOKABLE` returning `QVariantList`
+(e.g. `NvmlReader.runningProcesses()`) is the **same trap**: it reaches
+QML array-*like*, `Array.isArray()` is `false`, and an `Array.isArray`
+guard in a dual-loaded `.js` module drops every element on the live call
+while Node unit tests (real Arrays) stay green — #71 had
+`GpuTooltipModel.dedupeByPid` turn 22 GPU processes into 0. Add an
+array-like-object case to the module's tests to pin the guard.
 
 ## Component-side gotchas
 
@@ -210,8 +215,14 @@ active simultaneously and the inactive one's `false` clobbers the
 hovered one's `true`. Route each tooltip's hover into its own
 content-scope bool (`_cpuTooltipHovered`, `_memTooltipHovered` — the
 `when:` keeps exactly one delegate driving each), OR-ed by ONE Binding
-onto the backend property. Canonical: `MainContent.qml` (#70). The GPU
-tooltip (#71) adds its third source the same way.
+onto the backend property. Canonical: `MainContent.qml` (#70). This
+fan-in is only needed when **two or more** rings drive the *same* gate.
+A tooltip that owns a **distinct** backend gate AND is a single ring
+skips it: the GPU tooltip (#71) drives its own `gpuDetailSamplingActive`
+with one direct `when`-gated `Binding` on the gpu delegate (the disk
+pattern — `diskTooltipActive`), not a third source on
+`processSamplingActive`. Add a content-scope bool only if a second ring
+ever shares one of these gates.
 
 ### A QQC2 popup over the widget needs `popupType: Window` + a `width` bound to `implicitWidth`
 

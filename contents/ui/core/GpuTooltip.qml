@@ -41,7 +41,8 @@ Item {
     property bool armed: false
     // One GPU device detail object from the backend; absent fields are skipped.
     property var detail: ({})
-    // Raw GPU process records (NVIDIA only); [] on AMD/Intel/Plasma aggregate.
+    // GPU process records (NVIDIA only); [] on AMD/Intel/Plasma aggregate. The
+    // view ranks+caps them itself (rankProcesses), so an unranked list is fine.
     property var processes: []
     // Header line shown at the top of the tooltip.
     property string title: qsTr("GPU")

@@ -80,8 +80,8 @@ Item {
     property string _gpuPowerPath: ""
 
     // ── Last-good detail values ──────────────────────────────────────────
-    // Persisted across ticks so gpuDetail() returns stable values between
-    // samples. Overwritten only when detailActive AND the read succeeds.
+    // Persisted across ticks so the gpuDetail property returns stable values
+    // between samples. Overwritten only when detailActive AND the read succeeds.
     // NaN default: undefined-until-seen (same sentinel as _gpuTempC).
     property string _gpuModel: ""
     property real _gpuVramUsedBytes: NaN
@@ -172,8 +172,12 @@ Item {
             // require _gpuBusyPath for them (it would re-walk sysfs every tick
             // for the whole window). Unknown vendor → require both until ID'd.
             var needBusyPath = gpuSampler._gpuVendor === "" || gpuSampler._gpuVendor === "amd";
-            // Also keep retrying while an AMD detail path (VRAM/power) is unresolved — they can register after busy/temp (#71 PR2 review).
-            var gpuPathsIncomplete = (needBusyPath && !gpuSampler._gpuBusyPath) || !gpuSampler._gpuTempPath || (gpuSampler._gpuVendor === "amd" && (!gpuSampler._gpuVramUsedPath || !gpuSampler._gpuVramTotalPath || !gpuSampler._gpuPowerPath));
+            // Also keep retrying while an AMD VRAM detail path is unresolved — it can
+            // register after busy/temp (#71 PR2 review). Gate on VRAM only: power1_input
+            // is optional on many AMD cards (stays "" forever), so blocking on it would
+            // re-walk sysfs for the whole 60-tick window on every such host. Power stays
+            // opportunistic — read each tick when present, hidden by formatPower when not.
+            var gpuPathsIncomplete = (needBusyPath && !gpuSampler._gpuBusyPath) || !gpuSampler._gpuTempPath || (gpuSampler._gpuVendor === "amd" && (!gpuSampler._gpuVramUsedPath || !gpuSampler._gpuVramTotalPath));
             if (gpuPathsIncomplete && gpuSampler._gpuResolveAttempts < gpuSampler._gpuMaxResolveAttempts) {
                 gpuSampler._gpuResolveAttempts++;
                 gpuSampler._resolveGpuPaths();

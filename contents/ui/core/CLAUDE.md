@@ -210,8 +210,14 @@ active simultaneously and the inactive one's `false` clobbers the
 hovered one's `true`. Route each tooltip's hover into its own
 content-scope bool (`_cpuTooltipHovered`, `_memTooltipHovered` — the
 `when:` keeps exactly one delegate driving each), OR-ed by ONE Binding
-onto the backend property. Canonical: `MainContent.qml` (#70). The GPU
-tooltip (#71) adds its third source the same way.
+onto the backend property. Canonical: `MainContent.qml` (#70). This
+fan-in is only needed when **two or more** rings drive the *same* gate.
+A tooltip that owns a **distinct** backend gate AND is a single ring
+skips it: the GPU tooltip (#71) drives its own `gpuDetailSamplingActive`
+with one direct `when`-gated `Binding` on the gpu delegate (the disk
+pattern — `diskTooltipActive`), not a third source on
+`processSamplingActive`. Add a content-scope bool only if a second ring
+ever shares one of these gates.
 
 ### A QQC2 popup over the widget needs `popupType: Window` + a `width` bound to `implicitWidth`
 

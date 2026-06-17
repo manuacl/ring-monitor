@@ -12,6 +12,8 @@ user-facing only.
 
 ## [Unreleased]
 
+## [0.15.0] — 2026-06-17
+
 ### Added
 
 - Hover the **GPU ring** to see a detail tooltip — GPU model, utilization, VRAM used/total, temperature, power draw, and clock. On NVIDIA the tooltip also lists the **top GPU processes** by VRAM use (name · PID · VRAM). Fields your hardware doesn't expose are hidden, so the tooltip shows only what your GPU actually reports. Works on both the Plasma widget and the standalone app (#71).

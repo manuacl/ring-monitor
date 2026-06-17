@@ -4,7 +4,6 @@ import "ProcStatParser.js" as ProcStatParser
 import "MemInfoParser.js" as MemInfoParser
 import "CpuTempDiscovery.js" as CpuTemp
 import "DiskDiscovery.js" as DiskDiscovery
-import "GpuDiscovery.js" as GpuDisc
 import "../../core/MetricsCatalog.js" as Catalog
 import "../../core/DiskMetrics.js" as DiskMetrics
 
@@ -63,8 +62,8 @@ Item {
         "cpuTemp": backend._cpuTempPath !== "",
         "ram": true,
         "swap": backend._swapAvailable,
-        "gpu": backend._gpuAvailable,
-        "gpuTemp": backend._gpuTempAvailable && isFinite(backend._gpuTempC),
+        "gpu": gpuSampler.available,
+        "gpuTemp": gpuSampler.tempAvailable && isFinite(gpuSampler.tempC),
         "disk": true,
         // /proc/diskstats always exists (no-op until the diskIo UI PR adds the catalog id).
         "diskIo": true
@@ -83,7 +82,7 @@ Item {
         if (id === "disk")
             return backend.defaultPartitionIds.length > 0 ? backend.partitionValue(backend.defaultPartitionIds[0]) : 0;
         if (id === "gpu")
-            return backend._gpuUsage;
+            return gpuSampler.usage;
         if (id === "swap")
             return backend._swapUsage;
         // cpuTemp / gpuTemp are raw-°C metrics (Catalog.isTempMetric):
@@ -93,7 +92,7 @@ Item {
         if (id === "cpuTemp")
             return backend._coerceTemp(backend._cpuTempC);
         if (id === "gpuTemp")
-            return backend._coerceTemp(backend._gpuTempC);
+            return backend._coerceTemp(gpuSampler.tempC);
         return 0;
     }
 
@@ -104,7 +103,7 @@ Item {
         if (id === "cpu")
             return backend._coerceTemp(backend._cpuTempC);
         if (id === "gpu")
-            return backend._coerceTemp(backend._gpuTempC);
+            return backend._coerceTemp(gpuSampler.tempC);
         return 0;
     }
 
@@ -224,10 +223,21 @@ Item {
         }
     }
 
-    // NVIDIA GPU via NVML (dlopen'd libnvidia-ml). available:false on
-    // non-NVIDIA hosts — AMD/Intel sysfs land in a follow-up.
-    NvmlReader {
-        id: gpuReader
+    // GPU sampling is owned entirely by the GpuSampler child — NVML (NVIDIA)
+    // + AMD/Intel sysfs always-on usage/temp + gated detail for the tooltip.
+    // gpuDetailSamplingActive is set by MainContent when the GPU tooltip is
+    // shown (default false — the detail polling is off until armed).
+    property bool gpuDetailSamplingActive: false
+
+    GpuSampler {
+        id: gpuSampler
+        reader: reader
+        detailActive: backend.gpuDetailSamplingActive
+    }
+
+    // gpuDetail() forwards the sampler's detail snapshot for the GPU tooltip.
+    function gpuDetail() {
+        return gpuSampler.gpuDetail();
     }
 
     property var _prev: null  // {all, cores} from the previous /proc/stat sample
@@ -257,23 +267,6 @@ Item {
     // sensorless host). See standalone/CLAUDE.md § "Sysfs discovery retry gate".
     property int _cpuTempResolveAttempts: 0
     readonly property int _cpuTempMaxResolveAttempts: 60  // ~30s at the 2 Hz Timer
-    // GPU (NVIDIA/NVML): _gpuUsage 0-100 %; _gpuTempC raw °C (NaN→0 at surface).
-    property real _gpuUsage: 0
-    property real _gpuTempC: NaN
-    // Whether any GPU has a usage source (NVML, or AMD sysfs gpu_busy_percent);
-    // false on Intel-only (needs elevated perms) and GPU-less hosts.
-    property bool _gpuAvailable: false
-    // Whether any GPU has a temp source (NVML, or AMD/Intel hwmon). Separate so
-    // an Intel-temp-only host shows a gpuTemp ring without _gpuAvailable.
-    property bool _gpuTempAvailable: false
-    // AMD/Intel GPU sysfs paths resolved once by GpuDiscovery (empty until
-    // resolved or after the retry window closes): gpu_busy_percent + hwmon temp.
-    property string _gpuBusyPath: ""
-    property string _gpuTempPath: ""
-    // "amd" | "intel" | "" (NVIDIA excluded — NVML path; "" while unresolved)
-    property string _gpuVendor: ""
-    property int _gpuResolveAttempts: 0
-    readonly property int _gpuMaxResolveAttempts: 60  // ~30s at the 2 Hz Timer
 
     // Walk /sys/class/hwmon, then fall back to /sys/class/thermal, and
     // return the sysfs file to read each tick — or "" if none. All the
@@ -331,24 +324,6 @@ Item {
         }
         var zone = CpuTemp.pickCpuThermalZone(zones);
         return zone ? base + "/" + zone + "/temp" : "";
-    }
-
-    // Delegate to GpuDiscovery to find the first AMD or Intel DRM card and
-    // record its sysfs paths. Called at most once per session (on the first
-    // non-NVIDIA tick, with a bounded retry window). ProcReader references are
-    // wrapped in closures to keep GpuDiscovery pure (no direct I/O in the
-    // module, same rationale as CpuTempDiscovery.js).
-    function _resolveGpuPaths() {
-        var info = GpuDisc.discoverGpu(function (path) {
-            return reader.listDir(path);
-        }, function (path) {
-            return reader.read(path);
-        });
-        if (!info)
-            return;
-        backend._gpuVendor = info.vendor;
-        backend._gpuBusyPath = info.busyPath || "";
-        backend._gpuTempPath = info.tempPath || "";
     }
 
     // Rebuild the partition list from /proc/mounts. Cheap string compare
@@ -426,59 +401,12 @@ Item {
         }
         if (backend._cpuTempPath)
             backend._cpuTempC = CpuTemp.parseTempCelsius(reader.read(backend._cpuTempPath));
-        // ── GPU: NVML (NVIDIA) + sysfs (AMD/Intel) ──────────────────
-        // NVML: synchronous per-tick read (microseconds via dlopen'd libnvidia-ml).
-        // AMD/Intel sysfs reads run ONLY when nvml.available is false this tick —
-        // preventing a hybrid NVIDIA+AMD host from having a transient NVML failure
-        // latch AMD paths and permanently shadow NVML readings with AMD values.
-        // Retry gate keeps retrying while EITHER path is still empty
-        // (!_gpuBusyPath || !_gpuTempPath) so a late-loaded hwmon (Intel i915 /
-        // udev settle, or amdgpu's hwmon registering a few seconds after the DRM
-        // node) is discovered within the 30 s window even after the first path
-        // already resolved. && would close the gate the moment one path landed,
-        // stranding the other for the whole session (issue #83).
-        // Availability derives from this tick's read success (liveness model):
-        // an AMD eGPU hot-unplug makes reads fail → ring disappears ≤1 tick,
-        // matching NVML's per-tick available flag behaviour for NVIDIA.
-        //
-        // sample() OMITS a field whose NVML query failed this tick — commit only
-        // present keys so a transient failure keeps the last-good value.
-        var nvml = gpuReader.sample();
-        if (nvml.available) {
-            if (nvml.usage !== undefined)
-                backend._gpuUsage = nvml.usage;
-            if (nvml.tempC !== undefined)
-                backend._gpuTempC = nvml.tempC;
-        }
-        var sysfsUsageValid = false;
-        var sysfsTempValid = false;
-        if (!nvml.available) {
-            // Only AMD has a usage path; Intel/nouveau are temp-only, so don't
-            // require _gpuBusyPath for them (it would re-walk sysfs every tick
-            // for the whole window). Unknown vendor → require both until ID'd.
-            var needBusyPath = backend._gpuVendor === "" || backend._gpuVendor === "amd";
-            var gpuPathsIncomplete = (needBusyPath && !backend._gpuBusyPath) || !backend._gpuTempPath;
-            if (gpuPathsIncomplete && backend._gpuResolveAttempts < backend._gpuMaxResolveAttempts) {
-                backend._gpuResolveAttempts++;
-                backend._resolveGpuPaths();
-            }
-            if (backend._gpuBusyPath) {
-                var gpuUsage = parseInt(reader.read(backend._gpuBusyPath).trim(), 10);
-                if (isFinite(gpuUsage)) {
-                    backend._gpuUsage = gpuUsage;
-                    sysfsUsageValid = true;
-                }
-            }
-            if (backend._gpuTempPath) {
-                var sysfsTemp = GpuDisc.parseTempCelsius(reader.read(backend._gpuTempPath));
-                if (isFinite(sysfsTemp)) {
-                    backend._gpuTempC = sysfsTemp;
-                    sysfsTempValid = true;
-                }
-            }
-        }
-        backend._gpuAvailable = nvml.available || sysfsUsageValid;
-        backend._gpuTempAvailable = nvml.available || sysfsTempValid;
+        // ── GPU: delegated to GpuSampler child ──────────────────────
+        // All GPU logic (NVML + AMD/Intel sysfs, retry gate, liveness flags,
+        // detail branch) now lives in GpuSampler.qml. MetricsBackend reads
+        // the results through gpuSampler.usage / .tempC / .available /
+        // .tempAvailable — all updated synchronously inside sample().
+        gpuSampler.sample();
         // Bump _tick last so all readonly properties depending on it
         // re-evaluate together after every metric has its fresh value.
         backend._tick++;

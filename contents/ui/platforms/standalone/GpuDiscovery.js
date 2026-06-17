@@ -25,7 +25,9 @@ var VENDOR_NVIDIA = "0x10de";  // NVIDIA (nouveau fallback; proprietary → NVML
 // Main entry point. listDir and read are ProcReader method references,
 // injected by the backend so this module stays pure (no direct I/O).
 // Returns { vendor, busyPath, tempPath } on the first AMD or Intel DRM card
-// found, or null when no eligible card exists.
+// found, or null when no eligible card exists. AMD results additionally carry
+// optional fields vramUsedPath, vramTotalPath, and powerPath when the
+// underlying sysfs nodes are present (kernel / driver version dependent).
 // Card selection: lowest card number wins (card0 before card1) so the result
 // is stable across boots even when multiple GPUs are present. AMD/Intel take
 // priority over a nouveau card: they expose a usage source (or are first-class
@@ -65,14 +67,31 @@ function _amdInfo(base, listDir, read) {
     // it. read() returns "" on missing/unreadable paths, so a non-empty result
     // (including "0\n" at idle) confirms existence.
     var busyPath = read(busyFile) !== "" ? busyFile : null;
-    var tempPath = _drmHwmonTempPath(base + "/device/hwmon", listDir);
-    return { vendor: "amd", busyPath: busyPath, tempPath: tempPath };
+
+    // VRAM nodes live directly under the card device dir (not in hwmon).
+    // Present on amdgpu since kernel 4.2; absent on older kernels or when the
+    // amdgpu module is loaded without full VRAM accounting.
+    var vramUsedFile  = base + "/device/mem_info_vram_used";
+    var vramTotalFile = base + "/device/mem_info_vram_total";
+
+    var hwmonDir = _drmHwmonDir(base + "/device/hwmon", listDir);
+    var tempPath  = hwmonDir !== null ? hwmonDir + "/temp1_input" : null;
+    // power1_input is in microwatts on amdgpu — conversion to watts is the
+    // consumer's responsibility; this module only resolves the path.
+    var powerFile = hwmonDir !== null ? hwmonDir + "/power1_input" : null;
+
+    var result = { vendor: "amd", busyPath: busyPath, tempPath: tempPath };
+    if (read(vramUsedFile) !== "")  result.vramUsedPath  = vramUsedFile;
+    if (read(vramTotalFile) !== "") result.vramTotalPath = vramTotalFile;
+    if (powerFile !== null && read(powerFile) !== "") result.powerPath = powerFile;
+    return result;
 }
 
 function _intelInfo(base, listDir) {
     // Intel GPU utilisation needs i915 perf counters (elevated perms) —
     // deferred. This discovery covers Intel temp-only for now.
-    var tempPath = _drmHwmonTempPath(base + "/device/hwmon", listDir);
+    var hwmonDir = _drmHwmonDir(base + "/device/hwmon", listDir);
+    var tempPath = hwmonDir !== null ? hwmonDir + "/temp1_input" : null;
     return { vendor: "intel", busyPath: null, tempPath: tempPath };
 }
 
@@ -82,8 +101,21 @@ function _nouveauInfo(base, listDir) {
     // counter (debugfs pstate is root-only), so this is temp-only — exactly the
     // _gpuTempAvailable-without-_gpuAvailable case MetricsBackend already
     // supports. Only reached when NVML is unavailable (issue #106).
-    var tempPath = _drmHwmonTempPath(base + "/device/hwmon", listDir);
+    var hwmonDir = _drmHwmonDir(base + "/device/hwmon", listDir);
+    var tempPath = hwmonDir !== null ? hwmonDir + "/temp1_input" : null;
     return { vendor: "nouveau", busyPath: null, tempPath: tempPath };
+}
+
+// Walk /sys/class/drm/cardN/device/hwmon/ and return the full path to the
+// first hwmonN subdirectory found, or null when absent/empty.
+// Both amdgpu and i915/xe register a single hwmon device at this location.
+function _drmHwmonDir(hwmonBase, listDir) {
+    var entries = listDir(hwmonBase) || [];
+    for (var i = 0; i < entries.length; i++) {
+        if (/^hwmon\d+$/.test(entries[i]))
+            return hwmonBase + "/" + entries[i];
+    }
+    return null;
 }
 
 // Walk /sys/class/drm/cardN/device/hwmon/ and return the `temp1_input` path
@@ -91,12 +123,8 @@ function _nouveauInfo(base, listDir) {
 // The amdgpu and i915/xe drivers both expose a single hwmon device at this
 // location with `temp1_input` as the junction/die temperature.
 function _drmHwmonTempPath(hwmonBase, listDir) {
-    var entries = listDir(hwmonBase) || [];
-    for (var i = 0; i < entries.length; i++) {
-        if (/^hwmon\d+$/.test(entries[i]))
-            return hwmonBase + "/" + entries[i] + "/temp1_input";
-    }
-    return null;
+    var dir = _drmHwmonDir(hwmonBase, listDir);
+    return dir !== null ? dir + "/temp1_input" : null;
 }
 
 // Convert a sysfs millidegrees-Celsius reading to °C. Non-numeric / empty
@@ -116,6 +144,7 @@ if (typeof module !== "undefined" && module.exports) {
         discoverGpu: discoverGpu,
         parseTempCelsius: parseTempCelsius,
         _sortedDrmCards: _sortedDrmCards,
+        _drmHwmonDir: _drmHwmonDir,
         _drmHwmonTempPath: _drmHwmonTempPath,
     };
 }

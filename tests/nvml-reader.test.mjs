@@ -61,6 +61,51 @@ test("NvmlReader resolves NVML entry points by name via dlsym", () => {
     }
 });
 
+test("NvmlReader resolves detail-mode NVML symbols via dlsym", () => {
+    // These four symbols enable the tooltip detail view (model name, VRAM,
+    // power draw, SM clock). They are optional — older drivers may lack some —
+    // so they must be resolved but NOT added to the required-symbol fatal guard.
+    for (const sym of ["nvmlDeviceGetMemoryInfo", "nvmlDeviceGetPowerUsage", "nvmlDeviceGetClockInfo", "nvmlDeviceGetName"]) {
+        assert.match(SRC, new RegExp(`dlsym\\s*\\(\\s*_lib\\s*,\\s*"${sym}"`), `must dlsym ${sym}`);
+    }
+});
+
+test("NvmlReader detail symbols are NOT in the required-symbol fatal guard", () => {
+    // The fatal guard must remain limited to init/handle/util/temp — a driver
+    // missing e.g. GetPowerUsage must still serve usage + temp. Assert the
+    // guard line lists exactly the four required symbols and none of the detail ones.
+    const guardMatch = SRC.match(/if\s*\(\s*!init\s*\|\|[^)]+\)/);
+    assert.ok(guardMatch, "required-symbol guard must be present");
+    const guardLine = guardMatch[0];
+    assert.match(guardLine, /_fnGetUtil/, "guard must include _fnGetUtil");
+    assert.match(guardLine, /_fnGetTemp/, "guard must include _fnGetTemp");
+    assert.doesNotMatch(guardLine, /_fnGetMem/, "guard must NOT include _fnGetMem (non-fatal)");
+    assert.doesNotMatch(guardLine, /_fnGetPower/, "guard must NOT include _fnGetPower (non-fatal)");
+    assert.doesNotMatch(guardLine, /_fnGetClock/, "guard must NOT include _fnGetClock (non-fatal)");
+    assert.doesNotMatch(guardLine, /_fnGetName/, "guard must NOT include _fnGetName (non-fatal)");
+});
+
+test("NvmlReader sample() accepts a detailed parameter", () => {
+    // The QML tooltip caller passes sample(true) for the detail view.
+    assert.match(SRC, /sample\s*\(\s*bool\s+detailed/, "sample() must accept a bool detailed parameter");
+    assert.match(HEADER, /sample\s*\(\s*bool\s+detailed\s*=\s*false\s*\)/, "header must declare sample(bool detailed = false)");
+});
+
+test("NvmlReader detail typedefs cover all four new entry points", () => {
+    // Self-declared ABI — same subset nvtop/conky use.
+    assert.match(SRC, /fn_mem_t/, "must declare fn_mem_t typedef");
+    assert.match(SRC, /fn_power_t/, "must declare fn_power_t typedef");
+    assert.match(SRC, /fn_clock_t/, "must declare fn_clock_t typedef");
+    assert.match(SRC, /fn_name_t/, "must declare fn_name_t typedef");
+    assert.match(SRC, /struct nvmlMemory_t/, "must self-declare nvmlMemory_t struct");
+});
+
+test("NvmlReader powerW converts milliwatts to watts by dividing by 1000", () => {
+    // NVML GetPowerUsage returns milliwatts; the contract key is watts (a
+    // double) so the tooltip can display "X.X W" without a conversion step.
+    assert.match(SRC, /mw\s*\/\s*1000\.0/, "powerW must divide mW by 1000.0 to get watts");
+});
+
 test("NvmlReader is a QML_ELEMENT and includes <dlfcn.h>", () => {
     assert.match(HEADER, /QML_ELEMENT/, "header must declare QML_ELEMENT");
     assert.match(SRC, /#include\s*<dlfcn\.h>/, "must include <dlfcn.h> for dlopen/dlsym");

@@ -1098,6 +1098,87 @@ re-shown ring keeps its learned scale instead of re-warming from the floor.
 Both import a host-only module absent from the CI container, so they're
 text-guarded rather than run under `qmltestrunner`.
 
+### `GpuDetailSensors.qml` (Plasma only)
+
+Tooltip-gated ksysguard sensor child for the GPU ring hover tooltip (issue
+#71). Lives beside `MetricsBackend` in `platforms/plasma/` — the
+`org.kde.ksysguard.sensors` import keeps it out of `core/`.
+
+**Why a separate file**: the tooltip-only sensors (VRAM bytes,
+per-device power, clock, model name) must be subscribed only while the
+tooltip is shown; folding them into `MetricsBackend` would push them
+permanently. Same split rationale as `DiskPartitionSensors` (three
+extra leaves per partition → #68 tooltip) and `ProcessSampler` (process
+polling → #69 gate).
+
+**Why aggregate for VRAM, per-device for power/clock/name**: ksysguard
+exposes `gpu/all/usedVram` and `gpu/all/totalVram` as aggregate uint64
+byte leaves, but has **no** `gpu/all/power`, `gpu/all/coreFrequency`, or
+`gpu/all/name` — those three exist only per device (`gpu/gpuN/...`). The
+tooltip panel picks the first-Ready device value for each.
+
+| Member | Description |
+|---|---|
+| `gpuDeviceIds` (property var) | Sorted device bases from `MetricsCatalog.classifyDiscoveredIds()` (e.g. `["gpu/gpu0"]`). Driven by `MetricsBackend._gpuDeviceIds`. |
+| `active` (property bool) | Gate: all sensors carry `enabled: active`, so the daemon pushes nothing while false. Set by `MetricsBackend.gpuDetailSamplingActive`, which `MainContent` flips on tooltip hover. |
+| `gpuExtra()` (function) | Returns `{model, vramUsedBytes, vramTotalBytes, powerW, clockMhz}`. Every field is `undefined` when its sensor is not yet Ready — `GpuTooltipModel.buildStatRows` skips undefined rows. Reads `_tick` as its first line (reactive dependency tracking). |
+
+Internally: two static `Sensors.Sensor` instances for `gpu/all/usedVram`
++ `gpu/all/totalVram`; an `Instantiator { id: deviceInst }` whose
+delegate carries three per-device sensors (`/name`, `/power`,
+`/coreFrequency`). All sensors carry `enabled: gpuDetail.active` and
+bump `_tick` `onValueChanged` (the standard tick-counter pattern for
+`Instantiator`-driven `readonly` bindings — see
+`platforms/plasma/CLAUDE.md`).
+
+Guarded by text-level assertions in `tests/metrics-backend.test.mjs`.
+
+### `GpuSampler.qml` (standalone only)
+
+Standalone GPU sampling — extracted from `MetricsBackend` when the 500-line
+cap was reached (issue #71 tooltip). Owns the `NvmlReader` C++ helper,
+the AMD/Intel sysfs discovery (`GpuDiscovery.js`), and the per-tick sampling
+logic. There is no Plasma counterpart; the Plasma `MetricsBackend` handles GPU
+directly through ksysguard `Sensors.Sensor` instances.
+
+**Inputs:**
+
+| Property | Role |
+|---|---|
+| `reader` | The parent MetricsBackend's `ProcReader` (injected; not owned here) |
+| `detailActive` | True only while the GPU tooltip is shown; gates detail polling (VRAM/power/clock/model) |
+
+**Public surface** (consumed by MetricsBackend):
+
+| Member | Description |
+|---|---|
+| `usage` (readonly real) | GPU utilisation 0–100 % from this tick |
+| `tempC` (readonly real) | Raw GPU temperature in °C (NaN until resolved) |
+| `available` (readonly bool) | True when this tick's read succeeded — NVML available or AMD sysfs busy-read finite (liveness model: disappears ≤1 tick on device removal) |
+| `tempAvailable` (readonly bool) | True when this tick's temp read succeeded — covers NVML, AMD hwmon, Intel hwmon, nouveau hwmon |
+| `sample()` | Per-tick GPU work; MetricsBackend's 500 ms Timer calls it. Passes `detailActive` to `NvmlReader.sample()` so NVML only returns extended fields when armed |
+| `gpuDetail()` | Returns last-good detail snapshot: `{model, usagePercent, vramUsedBytes, vramTotalBytes, tempC, powerW, clockMhz}` — each field is `undefined` when no source was found or all reads failed; never coerces NaN to 0 (MetricsBackend's `_coerceTemp` handles that for the ring surface) |
+
+**Always-on path** (identical semantics to the old MetricsBackend inline block):
+NVML (`NvmlReader.sample(detailActive)`) runs first; if `nvml.available` is
+false, the AMD/Intel sysfs branch runs (retry gate bounded by
+`_gpuMaxResolveAttempts = 60`, ~30 s at 2 Hz). Availability flags use a
+**liveness model** (derived from this tick's read success, not path
+non-emptiness) so an AMD eGPU hot-unplug causes the ring to disappear within
+≤1 tick. The `||`-not-`&&` retry gate keeps both paths open until both resolve
+(issue #83).
+
+**Gated detail path** (new in #71): when `detailActive` is true, NVML detail
+keys (`model`, `vramUsedBytes`, `vramTotalBytes`, `powerW`, `clockMhz`) are
+read from `nvml.*`; AMD sysfs reads `mem_info_vram_used` / `mem_info_vram_total`
+(bytes) and `power1_input` (microwatts → divided by 1e6 for watts). All detail
+reads use omit-on-failure: a non-finite result never overwrites a last-good
+stored value, so `gpuDetail()` returns stable values between ticks.
+
+Text-guarded by `tests/standalone-metrics-backend.test.mjs` (the "GpuSampler
+wires AMD/Intel GPU via GpuDiscovery sysfs" and "NVIDIA GPU via GpuSampler"
+test blocks, alongside the MetricsBackend wiring guards).
+
 ## Update-notification flow
 
 A widget-side check against GitHub Releases drives a subtle "new

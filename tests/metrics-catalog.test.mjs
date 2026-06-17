@@ -119,7 +119,7 @@ test('isSplitForBase: non-cpu/gpu base ids never split', () => {
 
 test('classifyDiscoveredIds: empty input → empty buckets', () => {
     const out = Catalog.classifyDiscoveredIds([]);
-    assert.deepEqual(out, { coreUsageIds: [], gpuTempIds: [], gpuUsageIds: [], diskPartitionUsageIds: [] });
+    assert.deepEqual(out, { coreUsageIds: [], gpuTempIds: [], gpuUsageIds: [], diskPartitionUsageIds: [], gpuDeviceIds: [] });
 });
 
 test('classifyDiscoveredIds: routes ids into the right buckets', () => {
@@ -141,6 +141,8 @@ test('classifyDiscoveredIds: routes ids into the right buckets', () => {
     assert.deepEqual(out.gpuTempIds, ["gpu/gpu0/temperature", "gpu/gpu1/temperature"]);
     assert.deepEqual(out.gpuUsageIds, ["gpu/gpu0/usage"]);
     assert.deepEqual(out.diskPartitionUsageIds, []);  // disk/all is excluded; no per-fs ids here
+    // gpuDeviceIds: gpu0+gpu1 from multiple leaves; gpu/all excluded; existing buckets unaffected.
+    assert.deepEqual(out.gpuDeviceIds, ["gpu/gpu0", "gpu/gpu1"]);
 });
 
 test('classifyDiscoveredIds: buckets per-filesystem disk usedPercent, excludes disk/all', () => {
@@ -154,10 +156,9 @@ test('classifyDiscoveredIds: buckets per-filesystem disk usedPercent, excludes d
         "disk/sda/read",                  // physical disk — no usedPercent
         "disk/6286e04e-b217-43bf-834f-d6a054ac4376/free"  // not usedPercent
     ]);
-    assert.deepEqual(out.diskPartitionUsageIds, [
-        "disk/0af30554-3219-445a-b6f7-e02910a91469/usedPercent",
-        "disk/6286e04e-b217-43bf-834f-d6a054ac4376/usedPercent"
-    ]);
+    const uuid0 = "disk/0af30554-3219-445a-b6f7-e02910a91469/usedPercent";
+    const uuid1 = "disk/6286e04e-b217-43bf-834f-d6a054ac4376/usedPercent";
+    assert.deepEqual(out.diskPartitionUsageIds, [uuid0, uuid1]);
 });
 
 test('classifyDiscoveredIds: ignores the regex subscription node behind disk/all', () => {
@@ -169,30 +170,27 @@ test('classifyDiscoveredIds: ignores the regex subscription node behind disk/all
         "disk/(?!all).*/usedPercent",
         "disk/6286e04e-b217-43bf-834f-d6a054ac4376/usedPercent"
     ]);
-    assert.deepEqual(out.diskPartitionUsageIds, [
-        "disk/6286e04e-b217-43bf-834f-d6a054ac4376/usedPercent"
-    ]);
+    assert.deepEqual(out.diskPartitionUsageIds, ["disk/6286e04e-b217-43bf-834f-d6a054ac4376/usedPercent"]);
 });
 
 test('classifyDiscoveredIds: natural sort puts cpu10 after cpu9', () => {
     // Default JS string sort would produce ["…cpu1…", "…cpu10…", "…cpu2…"].
-    const input = [
+    const out = Catalog.classifyDiscoveredIds([
         "cpu/cpu10/usage", "cpu/cpu2/usage", "cpu/cpu1/usage",
-        "cpu/cpu0/usage", "cpu/cpu9/usage", "cpu/cpu11/usage"
-    ];
-    const out = Catalog.classifyDiscoveredIds(input);
+        "cpu/cpu0/usage", "cpu/cpu9/usage", "cpu/cpu11/usage",
+    ]);
     assert.deepEqual(out.coreUsageIds, [
         "cpu/cpu0/usage", "cpu/cpu1/usage", "cpu/cpu2/usage",
-        "cpu/cpu9/usage", "cpu/cpu10/usage", "cpu/cpu11/usage"
+        "cpu/cpu9/usage", "cpu/cpu10/usage", "cpu/cpu11/usage",
     ]);
 });
 
 test('classifyDiscoveredIds: gpu indices sort numerically too', () => {
     const out = Catalog.classifyDiscoveredIds([
-        "gpu/gpu10/temperature", "gpu/gpu1/temperature", "gpu/gpu0/temperature"
+        "gpu/gpu10/temperature", "gpu/gpu1/temperature", "gpu/gpu0/temperature",
     ]);
     assert.deepEqual(out.gpuTempIds, [
-        "gpu/gpu0/temperature", "gpu/gpu1/temperature", "gpu/gpu10/temperature"
+        "gpu/gpu0/temperature", "gpu/gpu1/temperature", "gpu/gpu10/temperature",
     ]);
 });
 
@@ -204,7 +202,31 @@ test('classifyDiscoveredIds: ignores ids that do not match any bucket pattern', 
         "garbage",
         ""
     ]);
-    assert.deepEqual(out, { coreUsageIds: [], gpuTempIds: [], gpuUsageIds: [], diskPartitionUsageIds: [] });
+    assert.deepEqual(out, { coreUsageIds: [], gpuTempIds: [], gpuUsageIds: [], diskPartitionUsageIds: [], gpuDeviceIds: [] });
+});
+
+// ── classifyDiscoveredIds: gpuDeviceIds ──────────────────────────────
+test('classifyDiscoveredIds: gpuDeviceIds — any leaf counts; gpu/all excluded; dedup per device', () => {
+    // SCENARIO: non-temp/usage leaves (power, name, coreFrequency) must still
+    // register the device; gpu/all must not appear; multiple leaves yield one entry.
+    const out = Catalog.classifyDiscoveredIds([
+        "gpu/gpu1/usage", "gpu/gpu1/power", "gpu/gpu1/name", "gpu/gpu1/coreFrequency",
+        "gpu/all/usage",
+    ]);
+    assert.deepEqual(out.gpuDeviceIds, ["gpu/gpu1"]);
+});
+
+test('classifyDiscoveredIds: gpuDeviceIds is empty with no gpu/gpuN ids', () => {
+    const out = Catalog.classifyDiscoveredIds(["cpu/cpu0/usage", "gpu/all/usage"]);
+    assert.deepEqual(out.gpuDeviceIds, []);
+});
+
+test('classifyDiscoveredIds: gpuDeviceIds sorts numerically (gpu10 after gpu9)', () => {
+    const out = Catalog.classifyDiscoveredIds([
+        "gpu/gpu10/usage", "gpu/gpu2/usage", "gpu/gpu1/usage",
+        "gpu/gpu0/usage",  "gpu/gpu9/usage",
+    ]);
+    assert.deepEqual(out.gpuDeviceIds, ["gpu/gpu0", "gpu/gpu1", "gpu/gpu2", "gpu/gpu9", "gpu/gpu10"]);
 });
 
 test('labelFor returns the abbreviation for known ids', () => {
@@ -245,24 +267,15 @@ test('parseCsv: drops empty segments from trailing/leading/double commas', () =>
 
 test('filterByOrder: keeps only ids that are in `ids`, in `order` ordering', () => {
     // enabled set = {disk, cpu}, ordered by canonical → ['cpu', 'disk']
-    assert.deepEqual(
-        Catalog.filterByOrder(['disk', 'cpu'], Catalog.METRIC_IDS),
-        ['cpu', 'disk']
-    );
+    assert.deepEqual(Catalog.filterByOrder(['disk', 'cpu'], Catalog.METRIC_IDS), ['cpu', 'disk']);
 });
 
 test('filterByOrder: respects custom order argument', () => {
-    assert.deepEqual(
-        Catalog.filterByOrder(['cpu', 'gpu'], ['gpu', 'cpu', 'ram']),
-        ['gpu', 'cpu']
-    );
+    assert.deepEqual(Catalog.filterByOrder(['cpu', 'gpu'], ['gpu', 'cpu', 'ram']), ['gpu', 'cpu']);
 });
 
 test('filterByOrder: ignores ids in the enabled set that are not in order', () => {
-    assert.deepEqual(
-        Catalog.filterByOrder(['cpu', 'unknown'], Catalog.METRIC_IDS),
-        ['cpu']
-    );
+    assert.deepEqual(Catalog.filterByOrder(['cpu', 'unknown'], Catalog.METRIC_IDS), ['cpu']);
 });
 
 test('filterByOrder: empty enabled → []', () => {
@@ -272,17 +285,11 @@ test('filterByOrder: empty enabled → []', () => {
 // ── filterByAvailable: keep only available ids, in the enabled order ──
 
 test('filterByAvailable: keeps only available ids, in the enabled order', () => {
-    assert.deepEqual(
-        Catalog.filterByAvailable(['cpu', 'gpu', 'ram', 'swap'], ['cpu', 'ram', 'disk']),
-        ['cpu', 'ram']
-    );
+    assert.deepEqual(Catalog.filterByAvailable(['cpu', 'gpu', 'ram', 'swap'], ['cpu', 'ram', 'disk']), ['cpu', 'ram']);
 });
 
 test('filterByAvailable: preserves the enabled order, not the available order', () => {
-    assert.deepEqual(
-        Catalog.filterByAvailable(['gpu', 'cpu', 'ram'], ['cpu', 'ram', 'gpu']),
-        ['gpu', 'cpu', 'ram']
-    );
+    assert.deepEqual(Catalog.filterByAvailable(['gpu', 'cpu', 'ram'], ['cpu', 'ram', 'gpu']), ['gpu', 'cpu', 'ram']);
 });
 
 test('filterByAvailable: everything available → enabled list returned untouched (copy)', () => {
@@ -312,16 +319,12 @@ test('filterByAvailable: empty enabled → []', () => {
 
 test('availableMetricsFrom: emits truthy ids in canonical METRIC_IDS order', () => {
     // Flags given out of order → output still canonical.
-    assert.deepEqual(
-        Catalog.availableMetricsFrom({ disk: true, cpu: true, ram: true }),
-        ['cpu', 'ram', 'disk']
-    );
+    assert.deepEqual(Catalog.availableMetricsFrom({ disk: true, cpu: true, ram: true }), ['cpu', 'ram', 'disk']);
 });
 
 test('availableMetricsFrom: drops falsy flags (false / undefined / missing)', () => {
     assert.deepEqual(
-        Catalog.availableMetricsFrom({ cpu: true, cpuTemp: false, ram: true, gpu: undefined }),
-        ['cpu', 'ram']
+        Catalog.availableMetricsFrom({ cpu: true, cpuTemp: false, ram: true, gpu: undefined }), ['cpu', 'ram']
     );
 });
 
@@ -332,10 +335,7 @@ test('availableMetricsFrom: full host → the whole catalog in order', () => {
 });
 
 test('availableMetricsFrom: ignores ids that are not in the catalog', () => {
-    assert.deepEqual(
-        Catalog.availableMetricsFrom({ cpu: true, bogus: true }),
-        ['cpu']
-    );
+    assert.deepEqual(Catalog.availableMetricsFrom({ cpu: true, bogus: true }), ['cpu']);
 });
 
 test('availableMetricsFrom: empty / null flags → []', () => {

@@ -210,6 +210,7 @@ function classifyDiscoveredIds(allIds) {
     var gpuTemps = [];
     var gpuUsages = [];
     var diskParts = [];
+    var gpuDeviceSet = {};
     for (var i = 0; i < allIds.length; i++) {
         var id = allIds[i];
         if (/^cpu\/cpu\d+\/usage$/.test(id)) cores.push(id);
@@ -224,16 +225,27 @@ function classifyDiscoveredIds(allIds) {
         // aggregate — is NOT mistaken for a real partition. Exclude the
         // disk/all aggregate too (kept as a static sensor).
         else if (/^disk\/[A-Za-z0-9_-]+\/usedPercent$/.test(id) && id !== "disk/all/usedPercent") diskParts.push(id);
+
+        // Collect the gpu/gpuN base prefix from ANY per-device leaf so the
+        // Plasma backend can enumerate distinct GPUs and build per-device
+        // detail sensors (name, power, coreFrequency, etc.). gpu/all is an
+        // aggregate, not a physical device — excluded by the gpuN pattern.
+        var gpuMatch = /^gpu\/(gpu\d+)\//.exec(id);
+        if (gpuMatch) gpuDeviceSet[gpuMatch[1]] = true;
     }
+    var gpuDevices = [];
+    for (var key in gpuDeviceSet) gpuDevices.push("gpu/" + key);
     cores.sort(_naturalCompareSensorIds);
     gpuTemps.sort(_naturalCompareSensorIds);
     gpuUsages.sort(_naturalCompareSensorIds);
     diskParts.sort(_naturalCompareSensorIds);
+    gpuDevices.sort(_naturalCompareSensorIds);
     return {
         coreUsageIds: cores,
         gpuTempIds: gpuTemps,
         gpuUsageIds: gpuUsages,
         diskPartitionUsageIds: diskParts,
+        gpuDeviceIds: gpuDevices,
     };
 }
 

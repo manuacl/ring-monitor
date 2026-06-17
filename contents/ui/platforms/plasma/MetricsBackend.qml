@@ -124,6 +124,33 @@ Item {
         return Catalog.tempToPercent(metricRawTemp(id));
     }
 
+    // ── GPU tooltip detail (issue #71) ──────────────────────────────
+    // Tooltip-only sensors live in GpuDetailSensors (gated by active) so
+    // the daemon doesn't push them in the background. Usage/temp come from
+    // the always-on ring sensors; gpuDetail() merges both sources.
+    property bool gpuDetailSamplingActive: false
+
+    GpuDetailSensors {
+        id: gpuDetailSensors
+        gpuDeviceIds: backend._gpuDeviceIds
+        active: backend.gpuDetailSamplingActive
+    }
+
+    function gpuDetail() {
+        var extra = gpuDetailSensors.gpuExtra();
+        var usage = backend._gpuUsageReady() ? backend._gpuUsageValue : undefined;
+        var temp = backend._gpuTempReady() ? backend._gpuTempValue : undefined;
+        return {
+            "model": extra.model,
+            "usagePercent": usage,
+            "vramUsedBytes": extra.vramUsedBytes,
+            "vramTotalBytes": extra.vramTotalBytes,
+            "tempC": temp,
+            "powerW": extra.powerW,
+            "clockMhz": extra.clockMhz
+        };
+    }
+
     // ── CPU + RAM process tooltips (issues #69/#70) ──────────────────
     // Same surface as the standalone adapter; the ProcessDataModel enumeration
     // lives in the ProcessSampler child (running only while active) so this
@@ -300,6 +327,7 @@ Item {
     property var _coreUsageIds: []
     property var _gpuTempIds: []
     property var _gpuUsageIds: []
+    property var _gpuDeviceIds: []
 
     function _walkTreeAndCollectIds() {
         var out = [];
@@ -324,15 +352,16 @@ Item {
 
     function _refreshDiscovery() {
         var classified = Catalog.classifyDiscoveredIds(_walkTreeAndCollectIds());
-        // Avoid spurious Instantiator rebuilds when the set hasn't
-        // actually changed (rowsInserted can fire for unrelated parts
-        // of the tree).
+        // Guard against spurious Instantiator rebuilds: rowsInserted fires for
+        // unrelated tree sections, so skip the assignment when nothing changed.
         if (JSON.stringify(_coreUsageIds) !== JSON.stringify(classified.coreUsageIds))
             _coreUsageIds = classified.coreUsageIds;
         if (JSON.stringify(_gpuTempIds) !== JSON.stringify(classified.gpuTempIds))
             _gpuTempIds = classified.gpuTempIds;
         if (JSON.stringify(_gpuUsageIds) !== JSON.stringify(classified.gpuUsageIds))
             _gpuUsageIds = classified.gpuUsageIds;
+        if (JSON.stringify(_gpuDeviceIds) !== JSON.stringify(classified.gpuDeviceIds))
+            _gpuDeviceIds = classified.gpuDeviceIds;
     }
 
     Component.onCompleted: _refreshDiscovery()
@@ -399,21 +428,11 @@ Item {
     readonly property real _gpuUsageValue: {
         backend._gpuUsageTick;
         // Aggregate first — when ksysguard exposes it we trust it.
-        //
-        // Semantics note since the `pickFirstReadyValue` refactor
-        // (PR #25): the helper does NOT fall through to the next
-        // candidate when a ready candidate has a falsy value — it
-        // short-circuits via `return c.value || 0`, matching the
-        // pre-refactor `gpuAllSensor.value || 0`. KSysGuard can
-        // transiently report `status === Ready` with `value ===
-        // undefined` during sensor discovery; both pre- and
-        // post-refactor that yields `0` rather than the per-device
-        // fallback. Locked in by the `tests/sensor-picking.test.mjs`
-        // "ready candidate with null value wins and yields 0" case.
-        // If we ever want true "try the next ready candidate"
-        // semantics, that's a SensorPicking change (+ helper rename
-        // to disambiguate from this short-circuit form), not a
-        // local tweak.
+        // pickFirstReadyValue short-circuits on the first ready candidate
+        // (returns `value || 0`), so a transient Ready+undefined sensor yields 0
+        // rather than falling through to the per-device list — by design.
+        // Locked in by tests/sensor-picking.test.mjs "ready candidate with null
+        // value wins and yields 0".
         var candidates = [
             {
                 "ready": gpuAllSensor.status === Sensors.Sensor.Ready,

@@ -384,3 +384,70 @@ test("TempSensorDiscovery implements the two-phase discovery via the pure catalo
     assert.match(TEMP_DISCOVERY_SOURCE, /if\s*\(\s*!discovery\.active\s*\)/, "the walk must bail out while the gate is off");
     assert.match(TEMP_DISCOVERY_SOURCE, /enabled:\s*discovery\.active/, "probe Sensors must be enabled only while the gate is on");
 });
+
+// ── Battery (BatterySampler) ─────────────────────────────────────────
+
+const BATTERY_SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms", "plasma", "BatterySampler.qml"), "utf8");
+
+test("MetricsBackend instantiates BatterySampler and exposes battery accessor", () => {
+    // BatterySampler owns the discovery + aggregation so MetricsBackend stays
+    // under the 500-line cap; the backend forwards the reactive property.
+    assert.match(SOURCE, /BatterySampler\s*{/, "must instantiate BatterySampler");
+    assert.match(SOURCE, /id:\s*batterySampler\b/, "BatterySampler must have id: batterySampler");
+    assert.match(SOURCE, /readonly\s+property\s+var\s+battery\s*:\s*batterySampler\.battery/, "battery must forward batterySampler.battery as a reactive property");
+});
+
+test('availableMetrics flags "battery" via batterySampler.battery.available', () => {
+    // battery availability is derived from BatteryAggregate.aggregate —
+    // false on a host with no battery sensors, so the ring is not shown.
+    assert.match(SOURCE, /"battery":\s*batterySampler\.battery\.available/, 'availableMetrics map must gate "battery" on batterySampler.battery.available');
+});
+
+test("BatterySampler discovers batteries by walking the SensorTreeModel for chargePercentage leaves", () => {
+    // ksysguard has no aggregate power/all/chargePercentage — each physical
+    // battery appears as power/<id>/chargePercentage where <id> is the serial
+    // or UDI tail. The sampler must enumerate the tree, not hardcode an id.
+    assert.match(BATTERY_SOURCE, /SensorTreeModel\s*{[\s\S]*?id:\s*batteryTree/, "must declare SensorTreeModel { id: batteryTree }");
+    assert.match(BATTERY_SOURCE, /chargePercentage/, "must search for chargePercentage leaves");
+    assert.match(BATTERY_SOURCE, /function\s+_refresh\s*\(/, "must declare _refresh() discovery function");
+});
+
+test("BatterySampler uses Instantiators for per-battery percent and rate sensors", () => {
+    assert.match(BATTERY_SOURCE, /Instantiator\s*{[\s\S]*?id:\s*percentInst/, "must declare Instantiator { id: percentInst }");
+    assert.match(BATTERY_SOURCE, /Instantiator\s*{[\s\S]*?id:\s*rateInst/, "must declare Instantiator { id: rateInst }");
+    assert.match(BATTERY_SOURCE, /sensorId:\s*modelData\s*\+\s*["']\/chargePercentage["']/, "percentInst must build sensorId from modelData + '/chargePercentage'");
+    assert.match(BATTERY_SOURCE, /sensorId:\s*modelData\s*\+\s*["']\/chargeRate["']/, "rateInst must build sensorId from modelData + '/chargeRate'");
+});
+
+test("BatterySampler uses _tick to drive reactive battery re-evaluation", () => {
+    assert.match(BATTERY_SOURCE, /property\s+int\s+_tick\s*:/, "must declare property int _tick");
+    assert.match(BATTERY_SOURCE, /onValueChanged:\s*sampler\._tick\+\+/, "sensors must bump _tick onValueChanged");
+    assert.match(BATTERY_SOURCE, /onObjectAdded:\s*sampler\._tick\+\+/, "Instantiator must bump _tick onObjectAdded");
+    assert.match(BATTERY_SOURCE, /onObjectRemoved:\s*sampler\._tick\+\+/, "Instantiator must bump _tick onObjectRemoved");
+});
+
+test("BatterySampler battery property reads _tick as its first reactive dependency", () => {
+    // Reading _tick first makes every field a tracked dependency so the binding
+    // re-evaluates whenever any sensor value changes (standard tick-counter pattern).
+    assert.match(BATTERY_SOURCE, /readonly\s+property\s+var\s+battery\s*:\s*\{[\s\S]{0,50}sampler\._tick/, "battery property must read _tick as its first reactive dependency");
+});
+
+test("BatterySampler imports BatteryAggregate and calls aggregate()", () => {
+    assert.match(BATTERY_SOURCE, /import\s+["']\.\.\/\.\.\/core\/BatteryAggregate\.js["']\s+as\s+BatteryAggregate/, "must import core/BatteryAggregate.js with the correct relative path");
+    assert.match(BATTERY_SOURCE, /BatteryAggregate\.aggregate\s*\(/, "battery binding must call BatteryAggregate.aggregate(records)");
+});
+
+test("BatterySampler treats a non-discharging battery (rate >= 0) as charging", () => {
+    // SCENARIO: a laptop plugged in at 100% reports chargeRate == 0 (full, no
+    // current). ksysguard exposes no charge-state enum and no AC-online sensor,
+    // so charging is inferred from the signed rate. A `> 0` test would dim a
+    // full-plugged battery, diverging from the standalone adapter (status="Full"
+    // → charging). The threshold must be `>= 0` (not actively discharging).
+    assert.match(BATTERY_SOURCE, /rate\.value\s*>=\s*0/, "charging must be inferred from rate.value >= 0");
+    assert.doesNotMatch(BATTERY_SOURCE, /rate\.value\s*>\s*0/, "must not use rate.value > 0 (dims a full-plugged battery)");
+});
+
+test("BatterySampler re-runs discovery on batteryTree structural changes", () => {
+    assert.match(BATTERY_SOURCE, /Connections\s*{[\s\S]*?target:\s*batteryTree[\s\S]*?onRowsInserted/, "must reconnect on batteryTree.onRowsInserted");
+    assert.match(BATTERY_SOURCE, /Connections\s*{[\s\S]*?target:\s*batteryTree[\s\S]*?onRowsRemoved/, "must reconnect on batteryTree.onRowsRemoved");
+});

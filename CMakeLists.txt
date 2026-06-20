@@ -138,6 +138,7 @@ qt_add_qml_module(ring-monitor-standalone
         contents/ui/platforms/standalone/WindowPlacement.js
         contents/ui/platforms/standalone/ProcParser.js
         contents/ui/platforms/standalone/DiskStatsParser.js
+        contents/ui/platforms/standalone/BatteryStatus.js
         contents/ui/platforms/standalone/GpuSampler.qml
         contents/ui/platforms/standalone/DiskIoSampler.qml
         contents/ui/platforms/standalone/HwmonTempSensors.qml
@@ -168,6 +169,7 @@ qt_add_qml_module(ring-monitor-standalone
         contents/ui/core/GpuTooltipModel.js
         contents/ui/core/UpdateCheck.js
         contents/ui/core/ProcessRanking.js
+        contents/ui/core/BatteryAggregate.js
         contents/ui/core/TooltipBehavior.qml
         contents/ui/core/ProcessTooltip.qml
         contents/ui/core/DiskTooltip.qml

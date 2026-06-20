@@ -605,3 +605,39 @@ and hot-plug fallback).
 > standalone binary). The Plasma build is unaffected (it loads from the
 > filesystem / plasmoid package). Both directions are guarded by
 > `tests/standalone-qml-module.test.mjs`.
+
+## `BatteryAggregate.js`
+
+Shared (`core/`) fold from per-battery records to one ring value (issue
+#94). Both platforms discover batteries differently (Plasma via a
+`SensorTreeModel` walk, standalone via `/sys/class/power_supply`) but
+hand the same shape to this module, so the aggregation rule lives once
+in `core/`.
+
+| Function | Purpose |
+|---|---|
+| `aggregate(records)` | Combine `[{ percent, weight, charging }]` into `{ percent, charging, available }`. `available` is true only for a non-empty array with at least one finite-`percent` entry (a desktop with no battery → `available:false` → the ring is hidden via the availability interface, #52). `percent` is the **weight-weighted** mean (weight = battery capacity), clamped to `[0,100]`; records with a non-finite `percent` are dropped, and a zero/absent total weight degrades to a simple arithmetic mean. `charging` is the **OR** across batteries — any battery charging (laptop plugged in) reads charging. |
+
+Covered by `tests/battery-aggregate.test.mjs` (empty / null, single &
+multi-battery weighting, zero/non-finite weights, charging OR, clamping,
+NaN filtering).
+
+## `BatteryStatus.js`
+
+Standalone-only (`platforms/standalone/`) sysfs parsers for
+`/sys/class/power_supply/BAT*/` (issue #94) — kept beside the standalone
+`MetricsBackend` (the only consumer) so it isn't dead-shipped in the
+Plasma plasmoid.
+
+| Function | Purpose |
+|---|---|
+| `isBatteryDir(name)` | `true` for a `BAT*` entry (`/^BAT/i`); AC-adapter dirs (`AC`, `ADP0`, `mains`, …) are excluded so only real batteries are sampled. |
+| `parseCapacity(raw)` | The `capacity` file → integer 0–100, or `NaN` for absent / empty / garbage (a `NaN` record is dropped by `aggregate`). |
+| `isCharging(statusRaw)` | The `status` file → bool. `"Charging"` and `"Full"` map to `true` (plugged in), `"Discharging"` / `"Not charging"` / unknown to `false`. Case-insensitive, tolerant of the sysfs trailing newline. |
+| `parseWeight(raw)` | `energy_full` or `charge_full` → the capacity weight; absent / non-positive / garbage → `1` so weighting degrades to a simple mean. |
+
+Covered by `tests/battery-status.test.mjs` (battery-vs-AC names, capacity
+trimming, charging states incl. `Full`, weight fallback). The Plasma side
+has no equivalent — ksysguard exposes the charge percentage as a sensor
+and no per-battery capacity, so its `BatterySampler` weights all
+batteries equally and reads charging from the charge-rate sign.

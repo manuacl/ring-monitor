@@ -5,8 +5,10 @@ import "MemInfoParser.js" as MemInfoParser
 import "CpuTempDiscovery.js" as CpuTemp
 import "HwmonTempDiscovery.js" as HwmonTemp
 import "DiskDiscovery.js" as DiskDiscovery
+import "BatteryStatus.js" as Battery
 import "../../core/MetricsCatalog.js" as Catalog
 import "../../core/DiskMetrics.js" as DiskMetrics
+import "../../core/BatteryAggregate.js" as BatAgg
 
 // Standalone counterpart of `platforms/plasma/MetricsBackend.qml`.
 // Exposes the same public surface so the portable `core/MainContent`
@@ -76,7 +78,8 @@ Item {
         // sensorTemp = the user-configured custom hardware sensor (#164):
         // available once the configured id is set AND resolved to a live
         // sysfs path with a finite reading (the sensorTempResolved gate).
-        "sensorTemp": backend.sensorTempId.length > 0 && backend.sensorTempResolved
+        "sensorTemp": backend.sensorTempId.length > 0 && backend.sensorTempResolved,
+        "battery": backend._battery.available
     })
 
     // ── Custom hardware temperature (sensorTemp, #164) ──────────────
@@ -160,6 +163,15 @@ Item {
     ProcessSampler {
         id: processSampler
     }
+
+    // ── Battery (laptop /sys/class/power_supply/BAT*/) ──────────────
+    // Aggregated across all battery nodes; available=false on desktops.
+    property var _battery: ({
+            percent: 0,
+            charging: false,
+            available: false
+        })
+    readonly property var battery: backend._battery
 
     // ── Disk I/O throughput ring (issue #77) ─────────────────────────
     // `io` (reactive) = per-component byte/s + arc %; the gate keeps the
@@ -477,6 +489,31 @@ Item {
         // the results through gpuSampler.usage / .tempC / .available /
         // .tempAvailable — all updated synchronously inside sample().
         gpuSampler.sample();
+        // ── Battery (/sys/class/power_supply/BAT*/) ─────────────────
+        // energy_full is preferred as the weight; charge_full is the fallback
+        // for batteries that only expose charge (µAh) rather than energy (µWh).
+        var psBase = "/sys/class/power_supply";
+        var psDirs = reader.listDir(psBase);
+        var batRecords = [];
+        for (var bi = 0; bi < psDirs.length; bi++) {
+            if (!Battery.isBatteryDir(psDirs[bi]))
+                continue;
+            var batBase = psBase + "/" + psDirs[bi];
+            var capRaw = reader.read(batBase + "/capacity");
+            var pct = Battery.parseCapacity(capRaw);
+            if (!isFinite(pct))
+                continue;
+            var statusRaw = reader.read(batBase + "/status");
+            var weightRaw = reader.read(batBase + "/energy_full");
+            if (!weightRaw || !weightRaw.trim())
+                weightRaw = reader.read(batBase + "/charge_full");
+            batRecords.push({
+                "percent": pct,
+                "weight": Battery.parseWeight(weightRaw),
+                "charging": Battery.isCharging(statusRaw)
+            });
+        }
+        backend._battery = BatAgg.aggregate(batRecords);
         // Bump _tick last so all readonly properties depending on it
         // re-evaluate together after every metric has its fresh value.
         backend._tick++;

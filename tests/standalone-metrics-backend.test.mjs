@@ -425,3 +425,25 @@ test("GpuSampler enumerates NVIDIA processes via runningProcesses + dedupeByPid 
     assert.match(GPU_SOURCE, /ProcParser\.parsePidStat\s*\(/, "GpuSampler must resolve pid→name via ProcParser.parsePidStat");
     assert.match(GPU_SOURCE, /readonly\s+property\s+var\s+gpuProcesses\b/, "GpuSampler must declare readonly property var gpuProcesses on its public surface");
 });
+
+test("standalone MetricsBackend imports BatteryStatus.js and BatteryAggregate.js", () => {
+    assert.match(SOURCE, /import\s+["']BatteryStatus\.js["']\s+as\s+Battery/, "must import the same-dir BatteryStatus module");
+    assert.match(SOURCE, /import\s+["']\.\.\/\.\.\/core\/BatteryAggregate\.js["']\s+as\s+BatAgg/, "must import core/BatteryAggregate module");
+});
+
+test("standalone MetricsBackend exposes a battery readonly accessor", () => {
+    assert.match(SOURCE, /readonly\s+property\s+var\s+battery\s*:/, "must declare readonly property var battery");
+});
+
+test("standalone MetricsBackend flags battery in availableMetrics", () => {
+    assert.match(SOURCE, /"battery":\s*backend\._battery\.available/, 'availableMetrics map must flag "battery" from the aggregated _battery result');
+});
+
+test("standalone MetricsBackend reads battery state from /sys/class/power_supply", () => {
+    assert.match(SOURCE, /\/sys\/class\/power_supply/, "must enumerate /sys/class/power_supply for battery directories");
+    assert.match(SOURCE, /Battery\.isBatteryDir\s*\(/, "must filter entries via Battery.isBatteryDir");
+    assert.match(SOURCE, /Battery\.parseCapacity\s*\(/, "must parse the capacity sysfs file via Battery.parseCapacity");
+    assert.match(SOURCE, /Battery\.isCharging\s*\(/, "must parse the status sysfs file via Battery.isCharging");
+    assert.match(SOURCE, /Battery\.parseWeight\s*\(/, "must read the energy_full/charge_full weight via Battery.parseWeight");
+    assert.match(SOURCE, /BatAgg\.aggregate\s*\(/, "must combine battery records via BatAgg.aggregate");
+});

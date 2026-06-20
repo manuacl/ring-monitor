@@ -60,10 +60,7 @@ Item {
 
     // Catalog ids whose Sensor has reached Ready (docs/components.md § MetricsBackend).
     readonly property var availableMetrics: {
-        // Read the gpu ticks first so the binding re-evaluates when a per-GPU
-        // Instantiator's status changes — the readiness helpers walk those
-        // instances, which QML can't track otherwise. The universal sensors'
-        // .status reads below are tracked directly (Sensor.status has NOTIFY).
+        // gpu ticks must be read first so the binding re-evaluates on instantiator changes: see docs/components.md
         backend._gpuUsageTick;
         backend._gpuTempTick;
         return Catalog.availableMetricsFrom({
@@ -78,7 +75,8 @@ Item {
             // (no-op until the diskIo UI PR adds the catalog id — filtered to
             // METRIC_IDS).
             "diskIo": true,
-            "sensorTemp": backend.sensorTempResolved
+            "sensorTemp": backend.sensorTempResolved,
+            "battery": batterySampler.battery.available
         });
     }
 
@@ -176,11 +174,9 @@ Item {
     }
 
     // ── Disk I/O throughput ring (issue #77) ─────────────────────────
-    // Same surface as the standalone adapter; the disk/all/{read,write} sensor
-    // reads live in the DiskIoSampler child (subscribed only while active) so
-    // this adapter stays under the 500-line cap. `io` is a property (reactive)
-    // carrying per-component byte/s + arc %; the gate keeps the daemon
-    // unsubscribed while the ring is off-screen.
+    // disk/all/{read,write} reads live in DiskIoSampler (gated by active so
+    // the daemon isn't subscribed while the ring is off-screen; same gate as
+    // ProcessSampler). `io` is a property so bindings track it live.
     property alias diskIoSamplingActive: diskIoSampler.active
     readonly property var diskIo: diskIoSampler.io
 
@@ -200,6 +196,12 @@ Item {
 
     TempSensorDiscovery {
         id: tempSensorDiscovery
+    }
+
+    // ── Battery ── discovery + aggregation in BatterySampler; mirrors the standalone adapter.
+    readonly property var battery: batterySampler.battery
+    BatterySampler {
+        id: batterySampler
     }
 
     // ── Disk partitions (multi-ring) ─────────────────────────────────

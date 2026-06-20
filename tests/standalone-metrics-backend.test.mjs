@@ -426,24 +426,43 @@ test("GpuSampler enumerates NVIDIA processes via runningProcesses + dedupeByPid 
     assert.match(GPU_SOURCE, /readonly\s+property\s+var\s+gpuProcesses\b/, "GpuSampler must declare readonly property var gpuProcesses on its public surface");
 });
 
-test("standalone MetricsBackend imports BatteryStatus.js and BatteryAggregate.js", () => {
-    assert.match(SOURCE, /import\s+["']BatteryStatus\.js["']\s+as\s+Battery/, "must import the same-dir BatteryStatus module");
-    assert.match(SOURCE, /import\s+["']\.\.\/\.\.\/core\/BatteryAggregate\.js["']\s+as\s+BatAgg/, "must import core/BatteryAggregate module");
+const BATTERY_SAMPLER_SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms", "standalone", "BatterySampler.qml"), "utf8");
+
+test("standalone MetricsBackend delegates battery to a BatterySampler child", () => {
+    // Battery discovery + aggregation live in BatterySampler (mirrors the Plasma
+    // adapter) so the at-cap MetricsBackend stays lean and shares the same shape.
+    assert.match(SOURCE, /BatterySampler\s*{[\s\S]*?id:\s*batterySampler/, "must instantiate BatterySampler { id: batterySampler }");
+    assert.match(SOURCE, /BatterySampler\s*{[\s\S]*?reader:\s*reader/, "must inject the ProcReader into BatterySampler");
+    assert.match(SOURCE, /readonly\s+property\s+var\s+battery\s*:\s*batterySampler\.battery/, "battery must forward batterySampler.battery");
+    assert.match(SOURCE, /batterySampler\.sample\s*\(\s*\)/, "_sample() must tick the battery child via batterySampler.sample()");
 });
 
-test("standalone MetricsBackend exposes a battery readonly accessor", () => {
-    assert.match(SOURCE, /readonly\s+property\s+var\s+battery\s*:/, "must declare readonly property var battery");
+test("standalone availableMetrics flags battery via the change-gated scalar", () => {
+    // Must read batterySampler.available (a bool written only on change), NOT the
+    // whole battery object — else availableMetrics rebuilds the ring strip at 2 Hz.
+    assert.match(SOURCE, /"battery":\s*batterySampler\.available/, 'availableMetrics must gate "battery" on batterySampler.available');
+    assert.doesNotMatch(SOURCE, /"battery":\s*\w+\.battery\.available/, "must not gate availableMetrics on the per-tick battery object's .available");
 });
 
-test("standalone MetricsBackend flags battery in availableMetrics", () => {
-    assert.match(SOURCE, /"battery":\s*backend\._battery\.available/, 'availableMetrics map must flag "battery" from the aggregated _battery result');
+test("standalone BatterySampler reads battery state from /sys/class/power_supply", () => {
+    assert.match(BATTERY_SAMPLER_SOURCE, /\/sys\/class\/power_supply/, "must enumerate /sys/class/power_supply for battery directories");
+    assert.match(BATTERY_SAMPLER_SOURCE, /Battery\.isBatteryDir\s*\(/, "must filter entries via Battery.isBatteryDir");
+    assert.match(BATTERY_SAMPLER_SOURCE, /Battery\.parseCapacity\s*\(/, "must parse the capacity sysfs file via Battery.parseCapacity");
+    assert.match(BATTERY_SAMPLER_SOURCE, /Battery\.isCharging\s*\(/, "must parse the status sysfs file via Battery.isCharging");
+    assert.match(BATTERY_SAMPLER_SOURCE, /Battery\.parseWeight\s*\(/, "must read the energy_full/charge_full weight via Battery.parseWeight");
+    assert.match(BATTERY_SAMPLER_SOURCE, /BatAgg\.aggregate\s*\(/, "must combine battery records via BatAgg.aggregate");
 });
 
-test("standalone MetricsBackend reads battery state from /sys/class/power_supply", () => {
-    assert.match(SOURCE, /\/sys\/class\/power_supply/, "must enumerate /sys/class/power_supply for battery directories");
-    assert.match(SOURCE, /Battery\.isBatteryDir\s*\(/, "must filter entries via Battery.isBatteryDir");
-    assert.match(SOURCE, /Battery\.parseCapacity\s*\(/, "must parse the capacity sysfs file via Battery.parseCapacity");
-    assert.match(SOURCE, /Battery\.isCharging\s*\(/, "must parse the status sysfs file via Battery.isCharging");
-    assert.match(SOURCE, /Battery\.parseWeight\s*\(/, "must read the energy_full/charge_full weight via Battery.parseWeight");
-    assert.match(SOURCE, /BatAgg\.aggregate\s*\(/, "must combine battery records via BatAgg.aggregate");
+test("standalone BatterySampler caches discovery instead of listing every tick", () => {
+    // The battery dir set + capacity weights are resolved once (bounded warm-up
+    // retry while none found) and reused — sample() must not re-list unconditionally,
+    // and the weight is read in discovery, not per tick (#7/#8 review findings).
+    assert.match(BATTERY_SAMPLER_SOURCE, /function\s+_discover\s*\(/, "must have a cached _discover() step");
+    assert.match(BATTERY_SAMPLER_SOURCE, /_dirs\.length\s*===\s*0\s*&&[\s\S]*?_discoverAttempts\s*<[\s\S]*?_maxDiscoverAttempts/, "sample() must gate re-listing on no-batteries-found + a bounded attempt cap");
+    assert.match(BATTERY_SAMPLER_SOURCE, /Battery\.parseWeight[\s\S]*?function\s+sample/, "parseWeight must run in discovery (before sample), not per tick");
+});
+
+test("standalone BatterySampler exposes a change-gated available scalar", () => {
+    assert.match(BATTERY_SAMPLER_SOURCE, /readonly\s+property\s+bool\s+available\s*:/, "must expose a bool available scalar");
+    assert.match(BATTERY_SAMPLER_SOURCE, /if\s*\(\s*agg\.available\s*!==\s*sampler\._available\s*\)/, "must write _available only when availability changes");
 });

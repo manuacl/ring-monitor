@@ -1344,28 +1344,44 @@ Text-guarded by `tests/standalone-metrics-backend.test.mjs` (the "GpuSampler
 wires AMD/Intel GPU via GpuDiscovery sysfs" and "NVIDIA GPU via GpuSampler"
 test blocks, alongside the MetricsBackend wiring guards).
 
-### `BatterySampler.qml` (Plasma only)
+### `BatterySampler.qml` (one per platform)
 
-The Plasma source for the battery ring (issue #94). Lives in
-`platforms/plasma/` — the `org.kde.ksysguard.sensors` import keeps it out
-of `core/`. The standalone host has no counterpart: its `MetricsBackend`
-reads `/sys/class/power_supply` inline via
-[`BatteryStatus.js`](logic-modules.md#batterystatusjs). Both feed the
-shared [`BatteryAggregate.js`](logic-modules.md#batteryaggregatejs) and
-expose the **same** `battery` surface, so `MainContent` renders either
-unchanged.
+The battery-ring source (issue #94). There are **two** —
+`platforms/plasma/BatterySampler.qml` (ksysguard, the
+`org.kde.ksysguard.sensors` import keeps it out of `core/`) and
+`platforms/standalone/BatterySampler.qml` (`/sys/class/power_supply/BAT*`
+via the injected `ProcReader` +
+[`BatteryStatus.js`](logic-modules.md#batterystatusjs)) — each
+instantiated by its `MetricsBackend`. Both feed the shared
+[`BatteryAggregate.js`](logic-modules.md#batteryaggregatejs) and expose the
+**same** `battery` surface, so `MainContent` renders either unchanged. The
+standalone one was extracted (not left inline in `MetricsBackend._sample()`)
+to mirror the Plasma shape and keep the at-cap standalone backend lean.
 
-**Why a `SensorTreeModel` walk**: ksysguard keys batteries by a UDI tail
-(`power/<udi>/chargePercentage`), not a fixed `BAT0`/`BAT1` index, and
+**Plasma — why a `SensorTreeModel` walk**: ksysguard keys batteries by a UDI
+tail (`power/<udi>/chargePercentage`), not a fixed `BAT0`/`BAT1` index, and
 there is **no** `power/all/chargePercentage` aggregate. So the sampler
 enumerates `power/*/chargePercentage` leaves from the tree (re-walked on
-`rowsInserted` / `rowsRemoved` / `modelReset`), then spawns one `Sensor`
-per battery for the percent and one for the charge rate via two
-`Instantiator`s.
+`rowsInserted` / `rowsRemoved` / `modelReset`), then spawns **one
+`Instantiator`** whose per-battery delegate holds both the percent and the
+charge-rate `Sensor`. (One Instantiator, not two zipped by index: two
+parallel ones can differ in `count` mid model-change and drop a
+valid-percent battery for a frame.)
+
+**Standalone — cached discovery**: the battery dir set and each battery's
+capacity weight (`energy_full`/`charge_full` — design capacity, drifts on a
+wear timescale of months) are resolved once (bounded warm-up re-list while
+none found, then settles — the CpuTemp/GpuSampler discipline), so the 2 Hz
+`sample()` reads only the live `capacity` + `status` files. A battery-less
+desktop never re-lists after the warm-up window. `available` is a **scalar**
+written only on change, so the backend's `availableMetrics` binding doesn't
+get a fresh object every poll and rebuild the ring strip at 2 Hz.
 
 | Member | Description |
 |---|---|
-| `battery` (readonly property var) | `{ percent: 0–100, charging: bool, available: bool }` from `BatteryAggregate.aggregate()`. `available:false` on a desktop (no discovered ids) hides the ring via the #52 availability interface. Reads `_tick` first (the Instantiator tick-counter pattern) so it re-evaluates when a delegate's `.value` changes. |
+| `battery` (readonly property var) | `{ percent: 0–100, charging: bool, available: bool }` from `BatteryAggregate.aggregate()`. `available:false` on a desktop (no discovered batteries) hides the ring via the #52 availability interface. Plasma reads `_tick` first (Instantiator tick-counter pattern); standalone reassigns the object each `sample()`. |
+| `available` (readonly bool, standalone) | Change-gated mirror of `battery.available` for the `availableMetrics` map (see above). |
+| `sample()` (standalone) | Per-tick work; the backend's 500 ms Timer calls it (same pattern as `GpuSampler`). |
 
 **Charging cue — aligned across hosts.** The `charging` field drives only
 the arc-dim cue (bright = not draining), so both adapters resolve it to the
@@ -1380,10 +1396,11 @@ Unavoidable residual (no AC signal): a battery idle-at-rest *off* AC with an
 exactly-zero rate reads bright on Plasma (rare/transient); standalone reads
 `Discharging` and dims it.
 
-Text-guarded by `tests/metrics-backend.test.mjs` (the `BatterySampler`
-instantiation + `SensorTreeModel`-walk + tick-counter + `aggregate()`
-wiring blocks); the pure fold is covered in Node by
-`tests/battery-aggregate.test.mjs`.
+Text-guarded by `tests/metrics-backend.test.mjs` (Plasma: the single-Instantiator
++ `SensorTreeModel`-walk + tick-counter + `aggregate()` wiring + the `rate >= 0`
+charging SCENARIO) and `tests/standalone-metrics-backend.test.mjs` (standalone:
+delegation to the child, the change-gated `available`, cached discovery, sysfs
+reads); the pure fold is covered in Node by `tests/battery-aggregate.test.mjs`.
 
 ## Update-notification flow
 

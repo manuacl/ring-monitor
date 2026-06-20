@@ -107,6 +107,8 @@ Item {
             return backend._gpuUsageValue;
         if (id === "gpuTemp")
             return backend._gpuTempValue;
+        if (id === "battery")
+            return backend.battery.percent;
         return Catalog.valueFromSensorMap(sensorMap, id);
     }
 
@@ -132,9 +134,7 @@ Item {
         active: backend.gpuDetailSamplingActive
     }
 
-    // Reactive properties (not functions) so view bindings stay live (core/CLAUDE.md
-    // § "Reactive argless data"): the PROPERTY gpuDetailSensors.detail + the reactive
-    // _gpuUsageValue / _gpuTempValue all NOTIFY, so this binding re-evaluates.
+    // Reactive property (not a function) so view bindings stay live — inputs NOTIFY (core/CLAUDE.md § "Reactive argless data").
     readonly property var gpuDetail: {
         var extra = gpuDetailSensors.detail;
         var usage = backend._gpuUsageReady() ? backend._gpuUsageValue : undefined;

@@ -626,13 +626,13 @@ NaN filtering).
 
 Standalone-only (`platforms/standalone/`) sysfs parsers for
 `/sys/class/power_supply/BAT*/` (issue #94) — kept beside the standalone
-`MetricsBackend` (the only consumer) so it isn't dead-shipped in the
+`BatterySampler` (the only consumer) so it isn't dead-shipped in the
 Plasma plasmoid.
 
 | Function | Purpose |
 |---|---|
 | `isBatteryDir(name)` | `true` for a `BAT*` entry (`/^BAT/i`); AC-adapter dirs (`AC`, `ADP0`, `mains`, …) are excluded so only real batteries are sampled. |
-| `parseCapacity(raw)` | The `capacity` file → integer 0–100, or `NaN` for absent / empty / garbage (a `NaN` record is dropped by `aggregate`). |
+| `parseCapacity(raw)` | The `capacity` file → integer **clamped to [0, 100]**, or `NaN` for absent / empty / garbage. The clamp keeps the contract true at the boundary (some ECs report 105) instead of relying on `aggregate`'s single downstream clamp, which a multi-battery weighted mean would skew before reaching. |
 | `isCharging(statusRaw)` | The `status` file → bool. `"Charging"` and `"Full"` map to `true` (plugged in), `"Discharging"` / `"Not charging"` / unknown to `false`. Case-insensitive, tolerant of the sysfs trailing newline. |
 | `parseWeight(raw)` | `energy_full` or `charge_full` → the capacity weight; absent / non-positive / garbage → `1` so weighting degrades to a simple mean. |
 

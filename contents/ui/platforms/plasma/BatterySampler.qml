@@ -44,14 +44,11 @@ Item {
     readonly property var battery: {
         sampler._tick;
         var records = [];
-        for (var i = 0; i < percentInst.count; i++) {
-            var pct = percentInst.objectAt(i);
-            var rate = rateInst.objectAt(i);
-            if (!pct || !rate)
+        for (var i = 0; i < batteryInst.count; i++) {
+            var node = batteryInst.objectAt(i);
+            if (!node || node.pctStatus !== Sensors.Sensor.Ready)
                 continue;
-            if (pct.status !== Sensors.Sensor.Ready)
-                continue;
-            var pv = pct.value;
+            var pv = node.pctValue;
             if (typeof pv !== "number" || !isFinite(pv))
                 continue;
             records.push({
@@ -64,7 +61,7 @@ Item {
                 // as charging — a full battery on AC reads bright, matching the
                 // standalone adapter's status="Full" → charging. Unavoidable edge:
                 // a battery idle-at-rest off AC (rate exactly 0) also reads bright.
-                "charging": (rate.status === Sensors.Sensor.Ready && typeof rate.value === "number" && rate.value >= 0)
+                "charging": (node.rateStatus === Sensors.Sensor.Ready && typeof node.rateValue === "number" && node.rateValue >= 0)
             });
         }
         return BatteryAggregate.aggregate(records);
@@ -108,29 +105,32 @@ Item {
         }
     }
 
-    // One chargePercentage Sensor per discovered battery.
+    // One delegate per discovered battery holding BOTH its chargePercentage and
+    // chargeRate sensors (rate is signed: ≥0 = not discharging). A single
+    // Instantiator keeps the percent/rate pair index-coherent — two parallel
+    // Instantiators zipped by index could momentarily differ in count during a
+    // model change, dropping a valid-percent battery for one frame.
     Instantiator {
-        id: percentInst
+        id: batteryInst
         model: sampler._batteryIds
-        delegate: Sensors.Sensor {
+        delegate: Item {
             required property string modelData
-            sensorId: modelData + "/chargePercentage"
-            onValueChanged: sampler._tick++
-            onStatusChanged: sampler._tick++
-        }
-        onObjectAdded: sampler._tick++
-        onObjectRemoved: sampler._tick++
-    }
-
-    // One chargeRate Sensor per discovered battery (signed: ≥0 = not discharging).
-    Instantiator {
-        id: rateInst
-        model: sampler._batteryIds
-        delegate: Sensors.Sensor {
-            required property string modelData
-            sensorId: modelData + "/chargeRate"
-            onValueChanged: sampler._tick++
-            onStatusChanged: sampler._tick++
+            property alias pctValue: pctSensor.value
+            property alias pctStatus: pctSensor.status
+            property alias rateValue: rateSensor.value
+            property alias rateStatus: rateSensor.status
+            Sensors.Sensor {
+                id: pctSensor
+                sensorId: parent.modelData + "/chargePercentage"
+                onValueChanged: sampler._tick++
+                onStatusChanged: sampler._tick++
+            }
+            Sensors.Sensor {
+                id: rateSensor
+                sensorId: parent.modelData + "/chargeRate"
+                onValueChanged: sampler._tick++
+                onStatusChanged: sampler._tick++
+            }
         }
         onObjectAdded: sampler._tick++
         onObjectRemoved: sampler._tick++

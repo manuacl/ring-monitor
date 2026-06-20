@@ -412,11 +412,14 @@ test("BatterySampler discovers batteries by walking the SensorTreeModel for char
     assert.match(BATTERY_SOURCE, /function\s+_refresh\s*\(/, "must declare _refresh() discovery function");
 });
 
-test("BatterySampler uses Instantiators for per-battery percent and rate sensors", () => {
-    assert.match(BATTERY_SOURCE, /Instantiator\s*{[\s\S]*?id:\s*percentInst/, "must declare Instantiator { id: percentInst }");
-    assert.match(BATTERY_SOURCE, /Instantiator\s*{[\s\S]*?id:\s*rateInst/, "must declare Instantiator { id: rateInst }");
-    assert.match(BATTERY_SOURCE, /sensorId:\s*modelData\s*\+\s*["']\/chargePercentage["']/, "percentInst must build sensorId from modelData + '/chargePercentage'");
-    assert.match(BATTERY_SOURCE, /sensorId:\s*modelData\s*\+\s*["']\/chargeRate["']/, "rateInst must build sensorId from modelData + '/chargeRate'");
+test("BatterySampler uses ONE Instantiator whose delegate holds both per-battery sensors", () => {
+    // A single Instantiator keeps the percent/rate pair index-coherent: two
+    // parallel Instantiators zipped by index could differ in count mid model
+    // change and drop a valid-percent battery for one frame.
+    assert.match(BATTERY_SOURCE, /Instantiator\s*{[\s\S]*?id:\s*batteryInst/, "must declare a single Instantiator { id: batteryInst }");
+    assert.doesNotMatch(BATTERY_SOURCE, /id:\s*percentInst|id:\s*rateInst/, "must not zip two parallel Instantiators by index");
+    assert.match(BATTERY_SOURCE, /sensorId:\s*parent\.modelData\s*\+\s*["']\/chargePercentage["']/, "delegate must build a chargePercentage sensorId from parent.modelData");
+    assert.match(BATTERY_SOURCE, /sensorId:\s*parent\.modelData\s*\+\s*["']\/chargeRate["']/, "delegate must build a chargeRate sensorId from parent.modelData");
 });
 
 test("BatterySampler uses _tick to drive reactive battery re-evaluation", () => {
@@ -443,8 +446,8 @@ test("BatterySampler treats a non-discharging battery (rate >= 0) as charging", 
     // so charging is inferred from the signed rate. A `> 0` test would dim a
     // full-plugged battery, diverging from the standalone adapter (status="Full"
     // → charging). The threshold must be `>= 0` (not actively discharging).
-    assert.match(BATTERY_SOURCE, /rate\.value\s*>=\s*0/, "charging must be inferred from rate.value >= 0");
-    assert.doesNotMatch(BATTERY_SOURCE, /rate\.value\s*>\s*0/, "must not use rate.value > 0 (dims a full-plugged battery)");
+    assert.match(BATTERY_SOURCE, /rateValue\s*>=\s*0/, "charging must be inferred from rateValue >= 0");
+    assert.doesNotMatch(BATTERY_SOURCE, /rateValue\s*>\s*0/, "must not use rateValue > 0 (dims a full-plugged battery)");
 });
 
 test("BatterySampler re-runs discovery on batteryTree structural changes", () => {

@@ -210,11 +210,16 @@ GridLayout {
             readonly property var _io: _isDiskIo ? (content.metrics.diskIo || null) : null
             readonly property bool _isBattery: Catalog.isBatteryMetric(modelData)
             readonly property var _battery: _isBattery ? (content.metrics.battery || null) : null
+            // Discharging dim factor, kept as a single named source rather than a
+            // scattered literal. It is RELATIVE to the user's arcOpacity (multiplied
+            // in below), so a low arcOpacity makes a discharging ring fainter still —
+            // intended: the dim is a state cue, not an absolute level.
+            readonly property real _dischargingArcDim: 0.55
             // Dim arc when discharging; bright when charging or full. 1.0 for every non-battery ring.
             readonly property real _batteryArcOpacity: {
                 if (!_isBattery || !_battery)
                     return 1.0;
-                return _battery.charging ? 1.0 : 0.55;
+                return _battery.charging ? 1.0 : _dischargingArcDim;
             }
             // Disk multi-partition: one equal-thickness ring per selected
             // filesystem, centre = their average. Empty when not the disk
@@ -289,8 +294,6 @@ GridLayout {
                         return 0;
                     return _diskIoSplit ? _io.readPercent : _io.combinedPercent;
                 }
-                if (_isBattery)
-                    return _battery ? _battery.percent : 0;
                 return content.metrics.metricValue(modelData);
             }
             // Centre text: disk equal mode shows the partition average; temp

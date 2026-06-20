@@ -37,12 +37,18 @@ function isBatteryDir(name) {
 }
 
 // Parse the integer percent from the `capacity` sysfs file.
-// Returns an integer in [0, 100], or NaN for empty / garbage input.
-// The file contains a single decimal integer (possibly with a trailing newline).
+// Returns an integer clamped to [0, 100], or NaN for empty / garbage input.
+// The file contains a single decimal integer (possibly with a trailing newline);
+// some buggy ECs report out-of-range values (e.g. 105), so the clamp keeps the
+// documented contract true at the parse boundary rather than relying on a single
+// downstream clamp in BatteryAggregate (a multi-battery weighted mean would
+// otherwise be skewed by an out-of-range member before that final clamp).
 function parseCapacity(raw) {
     if (raw === undefined || raw === null) return NaN;
     var n = parseInt(String(raw).trim(), 10);
     if (!isFinite(n)) return NaN;
+    if (n < 0) return 0;
+    if (n > 100) return 100;
     return n;
 }
 

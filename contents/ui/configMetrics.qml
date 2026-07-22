@@ -2,6 +2,7 @@ import QtQuick
 import "platforms/plasma" as Platform
 import "core" as Core
 import "core/ColorThemes.js" as ColorThemes
+import "core/MetricsCatalog.js" as Catalog
 
 // Plasma-side wrapper for the Metrics config page. All of the
 // rendering, the orderModel, and the toggle/reorder logic live in
@@ -25,6 +26,10 @@ Platform.PlaceholderKCM {
     property alias cfg_mergeCpuTemp: body.mergeCpuTemp
     property alias cfg_mergeGpuTemp: body.mergeGpuTemp
     property alias cfg_splitDiskIo: body.splitDiskIo
+    property alias cfg_sensorTempId: body.sensorTempId
+    property alias cfg_sensorTempLabel: body.sensorTempLabel
+    property alias cfg_sensorTempMinC: body.sensorTempMinC
+    property alias cfg_sensorTempMaxC: body.sensorTempMaxC
     property alias cfg_tempUnit: body.tempUnit
 
     // ColorPicker is platform-specific (Plasma wraps KQuickControls.ColorButton);
@@ -47,6 +52,8 @@ Platform.PlaceholderKCM {
     // the Plasma backend → cheap probe). See docs/components.md § MetricsBackend.
     Platform.MetricsBackend {
         id: metricsAdapter
+        sensorTempId: body.sensorTempId
+
         // Run the findmnt poll while the dialog is open so the picker can gate
         // out partitions ksysguard still lists after unmount (#58 frozen tree).
         removableTrackingActive: true
@@ -72,6 +79,17 @@ Platform.PlaceholderKCM {
         // `null` (= unknown → all enable-able) during warm-up, else the real
         // list — without the gate the freshly-spun-up backend would grey every
         // row until its Sensors resolve. Mirrors MainContent's loading gate.
-        availableMetrics: metricsAdapter.loading ? null : metricsAdapter.availableMetrics
+        availableMetrics: {
+            if (!metricsAdapter.loading)
+                return metricsAdapter.availableMetrics;
+
+            // During warm-up, keep existing metrics enable-able, but do not
+            // advertise the custom sensor until an ID has been configured.
+            return body.sensorTempId.length > 0
+            ? null
+            : Catalog.METRIC_IDS.filter(function (id) {
+                return id !== "sensorTemp";
+            });
+        }
     }
 }

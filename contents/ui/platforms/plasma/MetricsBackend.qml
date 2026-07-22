@@ -39,6 +39,7 @@ import "SensorPicking.js" as SensorPicking
 Item {
     id: backend
 
+    property string sensorTempId: ""
     // ── Public surface ──────────────────────────────────────────────
     //
     // coreValues re-evaluates on _coreTick — bumped whenever the
@@ -79,7 +80,9 @@ Item {
             // ksysguard exposes disk/all/{read,write} on any host with a disk
             // (no-op until the diskIo UI PR adds the catalog id — filtered to
             // METRIC_IDS).
-            "diskIo": true
+            "diskIo": true,
+            "sensorTemp": backend.sensorTempId.length > 0
+                        && sensorTempSensor.status === Sensors.Sensor.Ready
         });
     }
 
@@ -279,16 +282,18 @@ Item {
 
     // ── Internal — id → Sensor instance lookup (universal aggregates) ──
     readonly property var sensorMap: ({
-            cpu: cpuTotal,
-            ram: ramSensor,
-            swap: swapSensor,
-            disk: diskSensor,
-            cpuTemp: cpuTempSensor
-        })
+        cpu: cpuTotal,
+        ram: ramSensor,
+        swap: swapSensor,
+        disk: diskSensor,
+        cpuTemp: cpuTempSensor,
+        sensorTemp: sensorTempSensor
+    })
 
     readonly property var tempSensorMap: ({
-            cpu: cpuTempSensor
-        })
+        cpu: cpuTempSensor,
+        sensorTemp: sensorTempSensor
+    })
 
     // ── Internal — universal per-metric sensors ─────────────────────
     Sensors.Sensor {
@@ -310,6 +315,11 @@ Item {
     Sensors.Sensor {
         id: cpuTempSensor
         sensorId: Catalog.tempSensorIdFor("cpu")
+    }
+
+    Sensors.Sensor {
+        id: sensorTempSensor
+        sensorId: backend.sensorTempId
     }
     // Preferred aggregate for GPU usage. May not exist on systems with
     // a single discrete GPU exposed only at gpu/gpu0/usage — the

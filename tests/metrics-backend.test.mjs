@@ -134,6 +134,32 @@ test("metricRawTemp delegates to Catalog.valueFromSensorMap with tempSensorMap",
     assert.match(SOURCE, /Catalog\.valueFromSensorMap\s*\(\s*tempSensorMap\s*,\s*id\s*\)/, "metricRawTemp(id) must call Catalog.valueFromSensorMap(tempSensorMap, id)");
 });
 
+test("custom temperature sensor is configurable and exposed through both sensor maps", () => {
+    assert.match(
+        SOURCE,
+        /property\s+string\s+sensorTempId\s*:\s*""/,
+        "must expose an empty sensorTempId configuration input"
+    );
+
+    assert.match(
+        SOURCE,
+        /Sensors\.Sensor\s*{[\s\S]*?id:\s*sensorTempSensor[\s\S]*?sensorId:\s*backend\.sensorTempId[\s\S]*?}/,
+        "must declare sensorTempSensor bound to backend.sensorTempId"
+    );
+
+    assert.match(
+        SOURCE,
+        /sensorMap:\s*\(\{[\s\S]*?sensorTemp:\s*sensorTempSensor[\s\S]*?\}\)/,
+        "sensorMap must expose sensorTempSensor as sensorTemp"
+    );
+
+    assert.match(
+        SOURCE,
+        /tempSensorMap:\s*\(\{[\s\S]*?sensorTemp:\s*sensorTempSensor[\s\S]*?\}\)/,
+        "tempSensorMap must expose sensorTempSensor as sensorTemp"
+    );
+});
+
 test("metricTempPercent delegates to Catalog.tempToPercent", () => {
     assert.match(SOURCE, /Catalog\.tempToPercent\s*\(/, "metricTempPercent(id) must call Catalog.tempToPercent(...)");
 });
@@ -208,7 +234,7 @@ test("availableMetrics gates each metric on its Sensor reaching Ready", () => {
     // host) must be omitted so MainContent drops the dead 0% ring and the
     // picker greys the row. The list is built through the shared
     // Catalog.availableMetricsFrom helper from a per-metric readiness map:
-    // cpu/cpuTemp/ram/swap/disk gate on their static sensor status;
+    // cpu/cpuTemp/ram/swap/disk/sensorTemp gate on their static sensor status;
     // gpu/gpuTemp on the discovered-instantiator readiness helpers
     // (mirroring _gpuUsageValue / _gpuTempValue).
     assert.match(SOURCE, /property\s+var\s+availableMetrics\s*:/, "must declare readonly property var availableMetrics");
@@ -216,6 +242,11 @@ test("availableMetrics gates each metric on its Sensor reaching Ready", () => {
     assert.match(SOURCE, /"cpu":\s*cpuTotal\.status\s*===\s*Sensors\.Sensor\.Ready/, 'availableMetrics map must gate "cpu" on cpuTotal Ready');
     assert.match(SOURCE, /"swap":\s*swapSensor\.status\s*===\s*Sensors\.Sensor\.Ready/, 'availableMetrics map must gate "swap" on swapSensor Ready');
     assert.match(SOURCE, /"disk":\s*diskSensor\.status\s*===\s*Sensors\.Sensor\.Ready/, 'availableMetrics map must gate "disk" on diskSensor Ready');
+    assert.match(
+        SOURCE,
+        /"sensorTemp":\s*backend\.sensorTempId\.length\s*>\s*0\s*&&\s*sensorTempSensor\.status\s*===\s*Sensors\.Sensor\.Ready/,
+        'availableMetrics map must gate "sensorTemp" on a configured id and sensorTempSensor Ready'
+    );
     assert.match(SOURCE, /function\s+_gpuUsageReady\s*\(/, "must declare _gpuUsageReady() helper");
     assert.match(SOURCE, /function\s+_gpuTempReady\s*\(/, "must declare _gpuTempReady() helper");
     assert.match(SOURCE, /"gpu":\s*backend\._gpuUsageReady\(\)/, 'availableMetrics map must gate "gpu" via _gpuUsageReady()');

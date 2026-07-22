@@ -35,6 +35,18 @@ KCM.SimpleKCM {
     property var cfg_mergeGpuTempDefault
     property var cfg_splitDiskIo
     property var cfg_splitDiskIoDefault
+    property var cfg_sensorTempId
+    property var cfg_sensorTempIdDefault
+
+    property var cfg_sensorTempLabel
+    property var cfg_sensorTempLabelDefault
+
+    property var cfg_sensorTempMinC
+    property var cfg_sensorTempMinCDefault
+
+    property var cfg_sensorTempMaxC
+    property var cfg_sensorTempMaxCDefault
+
     property var cfg_orientation
     property var cfg_orientationDefault
     property var cfg_ringSize

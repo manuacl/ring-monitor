@@ -43,7 +43,8 @@ Pure-logic tests for `core/*.js` modules:
 
 | File | Covers |
 |---|---|
-| `metrics-catalog.test.mjs` | catalog ids, sensor mapping, CSV helpers, °C→%/°F conversion, sensor-discovery classifier |
+| `metrics-catalog.test.mjs` | catalog ids, sensor mapping, CSV helpers, sensor-discovery classifier |
+| `metrics-temperature.test.mjs` | `valueFromSensorMap` defensive reads, °C→% mapping (`tempToPercent`), display-unit resolution + °C→°F conversion |
 | `ring-geometry.test.mjs` | sweep / radius / sizing math from `RingGeometry.js` |
 | `reorder-logic.test.mjs` | drag-to-reorder array transform (`applyMove`, `computeYShift`) |
 | `color-themes.test.mjs` | theme registry + dark/light variant resolution |
@@ -87,6 +88,8 @@ guard can't see (binding flow, signal emission, layout):
 | `tst_MetricRow.qml` | row layout, checkbox state, `extraContent`, disabled cascade |
 | `tst_DraggableList.qml` | `rowModel` forwarding, drag scenarios, no-op drags |
 | `tst_MetricsBody.qml` | order CSV ↔ model, `isEnabled` / `setEnabled`, descriptions, `tempUnit` radios |
+| `tst_MetricsBodyDisk.qml` | disk-partition picker: selection CSV roundtrip, order model, stale rows, removable auto-show/opt-out |
+| `tst_SensorTempSettings.qml` | property round-trip, per-field `*Edited` signal wiring, spinbox cross-clamp |
 | `tst_AppearanceBody.qml` | opacity sliders bind two-way, mode radios |
 | `tst_MainContent.qml` | ring composition + theme propagation |
 | `tst_AboutBody.qml` | version display + update-badge wiring |

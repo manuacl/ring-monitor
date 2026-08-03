@@ -266,6 +266,8 @@ unmounted" (see `DiskMetrics.resolveDiskRingIds`).
 | Function | Purpose |
 |---|---|
 | `parseMountPairs(stdout)` | `[{uuid, label, mountpoint, fstype}]`, one per mounted filesystem with a UUID (`fstype` from the `findmnt -o … ,FSTYPE` column, `""` when absent — feeds the #68 tooltip). `-P` (key=`"value"` pairs) is used over raw columns so spaces in a label or target survive. The UUID is **lower-cased** to match ksysguard's keys (findmnt prints FAT/vfat serials UPPERCASE, e.g. `6F45-2B2F`, while ksysguard uses `6f45-2b2f`). Rows without a UUID (pseudo / network mounts) and rows whose target isn't an absolute path are dropped; a filesystem mounted at several targets (btrfs subvolumes, bind mounts) appears once — the first row, whose target drives the removable classification. Removable classification is **not** done here — that's the shared `DiskMetrics.isRemovableMount(mountpoint)` predicate, applied by the consumer so the standalone `/proc` path classifies through the same rule. |
+| `removableList(mounted)` | `[{id, label}]` for the rows flagged `removable` (`id` = the ksysguard-keyed uuid) — the auto-show source `MetricsBackend.removablePartitions` publishes. |
+| `uuidList(mounted)` | `[uuid]` for every row — the authoritative "still mounted" set behind `MetricsBackend.mountedPartitionIds` (the #58 self-heal gate). Both helpers take the augmented rows `MountInfo.qml` publishes (parse output + `removable`); null input yields an empty list. |
 
 Covered by `tests/mount-info.test.mjs` (which also text-guards the
 `MountInfo.qml` adapter surface — its plasma5support import keeps it out

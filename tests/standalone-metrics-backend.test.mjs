@@ -250,6 +250,10 @@ test("standalone MetricsBackend exposes availableMetrics gating swap + gpu on th
     assert.match(SOURCE, /"gpu":\s*gpuSampler\.available/, 'availableMetrics map must gate "gpu" on gpuSampler.available (forwarded from GpuSampler)');
     // gpuTemp gates on gpuSampler.tempAvailable so Intel temp-only shows.
     assert.match(SOURCE, /"gpuTemp":\s*gpuSampler\.tempAvailable\s*&&\s*isFinite\(\s*gpuSampler\.tempC\s*\)/, 'availableMetrics map must gate "gpuTemp" on gpuSampler.tempAvailable AND a finite gpuSampler.tempC');
+    // sensorTemp is Plasma-only (its data source is a user-provided
+    // KSystemStats sensor id; standalone has no ksysguard) — explicitly
+    // gated off so the picker greys the row rather than offering a dead ring.
+    assert.match(SOURCE, /"sensorTemp":\s*false/, 'availableMetrics map must gate "sensorTemp" off on standalone');
 });
 
 test("standalone availableMetrics binding does not depend on _tick (no per-poll churn)", () => {

@@ -172,3 +172,29 @@ test("MountInfo.qml clears the last-good set when deactivated (no ghost ring on 
     assert.match(QML, /onActiveChanged:[\s\S]{0,80}root\._mounted\s*=\s*\[\]/,
         "deactivation must clear _mounted to []");
 });
+
+test("removableList: keeps only removable rows, mapped to {id, label}", () => {
+    const mounted = [
+        { uuid: "u-root", label: "root", removable: false },
+        { uuid: "u-usb", label: "MYUSB", removable: true },
+    ];
+    assert.deepEqual(MountInfo.removableList(mounted), [{ id: "u-usb", label: "MYUSB" }]);
+});
+
+test("removableList: null/undefined input yields an empty list", () => {
+    assert.deepEqual(MountInfo.removableList(null), []);
+    assert.deepEqual(MountInfo.removableList(undefined), []);
+});
+
+test("uuidList: returns every row's uuid in order", () => {
+    const mounted = [
+        { uuid: "u-root", label: "root", removable: false },
+        { uuid: "u-usb", label: "MYUSB", removable: true },
+    ];
+    assert.deepEqual(MountInfo.uuidList(mounted), ["u-root", "u-usb"]);
+});
+
+test("uuidList: null/undefined input yields an empty list", () => {
+    assert.deepEqual(MountInfo.uuidList(null), []);
+    assert.deepEqual(MountInfo.uuidList(undefined), []);
+});

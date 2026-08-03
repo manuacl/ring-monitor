@@ -12,6 +12,14 @@ user-facing only.
 
 ## [Unreleased]
 
+### Added
+
+- New **custom hardware temperature** metric (#160): display any temperature sensor exposed by your system — liquid-cooling loop, motherboard, SSD… Pick the sensor ID, give the ring its own label, and set the min/max °C range the ring scales against. Optional and off by default; the existing CPU/GPU temperature rings are unchanged. (Plasma widget only for now.)
+
+### Technical
+
+- feat(metrics): add a configurable hardware temperature metric (#160). New `sensorTemp` catalog id renders any KSystemStats temperature sensor as a ring, configured from the Metrics page (sensor ID, custom ring label, min/max °C range scaling the sweep via `Catalog.tempToPercent`). `sensorTemp` joins `TEMP_METRIC_IDS` with no fixed `METRIC_SENSOR_IDS` entry: the Plasma `MetricsBackend` binds a `Sensors.Sensor` to the user-provided `sensorTempId` and gates `availableMetrics` on a non-empty ID + `Sensor.Ready`, so the row stays greyed until a valid sensor is configured; `configMetrics.qml` additionally keeps the id out of the warm-up passthrough until an ID is set. `MainContent` applies the custom min/max to the sweep and the custom label to the ring. Metrics config UI split to respect the 500-line cap: `MetricsRowDelegate` (row ↔ metric wiring) and `MetricSubOptions` (per-metric child components) extracted from `MetricsBody`, new `SensorTempSettings` / `TemperatureUnitSettings` components; `MetricRow` gains `extraContentEnabled` so the sensor settings stay editable while the metric row is disabled. QML suite split per concern (`tst_MetricsBodyDisk.qml`); the catalog temperature / sensor-value tests moved to `metrics-temperature.test.mjs`. New core QML files registered in `CMakeLists.txt` for the standalone build (their absence broke the AppImage smoke-test at runtime — caught by `standalone-qml-module.test.mjs`); the Plasma `MetricsBackend.qml` shed its inline mounted-set loops to new pure `MountInfo.removableList` / `uuidList` helpers to get back under the cap. Standalone: the `sensorTemp*` keys are persisted and bridged in `SettingsDialog`, and the metric is explicitly gated unavailable (no ksysguard on that platform).
+
 ## [0.15.0] — 2026-06-17
 
 ### Added

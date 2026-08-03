@@ -7,8 +7,7 @@ MetricRow {
     required property var subOptions
 
     // DraggableList exposes the current row through the Loader parent.
-    readonly property string currentMetricId:
-    parent && parent.rowModel ? parent.rowModel.metricId : ""
+    readonly property string currentMetricId: parent && parent.rowModel ? parent.rowModel.metricId : ""
 
     metricId: currentMetricId
     enabled: controller.isEnabled(currentMetricId)
@@ -19,7 +18,7 @@ MetricRow {
     unit: controller.theme ? controller.theme.unit : 18
     smallSpacing: controller.theme ? controller.theme.smallSpacing : 4
 
-    onToggled: function(on) {
+    onToggled: function (on) {
         controller.setEnabled(currentMetricId, on);
     }
 

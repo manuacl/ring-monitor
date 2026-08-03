@@ -13,6 +13,11 @@
     <entry name="partitionLabels"   type="String"> <default></default> </entry>
     <entry name="diskPartitionColors" type="String"> <default></default> </entry>
     <entry name="showCpuCores"      type="Bool">   <default>true</default> </entry>
+    <!-- Custom hardware temperature metric (#160) -->
+    <entry name="sensorTempId"      type="String"> <default></default> </entry>
+    <entry name="sensorTempLabel"   type="String"> <default>SENSOR</default> </entry>
+    <entry name="sensorTempMinC"    type="Int">    <default>20</default> ... </entry>
+    <entry name="sensorTempMaxC"    type="Int">    <default>60</default> ... </entry>
 </group>
 <group name="Appearance">
     <entry name="orientation"          type="String"> <default>horizontal</default> </entry>

@@ -16,23 +16,29 @@ RowLayout {
         text: qsTr("Temperature unit:")
     }
 
+    // "Follow system" resolves via Qt.locale().measurementSystem in
+    // MainContent (Imperial-US → °F, everything else → °C — see
+    // Catalog.resolveTempMode).
     QQC2.RadioButton {
         id: tempUnitAuto
-        text: qsTr("Auto")
+        objectName: "tempUnitAutoRadio"
+        text: qsTr("Follow system")
         checked: root.tempUnit === "auto"
         onClicked: root.tempUnitEdited("auto")
     }
 
     QQC2.RadioButton {
         id: tempUnitCelsius
-        text: qsTr("°C")
+        objectName: "tempUnitCelsiusRadio"
+        text: qsTr("Celsius")
         checked: root.tempUnit === "celsius"
         onClicked: root.tempUnitEdited("celsius")
     }
 
     QQC2.RadioButton {
         id: tempUnitFahrenheit
-        text: qsTr("°F")
+        objectName: "tempUnitFahrenheitRadio"
+        text: qsTr("Fahrenheit")
         checked: root.tempUnit === "fahrenheit"
         onClicked: root.tempUnitEdited("fahrenheit")
     }

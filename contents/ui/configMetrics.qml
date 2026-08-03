@@ -85,9 +85,7 @@ Platform.PlaceholderKCM {
 
             // During warm-up, keep existing metrics enable-able, but do not
             // advertise the custom sensor until an ID has been configured.
-            return body.sensorTempId.length > 0
-            ? null
-            : Catalog.METRIC_IDS.filter(function (id) {
+            return body.sensorTempId.length > 0 ? null : Catalog.METRIC_IDS.filter(function (id) {
                 return id !== "sensorTemp";
             });
         }

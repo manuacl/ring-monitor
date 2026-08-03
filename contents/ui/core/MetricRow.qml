@@ -111,7 +111,10 @@ Item {
             visible: active
             // QML cascades `enabled` to descendants — child controls
             // (e.g. a sub-CheckBox) get the theme's disabled rendering
-            // and become non-interactive when the master is off.
+            // and become non-interactive when the master is off. The
+            // default extraContentEnabled follows row.enabled; sensorTemp
+            // overrides it so its settings stay editable while the metric
+            // is off (entering the sensor ID is what makes it available).
             enabled: row.extraContentEnabled
         }
     }

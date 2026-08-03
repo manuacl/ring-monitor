@@ -26,6 +26,7 @@ ColumnLayout {
 
     QQC2.TextField {
         Layout.fillWidth: true
+        objectName: "sensorIdField"
         placeholderText: qsTr("Example: lmsensors/.../temp1")
         text: root.sensorId
         onTextEdited: root.sensorIdEdited(text)
@@ -44,6 +45,7 @@ ColumnLayout {
 
     QQC2.TextField {
         Layout.fillWidth: true
+        objectName: "sensorLabelField"
         placeholderText: qsTr("SENSOR")
         text: root.sensorLabel
         maximumLength: 16
@@ -59,8 +61,9 @@ ColumnLayout {
         }
 
         QQC2.SpinBox {
+            objectName: "minCSpinBox"
             editable: true
-            from: -273
+            from: -50
             to: root.maxC - 1
             value: root.minC
             onValueModified: root.minCEdited(value)
@@ -71,9 +74,10 @@ ColumnLayout {
         }
 
         QQC2.SpinBox {
+            objectName: "maxCSpinBox"
             editable: true
             from: root.minC + 1
-            to: 1000
+            to: 250
             value: root.maxC
             onValueModified: root.maxCEdited(value)
         }

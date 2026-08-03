@@ -4,6 +4,7 @@ import org.kde.ksysguard.sensors as Sensors
 import "../../core/MetricsCatalog.js" as Catalog
 import "../../core/DiskMetrics.js" as DiskMetrics
 import "SensorPicking.js" as SensorPicking
+import "MountInfo.js" as MountInfoJs
 
 // Platform adapter: wraps the KSysGuard sensor system used by the
 // Plasma build. Exposes the metric values main.qml needs as a stable
@@ -81,8 +82,7 @@ Item {
             // (no-op until the diskIo UI PR adds the catalog id — filtered to
             // METRIC_IDS).
             "diskIo": true,
-            "sensorTemp": backend.sensorTempId.length > 0
-                        && sensorTempSensor.status === Sensors.Sensor.Ready
+            "sensorTemp": backend.sensorTempId.length > 0 && sensorTempSensor.status === Sensors.Sensor.Ready
         });
     }
 
@@ -224,37 +224,19 @@ Item {
 
     // Live mounted-removable set (USB keys, SD cards), [{id, label}] keyed by
     // UUID — the data ksysguard can't give us (no mountpoint / removable flag)
-    // and which freezes on unmount (#58). Sourced from MountInfo's findmnt poll,
-    // gated by removableTrackingActive. MainContent unions it with the manual
+    // and which freezes on unmount (#58). MainContent unions it with the manual
     // selection via DiskMetrics.resolveDiskRingIds, so a plugged key auto-shows a
     // ring and an unplugged one self-heals away with no trip through Settings.
     // The per-ring VALUE still comes from partitionValue(id): while a removable
     // is mounted ksysguard does expose its disk/<uuid>/usedPercent sensor (only
     // the set/unmount detection froze, which MountInfo sidesteps).
-    readonly property var removablePartitions: {
-        var out = [];
-        var m = mountInfo.mounted;
-        for (var i = 0; i < m.length; i++) {
-            if (m[i].removable)
-                out.push({
-                    "id": m[i].uuid,
-                    "label": m[i].label
-                });
-        }
-        return out;
-    }
+    readonly property var removablePartitions: MountInfoJs.removableList(mountInfo.mounted)
     // Every currently-mounted UUID (fixed + removable) per the live findmnt poll
     // — the authoritative "is this still mounted?" set MainContent gates the disk
     // ring on, so a stale partition (unplugged removable) loses its ring even
     // when it lingers in ksysguard's frozen tree (#58). Empty until the first
     // poll returns; MainContent treats empty as "no data, don't gate".
-    readonly property var mountedPartitionIds: {
-        var ids = [];
-        var m = mountInfo.mounted;
-        for (var i = 0; i < m.length; i++)
-            ids.push(m[i].uuid);
-        return ids;
-    }
+    readonly property var mountedPartitionIds: MountInfoJs.uuidList(mountInfo.mounted)
     // Gate for MountInfo's findmnt poll — main.qml sets it true whenever the disk
     // metric is enabled, so a widget without a disk ring spawns no subprocess
     // (#59 review finding 1). It is intentionally NOT also gated on
@@ -282,18 +264,18 @@ Item {
 
     // ── Internal — id → Sensor instance lookup (universal aggregates) ──
     readonly property var sensorMap: ({
-        cpu: cpuTotal,
-        ram: ramSensor,
-        swap: swapSensor,
-        disk: diskSensor,
-        cpuTemp: cpuTempSensor,
-        sensorTemp: sensorTempSensor
-    })
+            cpu: cpuTotal,
+            ram: ramSensor,
+            swap: swapSensor,
+            disk: diskSensor,
+            cpuTemp: cpuTempSensor,
+            sensorTemp: sensorTempSensor
+        })
 
     readonly property var tempSensorMap: ({
-        cpu: cpuTempSensor,
-        sensorTemp: sensorTempSensor
-    })
+            cpu: cpuTempSensor,
+            sensorTemp: sensorTempSensor
+        })
 
     // ── Internal — universal per-metric sensors ─────────────────────
     Sensors.Sensor {

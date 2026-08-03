@@ -167,6 +167,8 @@ Item {
         }
 
         // ── Temperature unit: property → which radio is checked ─────
+        // The radios live in the TemperatureUnitSettings child; tests
+        // reach them by objectName (tests/CLAUDE.md leaf-control rule).
         function test_tempUnit_default_is_auto_and_drives_radio() {
             // Make sure the row is visible (only shown when at least
             // one temperature metric is enabled) so the radios are
@@ -174,27 +176,27 @@ Item {
             body.enabledMetricsCsv = "cpu,cpuTemp";
             wait(20);
             compare(body.tempUnit, "auto");
-            verify(body._tempUnitAuto.checked);
-            verify(!body._tempUnitCelsius.checked);
-            verify(!body._tempUnitFahrenheit.checked);
+            verify(findChild(body, "tempUnitAutoRadio").checked);
+            verify(!findChild(body, "tempUnitCelsiusRadio").checked);
+            verify(!findChild(body, "tempUnitFahrenheitRadio").checked);
         }
 
         function test_tempUnit_celsius_swaps_the_checked_radio() {
             body.enabledMetricsCsv = "cpu,cpuTemp";
             wait(20);
             body.tempUnit = "celsius";
-            verify(!body._tempUnitAuto.checked);
-            verify(body._tempUnitCelsius.checked);
-            verify(!body._tempUnitFahrenheit.checked);
+            verify(!findChild(body, "tempUnitAutoRadio").checked);
+            verify(findChild(body, "tempUnitCelsiusRadio").checked);
+            verify(!findChild(body, "tempUnitFahrenheitRadio").checked);
         }
 
         function test_tempUnit_fahrenheit_swaps_the_checked_radio() {
             body.enabledMetricsCsv = "cpu,cpuTemp";
             wait(20);
             body.tempUnit = "fahrenheit";
-            verify(!body._tempUnitAuto.checked);
-            verify(!body._tempUnitCelsius.checked);
-            verify(body._tempUnitFahrenheit.checked);
+            verify(!findChild(body, "tempUnitAutoRadio").checked);
+            verify(!findChild(body, "tempUnitCelsiusRadio").checked);
+            verify(findChild(body, "tempUnitFahrenheitRadio").checked);
         }
 
         // ── Descriptions are present + i18n switched to qsTr() ───────

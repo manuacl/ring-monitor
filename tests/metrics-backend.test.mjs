@@ -218,8 +218,7 @@ test("MetricsBackend exposes a live removable-mount set gated by removableTracki
     assert.match(SOURCE, /MountInfo\s*{/, "must instantiate the MountInfo mount adapter");
     assert.match(SOURCE, /active:\s*backend\.removableTrackingActive/, "MountInfo.active must be driven by removableTrackingActive (the poll gate)");
     assert.match(SOURCE, /property\s+var\s+removablePartitions\s*:/, "must declare removablePartitions");
-    assert.match(SOURCE, /mountInfo\.mounted/, "removablePartitions must derive from mountInfo.mounted");
-    assert.match(SOURCE, /\.removable\b/, "removablePartitions must filter on the removable flag");
+    assert.match(SOURCE, /removablePartitions:\s*MountInfoJs\.removableList\(\s*mountInfo\.mounted\s*\)/, "removablePartitions must derive from mountInfo.mounted via MountInfo.removableList (which filters on the removable flag)");
 });
 
 test("MetricsBackend exposes mountedPartitionIds for the #58 live-mount self-heal gate", () => {

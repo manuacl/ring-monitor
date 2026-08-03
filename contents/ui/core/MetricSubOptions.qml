@@ -55,19 +55,19 @@ QtObject {
             minC: root.controller.sensorTempMinC
             maxC: root.controller.sensorTempMaxC
 
-            onSensorIdEdited: function(value) {
+            onSensorIdEdited: function (value) {
                 root.controller.sensorTempId = value;
             }
 
-            onSensorLabelEdited: function(value) {
+            onSensorLabelEdited: function (value) {
                 root.controller.sensorTempLabel = value;
             }
 
-            onMinCEdited: function(value) {
+            onMinCEdited: function (value) {
                 root.controller.sensorTempMinC = value;
             }
 
-            onMaxCEdited: function(value) {
+            onMaxCEdited: function (value) {
                 root.controller.sensorTempMaxC = value;
             }
         }

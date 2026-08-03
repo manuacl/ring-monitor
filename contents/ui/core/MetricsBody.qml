@@ -381,13 +381,11 @@ ColumnLayout {
         Layout.fillWidth: true
         Layout.topMargin: body.theme ? body.theme.smallSpacing : 4
 
-        visible: body.isEnabled("cpuTemp")
-        || body.isEnabled("gpuTemp")
-        || body.isEnabled("sensorTemp")
+        visible: body.isEnabled("cpuTemp") || body.isEnabled("gpuTemp") || body.isEnabled("sensorTemp")
 
         tempUnit: body.tempUnit
 
-        onTempUnitEdited: function(value) {
+        onTempUnitEdited: function (value) {
             body.tempUnit = value;
         }
     }
@@ -396,23 +394,7 @@ ColumnLayout {
     readonly property alias _orderModel: orderModel
     readonly property alias _partitionOrderModel: partitionOrderModel
     readonly property alias _list: list
-
-    QtObject {
-        id: tempUnitAutoHook
-        readonly property bool checked: body.tempUnit === "auto"
-    }
-
-    QtObject {
-        id: tempUnitCelsiusHook
-        readonly property bool checked: body.tempUnit === "celsius"
-    }
-
-    QtObject {
-        id: tempUnitFahrenheitHook
-        readonly property bool checked: body.tempUnit === "fahrenheit"
-    }
-
-    readonly property QtObject _tempUnitAuto: tempUnitAutoHook
-    readonly property QtObject _tempUnitCelsius: tempUnitCelsiusHook
-    readonly property QtObject _tempUnitFahrenheit: tempUnitFahrenheitHook
+    // The temp-unit radios carry objectNames (tempUnit*Radio) — tests
+    // reach them via findChild(body, …), per tests/CLAUDE.md's
+    // leaf-control hook rule.
 }

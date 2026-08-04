@@ -80,6 +80,13 @@ ColumnLayout {
     property string sensorTempLabel: "SENSOR"
     property int sensorTempMinC: 20
     property int sensorTempMaxC: 60
+    // Whether this platform can ever resolve a custom sensor (Plasma:
+    // yes, via ksysguard; standalone: no ksysguard → false). When false
+    // the sensorTemp row stays (greyed, consistent with other
+    // unavailable metrics) but its settings editor is not rendered —
+    // it would be an editable-but-inert form there. Re-enabled on
+    // standalone when the hwmon port lands (issue #164).
+    property bool sensorTempSupported: true
 
     // ── Internal — the displayed order is a ListModel built from metricOrderCsv ──
     ListModel {

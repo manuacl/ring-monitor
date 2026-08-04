@@ -629,19 +629,28 @@ The Metrics config page splits its per-metric sub-options out of
   `controller` (the `MetricsBody`). It also picks the row's `extraContent`
   from `subOptions` by metric id, and sets `extraContentEnabled: true` for
   `sensorTemp` (the settings are how the metric becomes configurable, so
-  they stay editable while the row is off).
+  they stay editable while the row is off). The sensorTemp editor is only
+  attached when `controller.sensorTempSupported !== false` — standalone
+  sets the flag false (no ksysguard, the metric can never resolve there),
+  so the row stays greyed but no editable-but-inert form is rendered
+  (re-enabled by the hwmon port, issue #164).
 - **`MetricSubOptions.qml`** — a `QtObject` holding one `Component` per
   metric sub-option (CPU cores toggle, temp-merge toggles, disk-IO split,
   disk-partition picker, sensor-temp settings). Defined once at body scope
   so bindings to the controller survive row destruction/recreation on
   reorder; each component forwards edits back to the controller.
 - **`SensorTempSettings.qml`** — the `sensorTemp` sub-option: sensor-ID and
-  ring-label text fields plus min/max °C spinboxes. Stateless: takes
+  ring-label text fields plus min/max spinboxes. Stateless: takes
   `sensorId` / `sensorLabel` / `minC` / `maxC` as required properties and
   emits `sensorIdEdited` / `sensorLabelEdited` / `minCEdited` / `maxCEdited`
-  (DIP — the leaf never touches the config). The spinboxes cross-clamp
-  (`min < max` both ways) inside the schema's outer bounds (minC from
-  -50 °C, maxC to 250 °C). Covered by
+  (DIP — the leaf never touches the config). The bounds are stored in °C
+  (the sensor reports Celsius kernel-side) but displayed/edited in the
+  user's temperature unit: `tempUnit` is resolved via
+  `Catalog.resolveTempMode` exactly like the rings, and the spinbox
+  labels/values convert (one °F step can collapse to the same rounded
+  °C — harmless for a display bound). The spinboxes cross-clamp
+  (`min < max` both ways, in °C before conversion) inside the schema's
+  outer bounds (minC from -50 °C, maxC to 250 °C). Covered by
   `tests/qml/tst_SensorTempSettings.qml`.
 - **`TemperatureUnitSettings.qml`** — the temp-unit radio row (Follow
   system / Celsius / Fahrenheit). Takes `tempUnit`, emits

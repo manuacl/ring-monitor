@@ -34,7 +34,9 @@ MetricRow {
         if (currentMetricId === "diskIo")
             return subOptions.diskIoSplitToggle;
         if (currentMetricId === "sensorTemp")
-            return subOptions.sensorTempSettings;
+            // Undefined (minimal test controllers) counts as supported;
+            // only an explicit false (standalone) drops the editor.
+            return controller.sensorTempSupported !== false ? subOptions.sensorTempSettings : null;
         return null;
     }
 }

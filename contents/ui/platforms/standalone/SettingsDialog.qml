@@ -217,6 +217,11 @@ Window {
                     removablePartitions: dialog._removablePartitions
                     defaultPartitionIds: dialog._defaultPartitionIds
                     availableMetrics: dialog.availableMetrics
+                    // Standalone has no ksysguard — sensorTemp can never
+                    // resolve here (the backend hard-gates it), so don't
+                    // render its settings editor at all (issue #164 will
+                    // re-enable it with the hwmon port).
+                    sensorTempSupported: false
                     // Standalone discovery (_refreshDiskPartitions) is synchronous
                     // and complete in one shot — no incremental enumeration, so
                     // discovery is trustworthy immediately (no debounce needed).

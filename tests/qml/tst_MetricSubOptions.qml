@@ -22,6 +22,7 @@ Item {
         property string sensorTempLabel: "SENSOR"
         property int sensorTempMinC: 20
         property int sensorTempMaxC: 60
+        property string tempUnit: "auto"
 
         function isEnabled(id) {
             return false;

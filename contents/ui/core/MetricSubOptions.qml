@@ -54,6 +54,7 @@ QtObject {
             sensorLabel: root.controller.sensorTempLabel
             minC: root.controller.sensorTempMinC
             maxC: root.controller.sensorTempMaxC
+            tempUnit: root.controller.tempUnit
 
             onSensorIdEdited: function (value) {
                 root.controller.sensorTempId = value;

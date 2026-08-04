@@ -19,6 +19,9 @@ Item {
         sensorLabel: "SENSOR"
         minC: 20
         maxC: 60
+        // Pinned (not "auto") so the tests don't depend on the runner's
+        // locale measurement system.
+        tempUnit: "celsius"
     }
 
     SignalSpy {
@@ -54,6 +57,7 @@ Item {
             settings.sensorLabel = "SENSOR";
             settings.minC = 20;
             settings.maxC = 60;
+            settings.tempUnit = "celsius";
             idSpy.clear();
             labelSpy.clear();
             minSpy.clear();
@@ -115,6 +119,34 @@ Item {
             compare(maxSpin.from, settings.minC + 1);
             settings.minC = 70;
             compare(maxSpin.from, 71);
+        }
+
+        // ── Temperature unit: labels + spinboxes follow tempUnit ─────
+        // Bounds stay STORED in °C; only the display/editing converts.
+        function test_celsius_labels_and_raw_values() {
+            compare(findChild(settings, "minCLabel").text, "Minimum °C:");
+            compare(findChild(settings, "maxCLabel").text, "Maximum °C:");
+            compare(findChild(settings, "minCSpinBox").value, 20);
+            compare(findChild(settings, "maxCSpinBox").value, 60);
+        }
+
+        function test_fahrenheit_converts_labels_and_displayed_values() {
+            settings.tempUnit = "fahrenheit";
+            compare(findChild(settings, "minCLabel").text, "Minimum °F:");
+            compare(findChild(settings, "maxCLabel").text, "Maximum °F:");
+            // 20 °C → 68 °F, 60 °C → 140 °F.
+            compare(findChild(settings, "minCSpinBox").value, 68);
+            compare(findChild(settings, "maxCSpinBox").value, 140);
+        }
+
+        function test_fahrenheit_edit_converts_back_to_celsius() {
+            settings.tempUnit = "fahrenheit";
+            const spin = findChild(settings, "minCSpinBox");
+            spin.forceActiveFocus();
+            // 68 °F → Up → 69 °F → round((69 − 32) × 5/9) = 21 °C stored.
+            keyClick(Qt.Key_Up);
+            compare(minSpy.count, 1);
+            compare(minSpy.signalArguments[0][0], 21);
         }
     }
 }

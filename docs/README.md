@@ -12,8 +12,8 @@ as a directory.
   gotchas, KDE bug 484541
 - [Adding a metric](adding-a-metric.md) — step-by-step
 - [Testing](testing.md) — running and writing tests
-- [Development workflow](development.md) — symlink, restarting plasmashell,
-  using `plasmawindowed`, debugging
+- [Development workflow](development.md) — copy-based dev install,
+  restarting plasmashell, using `plasmawindowed`, debugging
 - [Releasing](releasing.md) — release flow (`version.yml` / `release.yml`),
   `bump:*` PR labels, KDE Store upload
 - [Plasma-isolation plan](plasma-isolation/plan.md) — active multi-PR refactor

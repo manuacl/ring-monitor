@@ -26,8 +26,8 @@ walkthrough explanations, file inventories, and refactor plans.
 - [`testing.md`](testing.md) — `node --test` / `qmltestrunner-qt6`
   layouts, the kebab-case test filename convention, when to add a
   test.
-- [`development.md`](development.md) — symlink layout for the
-  Plasma dev workflow, restarting plasmashell, `plasmawindowed`
+- [`development.md`](development.md) — copy-based dev install for the
+  Plasma workflow, restarting plasmashell, `plasmawindowed`
   standalone preview, journal greps, QML tooling.
 - [`releasing.md`](releasing.md) — release flow
   (`version.yml` + `release.yml`), `bump:*` PR labels, KDE Store
@@ -67,7 +67,7 @@ When in doubt, the breakdown:
 - **`config-dialog.md`** — anything that changes how the config
   dialog works (new SimpleKCM gotcha, new bridging convention).
 - **`development.md`** — anything that changes the dev workflow (new
-  tool, new restart procedure, new symlink layout).
+  tool, new restart procedure, new dev-install layout).
 
 ### Don't duplicate `CLAUDE.md`
 

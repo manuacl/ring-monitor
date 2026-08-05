@@ -3,43 +3,75 @@
 ## Layout
 
 ```
-~/projects/ring-monitor/                 — source of truth
-~/.local/share/plasma/plasmoids/dev.manuacl.ringmonitor → ~/projects/ring-monitor   (symlink)
+~/projects/ring-monitor/                          — source of truth
+~/.local/share/plasma/plasmoids/ring-monitor_dev  — disposable copy (dev install)
 ```
 
-The symlink means edits in `~/projects/ring-monitor/contents/ui/*.qml`
-are picked up by Plasma without copy-installing.
+The dev install is a **copy, never a symlink**. Removing/uninstalling a
+widget makes Plasma follow a symlink and delete the folder it points
+at — with a symlinked repo, that's the whole source tree. The copy is
+disposable: dropping `ring-monitor_dev` only erases that copy.
 
-Set it up once:
+The copy also gets a patched `metadata.json` (`KPlugin.Id =
+"ring-monitor_dev"`, `KPlugin.Name = "Ring Monitor (dev)"`) so it
+coexists with the KDE Store version (`dev.manuacl.ringmonitor`) — the
+two can sit side by side in the same panel.
+
+Set it up (from the repo root):
 
 ```bash
-mkdir -p ~/.local/share/plasma/plasmoids
-ln -s ~/projects/ring-monitor ~/.local/share/plasma/plasmoids/dev.manuacl.ringmonitor
+DEST=~/.local/share/plasma/plasmoids/ring-monitor_dev && \
+rm -rf "$DEST" && mkdir -p "$DEST" && \
+rsync -a contents metadata.json LICENSE "$DEST"/ && \
+jq '.KPlugin.Id = "ring-monitor_dev" | .KPlugin.Name = "Ring Monitor (dev)"' \
+   "$DEST/metadata.json" > "$DEST/metadata.json.tmp" && \
+mv "$DEST/metadata.json.tmp" "$DEST/metadata.json"
 ```
+
+Two first-time notes:
+
+- After the **first** copy, restart plasmashell (or re-login) for the
+  widget to appear in the "Add Widgets" list.
+- Installing the package only makes it *available* — you still add
+  **Ring Monitor (dev)** to the desktop/panel manually via
+  "Add Widgets".
+
+Agents: the `refresh-plasma-widget` skill runs the whole refresh
+(re-copy + qmlcache clear + plasmashell restart + journal grep) in one
+go — prefer it over redoing this by hand.
 
 ## When edits show up
 
-| Change | Hot-reloaded? | What to do |
-|---|---|---|
-| QML file under `contents/ui/` | yes — restart `plasmawindowed` or reopen the config dialog | nothing for desktop instance; restart for `plasmawindowed` |
-| `contents/config/main.xml` (schema) | no | `systemctl --user restart plasma-plasmashell.service` |
-| `metadata.json` | no | restart plasmashell |
-| `.js` logic file | yes | nothing |
+Edits land in the dev install only when you re-copy (the `rsync` block
+above). What to restart afterwards depends on what changed:
+
+| Change | After re-copying |
+|---|---|
+| QML file under `contents/ui/` | restart `plasmawindowed` or reopen the config dialog; restart plasmashell for the desktop instance |
+| `contents/config/main.xml` (schema) | `systemctl --user restart plasma-plasmashell.service` |
+| `metadata.json` | restart plasmashell |
+| `.js` logic file | same as QML |
+
+For the desktop instance, clear the three qmlcaches
+(`~/.cache/{plasmashell,kcmshell6,plasmawindowed}/qmlcache`) before the
+restart so stale bytecode doesn't shadow the new copy — or just run the
+`refresh-plasma-widget` skill, which does re-copy + cache clear +
+restart in one shot.
 
 ## Standalone preview (Plasma host, debugging the widget body)
 
 ```bash
-pkill -f "plasmawindowed.*ringmonitor"
-plasmawindowed dev.manuacl.ringmonitor &
+pkill -f "plasmawindowed.*ring-monitor"
+plasmawindowed ring-monitor_dev &
 ```
 
 The Bash tool kills detached children, so to keep `plasmawindowed`
 running:
 
 ```bash
-setsid -f plasmawindowed dev.manuacl.ringmonitor < /dev/null > /tmp/plasmawindowed.log 2>&1
+setsid -f plasmawindowed ring-monitor_dev < /dev/null > /tmp/plasmawindowed.log 2>&1
 # or:
-systemd-run --user --scope --collect plasmawindowed dev.manuacl.ringmonitor &
+systemd-run --user --scope --collect plasmawindowed ring-monitor_dev &
 ```
 
 ## Standalone build (separate binary, no Plasma host)
@@ -191,7 +223,7 @@ Wayland (you'll need to re-unlock).
 ## Reading the journal
 
 ```bash
-journalctl --user -n 60 --since "30 sec ago" | grep -iE "ringmon|qml" | grep -v breezerc
+journalctl --user -n 60 --since "30 sec ago" | grep -iE "ring-?mon|qml" | grep -v breezerc
 ```
 
 `breezerc` floods the journal on every interaction — always grep it out.
@@ -210,7 +242,8 @@ Bazzite, then reboot):
 
 ## Installing the widget elsewhere
 
-If the symlink isn't an option:
+To install the package under its real Id (`dev.manuacl.ringmonitor`,
+same as the KDE Store build):
 
 ```bash
 kpackagetool6 -t Plasma/Applet -i .   # first install

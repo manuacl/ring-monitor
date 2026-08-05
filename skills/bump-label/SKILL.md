@@ -68,7 +68,7 @@ Heuristic, in order of precedence (first match wins):
 |---|---|
 | Commit body has `BREAKING CHANGE:` or subject like `feat!:` / `fix(scope)!:` | `major` |
 | Any commit starts with `feat:` or `feat(scope):` | `minor` |
-| Only `docs/`, `README.md`, `CLAUDE.md`, `CHANGELOG.md`, `.claude/` touched | `none` |
+| Only `docs/`, `README.md`, `CLAUDE.md`, `CHANGELOG.md`, `skills/` touched | `none` |
 | Any commit starts with `fix:` / `perf:` / `refactor:` | `patch` |
 | Mixed / nothing matched | `patch` (conservative default for real code changes) |
 
@@ -85,7 +85,7 @@ if echo "$commits" | grep -qE '(BREAKING CHANGE|^[a-z]+(\([^)]+\))?!:)'; then
     recommended=major
 elif echo "$commits" | grep -qE '^feat(\([^)]+\))?:'; then
     recommended=minor
-elif ! echo "$changed" | grep -qvE '^(docs/|README\.md|CLAUDE\.md|CHANGELOG\.md|\.claude/)'; then
+elif ! echo "$changed" | grep -qvE '^(docs/|README\.md|CLAUDE\.md|CHANGELOG\.md|skills/)'; then
     recommended=none
 elif echo "$commits" | grep -qE '^(fix|perf|refactor)(\([^)]+\))?:'; then
     recommended=patch

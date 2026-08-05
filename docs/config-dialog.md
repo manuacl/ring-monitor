@@ -158,8 +158,9 @@ to be picked up:
 systemctl --user restart plasma-plasmashell.service
 ```
 
-Editing QML alone is hot-reloaded by the symlink (see
-[development.md](development.md)), but config schema changes are not.
+Editing QML alone only needs a re-copy of the dev install (see
+[development.md](development.md)), but config schema changes are not
+picked up until plasmashell restarts.
 
 ## Update-check group (added in 0.5)
 

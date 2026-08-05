@@ -235,7 +235,7 @@ GridLayout {
             Layout.minimumWidth: 80
             Layout.minimumHeight: 80
 
-            label: Catalog.labelFor(modelData)
+            label: modelData === "sensorTemp" ? (content.configStore.sensorTempLabel || "SENSOR") : Catalog.labelFor(modelData)
             // During loading every ring sweeps to 100% — a "warming
             // up" visual cue. Once metrics.loading flips false (first
             // ksysguard tick lands), values animate down to actuals
@@ -255,8 +255,13 @@ GridLayout {
                     return 100;
                 if (_isDisk && _diskValues.length > 0)
                     return 0;
-                if (_isTemp)
+                if (_isTemp) {
+                    if (modelData === "sensorTemp") {
+                        return Catalog.tempToPercent(_rawTempC, content.configStore.sensorTempMinC, content.configStore.sensorTempMaxC);
+                    }
+
                     return Catalog.tempToPercent(_rawTempC);
+                }
                 // diskIo arc: left/read half in split mode, else the combined
                 // sweep. The right/write half is splitValue below.
                 if (_isDiskIo) {

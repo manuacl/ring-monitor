@@ -58,6 +58,18 @@ ballooned `tst_MetricsBody.qml` 497 → 533.)
   in `tst_DraggableList.qml`. The body of the test names the bug, not
   the implementation detail.
 
+### Reaching a leaf control from a test: `objectName` + `findChild`
+
+To assert a **leaf control's** wiring (a `TextField` / `SpinBox` buried
+inside the component under test), give the control an `objectName` and
+look it up with `TestCase.findChild(subject, "theName")` — reference:
+`tst_SensorTempSettings.qml`. Prefer this over a `_`-prefixed `property
+alias` hook: an alias exposes the control's whole surface as public
+component API, while `objectName` stays invisible to QML consumers.
+Keep `_`-prefixed aliases for component-level hooks (models, inner
+components the test must drive directly), not for individual leaf
+controls.
+
 ## What lives where
 
 Full per-file inventory in [`../docs/testing.md`](../docs/testing.md) §

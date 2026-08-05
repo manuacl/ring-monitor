@@ -65,7 +65,7 @@ editing.
   are fine; publishing is the user's call.
 - **English-only repo.** All committed files — code, comments,
   `docs/*.md`, every `CLAUDE.md`, `README.md`, commit messages, PR
-  titles/bodies, and `.claude/skills/*/SKILL.md` — are written
+  titles/bodies, and `skills/*/SKILL.md` — are written
   exclusively in English. i18n source strings stay English
   (translation is a downstream concern). The conversation with the
   user can be in any language; only what lands in the repo is
@@ -186,6 +186,26 @@ depending on it re-renders.
 
 Symlink (dev workflow):
 `~/.local/share/plasma/plasmoids/dev.manuacl.ringmonitor → ~/projects/ring-monitor`.
+
+## Skills
+
+The shared agent skills live at the repo root in **`skills/`** — the
+single tracked source of truth. The AI tools consume them through
+symlinks, one per tool:
+
+```
+.claude/skills    → ../skills
+.kimi-code/skills → ../skills
+```
+
+Both `.claude/` and `.kimi-code/` are **fully gitignored** (local-only
+files), so the symlinks are not committed — recreate them after a
+fresh clone:
+
+```bash
+ln -s ../skills .claude/skills
+mkdir -p .kimi-code && ln -s ../skills .kimi-code/skills
+```
 
 ## Aesthetic
 

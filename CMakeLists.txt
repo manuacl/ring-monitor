@@ -150,6 +150,10 @@ qt_add_qml_module(ring-monitor-standalone
         contents/ui/core/AboutBody.qml
         contents/ui/core/AppearanceBody.qml
         contents/ui/core/MetricsBody.qml
+        contents/ui/core/MetricsRowDelegate.qml
+        contents/ui/core/MetricSubOptions.qml
+        contents/ui/core/SensorTempSettings.qml
+        contents/ui/core/TemperatureUnitSettings.qml
         contents/ui/core/UpdateChecker.qml
         contents/ui/core/MetricsCatalog.js
         contents/ui/core/ColorThemes.js

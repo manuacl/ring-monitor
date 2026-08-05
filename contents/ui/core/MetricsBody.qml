@@ -76,6 +76,17 @@ ColumnLayout {
     property bool mergeGpuTemp: false
     property bool splitDiskIo: false
     property string tempUnit: "auto"
+    property string sensorTempId: ""
+    property string sensorTempLabel: "SENSOR"
+    property int sensorTempMinC: 20
+    property int sensorTempMaxC: 60
+    // Whether this platform can ever resolve a custom sensor (Plasma:
+    // yes, via ksysguard; standalone: no ksysguard → false). When false
+    // the sensorTemp row stays (greyed, consistent with other
+    // unavailable metrics) but its settings editor is not rendered —
+    // it would be an editable-but-inert form there. Re-enabled on
+    // standalone when the hwmon port lands (issue #164).
+    property bool sensorTempSupported: true
 
     // ── Internal — the displayed order is a ListModel built from metricOrderCsv ──
     ListModel {
@@ -98,7 +109,8 @@ ColumnLayout {
             gpu: qsTr("GPU usage"),
             gpuTemp: qsTr("GPU temperature"),
             disk: qsTr("Disk space per selected partition"),
-            diskIo: qsTr("Disk read/write throughput")
+            diskIo: qsTr("Disk read/write throughput"),
+            sensorTemp: qsTr("Custom hardware temperature")
         })
 
     function currentOrder() {
@@ -344,36 +356,9 @@ ColumnLayout {
         backgroundColor: body.theme ? body.theme.backgroundColor : "#1e1e1e"
 
         rowContent: Component {
-            MetricRow {
-                // The Loader (inside DraggableList) puts the row data
-                // on us as `parent.rowModel` / `parent.rowIndex`.
-                readonly property string _metricId: parent && parent.rowModel ? parent.rowModel.metricId : ""
-
-                metricId: _metricId
-                enabled: body.isEnabled(_metricId)
-                available: body.isMetricAvailable(_metricId)
-                description: body.metricDescriptions[_metricId] || ""
-                onToggled: on => body.setEnabled(_metricId, on)
-
-                // Theme tokens — `body` is resolved through the
-                // Component's definition scope (MetricsBody.qml).
-                unit: body.theme.unit
-                smallSpacing: body.theme.smallSpacing
-
-                // Per-metric sub-options indented below the row.
-                extraContent: {
-                    if (_metricId === "cpu")
-                        return cpuCoresToggle;
-                    if (_metricId === "cpuTemp")
-                        return cpuTempMergeToggle;
-                    if (_metricId === "gpuTemp")
-                        return gpuTempMergeToggle;
-                    if (_metricId === "disk")
-                        return diskPartitionsPicker;
-                    if (_metricId === "diskIo")
-                        return diskIoSplitToggle;
-                    return null;
-                }
+            MetricsRowDelegate {
+                controller: body
+                subOptions: metricSubOptions
             }
         }
 
@@ -392,101 +377,23 @@ ColumnLayout {
         }
     }
 
-    // Temperature display unit — global across all rings, sits below
-    // the per-metric toggles since it's only meaningful when at least
-    // one *Temp option is on. "Follow system" resolves via
-    // Qt.locale().measurementSystem in MainContent (Imperial-US → °F,
-    // everything else → °C — see Catalog.resolveTempMode).
-    RowLayout {
+    MetricSubOptions {
+        id: metricSubOptions
+        controller: body
+    }
+
+    TemperatureUnitSettings {
+        id: temperatureUnitSettings
+
         Layout.fillWidth: true
         Layout.topMargin: body.theme ? body.theme.smallSpacing : 4
-        spacing: body.theme ? body.theme.smallSpacing : 4
-        visible: body.isEnabled("cpuTemp") || body.isEnabled("gpuTemp")
 
-        QQC2.Label {
-            text: qsTr("Temperature unit:")
-        }
-        QQC2.RadioButton {
-            id: tempUnitAuto
-            text: qsTr("Follow system")
-            checked: body.tempUnit === "auto"
-            onClicked: body.tempUnit = "auto"
-        }
-        QQC2.RadioButton {
-            id: tempUnitCelsius
-            text: qsTr("Celsius")
-            checked: body.tempUnit === "celsius"
-            onClicked: body.tempUnit = "celsius"
-        }
-        QQC2.RadioButton {
-            id: tempUnitFahrenheit
-            text: qsTr("Fahrenheit")
-            checked: body.tempUnit === "fahrenheit"
-            onClicked: body.tempUnit = "fahrenheit"
-        }
-        Item {
-            Layout.fillWidth: true
-        }
-    }
+        visible: body.isEnabled("cpuTemp") || body.isEnabled("gpuTemp") || body.isEnabled("sensorTemp")
 
-    // Sub-options rendered as children of their parent metric row.
-    // Defined at body scope so bindings to body.* survive row
-    // destruction/recreation on reorder.
-    Component {
-        id: cpuCoresToggle
-        QQC2.CheckBox {
-            text: qsTr("Show CPU cores as concentric rings")
-            checked: body.showCpuCores
-            onClicked: body.showCpuCores = checked
-        }
-    }
+        tempUnit: body.tempUnit
 
-    // Merge needs both rings to be enabled. "cpuTemp disabled" is
-    // handled upstream by MetricRow's Loader.enabled cascade. For the
-    // other half — ticking Merge while cpu is off — auto-enable cpu
-    // so the merge has somewhere to land instead of silently no-op'ing.
-    Component {
-        id: cpuTempMergeToggle
-        QQC2.CheckBox {
-            text: qsTr("Merge into the CPU ring (right half)")
-            checked: body.mergeCpuTemp
-            onClicked: {
-                body.mergeCpuTemp = checked;
-                if (checked && !body.isEnabled("cpu"))
-                    body.setEnabled("cpu", true);
-            }
-        }
-    }
-
-    Component {
-        id: gpuTempMergeToggle
-        QQC2.CheckBox {
-            text: qsTr("Merge into the GPU ring (right half)")
-            checked: body.mergeGpuTemp
-            onClicked: {
-                body.mergeGpuTemp = checked;
-                if (checked && !body.isEnabled("gpu"))
-                    body.setEnabled("gpu", true);
-            }
-        }
-    }
-
-    Component {
-        id: diskIoSplitToggle
-        QQC2.CheckBox {
-            text: qsTr("Split read / write (left / right)")
-            checked: body.splitDiskIo
-            onClicked: body.splitDiskIo = checked
-        }
-    }
-
-    // The disk-partition picker (reorderable list + per-partition color swatch
-    // + stale rows) lives in its own DiskPartitionPicker.qml to keep this file
-    // focused; it delegates every action back to this body via `controller`.
-    Component {
-        id: diskPartitionsPicker
-        DiskPartitionPicker {
-            controller: body
+        onTempUnitEdited: function (value) {
+            body.tempUnit = value;
         }
     }
 
@@ -494,7 +401,7 @@ ColumnLayout {
     readonly property alias _orderModel: orderModel
     readonly property alias _partitionOrderModel: partitionOrderModel
     readonly property alias _list: list
-    readonly property alias _tempUnitAuto: tempUnitAuto
-    readonly property alias _tempUnitCelsius: tempUnitCelsius
-    readonly property alias _tempUnitFahrenheit: tempUnitFahrenheit
+    // The temp-unit radios carry objectNames (tempUnit*Radio) — tests
+    // reach them via findChild(body, …), per tests/CLAUDE.md's
+    // leaf-control hook rule.
 }

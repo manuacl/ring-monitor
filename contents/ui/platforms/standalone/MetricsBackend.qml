@@ -66,7 +66,12 @@ Item {
         "gpuTemp": gpuSampler.tempAvailable && isFinite(gpuSampler.tempC),
         "disk": true,
         // /proc/diskstats always exists (no-op until the diskIo UI PR adds the catalog id).
-        "diskIo": true
+        "diskIo": true,
+        // Plasma-only for now: the custom temperature metric reads a
+        // user-provided KSystemStats sensor id, and this platform has no
+        // ksysguard — gate it off so the picker greys the row instead of
+        // offering a ring that could never resolve.
+        "sensorTemp": false
     })
 
     function metricValue(id) {

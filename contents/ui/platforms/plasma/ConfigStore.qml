@@ -23,6 +23,10 @@ Item {
     // ── Metrics group (see contents/config/main.xml) ────────────────
     readonly property string metricOrder: Plasmoid.configuration.metricOrder
     readonly property string enabledMetrics: Plasmoid.configuration.enabledMetrics
+    readonly property string sensorTempId: Plasmoid.configuration.sensorTempId || ""
+    readonly property string sensorTempLabel: Plasmoid.configuration.sensorTempLabel || "SENSOR"
+    readonly property int sensorTempMinC: Plasmoid.configuration.sensorTempMinC ?? 20
+    readonly property int sensorTempMaxC: Plasmoid.configuration.sensorTempMaxC ?? 60
     // Selected disk partition ids (empty = aggregate disk/all ring on Plasma).
     readonly property string enabledPartitions: Plasmoid.configuration.enabledPartitions
     // All discovered partition ids in display order (first = outermost ring).

@@ -47,6 +47,13 @@
 //                             whose target isn't an absolute path are dropped; a
 //                             duplicate UUID keeps the first row. `fstype` is ""
 //                             when the column is absent (older findmnt -o list).
+//   removableList(mounted)  - [{id, label}] for the rows flagged removable —
+//                             the auto-show source for ring/picker consumers
+//                             (`id` is the ksysguard-keyed uuid).
+//   uuidList(mounted)       - [uuid] for every row — the authoritative "still
+//                             mounted" set behind the #58 self-heal gate.
+//   Both take the augmented rows MountInfo.qml publishes (parseMountPairs
+//   output + `removable`); null/undefined input yields an empty list.
 
 function parseMountPairs(stdout) {
     var out = [];
@@ -83,8 +90,34 @@ function parseMountPairs(stdout) {
     return out;
 }
 
+function removableList(mounted) {
+    var out = [];
+    if (!mounted)
+        return out;
+    for (var i = 0; i < mounted.length; i++) {
+        if (mounted[i] && mounted[i].removable)
+            out.push({
+                id: mounted[i].uuid,
+                label: mounted[i].label
+            });
+    }
+    return out;
+}
+
+function uuidList(mounted) {
+    var ids = [];
+    if (!mounted)
+        return ids;
+    for (var i = 0; i < mounted.length; i++)
+        if (mounted[i])
+            ids.push(mounted[i].uuid);
+    return ids;
+}
+
 if (typeof module !== "undefined" && module.exports) {
     module.exports = {
         parseMountPairs: parseMountPairs,
+        removableList: removableList,
+        uuidList: uuidList,
     };
 }

@@ -27,8 +27,12 @@ Settings {
     id: store
 
     // ── Metrics group ───────────────────────────────────────────────
-    property string metricOrder: "cpu,cpuTemp,ram,swap,gpu,gpuTemp,disk,diskIo"
+    property string metricOrder: "cpu,cpuTemp,ram,swap,gpu,gpuTemp,disk,diskIo,sensorTemp"
     property string enabledMetrics: "cpu,ram"
+    property string sensorTempId: ""
+    property string sensorTempLabel: "SENSOR"
+    property int sensorTempMinC: 20
+    property int sensorTempMaxC: 60
     // Selected disk partition ids (empty = the backend's default, i.e. the
     // $HOME-bearing filesystem on standalone).
     property string enabledPartitions: ""

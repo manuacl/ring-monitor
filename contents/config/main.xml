@@ -8,12 +8,36 @@
     <group name="Metrics">
         <entry name="metricOrder" type="String">
             <label>All metric ids in display order (whether enabled or not)</label>
-            <default>cpu,cpuTemp,ram,swap,gpu,gpuTemp,disk,diskIo</default>
+            <default>cpu,cpuTemp,ram,swap,gpu,gpuTemp,disk,diskIo,sensorTemp</default>
         </entry>
 
         <entry name="enabledMetrics" type="String">
             <label>Comma-separated list of enabled metric ids (order ignored — see metricOrder)</label>
             <default>cpu,ram</default>
+        </entry>
+
+        <entry name="sensorTempId" type="String">
+            <label>KSystemStats sensor ID used by the custom temperature metric</label>
+            <default></default>
+        </entry>
+
+        <entry name="sensorTempLabel" type="String">
+            <label>Short label displayed by the custom temperature metric</label>
+            <default>SENSOR</default>
+        </entry>
+
+        <entry name="sensorTempMinC" type="Int">
+            <label>Temperature in Celsius mapped to an empty custom temperature ring</label>
+            <default>20</default>
+            <min>-50</min>
+            <max>200</max>
+        </entry>
+
+        <entry name="sensorTempMaxC" type="Int">
+            <label>Temperature in Celsius mapped to a full custom temperature ring</label>
+            <default>60</default>
+            <min>-49</min>
+            <max>250</max>
         </entry>
 
         <entry name="enabledPartitions" type="String">

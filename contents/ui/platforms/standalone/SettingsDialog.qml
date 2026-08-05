@@ -217,6 +217,11 @@ Window {
                     removablePartitions: dialog._removablePartitions
                     defaultPartitionIds: dialog._defaultPartitionIds
                     availableMetrics: dialog.availableMetrics
+                    // Standalone has no ksysguard — sensorTemp can never
+                    // resolve here (the backend hard-gates it), so don't
+                    // render its settings editor at all (issue #164 will
+                    // re-enable it with the hwmon port).
+                    sensorTempSupported: false
                     // Standalone discovery (_refreshDiskPartitions) is synchronous
                     // and complete in one shot — no incremental enumeration, so
                     // discovery is trustworthy immediately (no debounce needed).
@@ -308,7 +313,7 @@ Window {
     // were pulled last (issue #132 staging seam).
     readonly property var _bridgeMap: [
         // MetricsBody
-        [metricsBody, "metricOrderCsv", "metricOrder"], [metricsBody, "enabledMetricsCsv", "enabledMetrics"], [metricsBody, "enabledPartitionsCsv", "enabledPartitions"], [metricsBody, "partitionOrderCsv", "partitionOrder"], [metricsBody, "partitionLabelsJson", "partitionLabels"], [metricsBody, "partitionOptOutCsv", "partitionOptOut"], [metricsBody, "partitionColorsJson", "diskPartitionColors"], [metricsBody, "showCpuCores", "showCpuCores"], [metricsBody, "mergeCpuTemp", "mergeCpuTemp"], [metricsBody, "mergeGpuTemp", "mergeGpuTemp"], [metricsBody, "splitDiskIo", "splitDiskIo"], [metricsBody, "tempUnit", "tempUnit"],
+        [metricsBody, "metricOrderCsv", "metricOrder"], [metricsBody, "enabledMetricsCsv", "enabledMetrics"], [metricsBody, "enabledPartitionsCsv", "enabledPartitions"], [metricsBody, "partitionOrderCsv", "partitionOrder"], [metricsBody, "partitionLabelsJson", "partitionLabels"], [metricsBody, "partitionOptOutCsv", "partitionOptOut"], [metricsBody, "partitionColorsJson", "diskPartitionColors"], [metricsBody, "showCpuCores", "showCpuCores"], [metricsBody, "mergeCpuTemp", "mergeCpuTemp"], [metricsBody, "mergeGpuTemp", "mergeGpuTemp"], [metricsBody, "splitDiskIo", "splitDiskIo"], [metricsBody, "tempUnit", "tempUnit"], [metricsBody, "sensorTempId", "sensorTempId"], [metricsBody, "sensorTempLabel", "sensorTempLabel"], [metricsBody, "sensorTempMinC", "sensorTempMinC"], [metricsBody, "sensorTempMaxC", "sensorTempMaxC"],
         // AppearanceBody
         [appearanceBody, "orientation", "orientation"], [appearanceBody, "ringSize", "ringSize"], [appearanceBody, "ringSpacingPercent", "ringSpacingPercent"], [appearanceBody, "windowAnchorCorner", "windowAnchorCorner"], [appearanceBody, "windowMarginX", "windowMarginX"], [appearanceBody, "windowMarginY", "windowMarginY"], [appearanceBody, "windowScreen", "windowScreen"], [appearanceBody, "textOpacity", "textOpacity"], [appearanceBody, "trackOpacity", "trackOpacity"], [appearanceBody, "arcOpacity", "arcOpacity"], [appearanceBody, "colorTheme", "colorTheme"], [appearanceBody, "colorMode", "colorMode"], [appearanceBody, "customColorLight", "customColorLight"], [appearanceBody, "customColorDark", "customColorDark"], [appearanceBody, "textColorMode", "textColorMode"], [appearanceBody, "customTextColorLight", "customTextColorLight"], [appearanceBody, "customTextColorDark", "customTextColorDark"]]
 

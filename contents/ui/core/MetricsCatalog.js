@@ -18,7 +18,17 @@
 
 // Canonical metric order. Temperature variants sit next to their
 // usage counterpart so fresh installs see related rings adjacent.
-var METRIC_IDS = ["cpu", "cpuTemp", "ram", "swap", "gpu", "gpuTemp", "disk", "diskIo"];
+var METRIC_IDS = [
+    "cpu",
+    "cpuTemp",
+    "ram",
+    "swap",
+    "gpu",
+    "gpuTemp",
+    "disk",
+    "diskIo",
+    "sensorTemp"
+];
 
 var METRIC_LABELS = {
     cpu: "CPU",
@@ -29,6 +39,7 @@ var METRIC_LABELS = {
     gpuTemp: "GPU T",
     disk: "DISKS",
     diskIo: "DISK IO",
+    sensorTemp: "SENSOR",
 };
 
 // METRIC_SENSOR_IDS maps the catalog id to its ksysguard sensor. For
@@ -36,19 +47,23 @@ var METRIC_LABELS = {
 // runs it through tempToPercent for the sweep angle and convertTemp
 // for the display text.
 var METRIC_SENSOR_IDS = {
-    cpu:      "cpu/all/usage",
-    cpuTemp:  "cpu/all/averageTemperature",
-    ram:      "memory/physical/usedPercent",
-    swap:     "memory/swap/usedPercent",
-    gpu:      "gpu/all/usage",
-    gpuTemp:  "gpu/gpu1/temperature",
-    disk:     "disk/all/usedPercent",
+    cpu:        "cpu/all/usage",
+    cpuTemp:    "cpu/all/averageTemperature",
+    ram:        "memory/physical/usedPercent",
+    swap:       "memory/swap/usedPercent",
+    gpu:        "gpu/all/usage",
+    gpuTemp:    "gpu/gpu1/temperature",
+    disk:       "disk/all/usedPercent",
 };
 
 // Metric ids whose `metricValue` returns a raw °C reading rather than
 // a 0-100 percent. Callers must apply tempToPercent before driving the
 // ring sweep, and convertTemp before displaying the value.
-var TEMP_METRIC_IDS = { cpuTemp: true, gpuTemp: true };
+var TEMP_METRIC_IDS = {
+    cpuTemp: true,
+    gpuTemp: true,
+    sensorTemp: true
+};
 
 function isTempMetric(id) {
     return TEMP_METRIC_IDS[id] === true;

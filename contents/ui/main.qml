@@ -34,6 +34,7 @@ PlasmoidItem {
 
     Platform.MetricsBackend {
         id: metricsAdapter
+        sensorTempId: configStoreAdapter.sensorTempId
         // Track removable media (the findmnt poll behind auto-showing USB rings)
         // ONLY when the user has the disk ring enabled — a widget without a disk
         // ring spawns no subprocess at all (#59 review finding 1). We deliberately

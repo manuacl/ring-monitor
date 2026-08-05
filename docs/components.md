@@ -514,6 +514,7 @@ One row of the metrics list:
 | `available` | whether the host has a live data source for this metric (default `true`). A **separate axis** from `enabled`: when `false` the description dims and a "not detected" annotation appears. The checkbox is frozen only when the metric is **both unavailable and unchecked** (enabling it would render a dead 0% ring); an already-enabled metric that loses its source stays toggle-able so the stale selection can be unchecked. Fed by `MetricsBody.isMetricAvailable(id)`, which reads the backend's `availableMetrics`. |
 | `description` | secondary label to the right of the checkbox |
 | `extraContent` | optional `Component` rendered indented below the main row (e.g. CPU's "show cores" toggle) |
+| `extraContentEnabled` | whether the `extraContent` Loader's content is interactive (default: follows `enabled`). The `sensorTemp` row overrides it to `true` so its settings stay editable while the metric is off — configuring the sensor ID is precisely how the metric becomes available. |
 | `unit` | layout unit (default `18`) — injected by the parent via `platforms/plasma/Theme.unit` |
 | `smallSpacing` | row spacing (default `4`) — injected by the parent via `platforms/plasma/Theme.smallSpacing` |
 | `toggled(bool on)` | emitted when the user clicks the checkbox |
@@ -525,11 +526,13 @@ When `enabled === false`:
 1. **The master checkbox keeps full opacity** so the user can clearly
    see and re-enable it.
 2. **The description label dims** (`opacity: 0.3` vs `0.55`).
-3. **The `extraContent` Loader gets `enabled: row.enabled`.** QML
-   cascades `enabled` to descendants — child controls (a sub-CheckBox)
-   become non-interactive AND get the theme's disabled rendering. Don't
-   render an "active" sub-option for a metric whose master toggle is
-   off.
+3. **The `extraContent` Loader gets `enabled: row.extraContentEnabled`.**
+   The default (`row.enabled`) makes QML cascade `enabled` to
+   descendants — child controls (a sub-CheckBox) become non-interactive
+   AND get the theme's disabled rendering. Don't render an "active"
+   sub-option for a metric whose master toggle is off — unless the
+   sub-option is what makes the metric usable (see `extraContentEnabled`
+   above).
 
 This convention applies to **all** rows that may carry `extraContent`,
 not just CPU. New child-bearing metrics get it for free by setting
@@ -614,6 +617,45 @@ Each available row carries the per-partition color swatch + clear button
 (issue #67); the picker wires them to `controller.setPartitionColor` /
 `clearPartitionColor`. Test hooks: `_emptyLabel`, `_partitionList`. Covered by
 `tests/qml/tst_DiskPartitionPicker.qml`.
+
+## Metrics-page sub-components (`MetricsRowDelegate`, `MetricSubOptions`, `SensorTempSettings`, `TemperatureUnitSettings`)
+
+The Metrics config page splits its per-metric sub-options out of
+`MetricsBody.qml` so that file stays under the 500-line cap:
+
+- **`MetricsRowDelegate.qml`** — the `DraggableList` row delegate: a
+  `MetricRow` that reads the current row's `metricId` from the Loader parent
+  and wires `enabled` / `available` / `description` / `toggled` to its
+  `controller` (the `MetricsBody`). It also picks the row's `extraContent`
+  from `subOptions` by metric id, and sets `extraContentEnabled: true` for
+  `sensorTemp` (the settings are how the metric becomes configurable, so
+  they stay editable while the row is off). The sensorTemp editor is only
+  attached when `controller.sensorTempSupported !== false` — standalone
+  sets the flag false (no ksysguard, the metric can never resolve there),
+  so the row stays greyed but no editable-but-inert form is rendered
+  (re-enabled by the hwmon port, issue #164).
+- **`MetricSubOptions.qml`** — a `QtObject` holding one `Component` per
+  metric sub-option (CPU cores toggle, temp-merge toggles, disk-IO split,
+  disk-partition picker, sensor-temp settings). Defined once at body scope
+  so bindings to the controller survive row destruction/recreation on
+  reorder; each component forwards edits back to the controller.
+- **`SensorTempSettings.qml`** — the `sensorTemp` sub-option: sensor-ID and
+  ring-label text fields plus min/max spinboxes. Stateless: takes
+  `sensorId` / `sensorLabel` / `minC` / `maxC` as required properties and
+  emits `sensorIdEdited` / `sensorLabelEdited` / `minCEdited` / `maxCEdited`
+  (DIP — the leaf never touches the config). The bounds are stored in °C
+  (the sensor reports Celsius kernel-side) but displayed/edited in the
+  user's temperature unit: `tempUnit` is resolved via
+  `Catalog.resolveTempMode` exactly like the rings, and the spinbox
+  labels/values convert (one °F step can collapse to the same rounded
+  °C — harmless for a display bound). The spinboxes cross-clamp
+  (`min < max` both ways, in °C before conversion) inside the schema's
+  outer bounds (minC from -50 °C, maxC to 250 °C). Covered by
+  `tests/qml/tst_SensorTempSettings.qml`.
+- **`TemperatureUnitSettings.qml`** — the temp-unit radio row (Follow
+  system / Celsius / Fahrenheit). Takes `tempUnit`, emits
+  `tempUnitEdited`; the radios carry `objectName`s so tests can reach
+  them via `findChild` (tests/CLAUDE.md leaf-control rule).
 
 ## `DraggableList.qml`
 

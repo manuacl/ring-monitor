@@ -42,6 +42,7 @@ Item {
     property bool available: true
     property string description: ""
     property Component extraContent: null
+    property bool extraContentEnabled: row.enabled
 
     // Extracted to dodge a nested ternary across the enabled/available axes.
     readonly property real _descriptionOpacity: {
@@ -110,8 +111,11 @@ Item {
             visible: active
             // QML cascades `enabled` to descendants — child controls
             // (e.g. a sub-CheckBox) get the theme's disabled rendering
-            // and become non-interactive when the master is off.
-            enabled: row.enabled
+            // and become non-interactive when the master is off. The
+            // default extraContentEnabled follows row.enabled; sensorTemp
+            // overrides it so its settings stay editable while the metric
+            // is off (entering the sensor ID is what makes it available).
+            enabled: row.extraContentEnabled
         }
     }
 

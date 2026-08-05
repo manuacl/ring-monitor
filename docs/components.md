@@ -304,7 +304,10 @@ hit 100%:
 
 - **Left half** (`startAngle=135`, sweep `+131 × value/100`) — usage %.
 - **Right half** (`startAngle=45`, sweep `−131 × splitValue/100`) —
-  temperature, fed via `MetricsBackend.metricTempPercent(id)`.
+  temperature, mapped locally by `MainContent` via
+  `Catalog.tempToPercent(metricRawTemp(id), min, max)` with the
+  per-metric configured bounds (#164 — the backend's
+  `metricTempPercent` is no longer called by core).
 
 The 131° (instead of the geometric 135°) bakes in an 8° symmetric gap
 at the top (`SPLIT_GAP_ANGLE / 2` per side) so the two RoundCap

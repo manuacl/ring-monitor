@@ -66,6 +66,41 @@ function _compareSensors(a, b) {
     return tempIndexFromInput(a.input) - tempIndexFromInput(b.input);
 }
 
+// "nvme@0000:04:00.0/temp1" → "nvme@0000:04:00.0" — the id's chip
+// segment, used as the picker-label suffix on collisions.
+function _stemOf(id) {
+    return String(id).replace(/\/[^/]+$/, "");
+}
+
+// Labels are NOT unique: two NVMe drives both report "Composite", and
+// unlabeled chips fall back to the same "tempN" base name. The picker
+// (SensorTempSettings combo) shows labels and maps the text back to the
+// FIRST matching id, so a duplicated label makes every later twin
+// unselectable. Suffix a duplicated label with its id stem —
+// "Composite (nvme@0000:04:00.0)" — and, when even the stem can't split
+// the group (same label twice on ONE chip), with the full id (unique by
+// construction). Mirrors the Plasma side (TempSensorCatalog).
+function _disambiguateLabels(entries) {
+    var labelCount = {};
+    var i;
+    for (i = 0; i < entries.length; i++)
+        labelCount[entries[i].label] = (labelCount[entries[i].label] || 0) + 1;
+    var stemFormCount = {};
+    for (i = 0; i < entries.length; i++) {
+        if (labelCount[entries[i].label] > 1) {
+            var form = entries[i].label + " (" + _stemOf(entries[i].id) + ")";
+            stemFormCount[form] = (stemFormCount[form] || 0) + 1;
+        }
+    }
+    for (i = 0; i < entries.length; i++) {
+        var e = entries[i];
+        if (labelCount[e.label] < 2)
+            continue;
+        var withStem = e.label + " (" + _stemOf(e.id) + ")";
+        e.label = stemFormCount[withStem] > 1 ? e.label + " (" + e.id + ")" : withStem;
+    }
+}
+
 // Build the full temperature catalog from enumerated raw data:
 //   chips: [{ dir: "hwmon3", name: "nvme", device: "0000:04:00.0",
 //             sensors: [{ input: "temp1_input", label: "Composite" }] }]
@@ -113,6 +148,7 @@ function buildCatalog(chips) {
             });
         }
     }
+    _disambiguateLabels(out);
     return out;
 }
 

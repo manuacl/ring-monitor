@@ -78,6 +78,63 @@ test("buildCatalog disambiguates colliding chip names with @<device>", () => {
     ]);
 });
 
+test("buildCatalog suffixes duplicated picker labels with the id stem", () => {
+    // The picker shows labels and maps text back to the FIRST matching
+    // id — two drives both labelled "Composite" would make the second
+    // one unselectable without the stem suffix (review finding, #167).
+    const catalog = buildCatalog([
+        {
+            dir: "hwmon1",
+            name: "nvme",
+            device: "0000:04:00.0",
+            sensors: [{ input: "temp1_input", label: "Composite" }],
+        },
+        {
+            dir: "hwmon4",
+            name: "nvme",
+            device: "0000:05:00.0",
+            sensors: [{ input: "temp1_input", label: "Composite" }],
+        },
+        {
+            dir: "hwmon2",
+            name: "k10temp",
+            device: "",
+            sensors: [{ input: "temp1_input", label: "Tctl" }],
+        },
+    ]);
+    assert.deepEqual(catalog.map((e) => e.label), [
+        "Tctl",                                // unique → untouched
+        "Composite (nvme@0000:04:00.0)",
+        "Composite (nvme@0000:05:00.0)",
+    ]);
+});
+
+test("buildCatalog disambiguates duplicated fallback labels too", () => {
+    // Unlabeled chips all fall back to "tempN" — collisions are the
+    // common case there, not the exception.
+    const catalog = buildCatalog([
+        { dir: "hwmon0", name: "acpitz", device: "", sensors: [{ input: "temp1_input", label: "" }] },
+        { dir: "hwmon3", name: "pch_cannonlake", device: "", sensors: [{ input: "temp1_input", label: "" }] },
+    ]);
+    assert.deepEqual(catalog.map((e) => e.label), [
+        "temp1 (acpitz)",
+        "temp1 (pch_cannonlake)",
+    ]);
+});
+
+test("buildCatalog falls back to the full id when the stem can't split a label group", () => {
+    // Same label twice on ONE chip: the stem is identical for both, so
+    // only the full id (unique by construction) distinguishes them.
+    const catalog = buildCatalog([
+        { dir: "hwmon1", name: "nvme", device: "", sensors: [{ input: "temp1_input", label: "Composite" }] },
+        { dir: "hwmon4", name: "nvme", device: "", sensors: [{ input: "temp1_input", label: "Composite" }] },
+    ]);
+    assert.deepEqual(catalog.map((e) => e.label), [
+        "Composite (nvme/temp1)",
+        "Composite (nvme/temp1)",
+    ]);
+});
+
 test("buildCatalog counts sensorless chips for collision detection", () => {
     // A sensorless sibling still shares the chip name, so the sensor-
     // bearing chip gets the disambiguated form — the id must not change

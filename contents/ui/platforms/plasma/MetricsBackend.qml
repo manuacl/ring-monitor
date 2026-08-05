@@ -189,10 +189,10 @@ Item {
     }
 
     // ── Custom temperature sensor picker (issue #164) ────────────────
-    // Resolved/value are always live (the sensorTemp ring reads them);
-    // the picker list is gated — only the config dialog turns discovery
-    // on (the gate pattern matches diskIoSamplingActive above; the
-    // two-phase discovery itself is documented in TempSensorDiscovery).
+    // Resolved/value are always live: resolved gates the metric's
+    // availability, value feeds the config picker's live reading. The
+    // picker list is gated — only the config dialog turns discovery on
+    // (gate pattern: diskIoSamplingActive; discovery: TempSensorDiscovery).
     readonly property bool sensorTempResolved: backend.sensorTempId.length > 0 && sensorTempSensor.status === Sensors.Sensor.Ready
     readonly property real sensorTempValue: backend.sensorTempResolved && isFinite(sensorTempSensor.value) ? sensorTempSensor.value : NaN
     property alias tempSensorDiscoveryActive: tempSensorDiscovery.active

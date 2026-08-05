@@ -418,7 +418,7 @@ current-path map; only the id is stable enough to persist.
 
 | Function | Purpose |
 |---|---|
-| `buildCatalog(chips)` | From enumerated raw data `[{dir, name, device, sensors: [{input, label}]}]` → `[{id, label, path}]`, sorted chip-name then numeric sensor index. `path` embeds `hwmonN` (current boot only — resolve at runtime, never persist); a missing `tempN_label` falls back to the bare `tempN`. Sensorless chips still count for name-collision detection, so an id doesn't change shape when a sensor appears after a late modprobe. |
+| `buildCatalog(chips)` | From enumerated raw data `[{dir, name, device, sensors: [{input, label}]}]` → `[{id, label, path}]`, sorted chip-name then numeric sensor index. `path` embeds `hwmonN` (current boot only — resolve at runtime, never persist); a missing `tempN_label` falls back to the bare `tempN`. Sensorless chips still count for name-collision detection, so an id doesn't change shape when a sensor appears after a late modprobe. Duplicated picker labels (two drives both "Composite", unlabeled chips all "tempN") get the id stem suffixed — `Composite (nvme@0000:04:00.0)` — falling back to the full id when even the stem can't split the group, so every combo entry maps to one sensor. |
 | `resolveSensorPath(catalog, id)` | Persisted id → current-boot sysfs path, or `""` when the id isn't in the catalog (sensor gone, or enumeration hasn't run yet). |
 | `parseTempCelsius` / `isTempInput` / `tempIndexFromInput` | Verbatim copies of the `CpuTempDiscovery.js` one-liners — dual-loaded modules can't import each other (QML's `.import` is a syntax error under Node `require`), the same duplication `GpuDiscovery.js` already carries. |
 

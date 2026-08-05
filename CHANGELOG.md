@@ -24,7 +24,7 @@ user-facing only.
 
 ### Other
 
-- docs: replace the dangerous symlink dev workflow with the copy-based `ring-monitor_dev` install (distinct patched Id, coexists with the KDE Store version) across `docs/development.md`, `README.md`, `CLAUDE.md`, `docs/architecture.md`, `docs/config-dialog.md` and the docs indexes — the symlink could make Plasma delete the whole repo when the widget was uninstalled (#163).
+- docs: replace the dangerous symlink dev workflow with the copy-based `ring-monitor_dev` install (distinct patched Id, coexists with the KDE Store version) across `docs/development.md`, `README.md`, `CLAUDE.md`, `docs/architecture.md`, `docs/config-dialog.md`, the docs indexes and the `skills/` SKILL.md files — the symlink could make Plasma delete the whole repo when the widget was uninstalled (#163). Also adds `skills/` to the bump-label docs-only allowlist (and drops the `.claude/` entry, dead since the tool-local files were gitignored) in `skills/bump-label` / `skills/finish-branch` — same class of false `bump:patch` as the CHANGELOG.md case fixed after PR #143.
 
 ## [0.15.0] — 2026-06-17
 

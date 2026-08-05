@@ -453,7 +453,7 @@ fi
 _bump_commits=$(git log --format='%B' origin/main..HEAD)
 if   echo "$_bump_commits" | grep -qE '(BREAKING CHANGE|^[a-z]+(\([^)]+\))?!:)'; then _bump=major
 elif echo "$_bump_commits" | grep -qE '^feat(\([^)]+\))?:'; then _bump=minor
-elif ! echo "$changed" | grep -qvE '^(docs/|README\.md|CLAUDE\.md|CHANGELOG\.md|\.claude/|skills/)'; then _bump=none
+elif ! echo "$changed" | grep -qvE '^(docs/|README\.md|CLAUDE\.md|CHANGELOG\.md|skills/)'; then _bump=none
 elif echo "$_bump_commits" | grep -qE '^(fix|perf|refactor)(\([^)]+\))?:'; then _bump=patch
 else _bump=patch; fi
 _userfacing=$(git diff origin/main...HEAD -- CHANGELOG.md | command grep -cE '^\+### (Added|Changed|Fixed)\b')

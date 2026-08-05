@@ -223,7 +223,7 @@ Wayland (you'll need to re-unlock).
 ## Reading the journal
 
 ```bash
-journalctl --user -n 60 --since "30 sec ago" | grep -iE "ringmon|qml" | grep -v breezerc
+journalctl --user -n 60 --since "30 sec ago" | grep -iE "ring-?mon|qml" | grep -v breezerc
 ```
 
 `breezerc` floods the journal on every interaction — always grep it out.

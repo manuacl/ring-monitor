@@ -72,32 +72,24 @@ function _stemOf(id) {
     return String(id).replace(/\/[^/]+$/, "");
 }
 
-// Labels are NOT unique: two NVMe drives both report "Composite", and
-// unlabeled chips fall back to the same "tempN" base name. The picker
-// (SensorTempSettings combo) shows labels and maps the text back to the
-// FIRST matching id, so a duplicated label makes every later twin
-// unselectable. Suffix a duplicated label with its id stem —
-// "Composite (nvme@0000:04:00.0)" — and, when even the stem can't split
-// the group (same label twice on ONE chip), with the full id (unique by
-// construction). Mirrors the Plasma side (TempSensorCatalog).
+// Every picker label carries its chip stem — the raw sysfs names are
+// too generic to pick from ("Composite (nvme)", "Tctl (k10temp)",
+// "temp1 (acpitz)"). It also keeps twins selectable: two drives both
+// reporting "Composite" land on distinct stems, where a bare duplicate
+// label would make the combo's text-to-id mapping take the FIRST match
+// (review finding, #167 — mirrors the Plasma TempSensorCatalog). A
+// duplicated stem-form (same label twice on ONE chip) falls back to the
+// full id, unique by construction.
 function _disambiguateLabels(entries) {
-    var labelCount = {};
+    var forms = [];
+    var formCount = {};
     var i;
-    for (i = 0; i < entries.length; i++)
-        labelCount[entries[i].label] = (labelCount[entries[i].label] || 0) + 1;
-    var stemFormCount = {};
     for (i = 0; i < entries.length; i++) {
-        if (labelCount[entries[i].label] > 1) {
-            var form = entries[i].label + " (" + _stemOf(entries[i].id) + ")";
-            stemFormCount[form] = (stemFormCount[form] || 0) + 1;
-        }
+        forms[i] = entries[i].label + " (" + _stemOf(entries[i].id) + ")";
+        formCount[forms[i]] = (formCount[forms[i]] || 0) + 1;
     }
     for (i = 0; i < entries.length; i++) {
-        var e = entries[i];
-        if (labelCount[e.label] < 2)
-            continue;
-        var withStem = e.label + " (" + _stemOf(e.id) + ")";
-        e.label = stemFormCount[withStem] > 1 ? e.label + " (" + e.id + ")" : withStem;
+        entries[i].label = formCount[forms[i]] > 1 ? entries[i].label + " (" + entries[i].id + ")" : forms[i];
     }
 }
 

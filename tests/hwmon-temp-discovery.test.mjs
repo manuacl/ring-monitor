@@ -40,7 +40,7 @@ test("buildCatalog uses the <chipName>/temp<N> grammar", () => {
         },
     ]);
     assert.deepEqual(catalog, [
-        { id: "nvme/temp1", label: "Composite", path: "/sys/class/hwmon/hwmon2/temp1_input" },
+        { id: "nvme/temp1", label: "Composite (nvme)", path: "/sys/class/hwmon/hwmon2/temp1_input" },
     ]);
 });
 
@@ -78,10 +78,11 @@ test("buildCatalog disambiguates colliding chip names with @<device>", () => {
     ]);
 });
 
-test("buildCatalog suffixes duplicated picker labels with the id stem", () => {
-    // The picker shows labels and maps text back to the FIRST matching
-    // id — two drives both labelled "Composite" would make the second
-    // one unselectable without the stem suffix (review finding, #167).
+test("buildCatalog suffixes every picker label with the id stem", () => {
+    // Raw sysfs names are too generic to pick from ("Composite" on
+    // every NVMe drive) — the stem makes each entry self-explanatory
+    // AND keeps twins selectable (the combo's text-to-id mapping would
+    // otherwise take the FIRST matching label; review finding, #167).
     const catalog = buildCatalog([
         {
             dir: "hwmon1",
@@ -103,7 +104,7 @@ test("buildCatalog suffixes duplicated picker labels with the id stem", () => {
         },
     ]);
     assert.deepEqual(catalog.map((e) => e.label), [
-        "Tctl",                                // unique → untouched
+        "Tctl (k10temp)",
         "Composite (nvme@0000:04:00.0)",
         "Composite (nvme@0000:05:00.0)",
     ]);
@@ -177,8 +178,8 @@ test("buildCatalog falls back to the input base name when unlabelled", () => {
             ],
         },
     ]);
-    assert.equal(catalog[0].label, "temp1");
-    assert.equal(catalog[1].label, "temp2");
+    assert.equal(catalog[0].label, "temp1 (acpitz)");
+    assert.equal(catalog[1].label, "temp2 (acpitz)");
 });
 
 test("buildCatalog sorts by chip name then numeric sensor index", () => {
@@ -227,7 +228,7 @@ test("buildCatalog skips malformed entries instead of throwing", () => {
         },
     ]);
     assert.deepEqual(catalog, [
-        { id: "coretemp/temp1", label: "Package id 0", path: "/sys/class/hwmon/hwmon2/temp1_input" },
+        { id: "coretemp/temp1", label: "Package id 0 (coretemp)", path: "/sys/class/hwmon/hwmon2/temp1_input" },
     ]);
     assert.deepEqual(buildCatalog([]), []);
     assert.deepEqual(buildCatalog(undefined), []);

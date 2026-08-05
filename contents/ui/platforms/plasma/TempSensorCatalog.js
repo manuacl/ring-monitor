@@ -12,9 +12,11 @@
 //   buildTempSensorEntries(probed)  — phase 2: from probed candidates
 //                                     [{id, name, unit, ready}] keep the
 //                                     Celsius + Ready ones and shape the
-//                                     [{id, label}] picker list
-//                                     (duplicate names disambiguated,
-//                                     sorted by label).
+//                                     [{id, label}] picker list: per-core
+//                                     and min/max CPU temps dropped as
+//                                     noise, lmsensors names always
+//                                     chip-suffixed, remaining duplicate
+//                                     names disambiguated, sorted by label.
 //
 // Dual-loaded by QML (`import "TempSensorCatalog.js" as
 // TempSensorCatalog`) and Node (via the module.exports shim at the
@@ -27,6 +29,16 @@ var UNIT_CELSIUS = 1000;
 
 function isTempCandidate(display) {
     return typeof display === "string" && /\(°C\)\s*$/.test(display);
+}
+
+// Per-core CPU temps and the min/max variants are picker noise: the
+// cpuTemp metric already exposes the CPU temperature, and N "Core N"
+// rows crowd the list (live feedback, #167). The average stays — a
+// user may legitimately want it in a custom ring with custom bounds.
+function _isRedundantCpuTemp(id) {
+    if (/^cpu\/cpu\d+\/temperature$/.test(id))
+        return true;
+    return id === "cpu/all/minimumTemperature" || id === "cpu/all/maximumTemperature";
 }
 
 // The device/chip part of a sensor id ("lmsensors/nct6775-isa-0290/temp1"
@@ -49,19 +61,22 @@ function buildTempSensorEntries(probed) {
     var kept = [];
     for (var i = 0; i < probed.length; i++) {
         var s = probed[i];
-        if (s && s.ready && s.unit === UNIT_CELSIUS)
+        if (s && s.ready && s.unit === UNIT_CELSIUS && !_isRedundantCpuTemp(String(s.id)))
             kept.push({ id: String(s.id), name: String(s.name) });
     }
 
-    // A name shared by several sensors (two chips both exposing
-    // "Température 1") gets the chip segment appended; if even that
-    // collides, the full id — unique by construction.
+    // lmsensors names are driver-generic ("Composite", "Température 1")
+    // — meaningless without their chip, so they ALWAYS carry it
+    // ("Composite (nvme)"); cpu/gpu names are self-explanatory. A
+    // shared name elsewhere (two GPUs of the same model) still gets
+    // the segment on collision; if even that collides, the full id —
+    // unique by construction.
     var nameCounts = {};
     for (var j = 0; j < kept.length; j++)
         nameCounts[kept[j].name] = (nameCounts[kept[j].name] || 0) + 1;
     for (var k = 0; k < kept.length; k++) {
         var label = kept[k].name;
-        if (nameCounts[label] > 1)
+        if (kept[k].id.indexOf("lmsensors/") === 0 || nameCounts[label] > 1)
             label = label + " (" + disambiguationSegment(kept[k].id) + ")";
         entries.push({ id: kept[k].id, label: label });
     }

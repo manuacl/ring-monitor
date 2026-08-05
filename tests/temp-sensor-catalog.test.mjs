@@ -72,6 +72,19 @@ test("buildTempSensorEntries keeps only Ready Celsius probes", () => {
     assert.deepEqual(TempSensorCatalog.buildTempSensorEntries(probed), [{ id: "cpu/all/averageTemperature", label: "Average" }]);
 });
 
+test("buildTempSensorEntries drops per-core and min/max CPU temps as picker noise", () => {
+    // Live feedback (#167): six "Cœur N" rows crowded the picker while
+    // the cpuTemp metric already covers the CPU. The average stays.
+    const probed = [
+        { id: "cpu/all/averageTemperature", name: "Average", unit: 1000, ready: true },
+        { id: "cpu/all/minimumTemperature", name: "Min", unit: 1000, ready: true },
+        { id: "cpu/all/maximumTemperature", name: "Max", unit: 1000, ready: true },
+        { id: "cpu/cpu0/temperature", name: "Core 1", unit: 1000, ready: true },
+        { id: "cpu/cpu5/temperature", name: "Core 6", unit: 1000, ready: true },
+    ];
+    assert.deepEqual(TempSensorCatalog.buildTempSensorEntries(probed), [{ id: "cpu/all/averageTemperature", label: "Average" }]);
+});
+
 test("buildTempSensorEntries labels unique names without a suffix", () => {
     const probed = [
         { id: "lmsensors/nvme-pci-0100/temp1", name: "Composite", unit: 1000, ready: true },
@@ -80,7 +93,8 @@ test("buildTempSensorEntries labels unique names without a suffix", () => {
     const entries = TempSensorCatalog.buildTempSensorEntries(probed);
     assert.deepEqual(entries, [
         { id: "cpu/all/averageTemperature", label: "Average" },
-        { id: "lmsensors/nvme-pci-0100/temp1", label: "Composite" },
+        // lmsensors names are driver-generic — always chip-suffixed.
+        { id: "lmsensors/nvme-pci-0100/temp1", label: "Composite (nvme)" },
     ]);
 });
 
@@ -114,19 +128,19 @@ test("buildTempSensorEntries falls back to the full id when name and segment bot
 
 test("buildTempSensorEntries sorts by label, then id", () => {
     const probed = [
+        { id: "gpu/gpu1/temperature", name: "GPU", unit: 1000, ready: true },
         { id: "gpu/gpu0/temperature", name: "GPU", unit: 1000, ready: true },
-        { id: "cpu/cpu1/temperature", name: "Core", unit: 1000, ready: true },
-        { id: "cpu/cpu0/temperature", name: "Core", unit: 1000, ready: true },
+        { id: "cpu/all/averageTemperature", name: "Average", unit: 1000, ready: true },
     ];
     const entries = TempSensorCatalog.buildTempSensorEntries(probed);
     assert.deepEqual(
         entries.map(function (e) {
             return e.id;
         }),
-        ["cpu/cpu0/temperature", "cpu/cpu1/temperature", "gpu/gpu0/temperature"],
+        ["cpu/all/averageTemperature", "gpu/gpu0/temperature", "gpu/gpu1/temperature"],
     );
-    // Duplicate names are disambiguated — the two "Core" entries get
+    // Duplicate names are disambiguated — the two "GPU" entries get
     // per-device suffixes so their labels stay unique.
-    assert.equal(entries[0].label, "Core (cpu0)");
-    assert.equal(entries[1].label, "Core (cpu1)");
+    assert.equal(entries[1].label, "GPU (gpu0)");
+    assert.equal(entries[2].label, "GPU (gpu1)");
 });

@@ -98,6 +98,14 @@ ColumnLayout {
         // a listed id shows its friendly label, anything else shows the
         // raw id.
         function syncEditText() {
+            // The deferred call (Qt.callLater on model change) can land
+            // while this instance's context is being torn down — e.g. the
+            // row's extraContent is recreated when availability flips
+            // during backend warm-up. In that dead context root's methods
+            // no longer resolve ("_labelForId is not a function", live in
+            // the KCM) — bail out instead of throwing.
+            if (typeof root._labelForId !== "function")
+                return;
             var label = root._labelForId(root.sensorId);
             var text = label.length > 0 ? label : root.sensorId;
             if (editText !== text)

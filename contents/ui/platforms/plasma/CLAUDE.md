@@ -24,14 +24,21 @@ One file per Plasma seam. Keep each adapter **focused and surgical**:
   (drives a per-partition `Sensor` `Instantiator`) and `configMetrics.qml`
   (feeds the partition checkboxes — the KCM page has no backend of its
   own).
+- `TempSensorDiscovery.qml` — the gated (`active`) Celsius-sensor
+  discovery behind the sensorTemp picker (#164): `SensorTreeModel` walk →
+  candidate leaf ids → `Instantiator` of `Sensors.Sensor` → stabilized
+  `[{id, label}]` list. Split out of `MetricsBackend.qml` (500-line cap);
+  only the config dialog turns it on.
 - `ThemedIcon.qml` wraps `Kirigami.Icon` (one-liner, just for the import
   seam).
 - `ColorPicker.qml` wraps `org.kde.kquickcontrols.ColorButton`.
 
 This directory also hosts **Plasma-only pure logic** (not just
 adapters): `SensorPicking.js` (first-ready-wins among KSysGuard sensor
-candidates) lives here rather than in `core/` because only the Plasma
-backend consumes it — keeping it in `core/` would ship it as dead code
+candidates) and `TempSensorCatalog.js` (the sensorTemp picker's "(°C)"
+pre-filter + Celsius/Ready filter + duplicate-label disambiguation,
+#164) live here rather than in `core/` because only the Plasma
+backend consumes them — keeping them in `core/` would ship them as dead code
 in the standalone binary. Same placement rule in the other direction
 for `platforms/standalone/` (the `/proc` parsers). See
 [`../core/CLAUDE.md`](../core/CLAUDE.md) § "Logic in dedicated `.js`
@@ -122,6 +129,18 @@ The contract:
 
   Confirmed on real hardware, issue #58.
 
+- **`SensorTreeModel` has NO Name/Unit roles — bogus role reads fall
+  back to DisplayRole.** Reading a nonexistent role from the tree model
+  silently returns the DisplayRole value, which carries the *localized*
+  "name (°C)" string. So `TempSensorDiscovery.qml`'s cheap pre-filter
+  keys on the `(°C)` DisplayRole suffix (`TempSensorCatalog.isTempCandidate`);
+  the authoritative metadata comes from the `Sensors.Sensor` instances
+  themselves (`.name`, `.unit`, `.status`), where `.unit === 1000` is
+  Celsius — the KSysGuard Unit enum is not exposed to QML, so the literal
+  lives in `TempSensorCatalog.UNIT_CELSIUS`. Regex/group nodes
+  (`cpu/cpu\d+/temperature`) never reach `Ready`, so the Ready filter
+  excludes them even where the pre-filter can't. Live-probe verified
+  (issue #164).
 - **Per-process data is `org.kde.ksysguard.process` `ProcessDataModel`,
   not a sensor.** Rows = processes, columns = `enabledAttributes` in
   order; read a cell's raw number via `data(index(row, col),

@@ -16,8 +16,8 @@ for QML/Qt Quick.
 - **Disk** — per-partition usage rings; mounted removable drives are shown
   automatically
 - **Custom sensor** — any temperature sensor your system exposes
-  (liquid-cooling loop, motherboard, SSD…), with a custom ring label and
-  min/max range (Plasma widget only for now)
+  (liquid-cooling loop, motherboard, SSD…), picked from a dropdown of
+  discovered sensors, with a custom ring label and min/max range
 
 Temperatures render as a half-arc and can optionally be merged into their
 usage ring; the unit follows your locale (°C / °F).

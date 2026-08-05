@@ -16,7 +16,7 @@ under "Standalone target — backend choice".
 |---|---|---|
 | `Main.qml` | Frameless transparent `Window` root + Conky-style hints (X11 / XWayland) | PR B1 (placeholder) + PR C (X11 EWMH hints in `standalone/desktop_hints.cpp`) + **PR F1 ✓ — `Core.MainContent` renders the actual rings** |
 | `SettingsOnlyRoot.qml` | Recovery-mode QML root loaded when the binary runs with `--open-settings`. Hosts only the `SettingsDialog` (no rings, no MetricsBackend). | **PR #37 follow-up ✓** |
-| `MetricsBackend.qml` | Direct reads from `/proc/stat`, `/proc/meminfo`, `/proc/mounts` + `statvfs(3)`, hwmon/thermal sysfs, NVML | **PR D: CPU usage (`/proc/stat`) ✓** ; **PR E: RAM (`/proc/meminfo`) ✓** ; **CPU temp (hwmon / thermal-zone via `CpuTempDiscovery.js`) ✓** ; **NVIDIA GPU usage + temp (NVML via `NvmlReader`) ✓** ; **swap (`/proc/meminfo` `SwapTotal`/`SwapFree`, incl. zram) ✓** ; **disk: per-filesystem multi-partition rings (`/proc/mounts` + `statvfs` via `DiskDiscovery.js`, deduped by device, `$HOME` default) ✓ — replaced the broken `statvfs("/")` composefs hardcode** ; AMD/Intel GPU (sysfs) post-MVP |
+| `MetricsBackend.qml` | Direct reads from `/proc/stat`, `/proc/meminfo`, `/proc/mounts` + `statvfs(3)`, hwmon/thermal sysfs, NVML | **PR D: CPU usage (`/proc/stat`) ✓** ; **PR E: RAM (`/proc/meminfo`) ✓** ; **CPU temp (hwmon / thermal-zone via `CpuTempDiscovery.js`) ✓** ; **NVIDIA GPU usage + temp (NVML via `NvmlReader`) ✓** ; **swap (`/proc/meminfo` `SwapTotal`/`SwapFree`, incl. zram) ✓** ; **disk: per-filesystem multi-partition rings (`/proc/mounts` + `statvfs` via `DiskDiscovery.js`, deduped by device, `$HOME` default) ✓ — replaced the broken `statvfs("/")` composefs hardcode** ; **sensorTemp: custom hwmon temperature (issue #164, `HwmonTempDiscovery.js` + `HwmonTempSensors.qml`) ✓** ; AMD/Intel GPU (sysfs) post-MVP |
 | `ConfigStore.qml` | `Qt.labs.settings` reader/writer | **PR F1 ✓ — Settings root, defaults mirror `main.xml`** ; **PR F2 ✓ — SettingsDialog drives writes through this instance** |
 | `SettingsDialog.qml` | Tabbed `Window` wrapping `core/MetricsBody` + `core/AppearanceBody` + `core/AboutBody`; opened via right-click on the widget or the update-available badge | **PR F2 ✓** |
 | `Theme.qml` | Kirigami theme tokens + Qt.styleHints light/dark | **PR F1 ✓ — mirrors the Plasma adapter byte-for-byte** |
@@ -30,7 +30,9 @@ under "Standalone target — backend choice".
 Besides the adapters, this directory holds the **standalone-only pure
 logic**: `ProcStatParser.js` (`/proc/stat` → CPU %), `MemInfoParser.js`
 (`/proc/meminfo` + disk %), `CpuTempDiscovery.js` (hwmon/thermal CPU-temp
-sensor discovery). They're pure + Node-tested like any `core/*.js`, but
+sensor discovery), `HwmonTempDiscovery.js` (stable hwmon id grammar for
+the sensorTemp metric — `<chip>/temp<N>`, never a boot-unstable `hwmonN`
+path, #164; the ProcReader-based probe adapter is `HwmonTempSensors.qml`). They're pure + Node-tested like any `core/*.js`, but
 they sit here because only the standalone backend reads `/proc` + sysfs —
 keeping them in `core/` would ship them as dead weight in the `.plasmoid`
 package. (Mirror of `platforms/plasma/SensorPicking.js`.) Placement rule:

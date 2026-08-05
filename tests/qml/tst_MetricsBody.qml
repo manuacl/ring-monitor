@@ -138,7 +138,11 @@ Item {
                 "sensorTempId",
                 "sensorTempLabel",
                 "sensorTempMinC",
-                "sensorTempMaxC"
+                "sensorTempMaxC",
+                "cpuTempMinC",
+                "cpuTempMaxC",
+                "gpuTempMinC",
+                "gpuTempMaxC"
             ];
             for (const k of keys) {
                 verify(k in body, "MetricsBody must expose property " + k);

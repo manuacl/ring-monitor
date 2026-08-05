@@ -131,6 +131,18 @@ public:
     // helpers in `core/`. Reused later by GPU discovery (`/sys/class/drm`).
     Q_INVOKABLE QStringList listDir(const QString &path) const;
 
+    // Symlink target of `path` (raw, possibly relative), or an empty
+    // string when `path` is not a symlink — under the same `/proc/` /
+    // `/sys/` allowlist + cleanPath discipline as read()/listDir().
+    //
+    // Exists for the custom-temperature sensor id grammar (#164): when
+    // two hwmon dirs share a chip name (two NVMe drives both report
+    // `nvme`), the stable disambiguator is the basename of the
+    // `hwmonN/device` symlink target (e.g. the PCI address) — the
+    // `hwmonN` number itself is allocation-order and changes across
+    // boots, so it must never be persisted.
+    Q_INVOKABLE QString readLink(const QString &path) const;
+
     // Block-device identity map for the disk multi-partition selector.
     // Returns { "<device-path>": { "uuid": <fs-uuid>, "label": <volume
     // label> }, … } by enumerating /dev/disk/by-uuid + /dev/disk/by-label

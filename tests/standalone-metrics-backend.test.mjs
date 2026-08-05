@@ -26,7 +26,7 @@ const SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms",
 const GPU_SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms", "standalone", "GpuSampler.qml"), "utf8");
 
 // Same public surface as platforms/plasma/MetricsBackend.qml.
-const PUBLIC_PROPS = ["coreValues", "loading", "availableMetrics", "availablePartitions", "defaultPartitionIds", "processSamplingActive", "topProcesses", "loadAverages", "diskIo", "diskIoSamplingActive", "topMemProcesses", "memUsedKb", "memTotalKb"];
+const PUBLIC_PROPS = ["coreValues", "loading", "availableMetrics", "availablePartitions", "defaultPartitionIds", "processSamplingActive", "topProcesses", "loadAverages", "diskIo", "diskIoSamplingActive", "topMemProcesses", "memUsedKb", "memTotalKb", "sensorTempId", "tempSensors", "sensorTempResolved", "sensorTempValue"];
 const PUBLIC_FUNCS = ["metricValue", "metricRawTemp", "metricTempPercent", "partitionValue", "partitionDetail"];
 
 test("standalone MetricsBackend exposes the public properties main.qml depends on", () => {
@@ -250,10 +250,10 @@ test("standalone MetricsBackend exposes availableMetrics gating swap + gpu on th
     assert.match(SOURCE, /"gpu":\s*gpuSampler\.available/, 'availableMetrics map must gate "gpu" on gpuSampler.available (forwarded from GpuSampler)');
     // gpuTemp gates on gpuSampler.tempAvailable so Intel temp-only shows.
     assert.match(SOURCE, /"gpuTemp":\s*gpuSampler\.tempAvailable\s*&&\s*isFinite\(\s*gpuSampler\.tempC\s*\)/, 'availableMetrics map must gate "gpuTemp" on gpuSampler.tempAvailable AND a finite gpuSampler.tempC');
-    // sensorTemp is Plasma-only (its data source is a user-provided
-    // KSystemStats sensor id; standalone has no ksysguard) — explicitly
-    // gated off so the picker greys the row rather than offering a dead ring.
-    assert.match(SOURCE, /"sensorTemp":\s*false/, 'availableMetrics map must gate "sensorTemp" off on standalone');
+    // sensorTemp gates on the user-configured hwmon id (#164): set AND
+    // resolved to a live sysfs path with a finite reading — same shape
+    // as the Plasma adapter's `sensorTempId.length > 0 && sensor Ready`.
+    assert.match(SOURCE, /"sensorTemp":\s*backend\.sensorTempId\.length\s*>\s*0\s*&&\s*backend\.sensorTempResolved/, 'availableMetrics map must gate "sensorTemp" on the configured id resolving');
 });
 
 test("standalone availableMetrics binding does not depend on _tick (no per-poll churn)", () => {
@@ -267,6 +267,47 @@ test("standalone availableMetrics binding does not depend on _tick (no per-poll 
     const binding = SOURCE.match(/readonly\s+property\s+var\s+availableMetrics\s*:\s*Catalog\.availableMetricsFrom\s*\(\{[\s\S]*?\}\)/);
     assert.ok(binding, "must find the availableMetrics binding");
     assert.doesNotMatch(binding[0], /backend\._tick/, "availableMetrics must NOT read backend._tick (would rebuild the ring strip every poll)");
+});
+
+test("standalone MetricsBackend wires the custom hwmon temperature metric (#164)", () => {
+    // sensorTemp is no longer hard-gated off: the backend exposes the
+    // shared-with-Plasma surface (sensorTempId / tempSensors /
+    // sensorTempResolved / sensorTempValue), resolves the stable id
+    // against the probe's catalog, and reads one file per tick.
+    assert.doesNotMatch(SOURCE, /"sensorTemp":\s*false/, 'the "sensorTemp": false hard gate must be gone');
+    assert.match(SOURCE, /import\s+["']HwmonTempDiscovery\.js["']\s+as\s+HwmonTemp/, "must import the same-dir HwmonTempDiscovery module");
+    assert.match(SOURCE, /HwmonTempSensors\s*{/, "must instantiate the HwmonTempSensors probe for the sysfs enumeration");
+    assert.match(SOURCE, /property\s+string\s+sensorTempId\s*:/, "must declare the settable sensorTempId property");
+    assert.match(SOURCE, /readonly\s+property\s+var\s+tempSensors\s*:/, "must declare readonly property var tempSensors");
+    assert.match(SOURCE, /readonly\s+property\s+bool\s+sensorTempResolved\s*:/, "must declare readonly property bool sensorTempResolved");
+    assert.match(SOURCE, /readonly\s+property\s+real\s+sensorTempValue\s*:/, "must declare readonly property real sensorTempValue");
+    assert.match(SOURCE, /tempSensors\s*:\s*sensorProbe\.tempSensors/, "tempSensors must forward the probe's picker surface");
+    // sensorTempResolved = id set AND path resolved AND finite reading.
+    assert.match(SOURCE, /sensorTempResolved[\s\S]{0,200}_sensorTempPath\s*!==\s*""\s*&&\s*isFinite\(\s*backend\._sensorTempC\s*\)/, "sensorTempResolved must gate on a resolved path AND a finite reading");
+    // metricValue routes through the shared coercer with the metric's
+    // OWN backing property (same contract as cpuTemp / gpuTemp).
+    assert.match(SOURCE, /["']sensorTemp["'][\s\S]{0,60}_coerceTemp\(\s*backend\._sensorTempC\s*\)/, "metricValue('sensorTemp') must coerce backend._sensorTempC");
+    // Resolution goes through the pure resolver against the probe's
+    // catalog — never a raw hwmonN path persisted or re-walked per tick.
+    assert.match(SOURCE, /HwmonTemp\.resolveSensorPath\(\s*sensorProbe\.catalog\s*,\s*backend\.sensorTempId\s*\)/, "must resolve the id via HwmonTemp.resolveSensorPath against the probe catalog");
+    assert.match(SOURCE, /HwmonTemp\.parseTempCelsius\(\s*reader\.read\(\s*backend\._sensorTempPath\s*\)\s*\)/, "must read + parse the resolved path each tick");
+    // Editing the id after the warm-up window closed must re-resolve
+    // against the cached catalog and flush the previous sensor's value.
+    assert.match(SOURCE, /onSensorTempIdChanged\s*:\s*{[\s\S]*?_sensorTempC\s*=\s*NaN/, "onSensorTempIdChanged must re-resolve and reset _sensorTempC to NaN");
+});
+
+test("standalone MetricsBackend bounds the hwmon enumeration to a warm-up window", () => {
+    // Same pattern as the CPU temp: the full sysfs walk retries while
+    // the catalog is empty (late-modprobed driver) then stops — a
+    // sensorless host must not re-walk /sys/class/hwmon every tick.
+    assert.match(SOURCE, /property\s+int\s+_sensorMaxEnumAttempts/, "must declare a bounded max-attempts property for the enumeration");
+    assert.match(
+        SOURCE,
+        /sensorProbe\.catalog\.length\s*===\s*0\s*&&\s*backend\._sensorEnumAttempts\s*<\s*backend\._sensorMaxEnumAttempts/,
+        "the enumeration retry must gate on an empty catalog AND the attempt bound",
+    );
+    assert.match(SOURCE, /_sensorEnumAttempts\+\+/, "must increment the attempt counter so the retry terminates");
+    assert.match(SOURCE, /sensorProbe\.enumerate\s*\(\s*\)/, "must re-run the probe enumeration inside the window");
 });
 
 test("standalone MetricsBackend exposes removablePartitions + mountedPartitionIds for auto-show parity", () => {

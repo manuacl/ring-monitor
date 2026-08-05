@@ -17,7 +17,7 @@
         </entry>
 
         <entry name="sensorTempId" type="String">
-            <label>KSystemStats sensor ID used by the custom temperature metric</label>
+            <label>Sensor ID used by the custom temperature metric (KSystemStats id on Plasma, chip/tempN hwmon id on standalone)</label>
             <default></default>
         </entry>
 
@@ -36,6 +36,34 @@
         <entry name="sensorTempMaxC" type="Int">
             <label>Temperature in Celsius mapped to a full custom temperature ring</label>
             <default>60</default>
+            <min>-49</min>
+            <max>250</max>
+        </entry>
+
+        <entry name="cpuTempMinC" type="Int">
+            <label>Temperature in Celsius mapped to an empty CPU temperature ring</label>
+            <default>30</default>
+            <min>-50</min>
+            <max>200</max>
+        </entry>
+
+        <entry name="cpuTempMaxC" type="Int">
+            <label>Temperature in Celsius mapped to a full CPU temperature ring</label>
+            <default>90</default>
+            <min>-49</min>
+            <max>250</max>
+        </entry>
+
+        <entry name="gpuTempMinC" type="Int">
+            <label>Temperature in Celsius mapped to an empty GPU temperature ring</label>
+            <default>30</default>
+            <min>-50</min>
+            <max>200</max>
+        </entry>
+
+        <entry name="gpuTempMaxC" type="Int">
+            <label>Temperature in Celsius mapped to a full GPU temperature ring</label>
+            <default>90</default>
             <min>-49</min>
             <max>250</max>
         </entry>

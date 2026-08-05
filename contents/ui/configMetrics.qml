@@ -30,6 +30,10 @@ Platform.PlaceholderKCM {
     property alias cfg_sensorTempLabel: body.sensorTempLabel
     property alias cfg_sensorTempMinC: body.sensorTempMinC
     property alias cfg_sensorTempMaxC: body.sensorTempMaxC
+    property alias cfg_cpuTempMinC: body.cpuTempMinC
+    property alias cfg_cpuTempMaxC: body.cpuTempMaxC
+    property alias cfg_gpuTempMinC: body.gpuTempMinC
+    property alias cfg_gpuTempMaxC: body.gpuTempMaxC
     property alias cfg_tempUnit: body.tempUnit
 
     // ColorPicker is platform-specific (Plasma wraps KQuickControls.ColorButton);
@@ -57,6 +61,10 @@ Platform.PlaceholderKCM {
         // Run the findmnt poll while the dialog is open so the picker can gate
         // out partitions ksysguard still lists after unmount (#58 frozen tree).
         removableTrackingActive: true
+        // Probe the Celsius-sensor tree while the dialog is open so the
+        // sensorTemp picker has its list (#164); the panel widget never
+        // turns this gate on.
+        tempSensorDiscoveryActive: true
     }
 
     Core.MetricsBody {
@@ -76,6 +84,11 @@ Platform.PlaceholderKCM {
         // Gate the destructive stale-row removal on the adapter's debounced
         // discovery signal — the SensorTreeModel walk populates incrementally.
         partitionsReady: metricsAdapter.partitionsReady
+        // sensorTemp picker feed (#164): the discovered Celsius sensors
+        // plus the live resolution state of the configured id.
+        tempSensors: metricsAdapter.tempSensors
+        sensorTempResolved: metricsAdapter.sensorTempResolved
+        sensorTempLive: metricsAdapter.sensorTempValue
         // `null` (= unknown → all enable-able) during warm-up, else the real
         // list — without the gate the freshly-spun-up backend would grey every
         // row until its Sensors resolve. Mirrors MainContent's loading gate.

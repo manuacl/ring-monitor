@@ -80,13 +80,18 @@ ColumnLayout {
     property string sensorTempLabel: "SENSOR"
     property int sensorTempMinC: 20
     property int sensorTempMaxC: 60
-    // Whether this platform can ever resolve a custom sensor (Plasma:
-    // yes, via ksysguard; standalone: no ksysguard → false). When false
-    // the sensorTemp row stays (greyed, consistent with other
-    // unavailable metrics) but its settings editor is not rendered —
-    // it would be an editable-but-inert form there. Re-enabled on
-    // standalone when the hwmon port lands (issue #164).
-    property bool sensorTempSupported: true
+    property int cpuTempMinC: 30
+    property int cpuTempMaxC: 90
+    property int gpuTempMinC: 30
+    property int gpuTempMaxC: 90
+    // sensorTemp picker feed (issue #164), injected by the platform
+    // wrapper: the discovered Celsius sensors ([{id, label}]) plus the
+    // live resolution state of the configured id. Plain inputs — not
+    // cfg-bridged, so the staged-seam rules above don't apply; empty /
+    // false / NaN on platforms without discovery.
+    property var tempSensors: []
+    property bool sensorTempResolved: false
+    property real sensorTempLive: NaN
 
     // ── Internal — the displayed order is a ListModel built from metricOrderCsv ──
     ListModel {

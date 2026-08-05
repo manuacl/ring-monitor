@@ -38,6 +38,14 @@ For the Metrics page, `MetricsBody` additionally owns:
   instantiated inside `configMetrics.qml` (the KCM page has no live
   backend of its own); the standalone `SettingsDialog` takes it injected
   from `Main.qml`'s running backend.
+- the sensorTemp picker feed (issue #164): `tempSensors` (`[{id, label}]`
+  of discovered temperature sensors), `sensorTempResolved` and
+  `sensorTempLive` (the configured id's raw °C). Plain passthrough inputs,
+  not cfg-bridged. The Plasma wrapper feeds them from the `MetricsBackend`
+  instance inside `configMetrics.qml`; the standalone `SettingsDialog`
+  feeds them from its own `HwmonTempSensors` probe (it has no backend).
+  Empty / false / NaN where discovery is unavailable → the picker
+  degrades to a free-text id field.
 - the disk-partition picker's **checkbox = ring visibility** rule: the
   body takes a `removablePartitions` prop ([{id,label}] of mounted
   removables, injected by the wrapper from `MetricsBackend.removablePartitions`
@@ -618,7 +626,7 @@ Each available row carries the per-partition color swatch + clear button
 `clearPartitionColor`. Test hooks: `_emptyLabel`, `_partitionList`. Covered by
 `tests/qml/tst_DiskPartitionPicker.qml`.
 
-## Metrics-page sub-components (`MetricsRowDelegate`, `MetricSubOptions`, `SensorTempSettings`, `TemperatureUnitSettings`)
+## Metrics-page sub-components (`MetricsRowDelegate`, `MetricSubOptions`, `SensorTempSettings`, `TempRangeSettings`, `TemperatureUnitSettings`)
 
 The Metrics config page splits its per-metric sub-options out of
 `MetricsBody.qml` so that file stays under the 500-line cap:
@@ -629,29 +637,49 @@ The Metrics config page splits its per-metric sub-options out of
   `controller` (the `MetricsBody`). It also picks the row's `extraContent`
   from `subOptions` by metric id, and sets `extraContentEnabled: true` for
   `sensorTemp` (the settings are how the metric becomes configurable, so
-  they stay editable while the row is off). The sensorTemp editor is only
-  attached when `controller.sensorTempSupported !== false` — standalone
-  sets the flag false (no ksysguard, the metric can never resolve there),
-  so the row stays greyed but no editable-but-inert form is rendered
-  (re-enabled by the hwmon port, issue #164).
+  they stay editable while the row is off). The hwmon port (issue #164)
+  re-enabled the editor on standalone and removed the now-purposeless
+  `sensorTempSupported` gate flag.
 - **`MetricSubOptions.qml`** — a `QtObject` holding one `Component` per
   metric sub-option (CPU cores toggle, temp-merge toggles, disk-IO split,
   disk-partition picker, sensor-temp settings). Defined once at body scope
   so bindings to the controller survive row destruction/recreation on
-  reorder; each component forwards edits back to the controller.
-- **`SensorTempSettings.qml`** — the `sensorTemp` sub-option: sensor-ID and
-  ring-label text fields plus min/max spinboxes. Stateless: takes
-  `sensorId` / `sensorLabel` / `minC` / `maxC` as required properties and
-  emits `sensorIdEdited` / `sensorLabelEdited` / `minCEdited` / `maxCEdited`
-  (DIP — the leaf never touches the config). The bounds are stored in °C
-  (the sensor reports Celsius kernel-side) but displayed/edited in the
-  user's temperature unit: `tempUnit` is resolved via
-  `Catalog.resolveTempMode` exactly like the rings, and the spinbox
-  labels/values convert (one °F step can collapse to the same rounded
-  °C — harmless for a display bound). The spinboxes cross-clamp
-  (`min < max` both ways, in °C before conversion) inside the schema's
-  outer bounds (minC from -50 °C, maxC to 250 °C). Covered by
+  reorder; each component forwards edits back to the controller. With
+  issue #164 the bare `cpuTempMergeToggle` / `gpuTempMergeToggle` became
+  `cpuTempOptions` / `gpuTempOptions`: a `Column` stacking the merge
+  CheckBox above a `TempRangeSettings` bounds editor. The bounds editor
+  stays visible regardless of the merge toggle — the range applies to the
+  dedicated temp ring AND to the merged half-arc.
+- **`SensorTempSettings.qml`** — the `sensorTemp` sub-option (rewritten
+  for issue #164): a discoverable sensor picker with live validation,
+  plus the ring-label editor and the shared min/max editor
+  (`TempRangeSettings`). Stateless: takes `sensorId` / `sensorLabel` /
+  `minC` / `maxC` / `tempUnit` as properties and emits
+  `sensorIdEdited` / `sensorLabelEdited` / `minCEdited` / `maxCEdited`
+  (DIP — the leaf never touches the config). The picker is an **editable
+  ComboBox** (`objectName: sensorIdCombo`) backed by the `availableSensors`
+  input (`[{id, label}]`): picking an entry commits its sensor id, typing
+  stays possible as the free-text fallback for custom or regex ids —
+  `sensorId` remains the single source of truth. Validation comes from
+  the `sensorResolved` / `sensorLiveValue` inputs: resolved → a live
+  reading label (`sensorStatusLabel`, "Currently 42.3 °C",
+  tempUnit-formatted); an id set but unresolved → a contextual error
+  InlineMessage (`sensorErrorMessage`); empty id → neither. Entering an
+  id is what makes the metric available, so the rest of the form (ring
+  label + bounds) stays collapsed until one is set. Covered by
   `tests/qml/tst_SensorTempSettings.qml`.
+- **`TempRangeSettings.qml`** — the min/max SpinBox row + bounds-hint
+  label for a temperature ring's custom bounds (issue #164, section 5),
+  extracted from `SensorTempSettings` so the cpuTemp/gpuTemp rows share
+  it. Stateless: `minC` / `maxC` / `tempUnit` in, `minCEdited` /
+  `maxCEdited` out. The bounds are stored in °C (the ring maps that range
+  onto the sweep) but displayed/edited in the user's temperature unit —
+  labels, spinbox values and the live reading follow `tempUnit`, resolved
+  via `Catalog.resolveTempMode` exactly like the rings (one °F step can
+  collapse to the same rounded °C — harmless for a display bound). The
+  spinboxes cross-clamp (`min < max` both ways, in °C before conversion)
+  inside the schema's outer bounds (minC from -50 °C, maxC to 250 °C).
+  Covered by `tests/qml/tst_TempRangeSettings.qml`.
 - **`TemperatureUnitSettings.qml`** — the temp-unit radio row (Follow
   system / Celsius / Fahrenheit). Takes `tempUnit`, emits
   `tempUnitEdited`; the radios carry `objectName`s so tests can reach
@@ -942,10 +970,10 @@ per-GPU temperature, per-GPU usage).
 |---|---|
 | `coreValues` (readonly property var) | array of per-core CPU usage values — length matches the discovered `cpu/cpu*/usage` count, with `\|\| 0` fallback for not-yet-ready sensors |
 | `loading` (readonly property bool) | `true` until the universal aggregates (`cpuTotal`, `ramSensor`) have reached `Sensor.Ready` — drives the 100%-fill "warming up" animation in `MainContent` |
-| `availableMetrics` (readonly property var) | catalog ids that currently have a live data source. Plasma: each metric whose `Sensor.status === Ready` (gpu/gpuTemp via the `_gpuUsageReady()` / `_gpuTempReady()` instantiator walks). Standalone: cpu/ram/disk always, cpuTemp once `_cpuTempPath` resolves, swap iff `SwapTotal > 0`, gpu/gpuTemp iff NVML reported available. Consumed by `MainContent` (drop dead rings) and `MetricsBody` (grey out the picker rows). |
+| `availableMetrics` (readonly property var) | catalog ids that currently have a live data source. Plasma: each metric whose `Sensor.status === Ready` (gpu/gpuTemp via the `_gpuUsageReady()` / `_gpuTempReady()` instantiator walks). Standalone: cpu/ram/disk always, cpuTemp once `_cpuTempPath` resolves, swap iff `SwapTotal > 0`, gpu/gpuTemp iff NVML reported available, sensorTemp once the configured id resolves to a live hwmon path (#164 — the old hard `false` is gone). Consumed by `MainContent` (drop dead rings) and `MetricsBody` (grey out the picker rows). |
 | `metricValue(id)` (function) | latest value for one of the catalog metric ids — universal ids go through `Catalog.valueFromSensorMap`, `gpu` and `gpuTemp` are dispatched to the dynamic-discovery helpers below |
 | `metricRawTemp(id)` (function) | latest raw °C reading for ids that expose a temperature sensor (`cpu` via static, `gpu` via discovery); `0` for others |
-| `metricTempPercent(id)` (function) | same value mapped to 0–100 via `MetricsCatalog.tempToPercent` — drives the Ring's right-half split arc |
+| `metricTempPercent(id)` (function) | same value mapped to 0–100 via `MetricsCatalog.tempToPercent` with the catalog default bounds. Kept on the public surface but **no longer called by core** — since #164 `MainContent` maps `metricRawTemp(id)` locally with the per-metric configured bounds (`_tempBounds`), which this function doesn't know. |
 | `availablePartitions` (readonly property var) | `[{id, label}]` — discovered mounted filesystems for the disk multi-ring picker (Plasma: via the shared `DiskPartitions` adapter; standalone: via `/proc/mounts` + `DiskDiscovery`) |
 | `partitionsReady` (readonly property bool) | Plasma only: forwards `DiskPartitions.ready` — false until the incremental `SensorTreeModel` walk settles. The config picker gates its destructive stale-row removal on it (issue #49). |
 | `defaultPartitionIds` (readonly property var) | partition ids to show when the user has selected none — `[]` on Plasma (falls back to the `disk/all` aggregate ring); the `$HOME`-bearing filesystem on standalone |
@@ -955,6 +983,10 @@ per-GPU temperature, per-GPU usage).
 | `removableTrackingActive` (property bool) | Plasma only: gate for the `MountInfo` findmnt poll. `main.qml` sets it `true` only while the disk ring is enabled, so a disk-disabled widget spawns no subprocess ([#59](https://github.com/manuacl/ring-monitor/pull/59) review finding 1). Deliberately **not** also gated on `Plasmoid.expanded` — with `preferredRepresentation: fullRepresentation` the rings draw inline on the desktop where `expanded` (a popup signal) is not reliably true, which would break auto-show there. |
 | `mountedPartitionIds` (readonly property var) | Plasma only: every currently-mounted UUID (fixed + removable) from the live `MountInfo` findmnt poll (the kernel mount table, so btrfs-subvolume / non-block mounts are included and a still-mounted disk isn't wrongly dropped). `MainContent` gates the manual disk selection on it via `DiskMetrics.resolveDiskRingIds`, so an unmounted partition's ring self-heals away even though ksysguard's tree freezes on unmount and keeps listing the gone UUID ([#58](https://github.com/manuacl/ring-monitor/issues/58)). Empty until the first poll returns (treated as "no data, don't gate"). |
 | `mountedAvailablePartitions` (readonly property var) | `availablePartitions` intersected with `mountedPartitionIds` (via `DiskMetrics.filterToMounted`). The config picker uses this instead of the raw list so a partition ksysguard still lists after unmount ([#58](https://github.com/manuacl/ring-monitor/issues/58) — the frozen tree, stale even on a fresh backend) drops from the selectable checkboxes and, if still configured, surfaces as a greyed stale row. Empty `mountedPartitionIds` → passthrough (warm-up). |
+| `sensorTempId` (property string) | the user-picked custom temperature sensor id (issue #164). Plasma: a ksysguard sensor id (`lmsensors/.../temp1`). Standalone: a stable hwmon id (`<chip>/temp<N>` — never a `hwmonN` path, see [`HwmonTempDiscovery.js`](logic-modules.md#hwmontempdiscoveryjs)), bound from ConfigStore in `platforms/standalone/Main.qml`. |
+| `sensorTempResolved` / `sensorTempValue` (readonly) | whether the configured `sensorTempId` currently resolves to a live reading, and its raw °C (NaN while unresolved). Drives the `sensorTemp` entry of `availableMetrics` on both platforms and the config picker's live validation. |
+| `tempSensors` (readonly property var) | `[{id, label}]` of every discovered temperature sensor — the picker's model. Populated only while discovery runs (see the gate below); `[]` otherwise. |
+| `tempSensorDiscoveryActive` (property bool, Plasma only) | gate for the `TempSensorDiscovery` child — only `configMetrics.qml` sets it `true` (on its own backend instance), so the panel widget never probes the sensor tree for the picker. The standalone backend has no equivalent gate: it reuses one `HwmonTempSensors` probe with `active: false` and reads only the configured sensor's file per tick. |
 
 The disk-partition discovery on Plasma lives in a separate reusable
 adapter, `platforms/plasma/DiskPartitions.qml` (its own
@@ -1038,6 +1070,42 @@ Smoke-tested by `tests/metrics-backend.test.mjs` — same pattern as
 that loads `org.kde.ksysguard.sensors`; the Node test inspects the
 QML source and asserts the public surface + every catalog sensor +
 the 6 per-core sensors are declared.
+
+### `TempSensorDiscovery.qml` (Plasma only)
+
+Celsius-sensor discovery behind the sensorTemp picker (issue #164) —
+extracted from `MetricsBackend.qml` to keep that adapter under the
+500-line cap (same pattern as `DiskIoSampler` / `ProcessSampler`). Two
+phases, every decision deferred to the pure
+[`TempSensorCatalog.js`](logic-modules.md#tempsensorcatalogjs) module:
+
+1. Walk the `SensorTreeModel`, keep leaf ids whose DisplayRole looks
+   like a temperature reading ("Composite (°C)") — the cheap pre-filter
+   that drops regex/group nodes and non-temperature leaves without
+   probing them.
+2. An `Instantiator` of live `Sensors.Sensor` over those candidates;
+   `buildTempSensorEntries` keeps the ones reporting Celsius
+   (`unit === 1000` — the KSysGuard Unit enum isn't exposed to QML) and
+   `Ready`, and shapes the `[{id, label}]` picker list (duplicate names
+   disambiguated, stable sort).
+
+Gated by `active` (default `false`): only the config dialog turns
+discovery on (`configMetrics.qml` sets `tempSensorDiscoveryActive: true`
+on its own `MetricsBackend` instance), so the panel widget never probes
+the sensor tree for the picker. Public surface: `active`, `sensors`
+(`[]` while gated off). The KSysGuard quirks behind the pre-filter (no
+Name/Unit roles on the tree model, regex nodes never going Ready) are
+documented in
+[`platforms/plasma/CLAUDE.md`](../contents/ui/platforms/plasma/CLAUDE.md)
+§ "KSysGuard sensor quirks".
+
+The standalone counterpart is `platforms/standalone/HwmonTempSensors.qml`
+(a ProcReader-based probe over `/sys/class/hwmon`, decisions in
+[`HwmonTempDiscovery.js`](logic-modules.md#hwmontempdiscoveryjs)) — the
+settings dialog owns one with `active` while visible (2 Hz readings for
+the picker's live values); the standalone `MetricsBackend` reuses the
+same probe with `active: false` to share the enumeration glue and reads
+only the configured sensor per tick.
 
 ### `MountInfo.qml`
 

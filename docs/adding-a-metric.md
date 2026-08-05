@@ -121,8 +121,13 @@ some `max`:
 - For rates: a configurable max (e.g. "100 Mbit/s baseline") or a
   rolling max from a small history — the disk-I/O ring takes the rolling-max
   route (see "Pattern: rate metric" below).
-- For temperatures: clamp into a sensible range
-  (`MetricsCatalog.tempToPercent` defaults to 30–90 °C → 0–100%).
+- For temperatures: clamp into a range (`MetricsCatalog.tempToPercent`
+  maps min–max °C → 0–100%, defaulting to the catalog's 30–90 °C). The
+  range is user-configurable per temperature metric (issue #164):
+  `cpuTempMinC`/`cpuTempMaxC`, `gpuTempMinC`/`gpuTempMaxC` and the
+  sensorTemp pair are edited through `core/TempRangeSettings.qml` and
+  applied by `MainContent._tempBounds(id)` to the dedicated ring AND the
+  merged half-arc.
 
 ## Pattern: rate metric (disk I/O throughput, issue #77)
 

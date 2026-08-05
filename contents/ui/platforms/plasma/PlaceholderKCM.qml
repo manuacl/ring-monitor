@@ -47,6 +47,18 @@ KCM.SimpleKCM {
     property var cfg_sensorTempMaxC
     property var cfg_sensorTempMaxCDefault
 
+    property var cfg_cpuTempMinC
+    property var cfg_cpuTempMinCDefault
+
+    property var cfg_cpuTempMaxC
+    property var cfg_cpuTempMaxCDefault
+
+    property var cfg_gpuTempMinC
+    property var cfg_gpuTempMinCDefault
+
+    property var cfg_gpuTempMaxC
+    property var cfg_gpuTempMaxCDefault
+
     property var cfg_orientation
     property var cfg_orientationDefault
     property var cfg_ringSize

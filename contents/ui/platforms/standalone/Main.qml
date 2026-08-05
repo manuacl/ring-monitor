@@ -213,6 +213,7 @@ Window {
 
     MetricsBackend {
         id: metricsAdapter
+        sensorTempId: configStoreAdapter.sensorTempId
     }
 
     Core.UpdateChecker {

@@ -243,8 +243,8 @@ test("availableMetrics gates each metric on its Sensor reaching Ready", () => {
     assert.match(SOURCE, /"disk":\s*diskSensor\.status\s*===\s*Sensors\.Sensor\.Ready/, 'availableMetrics map must gate "disk" on diskSensor Ready');
     assert.match(
         SOURCE,
-        /"sensorTemp":\s*backend\.sensorTempId\.length\s*>\s*0\s*&&\s*sensorTempSensor\.status\s*===\s*Sensors\.Sensor\.Ready/,
-        'availableMetrics map must gate "sensorTemp" on a configured id and sensorTempSensor Ready'
+        /"sensorTemp":\s*backend\.sensorTempResolved/,
+        'availableMetrics map must gate "sensorTemp" on backend.sensorTempResolved (configured id + sensorTempSensor Ready)'
     );
     assert.match(SOURCE, /function\s+_gpuUsageReady\s*\(/, "must declare _gpuUsageReady() helper");
     assert.match(SOURCE, /function\s+_gpuTempReady\s*\(/, "must declare _gpuTempReady() helper");
@@ -340,4 +340,47 @@ test("Plasma MetricsBackend exposes gpuProcesses as readonly property var [] (#7
     // Property (not function) so view bindings stay live.
     assert.match(SOURCE, /readonly\s+property\s+var\s+gpuProcesses\b/, "must declare readonly property var gpuProcesses");
     assert.match(SOURCE, /readonly\s+property\s+var\s+gpuProcesses\s*:\s*\[\s*\]/, "gpuProcesses must be an empty array literal");
+});
+
+// ── Custom temperature sensor picker (issue #164) ───────────────────
+
+test("MetricsBackend exposes the always-live sensorTemp resolution surface (#164)", () => {
+    // The ring and the config editor's validation line both read these —
+    // they must NOT be gated by tempSensorDiscoveryActive.
+    assert.match(SOURCE, /readonly\s+property\s+bool\s+sensorTempResolved\s*:/, "must declare readonly property bool sensorTempResolved");
+    assert.match(
+        SOURCE,
+        /sensorTempResolved:\s*backend\.sensorTempId\.length\s*>\s*0\s*&&\s*sensorTempSensor\.status\s*===\s*Sensors\.Sensor\.Ready/,
+        "sensorTempResolved must be: configured id AND sensorTempSensor Ready",
+    );
+    assert.match(SOURCE, /readonly\s+property\s+real\s+sensorTempValue\s*:/, "must declare readonly property real sensorTempValue");
+    assert.match(SOURCE, /sensorTempValue:[\s\S]{0,120}sensorTempSensor\.value/, "sensorTempValue must read sensorTempSensor.value");
+});
+
+test("MetricsBackend gates Celsius-sensor discovery behind tempSensorDiscoveryActive (#164)", () => {
+    // The picker list lives in the TempSensorDiscovery child (500-line
+    // cap, same split as DiskIoSampler); the gate is an alias to the
+    // child's `active`, exactly like diskIoSamplingActive — only the
+    // config dialog turns it on, so the panel widget probes nothing.
+    assert.match(SOURCE, /property\s+alias\s+tempSensorDiscoveryActive\s*:\s*tempSensorDiscovery\.active/, "tempSensorDiscoveryActive must alias the discovery child's active gate");
+    assert.match(SOURCE, /readonly\s+property\s+var\s+tempSensors\s*:\s*tempSensorDiscovery\.sensors/, "tempSensors must forward the discovery adapter's list");
+    assert.match(SOURCE, /TempSensorDiscovery\s*{[\s\S]*?id:\s*tempSensorDiscovery/, "must instantiate the TempSensorDiscovery child");
+});
+
+const TEMP_DISCOVERY_SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms", "plasma", "TempSensorDiscovery.qml"), "utf8");
+
+test("TempSensorDiscovery implements the two-phase discovery via the pure catalog (#164)", () => {
+    // Phase 1: walk the SensorTreeModel and pre-filter leaves through
+    // TempSensorCatalog.isTempCandidate (DisplayRole "… (°C)").
+    assert.match(TEMP_DISCOVERY_SOURCE, /Sensors\.SensorTreeModel\s*{[\s\S]*?id:\s*sensorTree/, "must declare its own SensorTreeModel");
+    assert.match(TEMP_DISCOVERY_SOURCE, /TempSensorCatalog\.isTempCandidate\s*\(/, "phase 1 must defer the candidate check to the pure catalog");
+    assert.match(TEMP_DISCOVERY_SOURCE, /Sensors\.SensorTreeModel\.SensorId/, "the walk must read the SensorId role");
+    // Phase 2: an Instantiator of live Sensors.Sensor probes the
+    // candidates; buildTempSensorEntries keeps Celsius + Ready and
+    // shapes the [{id, label}] list.
+    assert.match(TEMP_DISCOVERY_SOURCE, /Instantiator\s*{[\s\S]*?model:\s*discovery\._candidateIds/, "phase 2 must be an Instantiator over the candidate ids");
+    assert.match(TEMP_DISCOVERY_SOURCE, /TempSensorCatalog\.buildTempSensorEntries\s*\(/, "phase 2 must build the picker entries via the pure catalog");
+    // Gated: no candidates (hence no Sensor subscriptions) while inactive.
+    assert.match(TEMP_DISCOVERY_SOURCE, /if\s*\(\s*!discovery\.active\s*\)/, "the walk must bail out while the gate is off");
+    assert.match(TEMP_DISCOVERY_SOURCE, /enabled:\s*discovery\.active/, "probe Sensors must be enabled only while the gate is on");
 });

@@ -3,9 +3,10 @@ import QtTest
 import "../../contents/ui/core" as Ui
 
 // Tests for SensorTempSettings.qml — the custom hardware temperature
-// sub-option: the public property surface round-trips and every edit
-// control emits its dedicated signal (the wiring MetricsSubOptions
-// relies on to reach the persisted config keys).
+// sub-option: the discoverable sensor picker (editable combo), the live
+// validation feedback, the collapsed-until-an-id sub-options, and the
+// per-edit signals MetricsSubOptions relies on to reach the persisted
+// config keys.
 
 Item {
     id: root
@@ -22,6 +23,13 @@ Item {
         // Pinned (not "auto") so the tests don't depend on the runner's
         // locale measurement system.
         tempUnit: "celsius"
+
+        // Mirror the production wiring (MetricSubOptions): the component
+        // is stateless, so the committed id is written straight back —
+        // keeps the combo's display sync consistent while typing.
+        onSensorIdEdited: function (value) {
+            settings.sensorId = value;
+        }
     }
 
     SignalSpy {
@@ -58,6 +66,9 @@ Item {
             settings.minC = 20;
             settings.maxC = 60;
             settings.tempUnit = "celsius";
+            settings.availableSensors = [];
+            settings.sensorResolved = false;
+            settings.sensorLiveValue = NaN;
             idSpy.clear();
             labelSpy.clear();
             minSpy.clear();
@@ -75,16 +86,129 @@ Item {
             compare(settings.maxC, 80);
         }
 
-        function test_sensor_id_field_edits_emit_sensorIdEdited() {
+        // ── The picker: editable combo over the discovered sensors ───
+
+        function test_combo_lists_discovered_sensors() {
+            settings.availableSensors = [{ id: "cpu/all/averageTemperature", label: "Average" }, { id: "lmsensors/nvme-pci-0100/temp1", label: "Composite" }];
+            const combo = findChild(settings, "sensorIdCombo");
+            verify(combo, "sensorIdCombo must exist");
+            compare(combo.count, 2);
+        }
+
+        function test_activating_a_listed_sensor_commits_its_id() {
+            settings.availableSensors = [{ id: "cpu/all/averageTemperature", label: "Average" }, { id: "lmsensors/nvme-pci-0100/temp1", label: "Composite" }];
+            const combo = findChild(settings, "sensorIdCombo");
+            // ComboBox.activate() is not exposed to QML here, so the
+            // signal the popup would emit is raised directly — the
+            // component's onActivated handler is what is under test.
+            combo.activated(1);
+            compare(idSpy.count, 1);
+            compare(idSpy.signalArguments[0][0], "lmsensors/nvme-pci-0100/temp1");
+        }
+
+        function test_listed_sensor_id_displays_its_friendly_label() {
+            settings.availableSensors = [{ id: "cpu/all/averageTemperature", label: "Average" }];
+            settings.sensorId = "cpu/all/averageTemperature";
+            const combo = findChild(settings, "sensorIdCombo");
+            compare(combo.editText, "Average");
+            // The display sync must not echo back as a user edit.
+            compare(idSpy.count, 0);
+        }
+
+        function test_unknown_sensor_id_stays_verbatim_in_the_combo() {
+            settings.availableSensors = [{ id: "cpu/all/averageTemperature", label: "Average" }];
+            settings.sensorId = "lmsensors/exotic/temp9";
+            const combo = findChild(settings, "sensorIdCombo");
+            compare(combo.editText, "lmsensors/exotic/temp9");
+        }
+
+        // The control rewrites editText to the first entry's label when
+        // the model is (re)assigned; the deferred re-sync must restore
+        // the configured id's text once discovery populates late.
+        function test_discovery_populating_late_keeps_a_custom_id_verbatim() {
+            settings.sensorId = "lmsensors/exotic/temp9";
+            settings.availableSensors = [{ id: "cpu/all/averageTemperature", label: "Average" }];
+            const combo = findChild(settings, "sensorIdCombo");
+            tryVerify(function () {
+                return combo.editText === "lmsensors/exotic/temp9";
+            });
+            compare(idSpy.count, 0);
+        }
+
+        function test_discovery_populating_late_shows_the_label_of_a_listed_id() {
+            settings.sensorId = "lmsensors/nvme-pci-0100/temp1";
+            settings.availableSensors = [{ id: "cpu/all/averageTemperature", label: "Average" }, { id: "lmsensors/nvme-pci-0100/temp1", label: "Composite" }];
+            const combo = findChild(settings, "sensorIdCombo");
+            tryVerify(function () {
+                return combo.editText === "Composite";
+            });
+        }
+
+        function test_typing_a_custom_id_commits_verbatim() {
             const field = findChild(settings, "sensorIdField");
             verify(field, "sensorIdField must exist");
             field.forceActiveFocus();
             keyClick(Qt.Key_A);
-            compare(idSpy.count, 1);
-            compare(idSpy.signalArguments[0][0], "a");
+            keyClick(Qt.Key_B);
+            compare(idSpy.count, 2);
+            compare(idSpy.signalArguments[1][0], "ab");
         }
 
+        // ── Live validation feedback ─────────────────────────────────
+
+        function test_empty_id_shows_neither_status_nor_error() {
+            compare(findChild(settings, "sensorStatusLabel").visible, false);
+            compare(findChild(settings, "sensorErrorMessage").visible, false);
+        }
+
+        function test_unresolved_id_shows_an_error_message() {
+            settings.sensorId = "lmsensors/nope/temp1";
+            settings.sensorResolved = false;
+            compare(findChild(settings, "sensorErrorMessage").visible, true);
+            compare(findChild(settings, "sensorStatusLabel").visible, false);
+        }
+
+        function test_resolved_id_shows_the_live_reading() {
+            settings.sensorId = "lmsensors/nvme-pci-0100/temp1";
+            settings.sensorResolved = true;
+            settings.sensorLiveValue = 42.34;
+            const status = findChild(settings, "sensorStatusLabel");
+            compare(status.visible, true);
+            compare(status.text, "Currently 42.3 °C");
+            compare(findChild(settings, "sensorErrorMessage").visible, false);
+        }
+
+        function test_live_reading_follows_the_temperature_unit() {
+            settings.sensorId = "lmsensors/nvme-pci-0100/temp1";
+            settings.sensorResolved = true;
+            settings.sensorLiveValue = 42.34;
+            settings.tempUnit = "fahrenheit";
+            // 42.34 °C → 108.2 °F.
+            compare(findChild(settings, "sensorStatusLabel").text, "Currently 108.2 °F");
+        }
+
+        // ── Sub-options collapse until an id is entered ──────────────
+
+        function test_sub_options_stay_collapsed_until_an_id_is_entered() {
+            const section = findChild(settings, "sensorExtraSection");
+            verify(section, "sensorExtraSection must exist");
+            compare(section.visible, false);
+            settings.sensorId = "lmsensors/nvme-pci-0100/temp1";
+            compare(section.visible, true);
+        }
+
+        function test_bounds_hint_explains_the_sweep_semantics() {
+            const hint = findChild(settings, "boundsHintLabel");
+            verify(hint, "boundsHintLabel must exist");
+            verify(hint.text.length > 0, "the min/max semantics hint must not be empty");
+        }
+
+        // ── Per-edit signals (label + spinboxes need an id set: the
+        // section is collapsed, hence unfocusable, while sensorId is
+        // empty) ──────────────────────────────────────────────────────
+
         function test_label_field_edits_emit_sensorLabelEdited() {
+            settings.sensorId = "lmsensors/chip/temp1";
             const field = findChild(settings, "sensorLabelField");
             verify(field, "sensorLabelField must exist");
             field.forceActiveFocus();
@@ -93,6 +217,7 @@ Item {
         }
 
         function test_min_spinbox_emits_minCEdited() {
+            settings.sensorId = "lmsensors/chip/temp1";
             const spin = findChild(settings, "minCSpinBox");
             verify(spin, "minCSpinBox must exist");
             spin.forceActiveFocus();
@@ -102,6 +227,7 @@ Item {
         }
 
         function test_max_spinbox_emits_maxCEdited() {
+            settings.sensorId = "lmsensors/chip/temp1";
             const spin = findChild(settings, "maxCSpinBox");
             verify(spin, "maxCSpinBox must exist");
             spin.forceActiveFocus();
@@ -140,6 +266,7 @@ Item {
         }
 
         function test_fahrenheit_edit_converts_back_to_celsius() {
+            settings.sensorId = "lmsensors/chip/temp1";
             settings.tempUnit = "fahrenheit";
             const spin = findChild(settings, "minCSpinBox");
             spin.forceActiveFocus();

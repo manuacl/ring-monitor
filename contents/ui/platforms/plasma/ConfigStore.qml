@@ -27,6 +27,10 @@ Item {
     readonly property string sensorTempLabel: Plasmoid.configuration.sensorTempLabel || "SENSOR"
     readonly property int sensorTempMinC: Plasmoid.configuration.sensorTempMinC ?? 20
     readonly property int sensorTempMaxC: Plasmoid.configuration.sensorTempMaxC ?? 60
+    readonly property int cpuTempMinC: Plasmoid.configuration.cpuTempMinC ?? 30
+    readonly property int cpuTempMaxC: Plasmoid.configuration.cpuTempMaxC ?? 90
+    readonly property int gpuTempMinC: Plasmoid.configuration.gpuTempMinC ?? 30
+    readonly property int gpuTempMaxC: Plasmoid.configuration.gpuTempMaxC ?? 90
     // Selected disk partition ids (empty = aggregate disk/all ring on Plasma).
     readonly property string enabledPartitions: Plasmoid.configuration.enabledPartitions
     // All discovered partition ids in display order (first = outermost ring).

@@ -32,10 +32,8 @@ import "MountInfo.js" as MountInfoJs
 // directly. Multi-arity sensors (cpu/cpu*/usage, gpu/gpu*/temperature,
 // gpu/gpu*/usage) are discovered at runtime via SensorTreeModel —
 // fixes the dev-machine assumption of 6 cores + a discrete GPU on
-// gpu1, which broke on other hardware.
-//
-// A standalone build will ship a parallel MetricsBackend.qml backed by
-// /proc reads or psutil, exposing the same public surface.
+// gpu1, which broke on other hardware. The standalone build ships a
+// parallel MetricsBackend.qml exposing the same public surface.
 
 Item {
     id: backend
@@ -43,10 +41,9 @@ Item {
     property string sensorTempId: ""
     // ── Public surface ──────────────────────────────────────────────
     //
-    // coreValues re-evaluates on _coreTick — bumped whenever the
-    // Instantiator gains/loses an item OR any per-core Sensor's value
-    // changes. The function form (vs. a static list of `cpuN.value`)
-    // is what lets it scale to any core count without code changes.
+    // coreValues re-evaluates on _coreTick — bumped on Instantiator
+    // adds/removes and on any per-core Sensor's value change — so it
+    // scales to any core count without code changes.
     property int _coreTick: 0
     readonly property var coreValues: {
         backend._coreTick;
@@ -61,8 +58,7 @@ Item {
 
     readonly property bool loading: cpuTotal.status !== Sensors.Sensor.Ready || ramSensor.status !== Sensors.Sensor.Ready
 
-    // Catalog ids whose Sensor has reached Ready (see docs/components.md
-    // § MetricsBackend for how the consumers use it).
+    // Catalog ids whose Sensor has reached Ready (docs/components.md § MetricsBackend).
     readonly property var availableMetrics: {
         // Read the gpu ticks first so the binding re-evaluates when a per-GPU
         // Instantiator's status changes — the readiness helpers walk those
@@ -82,13 +78,12 @@ Item {
             // (no-op until the diskIo UI PR adds the catalog id — filtered to
             // METRIC_IDS).
             "diskIo": true,
-            "sensorTemp": backend.sensorTempId.length > 0 && sensorTempSensor.status === Sensors.Sensor.Ready
+            "sensorTemp": backend.sensorTempResolved
         });
     }
 
-    // GPU readiness mirrors _gpuUsageValue / _gpuTempValue: usage is ready
-    // when the gpu/all aggregate OR any discovered per-GPU usage Sensor is
-    // Ready; temperature when any discovered per-GPU temp Sensor is Ready.
+    // GPU readiness mirrors the value helpers: usage is ready when the
+    // aggregate OR any per-GPU usage Sensor is Ready; temperature likewise.
     function _gpuUsageReady() {
         if (gpuAllSensor.status === Sensors.Sensor.Ready)
             return true;
@@ -191,6 +186,20 @@ Item {
 
     DiskIoSampler {
         id: diskIoSampler
+    }
+
+    // ── Custom temperature sensor picker (issue #164) ────────────────
+    // Resolved/value are always live (the sensorTemp ring reads them);
+    // the picker list is gated — only the config dialog turns discovery
+    // on (the gate pattern matches diskIoSamplingActive above; the
+    // two-phase discovery itself is documented in TempSensorDiscovery).
+    readonly property bool sensorTempResolved: backend.sensorTempId.length > 0 && sensorTempSensor.status === Sensors.Sensor.Ready
+    readonly property real sensorTempValue: backend.sensorTempResolved && isFinite(sensorTempSensor.value) ? sensorTempSensor.value : NaN
+    property alias tempSensorDiscoveryActive: tempSensorDiscovery.active
+    readonly property var tempSensors: tempSensorDiscovery.sensors
+
+    TempSensorDiscovery {
+        id: tempSensorDiscovery
     }
 
     // ── Disk partitions (multi-ring) ─────────────────────────────────
@@ -303,10 +312,9 @@ Item {
         id: sensorTempSensor
         sensorId: backend.sensorTempId
     }
-    // Preferred aggregate for GPU usage. May not exist on systems with
-    // a single discrete GPU exposed only at gpu/gpu0/usage — the
-    // _gpuUsageValue helper falls back to the first Ready per-gpu
-    // candidate in that case.
+    // Preferred aggregate for GPU usage. May not exist on systems with a
+    // single discrete GPU exposed only at gpu/gpu0/usage — _gpuUsageValue
+    // falls back to the first Ready per-gpu candidate in that case.
     Sensors.Sensor {
         id: gpuAllSensor
         sensorId: "gpu/all/usage"

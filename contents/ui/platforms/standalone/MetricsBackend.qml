@@ -3,6 +3,7 @@ import RingMonitor.Standalone
 import "ProcStatParser.js" as ProcStatParser
 import "MemInfoParser.js" as MemInfoParser
 import "CpuTempDiscovery.js" as CpuTemp
+import "HwmonTempDiscovery.js" as HwmonTemp
 import "DiskDiscovery.js" as DiskDiscovery
 import "../../core/MetricsCatalog.js" as Catalog
 import "../../core/DiskMetrics.js" as DiskMetrics
@@ -20,6 +21,10 @@ import "../../core/DiskMetrics.js" as DiskMetrics
 //   readonly property var defaultPartitionIds
 //   function partitionValue(id)
 //   function partitionDetail(id)                 (disk-ring tooltip, #68)
+//   property string sensorTempId                 (custom temp, #164)
+//   readonly property var tempSensors
+//   readonly property bool sensorTempResolved
+//   readonly property real sensorTempValue
 //
 // Backend = single `Timer` polling at 2 Hz (500 ms, matching the Plasma
 // ksysguard cadence) via the `ProcReader` C++ helper (`/proc/stat`,
@@ -28,8 +33,9 @@ import "../../core/DiskMetrics.js" as DiskMetrics
 // minimum here — the [feedback-maximize-shared-code] rule).
 //
 // Scope: CPU usage (aggregate + per-core), RAM, swap, disk, CPU temp (hwmon/
-// thermal-zone), and GPU usage+temp (NVIDIA via NVML, AMD via sysfs, Intel
-// temp-only). Discovery details live in the *Discovery.js modules.
+// thermal-zone), GPU usage+temp (NVIDIA via NVML, AMD via sysfs, Intel
+// temp-only), and the custom hwmon temperature (sensorTemp, #164).
+// Discovery details live in the *Discovery.js modules.
 
 Item {
     id: backend
@@ -67,12 +73,27 @@ Item {
         "disk": true,
         // /proc/diskstats always exists (no-op until the diskIo UI PR adds the catalog id).
         "diskIo": true,
-        // Plasma-only for now: the custom temperature metric reads a
-        // user-provided KSystemStats sensor id, and this platform has no
-        // ksysguard — gate it off so the picker greys the row instead of
-        // offering a ring that could never resolve.
-        "sensorTemp": false
+        // sensorTemp = the user-configured custom hardware sensor (#164):
+        // available once the configured id is set AND resolved to a live
+        // sysfs path with a finite reading (the sensorTempResolved gate).
+        "sensorTemp": backend.sensorTempId.length > 0 && backend.sensorTempResolved
     })
+
+    // ── Custom hardware temperature (sensorTemp, #164) ──────────────
+    // The configured sensor id, stable across boots (HwmonTempDiscovery
+    // grammar — never a hwmonN path). Set by Main.qml from the
+    // ConfigStore; the settings dialog binds the same property.
+    property string sensorTempId: ""
+    // Every discovered temperature input ([{ id, label }], sorted chip
+    // then index) for the settings picker — rebuilt only when the
+    // enumeration re-runs, so the binding doesn't churn per tick.
+    readonly property var tempSensors: sensorProbe.tempSensors
+    // True when the configured id resolved to a current sysfs path AND
+    // the last reading was finite (a removed/unreadable sensor drops the
+    // ring instead of freezing at its last value, like gpuTemp).
+    readonly property bool sensorTempResolved: backend.sensorTempId.length > 0 && backend._sensorTempPath !== "" && isFinite(backend._sensorTempC)
+    // Raw °C of the configured sensor, NaN while unresolved.
+    readonly property real sensorTempValue: backend._sensorTempC
 
     function metricValue(id) {
         backend._tick;
@@ -98,6 +119,8 @@ Item {
             return backend._coerceTemp(backend._cpuTempC);
         if (id === "gpuTemp")
             return backend._coerceTemp(gpuSampler.tempC);
+        if (id === "sensorTemp")
+            return backend._coerceTemp(backend._sensorTempC);
         return 0;
     }
 
@@ -274,6 +297,33 @@ Item {
     property int _cpuTempResolveAttempts: 0
     readonly property int _cpuTempMaxResolveAttempts: 60  // ~30s at the 2 Hz Timer
 
+    // ── sensorTemp internals (#164) ─────────────────────────────────
+    // The probe owns the sysfs enumeration (shared with the settings
+    // dialog); active stays false here — the backend reads only the ONE
+    // configured sensor per tick, not the whole catalog.
+    HwmonTempSensors {
+        id: sensorProbe
+        active: false
+    }
+    // Current-boot sysfs path the configured id resolved to ("" while
+    // unresolved → _sensorTempC stays NaN, coerced to 0 at the surface).
+    property string _sensorTempPath: ""
+    property real _sensorTempC: NaN
+    // Same bounded warm-up window as the CPU temp: the full hwmon
+    // enumeration retries while the catalog is empty (a driver modprobed
+    // after login), then stops — no per-tick sysfs walk afterwards.
+    property int _sensorEnumAttempts: 0
+    readonly property int _sensorMaxEnumAttempts: 60  // ~30s at the 2 Hz Timer
+
+    onSensorTempIdChanged: {
+        // Re-resolve against the cached catalog (no sysfs walk). When the
+        // catalog is still empty the _sample retry re-enumerates within
+        // the window and the next tick resolves. NaN flush so a stale
+        // reading of the PREVIOUS sensor never shows under the new id.
+        backend._sensorTempPath = HwmonTemp.resolveSensorPath(sensorProbe.catalog, backend.sensorTempId);
+        backend._sensorTempC = NaN;
+    }
+
     // Walk /sys/class/hwmon, then fall back to /sys/class/thermal, and
     // return the sysfs file to read each tick — or "" if none. All the
     // "which entry is the CPU" decisions are the pure CpuTempDiscovery
@@ -407,6 +457,20 @@ Item {
         }
         if (backend._cpuTempPath)
             backend._cpuTempC = CpuTemp.parseTempCelsius(reader.read(backend._cpuTempPath));
+        // ── hwmon custom temperature (sensorTemp) ───────────────────
+        // Full enumeration retries within the same bounded window as the
+        // CPU temp while the catalog is empty; afterwards the per-tick
+        // cost is one file read of the resolved path.
+        if (sensorProbe.catalog.length === 0 && backend._sensorEnumAttempts < backend._sensorMaxEnumAttempts) {
+            backend._sensorEnumAttempts++;
+            sensorProbe.enumerate();
+        }
+        if (backend.sensorTempId.length > 0) {
+            if (backend._sensorTempPath === "")
+                backend._sensorTempPath = HwmonTemp.resolveSensorPath(sensorProbe.catalog, backend.sensorTempId);
+            if (backend._sensorTempPath !== "")
+                backend._sensorTempC = HwmonTemp.parseTempCelsius(reader.read(backend._sensorTempPath));
+        }
         // ── GPU: delegated to GpuSampler child ──────────────────────
         // All GPU logic (NVML + AMD/Intel sysfs, retry gate, liveness flags,
         // detail branch) now lives in GpuSampler.qml. MetricsBackend reads

@@ -140,6 +140,8 @@ qt_add_qml_module(ring-monitor-standalone
         contents/ui/platforms/standalone/DiskStatsParser.js
         contents/ui/platforms/standalone/GpuSampler.qml
         contents/ui/platforms/standalone/DiskIoSampler.qml
+        contents/ui/platforms/standalone/HwmonTempSensors.qml
+        contents/ui/platforms/standalone/HwmonTempDiscovery.js
         contents/ui/core/Ring.qml
         contents/ui/core/ConcentricArc.qml
         contents/ui/core/MainContent.qml
@@ -154,6 +156,7 @@ qt_add_qml_module(ring-monitor-standalone
         contents/ui/core/MetricSubOptions.qml
         contents/ui/core/SensorTempSettings.qml
         contents/ui/core/TemperatureUnitSettings.qml
+        contents/ui/core/TempRangeSettings.qml
         contents/ui/core/UpdateChecker.qml
         contents/ui/core/MetricsCatalog.js
         contents/ui/core/ColorThemes.js

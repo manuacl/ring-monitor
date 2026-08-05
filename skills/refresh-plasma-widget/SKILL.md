@@ -22,7 +22,7 @@ Why copy instead of symlink:
 
 - A QML parse error that stops the widget from loading → prefer the isolated debug mode documented in `docs/development.md` § "Standalone preview":
   ```bash
-  setsid -f plasmawindowed dev.manuacl.ringmonitor < /dev/null > /tmp/plasmawindowed.log 2>&1
+  setsid -f plasmawindowed ring-monitor_dev < /dev/null > /tmp/plasmawindowed.log 2>&1
   ```
   then read `/tmp/plasmawindowed.log`. The standalone window shows the errors without a plasmashell restart.
 - First time adding the widget to the panel → this skill installs/overwrites the `ring-monitor_dev` copy, but it is up to the user to then add *Ring Monitor (dev)* to the panel via "Add Widgets". The skill does not place the widget.

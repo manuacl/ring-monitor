@@ -55,8 +55,11 @@ ring-monitor/
 └── CLAUDE.md                           — short briefing for AI assistants
 ```
 
-The Plasma build is loaded by `plasmashell` directly from the source
-tree via the symlink at `~/.local/share/plasma/plasmoids/dev.manuacl.ringmonitor`.
+The Plasma build is loaded by `plasmashell` from a disposable copy of
+the source tree installed at
+`~/.local/share/plasma/plasmoids/ring-monitor_dev` (see
+[`development.md`](development.md) — a copy, not a symlink, so
+uninstalling the widget can never delete the repo).
 The standalone build is produced by `cmake -B build && cmake --build
 build`, emitting a single `build/ring-monitor-standalone` binary that
 embeds the QML as a compiled resource (no runtime filesystem

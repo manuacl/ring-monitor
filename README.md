@@ -147,11 +147,21 @@ install step is required).
 
 ## Develop
 
-Symlink the repo into Plasma's plasmoid path so edits hot-reload:
+Install the widget as a disposable **copy** (never a symlink — removing
+a symlinked widget makes Plasma delete the repo it points at):
 
 ```bash
-ln -s "$PWD" ~/.local/share/plasma/plasmoids/dev.manuacl.ringmonitor
+DEST=~/.local/share/plasma/plasmoids/ring-monitor_dev && \
+rm -rf "$DEST" && mkdir -p "$DEST" && \
+rsync -a contents metadata.json LICENSE "$DEST"/ && \
+jq '.KPlugin.Id = "ring-monitor_dev" | .KPlugin.Name = "Ring Monitor (dev)"' \
+   "$DEST/metadata.json" > "$DEST/metadata.json.tmp" && \
+mv "$DEST/metadata.json.tmp" "$DEST/metadata.json"
 ```
+
+Re-run that block after each edit (details in
+[`docs/development.md`](docs/development.md)). The distinct Id lets the
+dev copy coexist with the KDE Store version.
 
 Enable the pre-commit hook (qmlformat + qmllint + 500-line size cap):
 
@@ -170,7 +180,7 @@ You need `qt6-qtdeclarative-devel` + `kf6-kirigami` for `qmllint`,
 Plasma build, not the [standalone binary](#standalone-non-kde-desktops)):
 
 ```bash
-plasmawindowed dev.manuacl.ringmonitor
+plasmawindowed ring-monitor_dev
 ```
 
 ## Documentation
@@ -184,7 +194,7 @@ In-depth docs live under [`docs/`](docs/) (start at the
 - [`config-dialog.md`](docs/config-dialog.md) — Plasma config-dialog gotchas
 - [`adding-a-metric.md`](docs/adding-a-metric.md) — step-by-step
 - [`testing.md`](docs/testing.md) — Node + QML test runners
-- [`development.md`](docs/development.md) — symlink, journal, tooling
+- [`development.md`](docs/development.md) — dev install, journal, tooling
 - [`releasing.md`](docs/releasing.md) — release flow + KDE Store upload
 
 ## License

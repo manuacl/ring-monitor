@@ -45,8 +45,9 @@ The deeper docs live in `docs/`:
 - [`docs/adding-a-metric.md`](docs/adding-a-metric.md) — step-by-step.
 - [`docs/testing.md`](docs/testing.md) — `node --test tests/`, when to
   add tests.
-- [`docs/development.md`](docs/development.md) — symlink, plasmashell
-  restart, `plasmawindowed`, journal greps, QML tooling.
+- [`docs/development.md`](docs/development.md) — copy-based dev
+  install, plasmashell restart, `plasmawindowed`, journal greps, QML
+  tooling.
 - [`docs/releasing.md`](docs/releasing.md) — release flow
   (`version.yml` + `release.yml`), `BUMP_TOKEN` PAT rotation, KDE
   Store.
@@ -182,10 +183,17 @@ depending on it re-renders.
 
 ## Plugin id
 
-`dev.manuacl.ringmonitor`
+`dev.manuacl.ringmonitor` (KDE Store / `kpackagetool6` installs).
 
-Symlink (dev workflow):
-`~/.local/share/plasma/plasmoids/dev.manuacl.ringmonitor → ~/projects/ring-monitor`.
+Dev workflow: **copy, never symlink** — removing a symlinked widget
+makes Plasma follow the link and delete the repo it points at. The dev
+install is a disposable copy at
+`~/.local/share/plasma/plasmoids/ring-monitor_dev` whose copied
+`metadata.json` is patched to `KPlugin.Id = "ring-monitor_dev"` /
+`Name = "Ring Monitor (dev)"`, so it coexists with the Store version.
+Refresh after edits = run the `refresh-plasma-widget` skill (re-copy +
+clear qmlcaches + restart plasmashell). See
+[`docs/development.md`](docs/development.md).
 
 ## Skills
 

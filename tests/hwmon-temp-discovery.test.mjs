@@ -6,6 +6,7 @@ import {
     tempIndexFromInput,
     buildCatalog,
     buildThermalCatalog,
+    filterMirroredZones,
     resolveSensorPath,
 } from "../contents/ui/platforms/standalone/HwmonTempDiscovery.js";
 
@@ -301,14 +302,59 @@ test("buildThermalCatalog disambiguates colliding types with @<device>", () => {
     ]);
 });
 
-test("buildThermalCatalog tolerates duplicates when the device is unresolvable", () => {
-    // No device symlink → bare type, duplicate ids tolerated
-    // (resolveSensorPath returns the first match) — same trade-off as hwmon.
+test("buildThermalCatalog falls back to @<zone-dir> when the device is unresolvable", () => {
+    // No device symlink on a type collision → the zone dir is the last
+    // resort. Its number is registration-order (unstable across boots),
+    // but a duplicated id is strictly worse: the picker's text→id
+    // first-match would make the twin unreachable (review finding, #167).
     const catalog = buildThermalCatalog([
         { dir: "thermal_zone0", type: "acpitz", device: "" },
         { dir: "thermal_zone1", type: "acpitz", device: "" },
     ]);
-    assert.deepEqual(catalog.map((e) => e.id), ["acpitz/temp", "acpitz/temp"]);
+    assert.deepEqual(catalog.map((e) => e.id), [
+        "acpitz@thermal_zone0/temp",
+        "acpitz@thermal_zone1/temp",
+    ]);
+    assert.deepEqual(catalog.map((e) => e.label), [
+        "acpitz (acpitz@thermal_zone0)",
+        "acpitz (acpitz@thermal_zone1)",
+    ]);
+});
+
+test("filterMirroredZones drops zones a hwmon chip already exposes", () => {
+    // The kernel links a thermal-backed chip to its zone through the
+    // device symlink: basename == zone dir (live x86: hwmon acpitz_0 →
+    // thermal_zone0). The zone would double the chip's picker entry.
+    const chips = [
+        { dir: "hwmon0", name: "acpitz_0", device: "thermal_zone0", sensors: [] },
+        { dir: "hwmon2", name: "nvme", device: "nvme0", sensors: [] },
+    ];
+    const zones = [
+        { dir: "thermal_zone0", type: "acpitz", device: "LNXTHERM:00" },  // mirrored
+        { dir: "thermal_zone3", type: "x86_pkg_temp", device: "" },       // no hwmon counterpart
+    ];
+    assert.deepEqual(filterMirroredZones(chips, zones), [
+        { dir: "thermal_zone3", type: "x86_pkg_temp", device: "" },
+    ]);
+});
+
+test("filterMirroredZones keeps every zone when hwmon has no chip (ARM/VM case)", () => {
+    // Empty-hwmon union == the old fallback catalog: all zones kept.
+    const zones = [
+        { dir: "thermal_zone0", type: "cpu-thermal", device: "" },
+        { dir: "thermal_zone1", type: "soc-thermal", device: "" },
+    ];
+    assert.deepEqual(filterMirroredZones([], zones), zones);
+    assert.deepEqual(filterMirroredZones(undefined, zones), zones);
+});
+
+test("filterMirroredZones never mirrors on an unresolvable chip device", () => {
+    // No device symlink on the chip → nothing to compare against.
+    const chips = [{ dir: "hwmon0", name: "acpitz", device: "", sensors: [] }];
+    const zones = [{ dir: "thermal_zone0", type: "acpitz", device: "" }];
+    assert.deepEqual(filterMirroredZones(chips, zones), zones);
+    assert.deepEqual(filterMirroredZones(chips, undefined), []);
+    assert.deepEqual(filterMirroredZones(chips, null), []);
 });
 
 test("buildThermalCatalog skips malformed entries instead of throwing", () => {

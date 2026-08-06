@@ -5,9 +5,11 @@ import "HwmonTempDiscovery.js" as HwmonTemp
 // hwmon temperature-sensor probe for the SETTINGS DIALOG, which has no
 // MetricsBackend (SettingsOnlyRoot hosts only the dialog). Enumerates
 // every hwmon temperature input once (plus on demand via enumerate()),
-// falling back to /sys/class/thermal zones when hwmon has none (ARM
-// boards / VMs), and, while `active`, refreshes all readings at 2 Hz so
-// the picker can show a live value next to each candidate sensor.
+// merged with the /sys/class/thermal zones no hwmon chip exposes (ARM
+// boards / VMs register temps only with the thermal framework) so a
+// zone id survives a driver appearing at the next boot. While `active`,
+// refreshes all readings at 2 Hz so the picker can show a live value
+// next to each candidate sensor.
 //
 // Thin I/O adapter: every decision (id grammar, collision disambiguation,
 // label fallback, sorting) lives in the pure HwmonTempDiscovery.js
@@ -81,12 +83,13 @@ Item {
             });
         }
         var catalog = HwmonTemp.buildCatalog(chips);
-        // Fallback when hwmon exposes NO temperature input: some ARM
-        // boards / VMs register temps only with the thermal framework.
-        // On x86 the zones mirror hwmon chips, so the walk runs only on
-        // an empty hwmon catalog — mixing both would double the list.
-        if (catalog.length === 0)
-            catalog = probe._enumerateThermalZones();
+        // Union with the thermal zones NO hwmon chip exposes. The kernel
+        // links a thermal-backed chip to its zone (device symlink
+        // basename == zone dir); filterMirroredZones drops those mirrors
+        // so the picker doesn't double entries, and keeps the rest with
+        // boot-stable ids even if a driver late-modprobes next boot.
+        var zones = HwmonTemp.filterMirroredZones(chips, probe._readThermalZones());
+        catalog = catalog.concat(HwmonTemp.buildThermalCatalog(zones));
         var picker = [];
         for (var k = 0; k < catalog.length; k++) {
             picker.push({
@@ -98,10 +101,10 @@ Item {
         probe._tempSensors = picker;
     }
 
-    // /sys/class/thermal walk — the fallback source when hwmon has no
-    // temperature input at all. Decisions (id grammar, collisions,
-    // sorting) live in HwmonTemp.buildThermalCatalog; here only I/O.
-    function _enumerateThermalZones() {
+    // /sys/class/thermal walk — raw zone data only; the mirror filtering,
+    // id grammar, collisions and sorting all live in the pure module
+    // (HwmonTemp.filterMirroredZones / buildThermalCatalog).
+    function _readThermalZones() {
         var base = "/sys/class/thermal";
         var dirs = reader.listDir(base);
         var zones = [];
@@ -119,7 +122,7 @@ Item {
                 "device": target ? target.split("/").pop() : ""
             });
         }
-        return HwmonTemp.buildThermalCatalog(zones);
+        return zones;
     }
 
     property var _catalog: []

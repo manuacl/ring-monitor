@@ -71,6 +71,10 @@ editing.
   (translation is a downstream concern). The conversation with the
   user can be in any language; only what lands in the repo is
   constrained.
+- **No AI-attribution footers.** Commit messages and PR titles/bodies
+  never carry a `🤖 Generated with …` trailer or a `Co-Authored-By:`
+  AI line — whichever tool produced the change. Attribution noise adds
+  no reviewable information.
 - **No nested ternaries.** `a ? x : b ? y : c ? z : d` → use a lookup
   map, a `switch`, or extract a named function. Single ternaries are
   OK.

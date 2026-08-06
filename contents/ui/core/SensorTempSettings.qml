@@ -71,14 +71,8 @@ ColumnLayout {
     }
 
     onSensorIdChanged: sensorCombo.syncEditText()
-    // Deferred: on a model change the control rewrites editText itself
-    // (to the first entry's label) AFTER property-change handlers run —
-    // an immediate sync would be overwritten. A zero Timer, NOT
-    // Qt.callLater: Plasma constructs the config pages at startup and
-    // tears down the unplaced ones, and callLater's callable still
-    // fired in that dead context (VME "invalid context" journal error,
-    // live #167). The Timer is destroyed with the object — no
-    // post-mortem call — and restart() coalesces discovery churn.
+    // Deferred via a zero Timer, NOT Qt.callLater — see
+    // platforms/plasma/CLAUDE.md § "KCM pages are constructed at startup".
     onAvailableSensorsChanged: syncTimer.restart()
     Component.onCompleted: sensorCombo.syncEditText()
 

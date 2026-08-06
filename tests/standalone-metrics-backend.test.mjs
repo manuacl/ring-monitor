@@ -312,13 +312,14 @@ test("standalone MetricsBackend bounds the hwmon enumeration to a warm-up window
     assert.match(SOURCE, /sensorProbe\.enumerate\s*\(\s*\)/, "must re-run the probe enumeration inside the window");
 });
 
-test("HwmonTempSensors falls back to /sys/class/thermal only when hwmon is empty (#164)", () => {
+test("HwmonTempSensors merges unmirrored /sys/class/thermal zones into the catalog (#164)", () => {
     // ARM boards / VMs can register temperatures only with the thermal
-    // framework; on x86 the zones mirror hwmon chips, so the fallback
-    // walk is gated on an EMPTY hwmon catalog — mixing both would
-    // double the picker list.
-    assert.match(PROBE_SOURCE, /catalog\.length\s*===\s*0[\s\S]{0,120}_enumerateThermalZones\s*\(\s*\)/, "the thermal walk must be gated on an empty hwmon catalog");
-    assert.match(PROBE_SOURCE, /HwmonTemp\.buildThermalCatalog\s*\(/, "must defer the thermal catalog decisions to the pure module");
+    // framework; on x86 most zones mirror hwmon chips. The probe walks
+    // the zones UNCONDITIONALLY and defers the mirror filtering to the
+    // pure module, so a zone id survives a driver appearing at the next
+    // boot (review finding, #167) without doubling the picker list.
+    assert.match(PROBE_SOURCE, /HwmonTemp\.filterMirroredZones\s*\(\s*chips\s*,/, "must defer the mirror filtering to the pure module, chips first");
+    assert.match(PROBE_SOURCE, /catalog\s*=\s*catalog\.concat\s*\(\s*HwmonTemp\.buildThermalCatalog\s*\(/, "must union the filtered thermal catalog with the hwmon one");
     assert.match(PROBE_SOURCE, /\/sys\/class\/thermal/, "must walk /sys/class/thermal");
     // Zones have no label file — the type is read as the name, and the
     // device symlink disambiguates colliding types (same as hwmon).

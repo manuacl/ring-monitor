@@ -67,7 +67,8 @@ function _compareSensors(a, b) {
 }
 
 // "nvme@0000:04:00.0/temp1" → "nvme@0000:04:00.0" — the id's chip
-// segment, used as the picker-label suffix on collisions.
+// segment, appended to every picker label (unless the label IS the
+// stem — thermal zones, see _disambiguateLabels).
 function _stemOf(id) {
     return String(id).replace(/\/[^/]+$/, "");
 }
@@ -164,20 +165,21 @@ function resolveSensorPath(catalog, id) {
     return "";
 }
 
-// FALLBACK catalog from /sys/class/thermal zones — used only when hwmon
-// exposes NO temperature input at all (some ARM boards and VMs register
-// temps only with the thermal framework). On x86 the zones mirror hwmon
-// chips, so mixing both sources would double the picker list; the
-// adapter (HwmonTempSensors.enumerate) calls this only on an empty
-// hwmon catalog.
+// THERMAL-ZONE catalog from /sys/class/thermal — merged into the picker
+// alongside hwmon after filterMirroredZones drops the zones a hwmon chip
+// already exposes (the adapter, HwmonTempSensors.enumerate, always calls
+// both). Zones without a hwmon counterpart keep boot-stable ids even if a
+// driver late-modprobes at the next boot (review finding, #167).
 //   zones: [{ dir: "thermal_zone3", type: "x86_pkg_temp",
 //             device: "LNXSYSTM:00" }]
 // Same stable-id grammar as hwmon: "<type>/temp", or
-// "<type>@<device>/temp" on type collision (the zone NUMBER is
-// registration-order, not persisted); a colliding type without a
-// resolvable device keeps the bare type — duplicates tolerated, first
-// match wins. Zones have no label file: the type is the name, and
-// _disambiguateLabels leaves it bare (label == stem).
+// "<type>@<device>/temp" on type collision (the device basename is stable,
+// the zone NUMBER is registration-order and never persisted — except as
+// the LAST resort "<type>@<zone-dir>/temp" when colliding types have no
+// resolvable device: an unstable suffix beats a duplicated id, which the
+// picker's text→id first-match would render unreachable). Zones have no
+// label file: the type is the name, and _disambiguateLabels leaves it
+// bare (label == stem).
 function buildThermalCatalog(zones) {
     if (!zones || typeof zones.length !== "number")
         return [];
@@ -195,8 +197,8 @@ function buildThermalCatalog(zones) {
             continue;
         var stem = type;
         var device = String(z.device || "");
-        if (typeCount[type] > 1 && device)
-            stem = type + "@" + device;
+        if (typeCount[type] > 1)
+            stem = type + "@" + (device || z.dir);
         out.push({
             "id": stem + "/temp",
             "label": type,
@@ -214,6 +216,35 @@ function buildThermalCatalog(zones) {
     return out;
 }
 
+// Drop the thermal zones a hwmon chip ALREADY exposes, so the merged
+// picker list doesn't double entries. The kernel links a thermal-backed
+// hwmon chip to its zone through the `device` symlink: its basename IS
+// the zone dir (`hwmon0 acpitz_0` → device `../../thermal_zone0`). A chip
+// with an unresolvable device symlink never mirrors (no link to compare
+// against). With no chips at all (ARM boards / VMs whose temps live only
+// in the thermal framework) every zone is kept — the union then equals
+// the old fallback catalog.
+//   chips: [{ device: "thermal_zone0", … }] — same shape as buildCatalog's
+//   zones: [{ dir: "thermal_zone0", … }]  — same shape as buildThermalCatalog's
+function filterMirroredZones(chips, zones) {
+    if (!zones || typeof zones.length !== "number")
+        return [];
+    if (!chips || typeof chips.length !== "number")
+        return zones;
+    var mirrored = {};
+    for (var i = 0; i < chips.length; i++) {
+        var device = String(chips[i].device || "");
+        if (device)
+            mirrored[device] = true;
+    }
+    var out = [];
+    for (i = 0; i < zones.length; i++) {
+        if (!mirrored[String(zones[i].dir || "")])
+            out.push(zones[i]);
+    }
+    return out;
+}
+
 if (typeof module !== "undefined" && module.exports) {
     module.exports = {
         parseTempCelsius: parseTempCelsius,
@@ -221,6 +252,7 @@ if (typeof module !== "undefined" && module.exports) {
         tempIndexFromInput: tempIndexFromInput,
         buildCatalog: buildCatalog,
         buildThermalCatalog: buildThermalCatalog,
+        filterMirroredZones: filterMirroredZones,
         resolveSensorPath: resolveSensorPath,
     };
 }

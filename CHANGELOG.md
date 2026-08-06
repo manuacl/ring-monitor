@@ -12,6 +12,8 @@ user-facing only.
 
 ## [Unreleased]
 
+## [0.16.0] — 2026-08-06
+
 ### Added
 
 - New **custom hardware temperature** metric (#160): display any temperature sensor exposed by your system — liquid-cooling loop, motherboard, SSD… Pick the sensor ID, give the ring its own label, and set the min/max °C range the ring scales against. Optional and off by default; the existing CPU/GPU temperature rings are unchanged.

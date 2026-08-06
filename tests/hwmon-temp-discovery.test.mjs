@@ -5,6 +5,7 @@ import {
     isTempInput,
     tempIndexFromInput,
     buildCatalog,
+    buildThermalCatalog,
     resolveSensorPath,
 } from "../contents/ui/platforms/standalone/HwmonTempDiscovery.js";
 
@@ -257,4 +258,78 @@ test("resolveSensorPath returns '' for unknown / empty / malformed input", () =>
     assert.equal(resolveSensorPath(catalog, ""), "");
     assert.equal(resolveSensorPath(catalog, undefined), "");
     assert.equal(resolveSensorPath(undefined, "k10temp/temp1"), "");
+});
+
+test("buildThermalCatalog uses the <type>/temp grammar and never the zone number", () => {
+    // The zone NUMBER is registration-order — only the PATH (rebuilt at
+    // runtime) may contain it, never the persisted id.
+    const catalog = buildThermalCatalog([
+        { dir: "thermal_zone3", type: "x86_pkg_temp", device: "" },
+        { dir: "thermal_zone0", type: "cpu-thermal", device: "" },
+    ]);
+    assert.deepEqual(catalog, [
+        { id: "cpu-thermal/temp", label: "cpu-thermal", path: "/sys/class/thermal/thermal_zone0/temp" },
+        { id: "x86_pkg_temp/temp", label: "x86_pkg_temp", path: "/sys/class/thermal/thermal_zone3/temp" },
+    ]);
+    catalog.forEach((e) => assert.doesNotMatch(e.id, /thermal_zone/));
+});
+
+test("buildThermalCatalog leaves a type-named label bare (no redundant stem suffix)", () => {
+    // A thermal zone's only name IS its type — "acpitz (acpitz)" would
+    // be noise, so the stem-suffix rule skips it (label == stem).
+    const catalog = buildThermalCatalog([
+        { dir: "thermal_zone1", type: "acpitz", device: "" },
+    ]);
+    assert.equal(catalog[0].label, "acpitz");
+});
+
+test("buildThermalCatalog disambiguates colliding types with @<device>", () => {
+    // Two acpitz zones on different devices: same grammar as hwmon —
+    // the device basename keeps the ids stable + unique, and the
+    // suffix makes the picker entries distinguishable.
+    const catalog = buildThermalCatalog([
+        { dir: "thermal_zone0", type: "acpitz", device: "LNXSYSTM:00" },
+        { dir: "thermal_zone1", type: "acpitz", device: "PNP0A08:00" },
+    ]);
+    assert.deepEqual(catalog.map((e) => e.id), [
+        "acpitz@LNXSYSTM:00/temp",
+        "acpitz@PNP0A08:00/temp",
+    ]);
+    assert.deepEqual(catalog.map((e) => e.label), [
+        "acpitz (acpitz@LNXSYSTM:00)",
+        "acpitz (acpitz@PNP0A08:00)",
+    ]);
+});
+
+test("buildThermalCatalog tolerates duplicates when the device is unresolvable", () => {
+    // No device symlink → bare type, duplicate ids tolerated
+    // (resolveSensorPath returns the first match) — same trade-off as hwmon.
+    const catalog = buildThermalCatalog([
+        { dir: "thermal_zone0", type: "acpitz", device: "" },
+        { dir: "thermal_zone1", type: "acpitz", device: "" },
+    ]);
+    assert.deepEqual(catalog.map((e) => e.id), ["acpitz/temp", "acpitz/temp"]);
+});
+
+test("buildThermalCatalog skips malformed entries instead of throwing", () => {
+    const catalog = buildThermalCatalog([
+        { dir: "thermal_zone0", type: "", device: "" },          // no type
+        { dir: "", type: "cpu-thermal", device: "" },            // no dir
+        { dir: "thermal_zone2", type: " soc-thermal ", device: "" }, // whitespace trimmed
+    ]);
+    assert.deepEqual(catalog, [
+        { id: "soc-thermal/temp", label: "soc-thermal", path: "/sys/class/thermal/thermal_zone2/temp" },
+    ]);
+    assert.deepEqual(buildThermalCatalog([]), []);
+    assert.deepEqual(buildThermalCatalog(undefined), []);
+    assert.deepEqual(buildThermalCatalog(null), []);
+});
+
+test("buildCatalog does not double-suffix a label equal to its chip name", () => {
+    // Same suppression as the thermal path: a hwmon label identical to
+    // its stem stays bare — "nvme (nvme)" would be noise.
+    const catalog = buildCatalog([
+        { dir: "hwmon2", name: "nvme", device: "", sensors: [{ input: "temp1_input", label: "nvme" }] },
+    ]);
+    assert.equal(catalog[0].label, "nvme");
 });

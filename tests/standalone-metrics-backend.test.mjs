@@ -24,6 +24,8 @@ const SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms",
 // NVML + AMD/Intel sysfs logic and the new tooltip-gated detail surface live
 // there; MetricsBackend wires the sampler and forwards its values.
 const GPU_SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms", "standalone", "GpuSampler.qml"), "utf8");
+// The sensorTemp picker probe (issue #164) — same text-guard rationale.
+const PROBE_SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms", "standalone", "HwmonTempSensors.qml"), "utf8");
 
 // Same public surface as platforms/plasma/MetricsBackend.qml.
 const PUBLIC_PROPS = ["coreValues", "loading", "availableMetrics", "availablePartitions", "defaultPartitionIds", "processSamplingActive", "topProcesses", "loadAverages", "diskIo", "diskIoSamplingActive", "topMemProcesses", "memUsedKb", "memTotalKb", "sensorTempId", "tempSensors", "sensorTempResolved", "sensorTempValue"];
@@ -308,6 +310,20 @@ test("standalone MetricsBackend bounds the hwmon enumeration to a warm-up window
     );
     assert.match(SOURCE, /_sensorEnumAttempts\+\+/, "must increment the attempt counter so the retry terminates");
     assert.match(SOURCE, /sensorProbe\.enumerate\s*\(\s*\)/, "must re-run the probe enumeration inside the window");
+});
+
+test("HwmonTempSensors falls back to /sys/class/thermal only when hwmon is empty (#164)", () => {
+    // ARM boards / VMs can register temperatures only with the thermal
+    // framework; on x86 the zones mirror hwmon chips, so the fallback
+    // walk is gated on an EMPTY hwmon catalog — mixing both would
+    // double the picker list.
+    assert.match(PROBE_SOURCE, /catalog\.length\s*===\s*0[\s\S]{0,120}_enumerateThermalZones\s*\(\s*\)/, "the thermal walk must be gated on an empty hwmon catalog");
+    assert.match(PROBE_SOURCE, /HwmonTemp\.buildThermalCatalog\s*\(/, "must defer the thermal catalog decisions to the pure module");
+    assert.match(PROBE_SOURCE, /\/sys\/class\/thermal/, "must walk /sys/class/thermal");
+    // Zones have no label file — the type is read as the name, and the
+    // device symlink disambiguates colliding types (same as hwmon).
+    assert.match(PROBE_SOURCE, /reader\.read\(\s*zone\s*\+\s*["']\/type["']\s*\)/, "must read each zone's type");
+    assert.match(PROBE_SOURCE, /reader\.readLink\(\s*zone\s*\+\s*["']\/device["']\s*\)/, "must readLink each zone's device symlink");
 });
 
 test("standalone MetricsBackend exposes removablePartitions + mountedPartitionIds for auto-show parity", () => {

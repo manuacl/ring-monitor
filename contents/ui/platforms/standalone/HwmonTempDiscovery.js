@@ -78,14 +78,17 @@ function _stemOf(id) {
 // reporting "Composite" land on distinct stems, where a bare duplicate
 // label would make the combo's text-to-id mapping take the FIRST match
 // (review finding, #167 — mirrors the Plasma TempSensorCatalog). A
-// duplicated stem-form (same label twice on ONE chip) falls back to the
-// full id, unique by construction.
+// label already EQUAL to its stem stays bare (thermal zones, whose only
+// name is the type — "acpitz (acpitz)" would be noise). A duplicated
+// stem-form (same label twice on ONE chip) falls back to the full id,
+// unique by construction.
 function _disambiguateLabels(entries) {
     var forms = [];
     var formCount = {};
     var i;
     for (i = 0; i < entries.length; i++) {
-        forms[i] = entries[i].label + " (" + _stemOf(entries[i].id) + ")";
+        var stem = _stemOf(entries[i].id);
+        forms[i] = entries[i].label === stem ? entries[i].label : entries[i].label + " (" + stem + ")";
         formCount[forms[i]] = (formCount[forms[i]] || 0) + 1;
     }
     for (i = 0; i < entries.length; i++) {
@@ -161,12 +164,63 @@ function resolveSensorPath(catalog, id) {
     return "";
 }
 
+// FALLBACK catalog from /sys/class/thermal zones — used only when hwmon
+// exposes NO temperature input at all (some ARM boards and VMs register
+// temps only with the thermal framework). On x86 the zones mirror hwmon
+// chips, so mixing both sources would double the picker list; the
+// adapter (HwmonTempSensors.enumerate) calls this only on an empty
+// hwmon catalog.
+//   zones: [{ dir: "thermal_zone3", type: "x86_pkg_temp",
+//             device: "LNXSYSTM:00" }]
+// Same stable-id grammar as hwmon: "<type>/temp", or
+// "<type>@<device>/temp" on type collision (the zone NUMBER is
+// registration-order, not persisted); a colliding type without a
+// resolvable device keeps the bare type — duplicates tolerated, first
+// match wins. Zones have no label file: the type is the name, and
+// _disambiguateLabels leaves it bare (label == stem).
+function buildThermalCatalog(zones) {
+    if (!zones || typeof zones.length !== "number")
+        return [];
+    var typeCount = {};
+    for (var i = 0; i < zones.length; i++) {
+        var t = String(zones[i].type || "");
+        if (t)
+            typeCount[t] = (typeCount[t] || 0) + 1;
+    }
+    var out = [];
+    for (i = 0; i < zones.length; i++) {
+        var z = zones[i];
+        var type = String(z.type || "").trim();
+        if (!type || !z.dir)
+            continue;
+        var stem = type;
+        var device = String(z.device || "");
+        if (typeCount[type] > 1 && device)
+            stem = type + "@" + device;
+        out.push({
+            "id": stem + "/temp",
+            "label": type,
+            "path": "/sys/class/thermal/" + z.dir + "/temp",
+        });
+    }
+    // Deterministic order (readdir is arbitrary): the id embeds type +
+    // device, so an id sort is the chip/device sort of buildCatalog.
+    out.sort(function (a, b) {
+        if (a.id < b.id) return -1;
+        if (a.id > b.id) return 1;
+        return 0;
+    });
+    _disambiguateLabels(out);
+    return out;
+}
+
 if (typeof module !== "undefined" && module.exports) {
     module.exports = {
         parseTempCelsius: parseTempCelsius,
         isTempInput: isTempInput,
         tempIndexFromInput: tempIndexFromInput,
         buildCatalog: buildCatalog,
+        buildThermalCatalog: buildThermalCatalog,
         resolveSensorPath: resolveSensorPath,
     };
 }

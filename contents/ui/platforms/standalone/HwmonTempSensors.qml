@@ -4,9 +4,10 @@ import "HwmonTempDiscovery.js" as HwmonTemp
 
 // hwmon temperature-sensor probe for the SETTINGS DIALOG, which has no
 // MetricsBackend (SettingsOnlyRoot hosts only the dialog). Enumerates
-// every hwmon temperature input once (plus on demand via enumerate())
-// and, while `active`, refreshes all readings at 2 Hz so the picker can
-// show a live value next to each candidate sensor.
+// every hwmon temperature input once (plus on demand via enumerate()),
+// falling back to /sys/class/thermal zones when hwmon has none (ARM
+// boards / VMs), and, while `active`, refreshes all readings at 2 Hz so
+// the picker can show a live value next to each candidate sensor.
 //
 // Thin I/O adapter: every decision (id grammar, collision disambiguation,
 // label fallback, sorting) lives in the pure HwmonTempDiscovery.js
@@ -80,6 +81,12 @@ Item {
             });
         }
         var catalog = HwmonTemp.buildCatalog(chips);
+        // Fallback when hwmon exposes NO temperature input: some ARM
+        // boards / VMs register temps only with the thermal framework.
+        // On x86 the zones mirror hwmon chips, so the walk runs only on
+        // an empty hwmon catalog — mixing both would double the list.
+        if (catalog.length === 0)
+            catalog = probe._enumerateThermalZones();
         var picker = [];
         for (var k = 0; k < catalog.length; k++) {
             picker.push({
@@ -89,6 +96,30 @@ Item {
         }
         probe._catalog = catalog;
         probe._tempSensors = picker;
+    }
+
+    // /sys/class/thermal walk — the fallback source when hwmon has no
+    // temperature input at all. Decisions (id grammar, collisions,
+    // sorting) live in HwmonTemp.buildThermalCatalog; here only I/O.
+    function _enumerateThermalZones() {
+        var base = "/sys/class/thermal";
+        var dirs = reader.listDir(base);
+        var zones = [];
+        for (var i = 0; i < dirs.length; i++) {
+            if (!/^thermal_zone\d+$/.test(dirs[i]))
+                continue;
+            var zone = base + "/" + dirs[i];
+            var type = reader.read(zone + "/type").trim();
+            if (!type)
+                continue;
+            var target = reader.readLink(zone + "/device");
+            zones.push({
+                "dir": dirs[i],
+                "type": type,
+                "device": target ? target.split("/").pop() : ""
+            });
+        }
+        return HwmonTemp.buildThermalCatalog(zones);
     }
 
     property var _catalog: []

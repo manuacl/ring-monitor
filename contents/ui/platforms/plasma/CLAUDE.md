@@ -235,6 +235,18 @@ restarting plasmashell, clear
 `~/.cache/{plasmashell,kcmshell6,plasmawindowed}/qmlcache/` and
 restart again. The project's `refresh-plasma-widget` skill already does this.
 
+### KCM pages are constructed at startup — defer with a zero `Timer`, not `Qt.callLater`
+
+Plasma CONSTRUCTS the KCM config pages at plasmashell startup
+("Created graphical object was not placed in the graphics scene" in
+the journal) and tears the unplaced ones down. Any `Qt.callLater`
+scheduled from those pages can then fire in a dead context (VME
+"invalid context" journal error; cost a live debug round on #167).
+Defer with a zero-interval `Timer` instead: it's destroyed with the
+object, so no post-mortem call happens, and `restart()` coalesces
+repeated triggers. Canonical: `core/SensorTempSettings.qml`'s
+`syncTimer`.
+
 ## Frame-fixed settings: hide the slider, hardcode the adapter
 
 On the Plasma desktop containment the plasmoid frame is user-dragged

@@ -73,9 +73,21 @@ ColumnLayout {
     onSensorIdChanged: sensorCombo.syncEditText()
     // Deferred: on a model change the control rewrites editText itself
     // (to the first entry's label) AFTER property-change handlers run —
-    // an immediate sync would be overwritten. Verified by live probe.
-    onAvailableSensorsChanged: Qt.callLater(sensorCombo.syncEditText)
+    // an immediate sync would be overwritten. A zero Timer, NOT
+    // Qt.callLater: Plasma constructs the config pages at startup and
+    // tears down the unplaced ones, and callLater's callable still
+    // fired in that dead context (VME "invalid context" journal error,
+    // live #167). The Timer is destroyed with the object — no
+    // post-mortem call — and restart() coalesces discovery churn.
+    onAvailableSensorsChanged: syncTimer.restart()
     Component.onCompleted: sensorCombo.syncEditText()
+
+    Timer {
+        id: syncTimer
+        interval: 0
+        repeat: false
+        onTriggered: sensorCombo.syncEditText()
+    }
 
     spacing: Kirigami.Units.smallSpacing
 
@@ -98,14 +110,6 @@ ColumnLayout {
         // a listed id shows its friendly label, anything else shows the
         // raw id.
         function syncEditText() {
-            // The deferred call (Qt.callLater on model change) can land
-            // while this instance's context is being torn down — e.g. the
-            // row's extraContent is recreated when availability flips
-            // during backend warm-up. In that dead context root's methods
-            // no longer resolve ("_labelForId is not a function", live in
-            // the KCM) — bail out instead of throwing.
-            if (typeof root._labelForId !== "function")
-                return;
             var label = root._labelForId(root.sensorId);
             var text = label.length > 0 ? label : root.sensorId;
             if (editText !== text)

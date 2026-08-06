@@ -14,28 +14,64 @@ QtObject {
         }
     }
 
-    readonly property Component cpuTempMergeToggle: Component {
-        QQC2.CheckBox {
-            text: qsTr("Merge into the CPU ring (right half)")
-            checked: root.controller.mergeCpuTemp
+    // The cpuTemp/gpuTemp rows stack the merge toggle above the custom
+    // ring-bounds editor (#164 section 5). The bounds editor stays
+    // visible regardless of the merge toggle: the range applies to the
+    // dedicated temp ring AND to the merged half-arc.
+    readonly property Component cpuTempOptions: Component {
+        Column {
+            QQC2.CheckBox {
+                text: qsTr("Merge into the CPU ring (right half)")
+                checked: root.controller.mergeCpuTemp
 
-            onClicked: {
-                root.controller.mergeCpuTemp = checked;
-                if (checked && !root.controller.isEnabled("cpu"))
-                    root.controller.setEnabled("cpu", true);
+                onClicked: {
+                    root.controller.mergeCpuTemp = checked;
+                    if (checked && !root.controller.isEnabled("cpu"))
+                        root.controller.setEnabled("cpu", true);
+                }
+            }
+
+            TempRangeSettings {
+                minC: root.controller.cpuTempMinC
+                maxC: root.controller.cpuTempMaxC
+                tempUnit: root.controller.tempUnit
+
+                onMinCEdited: function (value) {
+                    root.controller.cpuTempMinC = value;
+                }
+
+                onMaxCEdited: function (value) {
+                    root.controller.cpuTempMaxC = value;
+                }
             }
         }
     }
 
-    readonly property Component gpuTempMergeToggle: Component {
-        QQC2.CheckBox {
-            text: qsTr("Merge into the GPU ring (right half)")
-            checked: root.controller.mergeGpuTemp
+    readonly property Component gpuTempOptions: Component {
+        Column {
+            QQC2.CheckBox {
+                text: qsTr("Merge into the GPU ring (right half)")
+                checked: root.controller.mergeGpuTemp
 
-            onClicked: {
-                root.controller.mergeGpuTemp = checked;
-                if (checked && !root.controller.isEnabled("gpu"))
-                    root.controller.setEnabled("gpu", true);
+                onClicked: {
+                    root.controller.mergeGpuTemp = checked;
+                    if (checked && !root.controller.isEnabled("gpu"))
+                        root.controller.setEnabled("gpu", true);
+                }
+            }
+
+            TempRangeSettings {
+                minC: root.controller.gpuTempMinC
+                maxC: root.controller.gpuTempMaxC
+                tempUnit: root.controller.tempUnit
+
+                onMinCEdited: function (value) {
+                    root.controller.gpuTempMinC = value;
+                }
+
+                onMaxCEdited: function (value) {
+                    root.controller.gpuTempMaxC = value;
+                }
             }
         }
     }
@@ -55,6 +91,9 @@ QtObject {
             minC: root.controller.sensorTempMinC
             maxC: root.controller.sensorTempMaxC
             tempUnit: root.controller.tempUnit
+            availableSensors: root.controller.tempSensors
+            sensorResolved: root.controller.sensorTempResolved
+            sensorLiveValue: root.controller.sensorTempLive
 
             onSensorIdEdited: function (value) {
                 root.controller.sensorTempId = value;

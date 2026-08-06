@@ -26,17 +26,15 @@ MetricRow {
         if (currentMetricId === "cpu")
             return subOptions.cpuCoresToggle;
         if (currentMetricId === "cpuTemp")
-            return subOptions.cpuTempMergeToggle;
+            return subOptions.cpuTempOptions;
         if (currentMetricId === "gpuTemp")
-            return subOptions.gpuTempMergeToggle;
+            return subOptions.gpuTempOptions;
         if (currentMetricId === "disk")
             return subOptions.diskPartitionsPicker;
         if (currentMetricId === "diskIo")
             return subOptions.diskIoSplitToggle;
         if (currentMetricId === "sensorTemp")
-            // Undefined (minimal test controllers) counts as supported;
-            // only an explicit false (standalone) drops the editor.
-            return controller.sensorTempSupported !== false ? subOptions.sensorTempSettings : null;
+            return subOptions.sensorTempSettings;
         return null;
     }
 }

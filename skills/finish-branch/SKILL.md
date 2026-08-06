@@ -651,8 +651,6 @@ Skip any bullet that's not relevant — e.g. drop the qmltestrunner
 line if no `tests/qml/*.qml` exists. Do NOT list "CI green": all CI
 checks are mandatory on this repo, the merge button enforces it,
 listing it adds noise.)
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
 EOF
 )"
     pr_url=$(gh pr view --json url --jq .url)

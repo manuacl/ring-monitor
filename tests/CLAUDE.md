@@ -7,7 +7,10 @@ Two test runners cover two layers:
   load. Run via `node --test tests/*.test.mjs`.
 - **`tests/qml/tst_*.qml`** — `qmltestrunner-qt6` tests for what
   depends on the QML runtime (component rendering, model forwarding,
-  signal flow). Run via `qmltestrunner-qt6 -input tests/qml`.
+  signal flow). Run via `qmltestrunner-qt6 -input tests/qml`. Binary
+  name varies by install: `qmltestrunner-qt6` (distro package) or
+  `qmltestrunner` in Qt's own bin dir (`/usr/lib/qt6/bin/qmltestrunner`).
+  CI uses the `-qt6` name.
 
 The combined runner is `tests/run-all.sh`. Both are reproduced in CI
 (`.github/workflows/ci.yml`).

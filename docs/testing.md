@@ -49,8 +49,10 @@ Pure-logic tests for `core/*.js` modules:
 | `reorder-logic.test.mjs` | drag-to-reorder array transform (`applyMove`, `computeYShift`) |
 | `color-themes.test.mjs` | theme registry + dark/light variant resolution |
 | `sensor-picking.test.mjs` | `pickFirstReadyValue` short-circuit semantics |
+| `temp-sensor-catalog.test.mjs` | sensorTemp picker (Plasma): "(°C)" DisplayRole pre-filter, Celsius+Ready filter, duplicate-label disambiguation, stable sort |
 | `proc-stat-parser.test.mjs` | `/proc/stat` parser + percent math + SCENARIO guards (`cpu`-prefix gate, counter wraparound) |
 | `mem-info-parser.test.mjs` | `/proc/meminfo` parser + `usagePercent` (RAM) + `diskUsagePercent` (df formula) |
+| `hwmon-temp-discovery.test.mjs` | sensorTemp picker (standalone): stable hwmon id grammar (`<chip>/temp<N>`, `@<device>` on chip-name collisions), catalog build, `resolveSensorPath` |
 | `update-check.test.mjs` | semver + notification gating for the in-widget update badge |
 
 Text-level guards (Plasma adapter — `org.kde.plasma.plasmoid` /
@@ -90,6 +92,7 @@ guard can't see (binding flow, signal emission, layout):
 | `tst_MetricsBody.qml` | order CSV ↔ model, `isEnabled` / `setEnabled`, descriptions, `tempUnit` radios |
 | `tst_MetricsBodyDisk.qml` | disk-partition picker: selection CSV roundtrip, order model, stale rows, removable auto-show/opt-out |
 | `tst_SensorTempSettings.qml` | property round-trip, per-field `*Edited` signal wiring, spinbox cross-clamp |
+| `tst_TempRangeSettings.qml` | min/max SpinBox round-trip, cross-clamp, °C↔°F display conversion |
 | `tst_AppearanceBody.qml` | opacity sliders bind two-way, mode radios |
 | `tst_MainContent.qml` | ring composition + theme propagation |
 | `tst_AboutBody.qml` | version display + update-badge wiring |

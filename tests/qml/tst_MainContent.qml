@@ -1,12 +1,14 @@
 import QtQuick
 import QtTest
 import "../../contents/ui/core" as Ui
+import "../../contents/ui/core/MetricsCatalog.js" as Catalog
 
 // Tests for MainContent.qml — the portable body of the widget mounted
 // as Plasma's fullRepresentation (with no Layout.preferredWidth/Height
 // override), so its implicitWidth/Height drive the panel allocation
 // directly. Regression guard for the "horizontal strip collapses to a
-// single-ring slot" class of bug.
+// single-ring slot" class of bug. Also covers the split-mode /
+// dedicated-ring temperature bounds wiring (#164).
 
 Item {
     id: root
@@ -40,6 +42,12 @@ Item {
         property bool showCpuCores: false
         property string colorTheme: "system"
         property string colorMode: "system"
+        property int sensorTempMinC: 20
+        property int sensorTempMaxC: 60
+        property int cpuTempMinC: 30
+        property int cpuTempMaxC: 90
+        property int gpuTempMinC: 30
+        property int gpuTempMaxC: 90
         property color customColorLight: "#000000"
         property color customColorDark: "#ffffff"
         property string textColorMode: "system"
@@ -57,14 +65,19 @@ Item {
         // strip (filterByAvailable passes through). Individual tests set a
         // concrete list to exercise the drop-unavailable path.
         property var availableMetrics: null
-        function metricValue(_id) {
-            return 0;
+        // Per-id return values for metricValue / metricRawTemp; tests
+        // reassign the whole map (a property notify re-evaluates the
+        // delegate bindings that call through these).
+        property var stubValues: ({})
+        property var stubRawTemps: ({})
+        function metricValue(id) {
+            return stubValues[id] !== undefined ? stubValues[id] : 0;
         }
         function metricTempPercent(_id) {
             return 0;
         }
-        function metricRawTemp(_id) {
-            return 0;
+        function metricRawTemp(id) {
+            return stubRawTemps[id] !== undefined ? stubRawTemps[id] : 0;
         }
         // Disk-I/O surface (issue #77): a reactive snapshot + the on-screen gate
         // MainContent drives. Defaults to idle; a test mutates them.
@@ -117,6 +130,10 @@ Item {
             configStub.mergeCpuTemp = false;
             configStub.mergeGpuTemp = false;
             configStub.splitDiskIo = false;
+            configStub.cpuTempMinC = 30;
+            configStub.cpuTempMaxC = 90;
+            metricsStub.stubValues = ({});
+            metricsStub.stubRawTemps = ({});
             metricsStub.diskIoSamplingActive = false;
             metricsStub.processSamplingActive = false;
             metricsStub.memTotalKb = 0;
@@ -265,6 +282,81 @@ Item {
             metricsStub.availableMetrics = null;
             tryCompare(content, "count", 3);
             compare(content.enabledList, ["cpu", "ram", "gpu"]);
+        }
+
+        // ── Split-mode / dedicated-ring temperature bounds (#164) ────
+        //
+        // The merged cpu ring's right half-arc (splitValue) maps the raw
+        // °C through Catalog.tempToPercent with the cpuTempMinC/cpuTempMaxC
+        // config (via _tempBounds(modelData + "Temp")) — the backend's
+        // metricTempPercent only knows the catalog 30/90 defaults, so the
+        // mapping lives in MainContent. A regression to the default bounds
+        // or a wrong _tempBounds key fails silently without this guard.
+        // The dedicated cpuTemp ring's `value` uses the same bounds.
+
+        // Ring delegates are the GridLayout's only visual children
+        // (the Repeater parents them to content); find one by modelData.
+        function ringDelegateFor(id) {
+            for (var i = 0; i < content.children.length; i++) {
+                var child = content.children[i];
+                if (child.modelData === id)
+                    return child;
+            }
+            return null;
+        }
+
+        function test_split_half_arc_uses_custom_temp_bounds() {
+            configStub.enabledMetrics = "cpu,cpuTemp";
+            configStub.metricOrder = "cpu,cpuTemp";
+            configStub.mergeCpuTemp = true;
+            // Non-default bounds so the 30/90 catalog defaults give a
+            // different percent — tempToPercent(70, 40, 80) = 75 vs 66.67.
+            configStub.cpuTempMinC = 40;
+            configStub.cpuTempMaxC = 80;
+            metricsStub.stubRawTemps = ({
+                    "cpu": 70
+                });
+            tryCompare(content, "count", 1);  // cpuTemp merged into the cpu ring
+            const ring = ringDelegateFor("cpu");
+            verify(ring, "cpu ring delegate exists");
+            tryCompare(ring, "splitMode", true);
+            tryCompare(ring, "splitValue", Catalog.tempToPercent(70, 40, 80));
+            verify(ring.splitValue !== Catalog.tempToPercent(70, Catalog.TEMP_MIN_C, Catalog.TEMP_MAX_C), "splitValue must not use the catalog default bounds");
+        }
+
+        function test_split_half_arc_warmup_forces_100() {
+            // During loading every arc sweeps to 100% (the warming-up cue),
+            // including the merged temp half — bounds are irrelevant then.
+            configStub.enabledMetrics = "cpu,cpuTemp";
+            configStub.metricOrder = "cpu,cpuTemp";
+            configStub.mergeCpuTemp = true;
+            configStub.cpuTempMinC = 40;
+            configStub.cpuTempMaxC = 80;
+            metricsStub.stubRawTemps = ({
+                    "cpu": 70
+                });
+            tryCompare(content, "count", 1);
+            const ring = ringDelegateFor("cpu");
+            verify(ring, "cpu ring delegate exists");
+            metricsStub.loading = true;
+            tryCompare(ring, "splitValue", 100);
+        }
+
+        function test_dedicated_temp_ring_uses_custom_bounds() {
+            // mergeCpuTemp stays false → cpuTemp renders as its own ring,
+            // value = raw °C mapped with the same custom bounds.
+            configStub.enabledMetrics = "cpu,cpuTemp";
+            configStub.metricOrder = "cpu,cpuTemp";
+            configStub.cpuTempMinC = 40;
+            configStub.cpuTempMaxC = 80;
+            metricsStub.stubValues = ({
+                    "cpuTemp": 70
+                });
+            tryCompare(content, "count", 2);
+            const ring = ringDelegateFor("cpuTemp");
+            verify(ring, "cpuTemp ring delegate exists");
+            tryCompare(ring, "value", Catalog.tempToPercent(70, 40, 80));
+            verify(ring.value !== Catalog.tempToPercent(70, Catalog.TEMP_MIN_C, Catalog.TEMP_MAX_C), "value must not use the catalog default bounds");
         }
 
         // ── Process sampling gate: delegate-destroy-while-hovered (#70) ──

@@ -7,8 +7,9 @@ The pure-logic `.js` modules live in one of two places, by usage:
 - **`contents/ui/platforms/<p>/`** — used by only one platform, kept
   beside that platform's adapter so it isn't shipped as dead code to
   the other artifact: `platforms/standalone/` holds `ProcStatParser`,
-  `MemInfoParser`, `CpuTempDiscovery`; `platforms/plasma/` holds
-  `SensorPicking`. See the placement rule in
+  `MemInfoParser`, `CpuTempDiscovery`, `HwmonTempDiscovery`;
+  `platforms/plasma/` holds `SensorPicking`, `TempSensorCatalog`. See
+  the placement rule in
   [`../contents/ui/core/CLAUDE.md`](../contents/ui/core/CLAUDE.md)
   § "Logic in dedicated `.js` files".
 
@@ -243,6 +244,28 @@ rather than in `core/`. See
 [`plasma-isolation/plan.md`](plasma-isolation/plan.md) "PR A" for
 the broader rationale.
 
+## `TempSensorCatalog.js`
+
+Lives in `contents/ui/platforms/plasma/` — **plasma-only** (the
+standalone picker's catalog comes from `HwmonTempDiscovery.js`), same
+placement rule as `SensorPicking.js`.
+
+Pure decisions behind the sensorTemp picker's Celsius-sensor discovery
+(issue #164). The Plasma side probes in two phases — a cheap
+`SensorTreeModel` walk, then a live `Sensors.Sensor` per candidate — and
+both sides of that seam defer to this module so the logic stays
+Node-testable:
+
+| Function | Purpose |
+|---|---|
+| `UNIT_CELSIUS` | `KSysGuard::Unit::UnitCelsius` as an int (`1000`), as reported by `Sensors.Sensor.unit` — the Unit enum is not exposed to QML, so the literal is compared here. Live-probe verified (#164). |
+| `isTempCandidate(display)` | Phase-1 pre-filter: does a tree DisplayRole string look like a temperature leaf ("Composite (°C)")? The localized name carries the unit suffix; regex/group nodes don't. |
+| `disambiguationSegment(id)` | The device/chip part of a sensor id (`"lmsensors/nct6775-isa-0290/temp1"` → `"nct6775"`), bus/address tail stripped — noise in a picker label. |
+| `buildTempSensorEntries(probed)` | Phase 2: from probed candidates `[{id, name, unit, ready}]` keep the Celsius + Ready ones and shape the `[{id, label}]` picker list. Per-core CPU temps and the min/max variants are dropped as noise (the cpuTemp metric already covers them — N "Core N" rows crowded the picker, live feedback #167); the average stays. lmsensors names are driver-generic, so they ALWAYS carry the chip segment ("Composite (nvme)"); cpu/gpu names stay bare unless they collide ("GPU (gpu0)"), with the full id as last resort. Sorted locale-aware by label then id so the picker order is stable across discovery refreshes. |
+
+Covered by `tests/temp-sensor-catalog.test.mjs`. The QML adapter running
+the two phases is `platforms/plasma/TempSensorDiscovery.qml`.
+
 ## `MountInfo.js`
 
 Lives in `contents/ui/platforms/plasma/` — it's **plasma-only** (the
@@ -375,6 +398,35 @@ on many ARM SBCs / VMs lives only in the thermal framework).
 Covered by `tests/cpu-temp-discovery.test.mjs` (includes a real-layout
 scenario: `coretemp` / `Package id 0` chosen over nvme / chipset / wmi
 / battery hwmons).
+
+## `HwmonTempDiscovery.js`
+
+Standalone-only (in `platforms/standalone/`, beside the adapter — same
+placement rationale as `CpuTempDiscovery.js`). Custom hardware
+temperature discovery for the sensorTemp metric (issue #164): enumerates
+EVERY hwmon temperature input — not just the CPU one, which stays
+`CpuTempDiscovery.js`'s job — and gives each a STABLE id the settings
+dialog can persist and the backend can resolve back to the current-boot
+sysfs path at runtime.
+
+The id grammar never contains `hwmonN` (allocation-order, changes across
+boots): `<chipName>/temp<N>` (e.g. `"nvme/temp1"`), or
+`<chipName>@<device>/temp<N>` when two hwmon dirs share a chip name
+(`<device>` = basename of the hwmon `device` symlink target, e.g.
+`"0000:04:00.0"`). Each runtime enumeration rebuilds the id →
+current-path map; only the id is stable enough to persist.
+
+| Function | Purpose |
+|---|---|
+| `buildCatalog(chips)` | From enumerated raw data `[{dir, name, device, sensors: [{input, label}]}]` → `[{id, label, path}]`, sorted chip-name then numeric sensor index. `path` embeds `hwmonN` (current boot only — resolve at runtime, never persist); a missing `tempN_label` falls back to the bare `tempN`. Sensorless chips still count for name-collision detection, so an id doesn't change shape when a sensor appears after a late modprobe. Every label carries the chip stem — `Composite (nvme)`, `Tctl (k10temp)` — because the raw sysfs names are too generic to pick from; a duplicated stem-form (same label twice on ONE chip) falls back to the full id. |
+| `resolveSensorPath(catalog, id)` | Persisted id → current-boot sysfs path, or `""` when the id isn't in the catalog (sensor gone, or enumeration hasn't run yet). |
+| `buildThermalCatalog(zones)` | Catalog from `/sys/class/thermal` zones, UNIONED with the hwmon one after `filterMirroredZones` drops the zones a chip already exposes (`HwmonTempSensors.enumerate()` always walks both). Same grammar: `<type>/temp`, `<type>@<device>/temp` on type collision; a colliding type with NO resolvable device falls back to `<type>@<zone-dir>/temp` — the zone number is registration-order (unstable), but a duplicated id is strictly worse (the picker's text→id first-match would make the twin unreachable). Zones have no label file — the type is the name, left bare (no redundant `acpitz (acpitz)` stem suffix). |
+| `filterMirroredZones(chips, zones)` | Drops the thermal zones a hwmon chip already exposes: the kernel links a thermal-backed chip to its zone through the `device` symlink (basename == zone dir, e.g. `hwmon0 acpitz_0` → `thermal_zone0`). Keeps everything when `chips` is empty (ARM boards / VMs whose temps live only in the thermal framework — the union then equals the full thermal catalog); a chip with an unresolvable device symlink never mirrors. |
+| `parseTempCelsius` / `isTempInput` / `tempIndexFromInput` | Verbatim copies of the `CpuTempDiscovery.js` one-liners — dual-loaded modules can't import each other (QML's `.import` is a syntax error under Node `require`), the same duplication `GpuDiscovery.js` already carries. |
+
+Covered by `tests/hwmon-temp-discovery.test.mjs`. The QML probe adapter
+is `platforms/standalone/HwmonTempSensors.qml` (sysfs walk through
+`ProcReader`, incl. the `readLink` of the `device` symlink).
 
 ## `GpuDiscovery.js`
 

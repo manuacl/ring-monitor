@@ -50,3 +50,31 @@ test("configMetrics gates the destructive stale-row action on the adapter's read
         "partitionsReady must come from the adapter so the trash action can't race incremental discovery",
     );
 });
+
+test("configMetrics turns on Celsius-sensor discovery while the dialog is open (#164)", () => {
+    // The sensorTemp picker needs the discovered list; the panel widget
+    // never sets this gate, so probing happens only while the KCM is up.
+    assert.match(
+        SRC,
+        /MetricsBackend\s*{[\s\S]*?tempSensorDiscoveryActive\s*:\s*true/,
+        "the config MetricsBackend must set tempSensorDiscoveryActive: true",
+    );
+});
+
+test("configMetrics feeds the sensorTemp picker and live validation from the adapter (#164)", () => {
+    assert.match(
+        SRC,
+        /tempSensors\s*:\s*metricsAdapter\.tempSensors/,
+        "MetricsBody.tempSensors must come from metricsAdapter.tempSensors",
+    );
+    assert.match(
+        SRC,
+        /sensorTempResolved\s*:\s*metricsAdapter\.sensorTempResolved/,
+        "MetricsBody.sensorTempResolved must come from metricsAdapter.sensorTempResolved",
+    );
+    assert.match(
+        SRC,
+        /sensorTempLive\s*:\s*metricsAdapter\.sensorTempValue/,
+        "MetricsBody.sensorTempLive must come from metricsAdapter.sensorTempValue",
+    );
+});

@@ -77,6 +77,25 @@ QStringList ProcReader::listDir(const QString &path) const
     return dir.entryList(QDir::AllEntries | QDir::NoDotAndDotDot);
 }
 
+QString ProcReader::readLink(const QString &path) const
+{
+    // Same allowlist + cleanPath rationale as read()/listDir() — a
+    // dev-time sanity check, not a privilege boundary (the target name
+    // is the same information `ls -l` shows any user).
+    const QString cleaned = QDir::cleanPath(path);
+    if (!cleaned.startsWith(QStringLiteral("/proc/")) &&
+        !cleaned.startsWith(QStringLiteral("/sys/"))) {
+        qWarning() << "ProcReader::readLink refused path outside /proc/ or "
+                      "/sys/ allowlist (after cleanPath):"
+                   << path;
+        return {};
+    }
+    const QFileInfo info(cleaned);
+    if (!info.isSymLink())
+        return {};
+    return info.symLinkTarget();
+}
+
 // The blocking syscall, factored out as a free function so the async
 // worker thread can call it without dereferencing the (possibly
 // destroyed) ProcReader. It touches no member state, so it's safe to

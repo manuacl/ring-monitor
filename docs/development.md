@@ -238,7 +238,7 @@ Bazzite, then reboot):
 | `qmllint` | ESLint | configurable via `.qmllint.ini` |
 | `qmlformat` | Prettier | opinionated, in-place formatter |
 | `qmlls` | LSP server | autocomplete/diagnostics for editors |
-| `qmltestrunner` | Jest-ish | QML-side unit tests (we don't use it — we test pure JS via Node) |
+| `qmltestrunner` | Jest-ish | QML-side unit tests — runs `tests/qml/tst_*.qml` (binary name varies: `qmltestrunner-qt6` or Qt-bin `qmltestrunner`, see tests/CLAUDE.md) |
 
 ## Installing the widget elsewhere
 

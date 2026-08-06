@@ -85,8 +85,12 @@ Window {
         }
         // Re-enumerate filesystems each time the dialog opens so a disk
         // plugged since the last open shows up in the partition picker.
-        if (dialog.visible)
+        // Same for the temp-sensor picker: a late-modprobed hwmon driver
+        // must not stay invisible until the next app start (review #164).
+        if (dialog.visible) {
             dialog._refreshDiskPartitions();
+            tempProbe.enumerate();
+        }
     }
 
     Component.onCompleted: dialog._wireBridges()
@@ -97,6 +101,13 @@ Window {
     // aren't needed here — only the selectable list.
     ProcReader {
         id: partitionReader
+    }
+
+    // sensorTemp picker source (issue #164): own probe, no backend here —
+    // active (2 Hz readings) only while the dialog is on screen.
+    HwmonTempSensors {
+        id: tempProbe
+        active: dialog.visible
     }
     property var _diskPartitions: []
     // Currently-mounted removable filesystems ([{id,label}]) — the auto-show set
@@ -217,11 +228,14 @@ Window {
                     removablePartitions: dialog._removablePartitions
                     defaultPartitionIds: dialog._defaultPartitionIds
                     availableMetrics: dialog.availableMetrics
-                    // Standalone has no ksysguard — sensorTemp can never
-                    // resolve here (the backend hard-gates it), so don't
-                    // render its settings editor at all (issue #164 will
-                    // re-enable it with the hwmon port).
-                    sensorTempSupported: false
+                    // sensorTemp picker data (issue #164 hwmon port): the
+                    // dialog has no backend, so its own probe enumerates the
+                    // sensors; 2 Hz readings run only while visible.
+                    // valueFor() reads the probe's tick → these bindings
+                    // stay live; an unread/unknown id is NaN → "not found".
+                    tempSensors: tempProbe.tempSensors
+                    sensorTempResolved: isFinite(tempProbe.valueFor(metricsBody.sensorTempId))
+                    sensorTempLive: tempProbe.valueFor(metricsBody.sensorTempId)
                     // Standalone discovery (_refreshDiskPartitions) is synchronous
                     // and complete in one shot — no incremental enumeration, so
                     // discovery is trustworthy immediately (no debounce needed).
@@ -313,7 +327,7 @@ Window {
     // were pulled last (issue #132 staging seam).
     readonly property var _bridgeMap: [
         // MetricsBody
-        [metricsBody, "metricOrderCsv", "metricOrder"], [metricsBody, "enabledMetricsCsv", "enabledMetrics"], [metricsBody, "enabledPartitionsCsv", "enabledPartitions"], [metricsBody, "partitionOrderCsv", "partitionOrder"], [metricsBody, "partitionLabelsJson", "partitionLabels"], [metricsBody, "partitionOptOutCsv", "partitionOptOut"], [metricsBody, "partitionColorsJson", "diskPartitionColors"], [metricsBody, "showCpuCores", "showCpuCores"], [metricsBody, "mergeCpuTemp", "mergeCpuTemp"], [metricsBody, "mergeGpuTemp", "mergeGpuTemp"], [metricsBody, "splitDiskIo", "splitDiskIo"], [metricsBody, "tempUnit", "tempUnit"], [metricsBody, "sensorTempId", "sensorTempId"], [metricsBody, "sensorTempLabel", "sensorTempLabel"], [metricsBody, "sensorTempMinC", "sensorTempMinC"], [metricsBody, "sensorTempMaxC", "sensorTempMaxC"],
+        [metricsBody, "metricOrderCsv", "metricOrder"], [metricsBody, "enabledMetricsCsv", "enabledMetrics"], [metricsBody, "enabledPartitionsCsv", "enabledPartitions"], [metricsBody, "partitionOrderCsv", "partitionOrder"], [metricsBody, "partitionLabelsJson", "partitionLabels"], [metricsBody, "partitionOptOutCsv", "partitionOptOut"], [metricsBody, "partitionColorsJson", "diskPartitionColors"], [metricsBody, "showCpuCores", "showCpuCores"], [metricsBody, "mergeCpuTemp", "mergeCpuTemp"], [metricsBody, "mergeGpuTemp", "mergeGpuTemp"], [metricsBody, "splitDiskIo", "splitDiskIo"], [metricsBody, "tempUnit", "tempUnit"], [metricsBody, "sensorTempId", "sensorTempId"], [metricsBody, "sensorTempLabel", "sensorTempLabel"], [metricsBody, "sensorTempMinC", "sensorTempMinC"], [metricsBody, "sensorTempMaxC", "sensorTempMaxC"], [metricsBody, "cpuTempMinC", "cpuTempMinC"], [metricsBody, "cpuTempMaxC", "cpuTempMaxC"], [metricsBody, "gpuTempMinC", "gpuTempMinC"], [metricsBody, "gpuTempMaxC", "gpuTempMaxC"],
         // AppearanceBody
         [appearanceBody, "orientation", "orientation"], [appearanceBody, "ringSize", "ringSize"], [appearanceBody, "ringSpacingPercent", "ringSpacingPercent"], [appearanceBody, "windowAnchorCorner", "windowAnchorCorner"], [appearanceBody, "windowMarginX", "windowMarginX"], [appearanceBody, "windowMarginY", "windowMarginY"], [appearanceBody, "windowScreen", "windowScreen"], [appearanceBody, "textOpacity", "textOpacity"], [appearanceBody, "trackOpacity", "trackOpacity"], [appearanceBody, "arcOpacity", "arcOpacity"], [appearanceBody, "colorTheme", "colorTheme"], [appearanceBody, "colorMode", "colorMode"], [appearanceBody, "customColorLight", "customColorLight"], [appearanceBody, "customColorDark", "customColorDark"], [appearanceBody, "textColorMode", "textColorMode"], [appearanceBody, "customTextColorLight", "customTextColorLight"], [appearanceBody, "customTextColorDark", "customTextColorDark"]]
 

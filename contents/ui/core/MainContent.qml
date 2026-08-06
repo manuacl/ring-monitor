@@ -81,6 +81,21 @@ GridLayout {
     // every ring uses the same unit.
     readonly property string _tempMode: Catalog.resolveTempMode(content.configStore.tempUnit, Qt.locale().measurementSystem)
 
+    // Per-metric ring bounds (°C) from config (#164 section 5): the sweep
+    // maps [min, max] onto empty→full for the dedicated temp ring AND the
+    // merged half-arc. Unknown ids fall back to the catalog defaults.
+    function _tempBounds(id) {
+        if (id !== "cpuTemp" && id !== "gpuTemp" && id !== "sensorTemp")
+            return {
+                "min": Catalog.TEMP_MIN_C,
+                "max": Catalog.TEMP_MAX_C
+            };
+        return {
+            "min": content.configStore[id + "MinC"],
+            "max": content.configStore[id + "MaxC"]
+        };
+    }
+
     // Effective light/dark, resolved once at this layer from the
     // user's colorMode (auto/light/dark) against the live theme.
     // Both the ring-color and text-color bindings on every delegate
@@ -256,11 +271,8 @@ GridLayout {
                 if (_isDisk && _diskValues.length > 0)
                     return 0;
                 if (_isTemp) {
-                    if (modelData === "sensorTemp") {
-                        return Catalog.tempToPercent(_rawTempC, content.configStore.sensorTempMinC, content.configStore.sensorTempMaxC);
-                    }
-
-                    return Catalog.tempToPercent(_rawTempC);
+                    var bounds = content._tempBounds(modelData);
+                    return Catalog.tempToPercent(_rawTempC, bounds.min, bounds.max);
                 }
                 // diskIo arc: left/read half in split mode, else the combined
                 // sweep. The right/write half is splitValue below.
@@ -305,7 +317,15 @@ GridLayout {
                     return 100;
                 if (_diskIoSplit)
                     return _io ? _io.writePercent : 0;
-                return _splitOn ? content.metrics.metricTempPercent(modelData) : 0;
+                // The merged temp half-arc maps the raw °C with the temp
+                // metric's configured bounds — the backend's
+                // metricTempPercent only knows the catalog defaults, so
+                // the mapping is done here (modelData is the base id).
+                if (_splitOn) {
+                    var bounds = content._tempBounds(modelData + "Temp");
+                    return Catalog.tempToPercent(content.metrics.metricRawTemp(modelData), bounds.min, bounds.max);
+                }
+                return 0;
             }
             splitRawValue: !content.metrics.loading && _splitOn && _tempInfo ? _tempInfo.value : 0
             splitUnit: {

@@ -33,6 +33,10 @@ Settings {
     property string sensorTempLabel: "SENSOR"
     property int sensorTempMinC: 20
     property int sensorTempMaxC: 60
+    property int cpuTempMinC: 30
+    property int cpuTempMaxC: 90
+    property int gpuTempMinC: 30
+    property int gpuTempMaxC: 90
     // Selected disk partition ids (empty = the backend's default, i.e. the
     // $HOME-bearing filesystem on standalone).
     property string enabledPartitions: ""

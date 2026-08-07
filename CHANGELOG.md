@@ -12,6 +12,10 @@ user-facing only.
 
 ## [Unreleased]
 
+### Other
+
+- ci: the `qmlformat is a no-op` gate now reports every dirty file in a single run (accumulate-then-exit, same pattern as the file-size gate) instead of exiting on the first one — plus a comment noting the local qmlformat may be newer than the Fedora 41 container's, so a locally-clean tree is not sufficient proof (#161).
+
 ## [0.16.0] — 2026-08-06
 
 ### Added

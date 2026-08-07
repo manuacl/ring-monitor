@@ -176,16 +176,22 @@ jobs:
       - name: qmllint (source + tests)
         run: qmllint-qt6 contents/ui/*.qml contents/ui/core/*.qml contents/ui/platforms/plasma/*.qml contents/ui/platforms/standalone/*.qml tests/qml/*.qml
 
+      # Accumulate-then-exit (like the file-size gate): report EVERY dirty
+      # file in one run instead of failing on the first. Note: the local
+      # qmlformat may be newer than this container's (Fedora 41), so a
+      # locally-clean tree is necessary but not sufficient.
       - name: qmlformat is a no-op (committed files match qmlformat output)
         run: |
+          status=0
           for f in contents/ui/*.qml contents/ui/core/*.qml contents/ui/platforms/plasma/*.qml contents/ui/platforms/standalone/*.qml; do
             if ! diff -q "$f" <(qmlformat-qt6 "$f") > /dev/null; then
               echo "::error file=$f::qmlformat would reformat this file — run qmlformat-qt6 --inplace locally and recommit"
               echo "--- diff ---"
               diff -u "$f" <(qmlformat-qt6 "$f") || true
-              exit 1
+              status=1
             fi
           done
+          exit $status
 
       - name: QML tests (qmltestrunner, headless)
         env:

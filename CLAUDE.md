@@ -145,6 +145,14 @@ editing.
   several*, or in `docs/development.md` documenting the maintainer's actual
   dev box. Same "runs on any Linux" spirit as the no-absolute-paths rule
   above.
+- **CHANGELOG entries land under `## [Unreleased]` — recheck after a
+  rebase/stash-pop across a release bump.** A version-bump commit empties
+  `[Unreleased]`; an entry written on the pre-bump tree then auto-merges
+  *silently into the just-released `## [X.Y.Z]` section* (the merge
+  "succeeds"), where it rots instead of heading the next release. After
+  any rebase or stash-pop that crosses a `chore: bump version` commit,
+  eyeball the entry's placement before committing. Hit for real on
+  PR #168.
 
 ## Design principles (SOLID, QML-adapted)
 

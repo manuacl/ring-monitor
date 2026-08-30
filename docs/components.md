@@ -1038,6 +1038,19 @@ tick as a dependency so they re-evaluate on every tick — yielding
 the same animation pipeline as the previous static-binding model
 without the hardcoded count assumption.
 
+**Why `availableMetrics` reads the gpu ticks first**: the readiness
+helpers `_gpuUsageReady()` and `_gpuTempReady()` walk the
+`gpuUsageInstantiator` / `gpuTempInstantiator` delegates directly.
+QML tracks only the properties read at initial evaluation of a binding —
+a plain `for (i) { inst.objectAt(i).status }` loop does not re-evaluate
+when a delegate's `.status` changes after the loop was first set up.
+Reading `backend._gpuUsageTick` / `backend._gpuTempTick` as the first
+lines in the `availableMetrics` expression makes them tracked
+dependencies, so every tick bump (onStatusChanged in the delegate)
+triggers a full re-evaluation of the map. The universal sensors'
+`.status` reads below need no tick because `Sensor.status` carries a
+NOTIFY signal that QML's binding engine tracks directly.
+
 The standalone build ships a parallel
 `platforms/standalone/MetricsBackend.qml` exposing the same public
 surface, backed by direct kernel reads through the `ProcReader` /
@@ -1330,6 +1343,68 @@ stored value, so `gpuDetail()` returns stable values between ticks. NVIDIA
 Text-guarded by `tests/standalone-metrics-backend.test.mjs` (the "GpuSampler
 wires AMD/Intel GPU via GpuDiscovery sysfs" and "NVIDIA GPU via GpuSampler"
 test blocks, alongside the MetricsBackend wiring guards).
+
+### `BatterySampler.qml` (one per platform)
+
+The battery-ring source (issue #94). There are **two** —
+`platforms/plasma/BatterySampler.qml` (ksysguard, the
+`org.kde.ksysguard.sensors` import keeps it out of `core/`) and
+`platforms/standalone/BatterySampler.qml` (`/sys/class/power_supply/BAT*`
+via the injected `ProcReader` +
+[`BatteryStatus.js`](logic-modules.md#batterystatusjs)) — each
+instantiated by its `MetricsBackend`. Both feed the shared
+[`BatteryAggregate.js`](logic-modules.md#batteryaggregatejs) and expose the
+**same** `battery` surface, so `MainContent` renders either unchanged. The
+standalone one was extracted (not left inline in `MetricsBackend._sample()`)
+to mirror the Plasma shape and keep the at-cap standalone backend lean.
+
+**Plasma — why a `SensorTreeModel` walk**: ksysguard keys batteries by a UDI
+tail (`power/<udi>/chargePercentage`), not a fixed `BAT0`/`BAT1` index, and
+there is **no** `power/all/chargePercentage` aggregate. So the sampler
+enumerates `power/*/chargePercentage` leaves from the tree (re-walked on
+`rowsInserted` / `rowsRemoved` / `modelReset`), then spawns **one
+`Instantiator`** whose per-battery delegate holds both the percent and the
+charge-rate `Sensor`. (One Instantiator, not two zipped by index: two
+parallel ones can differ in `count` mid model-change and drop a
+valid-percent battery for a frame.)
+
+**Standalone — cached discovery**: the battery dir set and each battery's
+capacity weight (`energy_full`/`charge_full` — design capacity, drifts on a
+wear timescale of months) are resolved once (bounded warm-up re-list while
+none found, then settles — the CpuTemp/GpuSampler discipline), so the 2 Hz
+`sample()` reads only the live `capacity` + `status` files. A battery-less
+desktop never re-lists after the warm-up window. `available` is a **scalar**
+written only on change, so the backend's `availableMetrics` binding doesn't
+get a fresh object every poll and rebuild the ring strip at 2 Hz.
+
+| Member | Description |
+|---|---|
+| `battery` (readonly property var) | `{ percent: 0–100, charging: bool, available: bool }` from `BatteryAggregate.aggregate()`. `available:false` on a desktop (no discovered batteries) hides the ring via the #52 availability interface. Plasma reads `_tick` first (Instantiator tick-counter pattern); standalone reassigns the object each `sample()`. |
+| `available` (readonly bool, standalone) | Change-gated mirror of `battery.available` for the `availableMetrics` map (see above). |
+| `sample()` (standalone) | Per-tick work; the backend's 500 ms Timer calls it (same pattern as `GpuSampler`). |
+
+**Charging cue — computed, not yet rendered.** Both adapters resolve
+`charging` to the same thing (a plugged-in battery, charging **or** full, is
+charging), but no ring currently draws it: the opacity dim was removed
+because `0.55` is exactly `Ring.qml`'s `arcOpacityFactor` for subordinate
+nested arcs, so a discharging battery read as a sub-ring. A charge glyph
+beside the centre readout replaces it — see
+[`battery-ring/spec.md`](battery-ring/spec.md) § 3.4.
+
+The two hosts derive `charging` from different data because ksysguard
+exposes **no** charge-state enum and **no** AC-online sensor (ksystemstats
+`power.cpp` only wraps `Solid::Battery`): Plasma reads `chargeRate` and
+treats `rate >= 0` as charging, matching standalone's `status="Full"` →
+charging. That heuristic is itself scheduled for replacement by the
+`org.kde.plasma.powermanagement` DataEngine — `Solid::Battery::chargeRate()`
+comes from UPower's `fabs()`-normalised `EnergyRate`, so the sign it assumes
+may not exist (spec § 3.3).
+
+Text-guarded by `tests/metrics-backend.test.mjs` (Plasma: the single-Instantiator
++ `SensorTreeModel`-walk + tick-counter + `aggregate()` wiring + the `rate >= 0`
+charging SCENARIO) and `tests/standalone-metrics-backend.test.mjs` (standalone:
+delegation to the child, the change-gated `available`, cached discovery, sysfs
+reads); the pure fold is covered in Node by `tests/battery-aggregate.test.mjs`.
 
 ## Update-notification flow
 

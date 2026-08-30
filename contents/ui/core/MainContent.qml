@@ -208,6 +208,8 @@ GridLayout {
             readonly property bool _isDiskIo: Catalog.isRateMetric(modelData)
             readonly property bool _diskIoSplit: _isDiskIo && content.configStore.splitDiskIo
             readonly property var _io: _isDiskIo ? (content.metrics.diskIo || null) : null
+            readonly property bool _isBattery: Catalog.isBatteryMetric(modelData)
+            readonly property var _battery: _isBattery ? (content.metrics.battery || null) : null
             // Disk multi-partition: one equal-thickness ring per selected
             // filesystem, centre = their average. Empty when not the disk
             // ring or when nothing resolved (→ aggregate single ring via the

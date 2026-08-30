@@ -27,7 +27,8 @@ var METRIC_IDS = [
     "gpuTemp",
     "disk",
     "diskIo",
-    "sensorTemp"
+    "sensorTemp",
+    "battery"
 ];
 
 var METRIC_LABELS = {
@@ -40,6 +41,7 @@ var METRIC_LABELS = {
     disk: "DISKS",
     diskIo: "DISK IO",
     sensorTemp: "SENSOR",
+    battery: "BAT",
 };
 
 // METRIC_SENSOR_IDS maps the catalog id to its ksysguard sensor. For
@@ -77,6 +79,14 @@ var RATE_METRIC_IDS = { diskIo: true };
 
 function isRateMetric(id) {
     return RATE_METRIC_IDS[id] === true;
+}
+
+// Battery has no ksysguard sensor id, is not a temperature or rate metric.
+// Its value is supplied by a backend accessor (like diskIo), and is
+// availability-gated — absent on desktops without a battery. Not added to
+// any default-enabled list: the backend controls whether it appears.
+function isBatteryMetric(id) {
+    return id === "battery";
 }
 
 // Optional temperature sensors per metric. ksysguard exposes
@@ -352,6 +362,7 @@ if (typeof module !== "undefined" && module.exports) {
         isTempMetric: isTempMetric,
         RATE_METRIC_IDS: RATE_METRIC_IDS,
         isRateMetric: isRateMetric,
+        isBatteryMetric: isBatteryMetric,
         mergeWithCatalog: mergeWithCatalog,
         applyMergedTempMode: applyMergedTempMode,
         classifyDiscoveredIds: classifyDiscoveredIds,

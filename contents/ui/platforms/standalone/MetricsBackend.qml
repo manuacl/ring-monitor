@@ -71,12 +71,13 @@ Item {
         "gpu": gpuSampler.available,
         "gpuTemp": gpuSampler.tempAvailable && isFinite(gpuSampler.tempC),
         "disk": true,
-        // /proc/diskstats always exists (no-op until the diskIo UI PR adds the catalog id).
+        // /proc/diskstats always exists.
         "diskIo": true,
         // sensorTemp = the user-configured custom hardware sensor (#164):
         // available once the configured id is set AND resolved to a live
         // sysfs path with a finite reading (the sensorTempResolved gate).
-        "sensorTemp": backend.sensorTempId.length > 0 && backend.sensorTempResolved
+        "sensorTemp": backend.sensorTempId.length > 0 && backend.sensorTempResolved,
+        "battery": batterySampler.available
     })
 
     // ── Custom hardware temperature (sensorTemp, #164) ──────────────
@@ -121,6 +122,8 @@ Item {
             return backend._coerceTemp(gpuSampler.tempC);
         if (id === "sensorTemp")
             return backend._coerceTemp(backend._sensorTempC);
+        if (id === "battery")
+            return batterySampler.battery.percent;
         return 0;
     }
 
@@ -159,6 +162,16 @@ Item {
 
     ProcessSampler {
         id: processSampler
+    }
+
+    // ── Battery (laptop /sys/class/power_supply/BAT*/) ──────────────
+    // Discovery + aggregation live in BatterySampler (mirrors the Plasma
+    // adapter); available=false on desktops. batterySampler.sample() is driven
+    // by the _sample() Timer below, same as gpuSampler.
+    readonly property var battery: batterySampler.battery
+    BatterySampler {
+        id: batterySampler
+        reader: reader
     }
 
     // ── Disk I/O throughput ring (issue #77) ─────────────────────────
@@ -324,62 +337,11 @@ Item {
         backend._sensorTempC = NaN;
     }
 
-    // Walk /sys/class/hwmon, then fall back to /sys/class/thermal, and
-    // return the sysfs file to read each tick — or "" if none. All the
-    // "which entry is the CPU" decisions are the pure CpuTempDiscovery
-    // helpers; this function is just the I/O glue around them.
-    function _resolveCpuTempPath() {
-        var fromHwmon = _resolveFromHwmon();
-        if (fromHwmon)
-            return fromHwmon;
-        return _resolveFromThermalZones();
-    }
-
-    function _resolveFromHwmon() {
-        var base = "/sys/class/hwmon";
-        var dirs = reader.listDir(base);
-        var entries = [];
-        for (var i = 0; i < dirs.length; i++) {
-            var name = reader.read(base + "/" + dirs[i] + "/name").trim();
-            if (name)
-                entries.push({
-                    "dir": dirs[i],
-                    "name": name
-                });
-        }
-        var cpuDir = CpuTemp.pickCpuHwmonDir(entries);
-        if (!cpuDir)
-            return "";
-        var chip = base + "/" + cpuDir;
-        var files = reader.listDir(chip);
-        var sensors = [];
-        for (var j = 0; j < files.length; j++) {
-            if (!CpuTemp.isTempInput(files[j]))
-                continue;
-            var labelFile = files[j].replace("_input", "_label");
-            sensors.push({
-                "input": files[j],
-                "label": reader.read(chip + "/" + labelFile).trim()
-            });
-        }
-        var input = CpuTemp.pickCpuTempInput(sensors);
-        return input ? chip + "/" + input : "";
-    }
-
-    function _resolveFromThermalZones() {
-        var base = "/sys/class/thermal";
-        var dirs = reader.listDir(base);
-        var zones = [];
-        for (var i = 0; i < dirs.length; i++) {
-            if (!/^thermal_zone\d+$/.test(dirs[i]))
-                continue;
-            zones.push({
-                "dir": dirs[i],
-                "type": reader.read(base + "/" + dirs[i] + "/type").trim()
-            });
-        }
-        var zone = CpuTemp.pickCpuThermalZone(zones);
-        return zone ? base + "/" + zone + "/temp" : "";
+    // Walking /sys for the CPU sensor lives in its own adapter (500-line
+    // cap); the bounded warm-up retry stays here, with the tick that owns it.
+    CpuTempPath {
+        id: cpuTempPath
+        reader: reader
     }
 
     // Rebuild the partition list from /proc/mounts. Cheap string compare
@@ -453,7 +415,7 @@ Item {
         // _sample at startup, so no separate Component.onCompleted.)
         if (!backend._cpuTempPath && backend._cpuTempResolveAttempts < backend._cpuTempMaxResolveAttempts) {
             backend._cpuTempResolveAttempts++;
-            backend._cpuTempPath = backend._resolveCpuTempPath();
+            backend._cpuTempPath = cpuTempPath.resolve();
         }
         if (backend._cpuTempPath)
             backend._cpuTempC = CpuTemp.parseTempCelsius(reader.read(backend._cpuTempPath));
@@ -477,6 +439,8 @@ Item {
         // the results through gpuSampler.usage / .tempC / .available /
         // .tempAvailable — all updated synchronously inside sample().
         gpuSampler.sample();
+        // ── Battery: delegated to BatterySampler child (cached discovery) ──
+        batterySampler.sample();
         // Bump _tick last so all readonly properties depending on it
         // re-evaluate together after every metric has its fresh value.
         backend._tick++;

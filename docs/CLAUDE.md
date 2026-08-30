@@ -35,6 +35,10 @@ walkthrough explanations, file inventories, and refactor plans.
 - [`plasma-isolation/plan.md`](plasma-isolation/plan.md) — active
   multi-PR refactor isolating Plasma deps behind the
   `platforms/plasma/` adapter layer.
+- [`battery-ring/spec.md`](battery-ring/spec.md) — scoping spec for the
+  battery ring (#94 / PR #158). Working document: delete it when the PR
+  merges, moving the durable parts into `components.md` and
+  `logic-modules.md`.
 
 ## Rules for editing docs
 

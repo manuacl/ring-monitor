@@ -143,6 +143,7 @@ qt_add_qml_module(ring-monitor-standalone
         contents/ui/platforms/standalone/GpuSampler.qml
         contents/ui/platforms/standalone/DiskIoSampler.qml
         contents/ui/platforms/standalone/HwmonTempSensors.qml
+        contents/ui/platforms/standalone/CpuTempPath.qml
         contents/ui/platforms/standalone/HwmonTempDiscovery.js
         contents/ui/core/Ring.qml
         contents/ui/core/ConcentricArc.qml

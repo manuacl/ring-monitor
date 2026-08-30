@@ -26,6 +26,7 @@ const SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms",
 const GPU_SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms", "standalone", "GpuSampler.qml"), "utf8");
 // The sensorTemp picker probe (issue #164) — same text-guard rationale.
 const PROBE_SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms", "standalone", "HwmonTempSensors.qml"), "utf8");
+const CPU_TEMP_PATH_SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms", "standalone", "CpuTempPath.qml"), "utf8");
 
 // Same public surface as platforms/plasma/MetricsBackend.qml.
 const PUBLIC_PROPS = ["coreValues", "loading", "availableMetrics", "availablePartitions", "defaultPartitionIds", "processSamplingActive", "topProcesses", "loadAverages", "diskIo", "diskIoSamplingActive", "topMemProcesses", "memUsedKb", "memTotalKb", "sensorTempId", "tempSensors", "sensorTempResolved", "sensorTempValue"];
@@ -144,18 +145,27 @@ test("standalone MetricsBackend routes swap through metricValue (not hardcoded 0
     assert.match(SOURCE, /_swapUsage\s*=\s*MemInfoParser\.usagePercent\(\s*mem\.swapTotal\s*,\s*mem\.swapFree\s*\)/, "must compute swap usage from the parsed SwapTotal/SwapFree");
 });
 
-test("standalone MetricsBackend wires CPU temperature via CpuTempDiscovery", () => {
-    // CPU temp has no fixed sysfs path — the backend enumerates
+test("standalone MetricsBackend wires CPU temperature via CpuTempPath", () => {
+    // The sysfs walk lives in the CpuTempPath child (500-line cap); the
+    // backend owns the bounded warm-up retry and the per-tick parse.
+    assert.match(SOURCE, /import\s+["']CpuTempDiscovery\.js["']\s+as\s+CpuTemp/, "must import the same-dir CpuTempDiscovery module (platforms/standalone/)");
+    assert.match(SOURCE, /CpuTempPath\s*{[\s\S]*?id:\s*cpuTempPath/, "must instantiate the CpuTempPath child");
+    assert.match(SOURCE, /cpuTempPath\.resolve\s*\(\)/, "must resolve the sysfs path through the child");
+    assert.match(SOURCE, /CpuTemp\.parseTempCelsius\s*\(/, "must parse the millidegrees reading via the pure helper");
+});
+
+test("CpuTempPath enumerates sysfs and defers every CPU decision to the pure module", () => {
+    // CPU temp has no fixed sysfs path — the resolver enumerates
     // /sys/class/hwmon (+ /sys/class/thermal fallback) and delegates
     // the "which entry is the CPU" decision to the pure module.
-    assert.match(SOURCE, /import\s+["']CpuTempDiscovery\.js["']\s+as\s+CpuTemp/, "must import the same-dir CpuTempDiscovery module (platforms/standalone/)");
-    assert.match(SOURCE, /reader\.listDir\s*\(/, "must enumerate sysfs via ProcReader.listDir");
-    assert.match(SOURCE, /\/sys\/class\/hwmon/, "must scan /sys/class/hwmon");
-    assert.match(SOURCE, /\/sys\/class\/thermal/, "must fall back to /sys/class/thermal");
-    assert.match(SOURCE, /CpuTemp\.pickCpuHwmonDir\s*\(/, "must pick the CPU hwmon chip via the pure helper");
-    assert.match(SOURCE, /CpuTemp\.pickCpuTempInput\s*\(/, "must pick the CPU temp input via the pure helper");
-    assert.match(SOURCE, /CpuTemp\.pickCpuThermalZone\s*\(/, "must pick the CPU thermal zone via the pure helper");
-    assert.match(SOURCE, /CpuTemp\.parseTempCelsius\s*\(/, "must parse the millidegrees reading via the pure helper");
+    assert.match(CPU_TEMP_PATH_SOURCE, /import\s+["']CpuTempDiscovery\.js["']\s+as\s+CpuTemp/, "must import the same-dir CpuTempDiscovery module (platforms/standalone/)");
+    assert.match(CPU_TEMP_PATH_SOURCE, /property\s+var\s+reader/, "must take the ProcReader as an injected property (not a global)");
+    assert.match(CPU_TEMP_PATH_SOURCE, /reader\.listDir\s*\(/, "must enumerate sysfs via ProcReader.listDir");
+    assert.match(CPU_TEMP_PATH_SOURCE, /\/sys\/class\/hwmon/, "must scan /sys/class/hwmon");
+    assert.match(CPU_TEMP_PATH_SOURCE, /\/sys\/class\/thermal/, "must fall back to /sys/class/thermal");
+    assert.match(CPU_TEMP_PATH_SOURCE, /CpuTemp\.pickCpuHwmonDir\s*\(/, "must pick the CPU hwmon chip via the pure helper");
+    assert.match(CPU_TEMP_PATH_SOURCE, /CpuTemp\.pickCpuTempInput\s*\(/, "must pick the CPU temp input via the pure helper");
+    assert.match(CPU_TEMP_PATH_SOURCE, /CpuTemp\.pickCpuThermalZone\s*\(/, "must pick the CPU thermal zone via the pure helper");
 });
 
 test("standalone MetricsBackend exposes cpuTemp as a raw-°C metric", () => {

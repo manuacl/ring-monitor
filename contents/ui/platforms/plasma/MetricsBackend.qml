@@ -71,9 +71,7 @@ Item {
             "gpu": backend._gpuUsageReady(),
             "gpuTemp": backend._gpuTempReady(),
             "disk": diskSensor.status === Sensors.Sensor.Ready,
-            // ksysguard exposes disk/all/{read,write} on any host with a disk
-            // (no-op until the diskIo UI PR adds the catalog id — filtered to
-            // METRIC_IDS).
+            // ksysguard exposes disk/all/{read,write} on any host with a disk.
             "diskIo": true,
             "sensorTemp": backend.sensorTempResolved,
             "battery": batterySampler.battery.available

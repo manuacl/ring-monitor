@@ -1383,18 +1383,22 @@ get a fresh object every poll and rebuild the ring strip at 2 Hz.
 | `available` (readonly bool, standalone) | Change-gated mirror of `battery.available` for the `availableMetrics` map (see above). |
 | `sample()` (standalone) | Per-tick work; the backend's 500 ms Timer calls it (same pattern as `GpuSampler`). |
 
-**Charging cue — aligned across hosts.** The `charging` field drives only
-the arc-dim cue (bright = not draining), so both adapters resolve it to the
-same thing at the user-visible level: a plugged-in battery (charging **or**
-full) is bright; a discharging one is dimmed. The two derive it from
-different data because ksysguard exposes **no** charge-state enum and **no**
-AC-online sensor (ksystemstats `power.cpp` only wraps `Solid::Battery`):
-Plasma reads the **signed** `chargeRate` and treats `rate >= 0` (not
-actively discharging) as charging — a full battery on AC reports `rate == 0`
-and stays bright, matching standalone's `status="Full"` → charging.
-Unavoidable residual (no AC signal): a battery idle-at-rest *off* AC with an
-exactly-zero rate reads bright on Plasma (rare/transient); standalone reads
-`Discharging` and dims it.
+**Charging cue — computed, not yet rendered.** Both adapters resolve
+`charging` to the same thing (a plugged-in battery, charging **or** full, is
+charging), but no ring currently draws it: the opacity dim was removed
+because `0.55` is exactly `Ring.qml`'s `arcOpacityFactor` for subordinate
+nested arcs, so a discharging battery read as a sub-ring. A charge glyph
+beside the centre readout replaces it — see
+[`battery-ring/spec.md`](battery-ring/spec.md) § 3.4.
+
+The two hosts derive `charging` from different data because ksysguard
+exposes **no** charge-state enum and **no** AC-online sensor (ksystemstats
+`power.cpp` only wraps `Solid::Battery`): Plasma reads `chargeRate` and
+treats `rate >= 0` as charging, matching standalone's `status="Full"` →
+charging. That heuristic is itself scheduled for replacement by the
+`org.kde.plasma.powermanagement` DataEngine — `Solid::Battery::chargeRate()`
+comes from UPower's `fabs()`-normalised `EnergyRate`, so the sign it assumes
+may not exist (spec § 3.3).
 
 Text-guarded by `tests/metrics-backend.test.mjs` (Plasma: the single-Instantiator
 + `SensorTreeModel`-walk + tick-counter + `aggregate()` wiring + the `rate >= 0`

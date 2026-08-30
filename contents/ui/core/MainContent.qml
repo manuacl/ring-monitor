@@ -210,17 +210,6 @@ GridLayout {
             readonly property var _io: _isDiskIo ? (content.metrics.diskIo || null) : null
             readonly property bool _isBattery: Catalog.isBatteryMetric(modelData)
             readonly property var _battery: _isBattery ? (content.metrics.battery || null) : null
-            // Discharging dim factor, kept as a single named source rather than a
-            // scattered literal. It is RELATIVE to the user's arcOpacity (multiplied
-            // in below), so a low arcOpacity makes a discharging ring fainter still —
-            // intended: the dim is a state cue, not an absolute level.
-            readonly property real _dischargingArcDim: 0.55
-            // Dim arc when discharging; bright when charging or full. 1.0 for every non-battery ring.
-            readonly property real _batteryArcOpacity: {
-                if (!_isBattery || !_battery)
-                    return 1.0;
-                return _battery.charging ? 1.0 : _dischargingArcDim;
-            }
             // Disk multi-partition: one equal-thickness ring per selected
             // filesystem, centre = their average. Empty when not the disk
             // ring or when nothing resolved (→ aggregate single ring via the
@@ -369,7 +358,7 @@ GridLayout {
             textColor: ColorThemes.resolveTextColor(content.configStore.textColorMode, content._isDark, content.theme.textColor, content.configStore.customTextColorLight, content.configStore.customTextColorDark)
             textOpacity: content.configStore.textOpacity
             trackOpacity: content.configStore.trackOpacity
-            arcOpacity: content.configStore.arcOpacity * ringDelegate._batteryArcOpacity
+            arcOpacity: content.configStore.arcOpacity
 
             // Update-available badge only on the first ring of the strip
             // — one notification per widget, anchored where the user's

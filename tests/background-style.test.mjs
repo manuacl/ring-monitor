@@ -73,3 +73,38 @@ test('the opaque end is clamped too', () => {
     assert.equal(BackgroundStyle.endAlpha('top', 4), 1);
     assert.equal(BackgroundStyle.startAlpha('bottom', -2), 0);
 });
+
+test('featherPixels is a percentage of the shorter side', () => {
+    assert.equal(BackgroundStyle.featherPixels(10, 400, 200), 20);
+    assert.equal(BackgroundStyle.featherPixels(10, 200, 400), 20);
+});
+
+test('softness 0 means a crisp plate', () => {
+    assert.equal(BackgroundStyle.featherPixels(0, 400, 200), 0);
+});
+
+test('featherPixels stays under the MultiEffect blurMax ceiling', () => {
+    // A big widget at max softness would ask for hundreds of pixels;
+    // anything past blurMax is silently ignored by the effect.
+    assert.equal(BackgroundStyle.featherPixels(33, 4000, 4000), BackgroundStyle.MAX_FEATHER_PX);
+    assert.ok(BackgroundStyle.MAX_FEATHER_PX <= 64);
+});
+
+test('featherPixels survives an unsized or junk widget', () => {
+    // Bindings evaluate before the first layout pass, where width/height
+    // are still 0 — that must yield a crisp plate, not NaN margins.
+    assert.equal(BackgroundStyle.featherPixels(20, 0, 0), 0);
+    assert.equal(BackgroundStyle.featherPixels(20, undefined, 200), 0);
+    assert.equal(BackgroundStyle.featherPixels('soft', 400, 200), 0);
+});
+
+test('clampPercent holds the softness inside [0, MAX_FEATHER_PERCENT]', () => {
+    assert.equal(BackgroundStyle.clampPercent(12), 12);
+    assert.equal(BackgroundStyle.clampPercent(-5), 0);
+    assert.equal(BackgroundStyle.clampPercent(90), BackgroundStyle.MAX_FEATHER_PERCENT);
+    assert.equal(BackgroundStyle.clampPercent(NaN), 0);
+});
+
+test('a percentage past the cap feathers like the cap, not like zero', () => {
+    assert.equal(BackgroundStyle.featherPixels(90, 400, 200), BackgroundStyle.featherPixels(BackgroundStyle.MAX_FEATHER_PERCENT, 400, 200));
+});

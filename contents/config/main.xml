@@ -231,6 +231,13 @@
             <default>none</default>
         </entry>
 
+        <entry name="backgroundEdgeSoftness" type="Int">
+            <label>How far the background plate's four edges are blurred, as a percentage of its shorter side. 0 = crisp rectangle.</label>
+            <default>0</default>
+            <min>0</min>
+            <max>33</max>
+        </entry>
+
         <entry name="tempUnit" type="String">
             <label>Temperature display unit: "auto" (follow system), "celsius", or "fahrenheit"</label>
             <default>auto</default>

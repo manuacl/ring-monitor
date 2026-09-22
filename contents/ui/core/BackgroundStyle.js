@@ -13,6 +13,8 @@
 //   clampOpacity(value)         - NaN / out-of-range → [0, 1]
 //   startAlpha(dir, opacity)    - alpha of the stop at position 0.0
 //   endAlpha(dir, opacity)      - alpha of the stop at position 1.0
+//   featherPixels(pct, w, h)    - `backgroundEdgeSoftness` % → the blur
+//                                 radius (px) that softens all four edges
 //
 // A direction names the edge the background fades OUT toward: "top"
 // means transparent at the top, fully `backgroundOpacity` at the
@@ -24,6 +26,16 @@
 // and Node (via the module.exports shim at the bottom).
 
 var DIRECTIONS = ["none", "top", "bottom", "left", "right"];
+
+// A linear Gradient fades along ONE axis, so it can never soften the two
+// edges perpendicular to it. The all-around soft edge is a blur instead
+// (QtQuick.Effects MultiEffect), and 64 px is that effect's own blurMax
+// ceiling — asking for more is silently ignored, so clamp here where the
+// number is computed.
+var MAX_FEATHER_PX = 64;
+// Half the shorter side would blur the plate away entirely; a third
+// still reads as a plate with soft edges.
+var MAX_FEATHER_PERCENT = 33;
 
 function normalizeDirection(dir) {
     return DIRECTIONS.indexOf(dir) >= 0 ? dir : "none";
@@ -52,6 +64,23 @@ function endAlpha(dir, opacity) {
     return (d === "bottom" || d === "right") ? 0 : clampOpacity(opacity);
 }
 
+// Softness is a percentage of the SHORTER side so a wide horizontal strip
+// and a tall vertical one get the same visual treatment; the result is
+// both the blur radius and the inset the plate is drawn at, so the fade
+// lands inside the widget instead of being clipped at its edge.
+function featherPixels(softnessPercent, width, height) {
+    var pct = clampPercent(softnessPercent);
+    var side = Math.min(Number(width), Number(height));
+    if (!isFinite(side) || side <= 0 || pct <= 0) return 0;
+    return Math.min(MAX_FEATHER_PX, Math.round(side * pct / 100));
+}
+
+function clampPercent(value) {
+    var n = Number(value);
+    if (!isFinite(n)) return 0;
+    return Math.max(0, Math.min(MAX_FEATHER_PERCENT, n));
+}
+
 if (typeof module !== "undefined" && module.exports) {
     module.exports = {
         DIRECTIONS: DIRECTIONS,
@@ -60,5 +89,9 @@ if (typeof module !== "undefined" && module.exports) {
         clampOpacity: clampOpacity,
         startAlpha: startAlpha,
         endAlpha: endAlpha,
+        featherPixels: featherPixels,
+        clampPercent: clampPercent,
+        MAX_FEATHER_PX: MAX_FEATHER_PX,
+        MAX_FEATHER_PERCENT: MAX_FEATHER_PERCENT,
     };
 }

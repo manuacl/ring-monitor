@@ -78,6 +78,7 @@ Settings {
     property color backgroundColor: "#000000"
     property real backgroundOpacity: 0.5
     property string backgroundGradient: "none"
+    property int backgroundEdgeSoftness: 0
 
     // ── Update-check group ──────────────────────────────────────────
     property bool checkForUpdatesEnabled: true

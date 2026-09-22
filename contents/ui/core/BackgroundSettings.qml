@@ -25,6 +25,7 @@ ColumnLayout {
     property color backgroundColor: "#000000"
     property real backgroundOpacity: 0.5
     property string backgroundGradient: "none"
+    property int backgroundEdgeSoftness: 0
     property Component colorPickerComponent
 
     // Labels parallel BackgroundStyle.DIRECTIONS — same order. A flat
@@ -94,6 +95,32 @@ ColumnLayout {
         }
         QQC2.Label {
             text: Math.round(backgroundSettings.backgroundOpacity * 100) + " %"
+            Layout.minimumWidth: Kirigami.Units.gridUnit * 3
+            horizontalAlignment: Text.AlignRight
+        }
+    }
+
+    RowLayout {
+        Layout.fillWidth: true
+        spacing: Kirigami.Units.smallSpacing
+        visible: backgroundSettings.backgroundEnabled
+
+        QQC2.Label {
+            text: qsTr("Soft edges:")
+        }
+
+        QQC2.Slider {
+            objectName: "backgroundEdgeSoftnessSlider"
+            from: 0
+            to: BackgroundStyle.MAX_FEATHER_PERCENT
+            stepSize: 1
+            snapMode: QQC2.Slider.SnapAlways
+            value: backgroundSettings.backgroundEdgeSoftness
+            onMoved: backgroundSettings.backgroundEdgeSoftness = value
+            Layout.fillWidth: true
+        }
+        QQC2.Label {
+            text: backgroundSettings.backgroundEdgeSoftness + " %"
             Layout.minimumWidth: Kirigami.Units.gridUnit * 3
             horizontalAlignment: Text.AlignRight
         }

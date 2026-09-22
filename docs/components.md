@@ -199,7 +199,8 @@ wallpaper.
 **Background plate.** `backgroundEnabled` (default `false`) turns on the
 optional plate painted behind the rings by
 [`WidgetBackground.qml`](#widgetbackgroundqml); `backgroundColor`,
-`backgroundOpacity` and `backgroundGradient` describe it. Off by default,
+`backgroundOpacity`, `backgroundGradient` and `backgroundEdgeSoftness`
+describe it. Off by default,
 so the historic look — rings straight on the wallpaper — is untouched.
 The four controls live in their own `core/BackgroundSettings.qml`
 (`AppearanceBody` was at the 500-line cap) and `AppearanceBody` re-exposes
@@ -220,6 +221,17 @@ The stop math (orientation, per-stop alpha, clamping) is the pure module
 [`BackgroundStyle.js`](logic-modules.md#backgroundstylejs); the Rectangle's
 own `color` stays `"transparent"` so nothing shows through a fade's
 transparent end.
+
+`backgroundEdgeSoftness` (0-33 %, default `0` = the crisp rectangle) is a
+separate axis from the directional fade: a linear `Gradient` only fades
+along ONE axis, so it can never soften the two edges perpendicular to it.
+All four edges are softened by a `QtQuick.Effects` `MultiEffect` blur
+instead — the plate is inset by the feather so the blur fades out *inside*
+the widget rather than being clipped at its edge, and the effect is
+anchored to the plate with `autoPaddingEnabled` so it bleeds back over
+that margin. The effect is instantiated unconditionally and switched by
+`blurEnabled`, never by `visible`: `MultiEffect` owns its source item's
+visibility, so hiding the effect would take the plate with it.
 
 On the Plasma side this forced one structural change: `fullRepresentation`
 used to *be* `MainContent`, whose root is a `GridLayout` — a layout hands

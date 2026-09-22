@@ -38,6 +38,7 @@ Item {
         property var enabledCheck: findChild(settings, "backgroundEnabledCheck")
         property var opacitySlider: findChild(settings, "backgroundOpacitySlider")
         property var gradientCombo: findChild(settings, "backgroundGradientCombo")
+        property var softnessSlider: findChild(settings, "backgroundEdgeSoftnessSlider")
         property var colorButton: findChild(settings, "backgroundColorButton")
 
         function init() {
@@ -45,6 +46,7 @@ Item {
             settings.backgroundColor = "#000000";
             settings.backgroundOpacity = 0.5;
             settings.backgroundGradient = "none";
+            settings.backgroundEdgeSoftness = 0;
         }
 
         function test_defaults_keep_the_widget_transparent() {
@@ -63,9 +65,23 @@ Item {
         function test_detail_rows_hidden_while_disabled() {
             compare(opacitySlider.parent.visible, false);
             compare(gradientCombo.parent.visible, false);
+            compare(softnessSlider.parent.visible, false);
             settings.backgroundEnabled = true;
             compare(opacitySlider.parent.visible, true);
             compare(gradientCombo.parent.visible, true);
+            compare(softnessSlider.parent.visible, true);
+        }
+
+        function test_softness_property_drives_the_slider() {
+            settings.backgroundEdgeSoftness = 12;
+            compare(softnessSlider.value, 12);
+        }
+
+        function test_softness_slider_move_writes_back() {
+            settings.backgroundEnabled = true;
+            softnessSlider.value = 20;
+            softnessSlider.moved();
+            compare(settings.backgroundEdgeSoftness, 20);
         }
 
         function test_opacity_property_drives_the_slider() {

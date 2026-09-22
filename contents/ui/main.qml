@@ -69,6 +69,7 @@ PlasmoidItem {
             backgroundColor: configStoreAdapter.backgroundColor
             backgroundOpacity: configStoreAdapter.backgroundOpacity
             backgroundGradient: configStoreAdapter.backgroundGradient
+            backgroundEdgeSoftness: configStoreAdapter.backgroundEdgeSoftness
         }
 
         Core.MainContent {

@@ -117,12 +117,21 @@ consumed by `core/WidgetBackground.qml`.
 | `clampOpacity(value)` | `[0, 1]`; a non-number (unset key) yields `0`, never `NaN` |
 | `startAlpha(dir, opacity)` | alpha of the stop at position `0.0` (top edge, or left edge when horizontal) |
 | `endAlpha(dir, opacity)` | alpha of the stop at position `1.0` (bottom / right edge) |
+| `featherPixels(pct, w, h)` | soft-edge blur radius in px: `pct` % of the **shorter** side, clamped to `MAX_FEATHER_PX` |
+| `clampPercent(value)` | `[0, MAX_FEATHER_PERCENT]`; a non-number yields `0` |
+| `MAX_FEATHER_PX` / `MAX_FEATHER_PERCENT` | `64` (the `MultiEffect.blurMax` ceiling — more is silently ignored) / `33` (half the shorter side would blur the plate away) |
 
 A direction names the edge the plate fades **out** toward: `"top"` is
 transparent at the top and `backgroundOpacity` at the bottom. `"none"`
 returns the same alpha for both stops, so the Rectangle never has to
 branch between a `color` fill and a `gradient` one — one code path paints
 both cases.
+
+The soft edge is a different mechanism from the fade, hence the separate
+key: a linear gradient fades along one axis only, so feathering all four
+edges is a blur (`MultiEffect`), sized here. `featherPixels` reads the
+widget's own `width`/`height`, which are `0` before the first layout pass
+— that yields `0`, i.e. a crisp plate, never `NaN` margins.
 
 ## `RingGeometry.js`
 

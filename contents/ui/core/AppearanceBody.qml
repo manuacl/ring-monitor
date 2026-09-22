@@ -66,6 +66,7 @@ Kirigami.FormLayout {
     property alias backgroundColor: backgroundSettings.backgroundColor
     property alias backgroundOpacity: backgroundSettings.backgroundOpacity
     property alias backgroundGradient: backgroundSettings.backgroundGradient
+    property alias backgroundEdgeSoftness: backgroundSettings.backgroundEdgeSoftness
 
     // Built once at load time — the labels go through qsTr() so xgettext
     // picks them up, while ColorThemes.js stays free of i18n machinery.

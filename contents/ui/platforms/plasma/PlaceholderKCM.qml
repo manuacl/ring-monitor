@@ -99,6 +99,8 @@ KCM.SimpleKCM {
     property var cfg_backgroundOpacityDefault
     property var cfg_backgroundGradient
     property var cfg_backgroundGradientDefault
+    property var cfg_backgroundEdgeSoftness
+    property var cfg_backgroundEdgeSoftnessDefault
     property var cfg_tempUnit
     property var cfg_tempUnitDefault
     property var cfg_checkForUpdatesEnabled

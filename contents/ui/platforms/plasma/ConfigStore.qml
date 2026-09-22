@@ -80,6 +80,13 @@ Item {
     readonly property color customTextColorLight: Plasmoid.configuration.customTextColorLight
     readonly property color customTextColorDark: Plasmoid.configuration.customTextColorDark
     readonly property string tempUnit: Plasmoid.configuration.tempUnit
+    // Background plate (#170). Defensive defaults for the same reason as
+    // the update-check group below: a brand-new schema key can read back
+    // undefined until KConfig materialises it.
+    readonly property bool backgroundEnabled: Plasmoid.configuration.backgroundEnabled === true
+    readonly property color backgroundColor: Plasmoid.configuration.backgroundColor || "#000000"
+    readonly property real backgroundOpacity: Plasmoid.configuration.backgroundOpacity ?? 0.5
+    readonly property string backgroundGradient: Plasmoid.configuration.backgroundGradient || "none"
 
     // ── Update-check group ──────────────────────────────────────────
     // Reads stay readonly like the rest of this adapter. Writes

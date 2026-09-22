@@ -209,6 +209,28 @@
             <default>#fcfcfc</default>
         </entry>
 
+        <entry name="backgroundEnabled" type="Bool">
+            <label>Paint a colored plate behind the rings instead of letting the wallpaper show through</label>
+            <default>false</default>
+        </entry>
+
+        <entry name="backgroundColor" type="Color">
+            <label>Color of the background plate</label>
+            <default>#000000</default>
+        </entry>
+
+        <entry name="backgroundOpacity" type="Double">
+            <label>Opacity of the background plate at its opaque end</label>
+            <default>0.5</default>
+            <min>0.0</min>
+            <max>1.0</max>
+        </entry>
+
+        <entry name="backgroundGradient" type="String">
+            <label>Edge the background plate fades out toward so it blends into the wallpaper: "none", "top", "bottom", "left" or "right"</label>
+            <default>none</default>
+        </entry>
+
         <entry name="tempUnit" type="String">
             <label>Temperature display unit: "auto" (follow system), "celsius", or "fahrenheit"</label>
             <default>auto</default>

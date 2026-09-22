@@ -151,6 +151,9 @@ qt_add_qml_module(ring-monitor-standalone
         contents/ui/core/DiskPartitionPicker.qml
         contents/ui/core/AboutBody.qml
         contents/ui/core/AppearanceBody.qml
+        contents/ui/core/BackgroundSettings.qml
+        contents/ui/core/WidgetBackground.qml
+        contents/ui/core/BackgroundStyle.js
         contents/ui/core/MetricsBody.qml
         contents/ui/core/MetricsRowDelegate.qml
         contents/ui/core/MetricSubOptions.qml

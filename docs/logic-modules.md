@@ -3,7 +3,8 @@
 The pure-logic `.js` modules live in one of two places, by usage:
 
 - **`contents/ui/core/`** — shared by both platforms (`MetricsCatalog`,
-  `ColorThemes`, `ReorderLogic`, `RingGeometry`, `UpdateCheck`).
+  `ColorThemes`, `ReorderLogic`, `RingGeometry`, `UpdateCheck`,
+  `BackgroundStyle`).
 - **`contents/ui/platforms/<p>/`** — used by only one platform, kept
   beside that platform's adapter so it isn't shipped as dead code to
   the other artifact: `platforms/standalone/` holds `ProcStatParser`,
@@ -102,6 +103,26 @@ the three `colorMode` values use the same pattern inside
 to apply. Splitting them lets users on Plasma themes that break the
 auto-detect (Vapor, third-party look-and-feel themes that override
 the system color scheme) force the variant explicitly.
+
+## `BackgroundStyle.js`
+
+The two-stop math behind the optional widget background (issue #170),
+consumed by `core/WidgetBackground.qml`.
+
+| Function | What it returns |
+|---|---|
+| `DIRECTIONS` | `["none", "top", "bottom", "left", "right"]` — the persisted `backgroundGradient` values, in the order the config combo lists them |
+| `normalizeDirection(dir)` | `dir` when known, `"none"` otherwise (empty, corrupted or written by a future version) |
+| `isHorizontal(dir)` | `true` for `left` / `right` → `Gradient.Horizontal`, else `Gradient.Vertical` |
+| `clampOpacity(value)` | `[0, 1]`; a non-number (unset key) yields `0`, never `NaN` |
+| `startAlpha(dir, opacity)` | alpha of the stop at position `0.0` (top edge, or left edge when horizontal) |
+| `endAlpha(dir, opacity)` | alpha of the stop at position `1.0` (bottom / right edge) |
+
+A direction names the edge the plate fades **out** toward: `"top"` is
+transparent at the top and `backgroundOpacity` at the bottom. `"none"`
+returns the same alpha for both stops, so the Rectangle never has to
+branch between a `color` fill and a `gradient` one — one code path paints
+both cases.
 
 ## `RingGeometry.js`
 

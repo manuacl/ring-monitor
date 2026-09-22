@@ -54,15 +54,36 @@ PlasmoidItem {
     }
 
     // ── Portable body ───────────────────────────────────────────────
-    fullRepresentation: Core.MainContent {
-        theme: themeAdapter
-        configStore: configStoreAdapter
-        metrics: metricsAdapter
-        updateChecker: updateCheckerAdapter
-        // The update-badge click lands users in the config dialog —
-        // since Plasma 6 has no "open at category X" API, the
-        // dynamic-visible trick in config.qml puts the About page
-        // first whenever an update is unacknowledged.
-        onConfigureRequested: Plasmoid.internalAction("configure").trigger()
+    // The optional background plate (#170) is a SIBLING behind the body,
+    // not a child of it: MainContent's root is a GridLayout, which hands
+    // every child a cell of its own. The wrapper Item forwards the
+    // layout's auto-implicit size, so the panel allocation stays driven
+    // by the rings exactly as it was when MainContent was the root.
+    fullRepresentation: Item {
+        implicitWidth: contentBody.implicitWidth
+        implicitHeight: contentBody.implicitHeight
+
+        Core.WidgetBackground {
+            anchors.fill: parent
+            backgroundEnabled: configStoreAdapter.backgroundEnabled
+            backgroundColor: configStoreAdapter.backgroundColor
+            backgroundOpacity: configStoreAdapter.backgroundOpacity
+            backgroundGradient: configStoreAdapter.backgroundGradient
+        }
+
+        Core.MainContent {
+            id: contentBody
+
+            anchors.fill: parent
+            theme: themeAdapter
+            configStore: configStoreAdapter
+            metrics: metricsAdapter
+            updateChecker: updateCheckerAdapter
+            // The update-badge click lands users in the config dialog —
+            // since Plasma 6 has no "open at category X" API, the
+            // dynamic-visible trick in config.qml puts the About page
+            // first whenever an update is unacknowledged.
+            onConfigureRequested: Plasmoid.internalAction("configure").trigger()
+        }
     }
 }

@@ -196,6 +196,40 @@ used by the ring color, so a user on a transparent panel or on the
 standalone build can pin the text to whatever reads best against their
 wallpaper.
 
+**Background plate.** `backgroundEnabled` (default `false`) turns on the
+optional plate painted behind the rings by
+[`WidgetBackground.qml`](#widgetbackgroundqml); `backgroundColor`,
+`backgroundOpacity` and `backgroundGradient` describe it. Off by default,
+so the historic look — rings straight on the wallpaper — is untouched.
+The four controls live in their own `core/BackgroundSettings.qml`
+(`AppearanceBody` was at the 500-line cap) and `AppearanceBody` re-exposes
+their properties by alias, so both hosts bridge them like every other key.
+A single colour, not the light/dark pair the ring and text colours use:
+the plate is matched against the wallpaper, which does not follow the
+system colour scheme.
+
+## `WidgetBackground.qml`
+
+One `Rectangle` behind the rings, mounted by each host
+(`contents/ui/main.qml`, `platforms/standalone/Main.qml`) from the
+`configStore` background keys. It is always painted by a two-stop
+`Gradient`: `backgroundGradient: "none"` simply gives both stops the same
+alpha (a flat fill), while `"top"` / `"bottom"` / `"left"` / `"right"` name
+the edge the plate fades OUT toward, so it dissolves into the wallpaper.
+The stop math (orientation, per-stop alpha, clamping) is the pure module
+[`BackgroundStyle.js`](logic-modules.md#backgroundstylejs); the Rectangle's
+own `color` stays `"transparent"` so nothing shows through a fade's
+transparent end.
+
+On the Plasma side this forced one structural change: `fullRepresentation`
+used to *be* `MainContent`, whose root is a `GridLayout` — a layout hands
+every child a cell, so the plate cannot be a child of it. The
+representation is now a wrapper `Item` holding the plate and the body as
+siblings, forwarding `contentBody.implicitWidth/Height` so the panel
+allocation stays driven by the rings exactly as before (see § `MainContent.qml`
+— implicit dimensions below). The standalone `Window` root has no such
+constraint; the plate is just anchored to fill it.
+
 ## `MainContent.qml` — implicit dimensions
 
 `MainContent` is a `GridLayout` of N square rings (`Ring.qml`

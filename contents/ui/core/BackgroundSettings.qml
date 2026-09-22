@@ -1,0 +1,121 @@
+import QtQuick
+import QtQuick.Controls as QQC2
+import QtQuick.Layouts
+import org.kde.kirigami as Kirigami
+import "BackgroundStyle.js" as BackgroundStyle
+
+// Config controls for the optional widget background (issue #170):
+// on/off, colour, opacity and the edge the plate fades out toward.
+// Rendered by core/WidgetBackground.qml.
+//
+// Extracted from AppearanceBody rather than written inline: that file
+// was already at the 500-line cap. Stateless in the same sense as the
+// rest of the config bodies — values come in as properties, the
+// controls write them back, and the host (AppearanceBody → the Plasma
+// cfg_* aliases or the standalone dialog's bridge map) persists them.
+//
+// The colour picker is platform-specific, so it arrives as a Component
+// the parent injects — same contract as AppearanceBody's own pickers
+// (a writable `color` plus an `accepted` signal).
+
+ColumnLayout {
+    id: backgroundSettings
+
+    property bool backgroundEnabled: false
+    property color backgroundColor: "#000000"
+    property real backgroundOpacity: 0.5
+    property string backgroundGradient: "none"
+    property Component colorPickerComponent
+
+    // Labels parallel BackgroundStyle.DIRECTIONS — same order. A flat
+    // string array (not a {value,text} model) keeps qmlformat from
+    // expanding it to one property per line; see root CLAUDE.md.
+    readonly property var _gradientLabels: [qsTr("None"), qsTr("Fade out at the top"), qsTr("Fade out at the bottom"), qsTr("Fade out on the left"), qsTr("Fade out on the right")]
+
+    spacing: Kirigami.Units.smallSpacing
+
+    QQC2.CheckBox {
+        objectName: "backgroundEnabledCheck"
+        text: qsTr("Draw a background behind the rings")
+        checked: backgroundSettings.backgroundEnabled
+        onToggled: backgroundSettings.backgroundEnabled = checked
+    }
+
+    RowLayout {
+        Layout.fillWidth: true
+        spacing: Kirigami.Units.smallSpacing
+        visible: backgroundSettings.backgroundEnabled
+
+        QQC2.Label {
+            text: qsTr("Color:")
+        }
+
+        Loader {
+            id: backgroundColorButton
+            objectName: "backgroundColorButton"
+            sourceComponent: backgroundSettings.colorPickerComponent
+            onLoaded: {
+                if (!item)
+                    return;
+                item.accepted.connect(function () {
+                    backgroundSettings.backgroundColor = item.color;
+                });
+            }
+        }
+        // Binding element, not an imperative `item.color = Qt.binding(…)`:
+        // the ColorPicker self-assigns on accept and would clobber it.
+        // See core/CLAUDE.md § Component-side gotchas.
+        Binding {
+            target: backgroundColorButton.item
+            property: "color"
+            value: backgroundSettings.backgroundColor
+            when: backgroundColorButton.item !== null
+            restoreMode: Binding.RestoreBindingOrValue
+        }
+    }
+
+    RowLayout {
+        Layout.fillWidth: true
+        spacing: Kirigami.Units.smallSpacing
+        visible: backgroundSettings.backgroundEnabled
+
+        QQC2.Label {
+            text: qsTr("Opacity:")
+        }
+
+        QQC2.Slider {
+            objectName: "backgroundOpacitySlider"
+            from: 0
+            to: 1
+            stepSize: 0.05
+            value: backgroundSettings.backgroundOpacity
+            onMoved: backgroundSettings.backgroundOpacity = value
+            Layout.fillWidth: true
+        }
+        QQC2.Label {
+            text: Math.round(backgroundSettings.backgroundOpacity * 100) + " %"
+            Layout.minimumWidth: Kirigami.Units.gridUnit * 3
+            horizontalAlignment: Text.AlignRight
+        }
+    }
+
+    RowLayout {
+        Layout.fillWidth: true
+        spacing: Kirigami.Units.smallSpacing
+        visible: backgroundSettings.backgroundEnabled
+
+        QQC2.Label {
+            text: qsTr("Blend:")
+        }
+
+        QQC2.ComboBox {
+            objectName: "backgroundGradientCombo"
+            Layout.fillWidth: true
+            model: backgroundSettings._gradientLabels
+            // Unknown persisted value → "none" (index 0), same fallback
+            // BackgroundStyle.normalizeDirection applies when painting.
+            currentIndex: Math.max(0, BackgroundStyle.DIRECTIONS.indexOf(BackgroundStyle.normalizeDirection(backgroundSettings.backgroundGradient)))
+            onActivated: backgroundSettings.backgroundGradient = BackgroundStyle.DIRECTIONS[currentIndex]
+        }
+    }
+}

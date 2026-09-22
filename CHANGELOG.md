@@ -12,6 +12,10 @@ user-facing only.
 
 ## [Unreleased]
 
+### Technical
+
+- feat(appearance): optional background plate behind the rings (#170). Four new Appearance keys — `backgroundEnabled` (default `false`, so the widget stays fully transparent), `backgroundColor`, `backgroundOpacity` and `backgroundGradient` — render through the new `core/WidgetBackground.qml`, a Rectangle painted by a two-stop `Gradient` whose orientation and per-stop alpha come from the pure `core/BackgroundStyle.js` (`"none"` = both stops equal → flat fill; `top`/`bottom`/`left`/`right` name the edge the plate fades OUT toward, so it blends into the wallpaper). On Plasma, `fullRepresentation` is now a wrapper `Item` holding the plate and `MainContent` as siblings — a `GridLayout` gives every child a cell, so the plate could not be a child of the body — forwarding `contentBody.implicitWidth/Height` so the panel allocation stays ring-driven; standalone anchors it to fill the `Window`. The controls live in their own `core/BackgroundSettings.qml` (`AppearanceBody` was at the 500-line cap, which also cost two over-long comment blocks, now pointers to `docs/`), with `AppearanceBody` re-exposing the four properties by alias so the `cfg_*` bridge and the standalone `_bridgeMap` carry them like every other key.
+
 ### Other
 
 - ci: the `qmlformat is a no-op` gate now reports every dirty file in a single run (accumulate-then-exit, same pattern as the file-size gate) instead of exiting on the first one — plus a comment noting the local qmlformat may be newer than the Fedora 41 container's, so a locally-clean tree is not sufficient proof (#161).

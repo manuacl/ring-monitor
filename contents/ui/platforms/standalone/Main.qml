@@ -273,6 +273,17 @@ Window {
         }
     }
 
+    // Optional background plate (#170) — behind the rings, filling the
+    // window. Off by default, so the historic look is an untouched
+    // transparent window.
+    Core.WidgetBackground {
+        anchors.fill: parent
+        backgroundEnabled: configStoreAdapter.backgroundEnabled
+        backgroundColor: configStoreAdapter.backgroundColor
+        backgroundOpacity: configStoreAdapter.backgroundOpacity
+        backgroundGradient: configStoreAdapter.backgroundGradient
+    }
+
     // ── Portable body ───────────────────────────────────────────────
     Core.MainContent {
         id: content

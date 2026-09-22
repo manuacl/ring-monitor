@@ -50,6 +50,7 @@ thin views.
   - `ReorderLogic.js` — drag-and-drop array transforms.
   - `RingGeometry.js` — sweep / radius / nested-ring layout math.
   - `UpdateCheck.js` — update-check version compare + TTL.
+  - `BackgroundStyle.js` — gradient stops for the optional background.
 - **Used by only one platform → that platform's `../platforms/<p>/`
   directory, beside its adapter.** Keeping platform-specific logic in
   `core/` ships it as dead weight to the other artifact (the `.plasmoid`

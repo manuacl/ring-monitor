@@ -64,8 +64,14 @@ Window {
     readonly property int _screenH: _targetScreen ? _targetScreen.height : Screen.height
     readonly property int _screenVX: _targetScreen ? _targetScreen.virtualX : Screen.virtualX
     readonly property int _screenVY: _targetScreen ? _targetScreen.virtualY : Screen.virtualY
-    readonly property int _targetWidth: Math.min(content.vertical ? _ringSize : _stripLength, _screenW - _marginX)
-    readonly property int _targetHeight: Math.min(content.vertical ? _stripLength : _ringSize, _screenH - _marginY)
+    // Room for a background halo spread past the rings (#170): the same
+    // round(ring radius × spread %) WidgetBackground grows by. On the
+    // anchored sides it is borrowed from the margins, so the rings keep
+    // their on-screen position — see WindowPlacement.haloInsets.
+    readonly property int _haloPad: configStoreAdapter.backgroundEnabled ? Math.round(_ringSize / 2 * Math.max(0, Math.min(100, configStoreAdapter.backgroundSpread || 0)) / 100) : 0
+    readonly property var _halo: WindowPlacement.haloInsets(_corner, _haloPad, _marginX, _marginY)
+    readonly property int _targetWidth: Math.min((content.vertical ? _ringSize : _stripLength) + _halo.left + _halo.right, _screenW - _halo.marginX)
+    readonly property int _targetHeight: Math.min((content.vertical ? _stripLength : _ringSize) + _halo.top + _halo.bottom, _screenH - _halo.marginY)
     // On the native-Wayland (layer-shell) path the window must stay
     // hidden until its layer surface is configured — the wlr-layer-shell
     // role is assigned when the wl_surface is created on show(), so
@@ -116,11 +122,11 @@ Window {
                 root.screen = root._targetScreen;
             }
             var spec = WindowPlacement.cornerToAnchorSpec(root._corner);
-            WaylandLayerShell.configure(root, spec.left, spec.top, root._marginX, root._marginY, root._targetWidth, root._targetHeight);
+            WaylandLayerShell.configure(root, spec.left, spec.top, root._halo.marginX, root._halo.marginY, root._targetWidth, root._targetHeight);
             root.visible = true;
             return;
         }
-        var origin = WindowPlacement.computeX11Origin(root._corner, root._screenW, root._screenH, root._targetWidth, root._targetHeight, root._marginX, root._marginY, root._screenVX, root._screenVY);
+        var origin = WindowPlacement.computeX11Origin(root._corner, root._screenW, root._screenH, root._targetWidth, root._targetHeight, root._halo.marginX, root._halo.marginY, root._screenVX, root._screenVY);
         WindowAnchor.setGeometry(root, origin.x, origin.y, root._targetWidth, root._targetHeight);
     }
     // Defer the first anchor so `applyDesktopWindowHints` (called
@@ -161,6 +167,11 @@ Window {
             Qt.callLater(root._anchor);
         }
         function on_MarginYChanged() {
+            Qt.callLater(root._anchor);
+        }
+        // Enabling the halo shifts the origin by the borrowed margin even
+        // when the capped size does not change.
+        function on_HaloChanged() {
             Qt.callLater(root._anchor);
         }
         // Covers both a settings change (user picks a different monitor)
@@ -273,11 +284,12 @@ Window {
         }
     }
 
-    // Optional background plate (#170) — a halo behind the rings, shaped
-    // on the ring layout rather than the window. Off by default, so the
-    // historic look is an untouched transparent window.
+    // Optional background halo (#170), shaped on the ring layout. Fills the
+    // same box as `content` so the ring cells share its coordinates; a
+    // spread halo is drawn out into the `_halo` padding. Off by default,
+    // so the historic look is an untouched transparent window.
     Core.WidgetBackground {
-        anchors.fill: parent
+        anchors.fill: content
         backgroundEnabled: configStoreAdapter.backgroundEnabled
         backgroundColor: configStoreAdapter.backgroundColor
         backgroundOpacity: configStoreAdapter.backgroundOpacity
@@ -290,11 +302,16 @@ Window {
     Core.MainContent {
         id: content
         // Edge-to-edge: rings render at 100% of the window width — no
-        // padding. anchors.fill (instead of centerIn) so the rings
-        // honour the capped Window size; when implicit would exceed
-        // Screen, the GridLayout delegates downsize via their
-        // Layout.fillWidth / fillHeight constraints.
+        // padding beyond the halo's room (0 without a halo). anchors.fill
+        // (instead of centerIn) so the rings honour the capped Window
+        // size; when implicit would exceed Screen, the GridLayout
+        // delegates downsize via their Layout.fillWidth / fillHeight
+        // constraints.
         anchors.fill: parent
+        anchors.leftMargin: root._halo.left
+        anchors.rightMargin: root._halo.right
+        anchors.topMargin: root._halo.top
+        anchors.bottomMargin: root._halo.bottom
         theme: themeAdapter
         configStore: configStoreAdapter
         metrics: metricsAdapter

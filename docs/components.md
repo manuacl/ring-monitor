@@ -232,7 +232,14 @@ is the stadium inscribed in the item.
 **Size.** `backgroundSpread` (0-100 % of the ring radius, default `0` =
 hugging the rings) grows the stadium on every side, caps included, so they
 stay concentric. A spread halo is drawn past the host's edge: Plasma does
-not clip an applet, a standalone window does (its size follows the rings).
+not clip an applet. The standalone window, which would, grows by the same
+`round(ring radius × spread %)` around the rings instead
+(`WindowPlacement.haloInsets`): on its anchored sides the room is borrowed
+from `windowMarginX/Y`, so the rings keep their on-screen position and the
+margins still set the rings' distance from the screen edge. A halo wider
+than the margin is cut by the screen edge rather than pushing the window
+off-screen (off-screen placement is compositor-dependent under
+layer-shell).
 
 **Soft edge.** `backgroundEdgeSoftness` (0-50 % of the stadium's shorter
 side, default `0` = crisp) is the band over which the alpha falls linearly

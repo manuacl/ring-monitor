@@ -79,11 +79,36 @@ function pickScreen(screens, name) {
     return null;
 }
 
+// Room around the rings for the background halo (#170), which a window
+// sized to the strip would clip. `pad` px on every side, except that an
+// anchored side only takes what its margin can give: the window then
+// starts `pad` earlier so the rings keep their on-screen position, and it
+// never leaves the screen — a halo wider than the margin is cut by the
+// screen edge instead. `marginX`/`marginY` are what the window itself must
+// now be inset by.
+function haloInsets(corner, pad, marginX, marginY) {
+    var spec = cornerToAnchorSpec(corner);
+    var p = Math.max(0, Math.round(Number(pad) || 0));
+    var mx = Math.max(0, Number(marginX) || 0);
+    var my = Math.max(0, Number(marginY) || 0);
+    var sideX = Math.min(p, mx);
+    var sideY = Math.min(p, my);
+    return {
+        left: spec.left ? sideX : p,
+        right: spec.left ? p : sideX,
+        top: spec.top ? sideY : p,
+        bottom: spec.top ? p : sideY,
+        marginX: mx - sideX,
+        marginY: my - sideY
+    };
+}
+
 if (typeof module !== "undefined" && module.exports) {
     module.exports = {
         CORNERS: CORNERS,
         cornerToAnchorSpec: cornerToAnchorSpec,
         computeX11Origin: computeX11Origin,
-        pickScreen: pickScreen
+        pickScreen: pickScreen,
+        haloInsets: haloInsets
     };
 }

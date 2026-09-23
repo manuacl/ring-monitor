@@ -471,6 +471,7 @@ Kirigami.FormLayout {
     BackgroundSettings {
         id: backgroundSettings
         Kirigami.FormData.label: qsTr("Background:")
+        Kirigami.FormData.labelAlignment: Qt.AlignTop
         Layout.fillWidth: true
         colorPickerComponent: body.colorPickerComponent
     }

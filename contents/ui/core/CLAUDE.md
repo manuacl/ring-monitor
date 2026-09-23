@@ -367,6 +367,14 @@ large. Cost ~4 live iterations:
     gap`), not a fixed reference width — else a wide tooltip lands half-off-screen
     or flips inconsistently from a narrow one at the boundary.
 
+### A multi-row item in a `FormLayout` needs `labelAlignment: Qt.AlignTop`
+
+`Kirigami.FormLayout` centres a label vertically on its item, so the
+label of a multi-row item (a `ColumnLayout` whose rows appear on a
+checkbox) slides down as the item grows. Set
+`Kirigami.FormData.labelAlignment: Qt.AlignTop` — see `BackgroundSettings`
+in `AppearanceBody.qml`.
+
 ## Where the platform adapters live
 
 For Plasma-specific concerns (KSysGuard, KConfig, plasmashell quirks,

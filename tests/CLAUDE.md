@@ -141,6 +141,15 @@ fully-qualified `Class::method(`.
 - `.githooks/pre-commit` — reproduces the file-size cap + qmlformat
   + qmllint locally so CI doesn't reject a push.
 
+### Running Qt tools without a terminal (agents, scripts)
+
+With no tty, Qt sends its logging to journald, so `qmltestrunner`
+looks like it dies silently (exit 1, no output). Run it as
+`QT_FORCE_STDERR_LOGGING=1 QT_QPA_PLATFORM=offscreen qmltestrunner …`.
+For an offscreen render probe (`grabToImage`), also set
+`QT_QUICK_BACKEND=rhi`: offscreen defaults to the software backend,
+which silently skips `MultiEffect` and layer effects.
+
 ## See also
 
 - Cross-cutting rules ("All logic must be tested", "Tests cover

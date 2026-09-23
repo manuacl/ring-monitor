@@ -24,14 +24,9 @@ ColumnLayout {
     property bool backgroundEnabled: false
     property color backgroundColor: "#000000"
     property real backgroundOpacity: 0.5
-    property string backgroundGradient: "none"
+    property int backgroundSpread: 0
     property int backgroundEdgeSoftness: 0
     property Component colorPickerComponent
-
-    // Labels parallel BackgroundStyle.DIRECTIONS — same order. A flat
-    // string array (not a {value,text} model) keeps qmlformat from
-    // expanding it to one property per line; see root CLAUDE.md.
-    readonly property var _gradientLabels: [qsTr("None"), qsTr("Fade out at the top"), qsTr("Fade out at the bottom"), qsTr("Fade out on the left"), qsTr("Fade out on the right")]
 
     spacing: Kirigami.Units.smallSpacing
 
@@ -132,17 +127,23 @@ ColumnLayout {
         visible: backgroundSettings.backgroundEnabled
 
         QQC2.Label {
-            text: qsTr("Blend:")
+            text: qsTr("Halo size:")
         }
 
-        QQC2.ComboBox {
-            objectName: "backgroundGradientCombo"
+        QQC2.Slider {
+            objectName: "backgroundSpreadSlider"
+            from: 0
+            to: BackgroundStyle.MAX_SPREAD_PERCENT
+            stepSize: 1
+            snapMode: QQC2.Slider.SnapAlways
+            value: backgroundSettings.backgroundSpread
+            onMoved: backgroundSettings.backgroundSpread = value
             Layout.fillWidth: true
-            model: backgroundSettings._gradientLabels
-            // Unknown persisted value → "none" (index 0), same fallback
-            // BackgroundStyle.normalizeDirection applies when painting.
-            currentIndex: Math.max(0, BackgroundStyle.DIRECTIONS.indexOf(BackgroundStyle.normalizeDirection(backgroundSettings.backgroundGradient)))
-            onActivated: backgroundSettings.backgroundGradient = BackgroundStyle.DIRECTIONS[currentIndex]
+        }
+        QQC2.Label {
+            text: backgroundSettings.backgroundSpread + " %"
+            Layout.minimumWidth: Kirigami.Units.gridUnit * 3
+            horizontalAlignment: Text.AlignRight
         }
     }
 }

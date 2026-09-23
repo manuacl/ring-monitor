@@ -196,65 +196,63 @@ used by the ring color, so a user on a transparent panel or on the
 standalone build can pin the text to whatever reads best against their
 wallpaper.
 
-**Background plate.** `backgroundEnabled` (default `false`) turns on the
-optional plate painted behind the rings by
+**Background halo.** `backgroundEnabled` (default `false`) turns on the
+optional halo painted behind the rings by
 [`WidgetBackground.qml`](#widgetbackgroundqml); `backgroundColor`,
-`backgroundOpacity`, `backgroundGradient` and `backgroundEdgeSoftness`
+`backgroundOpacity`, `backgroundSpread` and `backgroundEdgeSoftness`
 describe it. Off by default,
 so the historic look — rings straight on the wallpaper — is untouched.
-The four controls live in their own `core/BackgroundSettings.qml`
+The controls live in their own `core/BackgroundSettings.qml`
 (`AppearanceBody` was at the 500-line cap) and `AppearanceBody` re-exposes
 their properties by alias, so both hosts bridge them like every other key.
 A single colour, not the light/dark pair the ring and text colours use:
-the plate is matched against the wallpaper, which does not follow the
+the halo is matched against the wallpaper, which does not follow the
 system colour scheme.
 
 ## `WidgetBackground.qml`
 
-One `Rectangle` behind the rings, mounted by each host
-(`contents/ui/main.qml`, `platforms/standalone/Main.qml`) from the
-`configStore` background keys. It is always painted by a two-stop
-`Gradient`: `backgroundGradient: "none"` simply gives both stops the same
-alpha (a flat fill), while `"top"` / `"bottom"` / `"left"` / `"right"` name
-the edge the plate fades OUT toward, so it dissolves into the wallpaper.
-The stop math (orientation, per-stop alpha, clamping) is the pure module
-[`BackgroundStyle.js`](logic-modules.md#backgroundstylejs); the Rectangle's
-own `color` stays `"transparent"` so nothing shows through a fade's
-transparent end.
+A stadium (pill) drawn behind the rings by one `Shape`, mounted by each
+host (`contents/ui/main.qml`, `platforms/standalone/Main.qml`) from the
+`configStore` background keys. The geometry and stops come from the pure
+module [`BackgroundStyle.js`](logic-modules.md#backgroundstylejs).
 
-**Halo shape.** The plate is a stadium around the *drawn rings*, not the
-host's rectangle: each host passes its `MainContent` as `rings`, and
-`BackgroundStyle.ringBounds()` unions the centred `min(w, h)` square every
-`Ring` delegate draws in its cell. The caps get the ring radius, so they
-follow the end rings (rounded top and bottom in a vertical strip, left and
-right in a horizontal one). Reading the layout instead of the host matters
-on Plasma, where a desktop applet can be resized bigger than the strip —
-the cells grow, the rings stay centred squares, the halo stays on them.
-The binding walks `rings.children` (only `Ring` delegates carry `size`, so
-the `Repeater` is skipped) and tracks each cell's geometry. Both items fill
-the same parent, which is what makes the cell coordinates valid in the
-plate's space. With no `rings` the plate fills the item, as before.
+**Shaped on the rings, not the host.** Each host passes its `MainContent`
+as `rings`, and `BackgroundStyle.ringBounds()` unions the centred
+`min(w, h)` square every `Ring` delegate draws in its cell. The caps get
+the ring radius, so they follow the end rings (rounded top and bottom in a
+vertical strip, left and right in a horizontal one). Reading the layout
+instead of the host matters on Plasma, where a desktop applet can be
+resized bigger than the strip — the cells grow, the rings stay centred
+squares, the halo stays on them. The binding walks `rings.children` (only
+`Ring` delegates carry `size`, so the `Repeater` is skipped) and tracks
+each cell's geometry. Both items fill the same parent, which is what makes
+the cell coordinates valid in the halo's space. With no `rings` the halo
+is the stadium inscribed in the item.
 
-`backgroundEdgeSoftness` (0-33 %, default `0` = the crisp rectangle) is a
-separate axis from the directional fade: a linear `Gradient` only fades
-along ONE axis, so it can never soften the two edges perpendicular to it.
-All four edges are softened by a `QtQuick.Effects` `MultiEffect` blur
-instead — the stadium is inset by the feather (caps shrunk by the same
-amount, so they stay concentric) so the blur fades out at the rings' outer
-edge rather than being clipped by a window sized to the strip, and the effect is
-anchored to the plate with `autoPaddingEnabled` so it bleeds back over
-that margin. The effect is instantiated unconditionally and switched by
-`blurEnabled`, never by `visible`: `MultiEffect` owns its source item's
-visibility, so hiding the effect would take the plate with it.
+**Size.** `backgroundSpread` (0-100 % of the ring radius, default `0` =
+hugging the rings) grows the stadium on every side, caps included, so they
+stay concentric. A spread halo is drawn past the host's edge: Plasma does
+not clip an applet, a standalone window does (its size follows the rings).
+
+**Soft edge.** `backgroundEdgeSoftness` (0-50 % of the stadium's shorter
+side, default `0` = crisp) is the band over which the alpha falls linearly
+to 0. It is painted, not blurred: a linear `LinearGradient` across the
+straight body and a `RadialGradient` on each half-disc cap (`HaloCap.qml`),
+which agree on the distance to the edge at the seam, so they meet without
+a step. A `MultiEffect` blur was tried first and dropped: it spreads the
+edge both ways, which reads as the plate shrinking rather than fading. At
+50 % the fade starts at the centre line — a glow with no solid core. The
+path seams sit on whole pixels so the anti-aliased edges of adjacent paths
+don't overlap into a line.
 
 On the Plasma side this forced one structural change: `fullRepresentation`
 used to *be* `MainContent`, whose root is a `GridLayout` — a layout hands
-every child a cell, so the plate cannot be a child of it. The
-representation is now a wrapper `Item` holding the plate and the body as
+every child a cell, so the halo cannot be a child of it. The
+representation is now a wrapper `Item` holding the halo and the body as
 siblings, forwarding `contentBody.implicitWidth/Height` so the panel
 allocation stays driven by the rings exactly as before (see § `MainContent.qml`
 — implicit dimensions below). The standalone `Window` root has no such
-constraint; the plate is just anchored to fill it, then shaped on the rings.
+constraint; the halo is anchored to fill it, then shaped on the rings.
 
 ## `MainContent.qml` — implicit dimensions
 

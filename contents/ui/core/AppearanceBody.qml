@@ -60,12 +60,12 @@ Kirigami.FormLayout {
     property string textColorMode: "system"
     property color customTextColorLight: "#232629"
     property color customTextColorDark: "#fcfcfc"
-    // Background plate (#170). The values live on BackgroundSettings
+    // Background halo (#170). The values live on BackgroundSettings
     // below; aliased here so both hosts bridge them like every other key.
     property alias backgroundEnabled: backgroundSettings.backgroundEnabled
     property alias backgroundColor: backgroundSettings.backgroundColor
     property alias backgroundOpacity: backgroundSettings.backgroundOpacity
-    property alias backgroundGradient: backgroundSettings.backgroundGradient
+    property alias backgroundSpread: backgroundSettings.backgroundSpread
     property alias backgroundEdgeSoftness: backgroundSettings.backgroundEdgeSoftness
 
     // Built once at load time — the labels go through qsTr() so xgettext

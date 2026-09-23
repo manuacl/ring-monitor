@@ -154,6 +154,7 @@ qt_add_qml_module(ring-monitor-standalone
         contents/ui/core/BackgroundSettings.qml
         contents/ui/core/WidgetBackground.qml
         contents/ui/core/BackgroundStyle.js
+        contents/ui/core/HaloCap.qml
         contents/ui/core/MetricsBody.qml
         contents/ui/core/MetricsRowDelegate.qml
         contents/ui/core/MetricSubOptions.qml

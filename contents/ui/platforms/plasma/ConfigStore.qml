@@ -86,7 +86,7 @@ Item {
     readonly property bool backgroundEnabled: Plasmoid.configuration.backgroundEnabled === true
     readonly property color backgroundColor: Plasmoid.configuration.backgroundColor || "#000000"
     readonly property real backgroundOpacity: Plasmoid.configuration.backgroundOpacity ?? 0.5
-    readonly property string backgroundGradient: Plasmoid.configuration.backgroundGradient || "none"
+    readonly property int backgroundSpread: Plasmoid.configuration.backgroundSpread ?? 0
     readonly property int backgroundEdgeSoftness: Plasmoid.configuration.backgroundEdgeSoftness ?? 0
 
     // ── Update-check group ──────────────────────────────────────────

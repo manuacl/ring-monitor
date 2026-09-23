@@ -1,4 +1,4 @@
-// Tests for BackgroundStyle.js — the two-stop math behind the optional
+// Tests for BackgroundStyle.js — the halo geometry behind the optional
 // widget background (issue #170).
 
 import { createRequire } from 'node:module';
@@ -7,29 +7,6 @@ import assert from 'node:assert/strict';
 
 const require = createRequire(import.meta.url);
 const BackgroundStyle = require('../contents/ui/core/BackgroundStyle.js');
-
-test('DIRECTIONS lists none first, then the four edges', () => {
-    assert.deepEqual(BackgroundStyle.DIRECTIONS, ['none', 'top', 'bottom', 'left', 'right']);
-});
-
-test('normalizeDirection passes known values through', () => {
-    for (const d of BackgroundStyle.DIRECTIONS)
-        assert.equal(BackgroundStyle.normalizeDirection(d), d);
-});
-
-test('normalizeDirection falls back to none on junk', () => {
-    for (const junk of ['', 'diagonal', undefined, null, 42])
-        assert.equal(BackgroundStyle.normalizeDirection(junk), 'none');
-});
-
-test('isHorizontal is true only for the left/right fades', () => {
-    assert.equal(BackgroundStyle.isHorizontal('left'), true);
-    assert.equal(BackgroundStyle.isHorizontal('right'), true);
-    assert.equal(BackgroundStyle.isHorizontal('top'), false);
-    assert.equal(BackgroundStyle.isHorizontal('bottom'), false);
-    assert.equal(BackgroundStyle.isHorizontal('none'), false);
-    assert.equal(BackgroundStyle.isHorizontal('nonsense'), false);
-});
 
 test('clampOpacity keeps values inside [0, 1]', () => {
     assert.equal(BackgroundStyle.clampOpacity(0.4), 0.4);
@@ -44,36 +21,6 @@ test('clampOpacity turns a non-number into 0 rather than NaN', () => {
         assert.equal(BackgroundStyle.clampOpacity(junk), 0);
 });
 
-test('none yields a flat fill — both stops at the configured opacity', () => {
-    assert.equal(BackgroundStyle.startAlpha('none', 0.5), 0.5);
-    assert.equal(BackgroundStyle.endAlpha('none', 0.5), 0.5);
-});
-
-test('a fade is transparent at the named edge and opaque at the other', () => {
-    // position 0.0 = top (vertical) / left (horizontal).
-    assert.equal(BackgroundStyle.startAlpha('top', 0.8), 0);
-    assert.equal(BackgroundStyle.endAlpha('top', 0.8), 0.8);
-
-    assert.equal(BackgroundStyle.startAlpha('bottom', 0.8), 0.8);
-    assert.equal(BackgroundStyle.endAlpha('bottom', 0.8), 0);
-
-    assert.equal(BackgroundStyle.startAlpha('left', 0.8), 0);
-    assert.equal(BackgroundStyle.endAlpha('left', 0.8), 0.8);
-
-    assert.equal(BackgroundStyle.startAlpha('right', 0.8), 0.8);
-    assert.equal(BackgroundStyle.endAlpha('right', 0.8), 0);
-});
-
-test('an unknown direction paints like none, not like a fade', () => {
-    assert.equal(BackgroundStyle.startAlpha('diagonal', 0.3), 0.3);
-    assert.equal(BackgroundStyle.endAlpha('diagonal', 0.3), 0.3);
-});
-
-test('the opaque end is clamped too', () => {
-    assert.equal(BackgroundStyle.endAlpha('top', 4), 1);
-    assert.equal(BackgroundStyle.startAlpha('bottom', -2), 0);
-});
-
 test('featherPixels is a percentage of the shorter side', () => {
     assert.equal(BackgroundStyle.featherPixels(10, 400, 200), 20);
     assert.equal(BackgroundStyle.featherPixels(10, 200, 400), 20);
@@ -83,11 +30,8 @@ test('softness 0 means a crisp plate', () => {
     assert.equal(BackgroundStyle.featherPixels(0, 400, 200), 0);
 });
 
-test('featherPixels stays under the MultiEffect blurMax ceiling', () => {
-    // A big widget at max softness would ask for hundreds of pixels;
-    // anything past blurMax is silently ignored by the effect.
-    assert.equal(BackgroundStyle.featherPixels(33, 4000, 4000), BackgroundStyle.MAX_FEATHER_PX);
-    assert.ok(BackgroundStyle.MAX_FEATHER_PX <= 64);
+test('max softness fades from the centre line: half the shorter side', () => {
+    assert.equal(BackgroundStyle.featherPixels(BackgroundStyle.MAX_FEATHER_PERCENT, 400, 200), 100);
 });
 
 test('featherPixels survives an unsized or junk widget', () => {
@@ -133,4 +77,75 @@ test('ringBounds skips unsized cells and reports nothing without rings', () => {
     assert.equal(BackgroundStyle.ringBounds(undefined), null);
     assert.equal(BackgroundStyle.ringBounds([{ x: 0, y: 0, width: 0, height: 0 }]), null);
     assert.deepEqual(BackgroundStyle.ringBounds([{ x: 5, y: 5, width: 0, height: 0 }, { x: 10, y: 20, width: 40, height: 40 }]), { x: 10, y: 20, width: 40, height: 40, radius: 20 });
+});
+
+test('clampPercent honours an explicit ceiling', () => {
+    assert.equal(BackgroundStyle.clampPercent(150, BackgroundStyle.MAX_SPREAD_PERCENT), BackgroundStyle.MAX_SPREAD_PERCENT);
+    assert.equal(BackgroundStyle.clampPercent(70, BackgroundStyle.MAX_SPREAD_PERCENT), 70);
+});
+
+// ── spreadBounds ──────────────────────────────────────────────────
+test('spreadBounds grows the stadium by a share of the ring radius', () => {
+    const rings = { x: 0, y: 0, width: 100, height: 300, radius: 50 };
+    assert.deepEqual(BackgroundStyle.spreadBounds(rings, 40), { x: -20, y: -20, width: 140, height: 340, radius: 70 });
+});
+
+test('spreadBounds 0 hugs the rings, and junk or overshoot is clamped', () => {
+    const rings = { x: 10, y: 10, width: 100, height: 100, radius: 50 };
+    assert.deepEqual(BackgroundStyle.spreadBounds(rings, 0), rings);
+    assert.deepEqual(BackgroundStyle.spreadBounds(rings, 'big'), rings);
+    assert.deepEqual(BackgroundStyle.spreadBounds(rings, 500), BackgroundStyle.spreadBounds(rings, BackgroundStyle.MAX_SPREAD_PERCENT));
+    assert.equal(BackgroundStyle.spreadBounds(null, 50), null);
+});
+
+// ── haloGeometry ──────────────────────────────────────────────────
+test('haloGeometry: crisp when feather is 0', () => {
+    const g = BackgroundStyle.haloGeometry(300, 100, 0);
+    assert.equal(g.edgeAlpha, 1);
+    assert.equal(g.fadeStop, 0);
+    assert.equal(g.capStop, 1);
+});
+
+test('haloGeometry: a horizontal pill has caps left and right', () => {
+    const g = BackgroundStyle.haloGeometry(300, 100, 25);
+    assert.equal(g.r, 50);
+    assert.equal(g.edgeAlpha, 0);
+    assert.equal(g.fadeStop, 0.25);
+    assert.equal(g.capStop, 0.5);
+    assert.deepEqual(g.body, [{ x: 50, y: 0 }, { x: 250, y: 0 }, { x: 250, y: 100 }, { x: 50, y: 100 }]);
+    // The fade runs across the thickness.
+    assert.deepEqual(g.across, { start: { x: 0, y: 0 }, end: { x: 0, y: 100 } });
+    assert.deepEqual(g.capA.center, { x: 50, y: 50 });
+    assert.equal(g.capA.clockwise, false);
+    assert.deepEqual(g.capB.center, { x: 250, y: 50 });
+    assert.equal(g.capB.clockwise, true);
+});
+
+test('haloGeometry: a vertical pill has caps top and bottom', () => {
+    const g = BackgroundStyle.haloGeometry(100, 300, 25);
+    assert.deepEqual(g.body, [{ x: 0, y: 50 }, { x: 0, y: 250 }, { x: 100, y: 250 }, { x: 100, y: 50 }]);
+    assert.deepEqual(g.across, { start: { x: 0, y: 0 }, end: { x: 100, y: 0 } });
+    assert.deepEqual(g.capA.start, { x: 0, y: 50 });
+    assert.deepEqual(g.capA.end, { x: 100, y: 50 });
+    assert.equal(g.capA.clockwise, true);
+    assert.equal(g.capB.clockwise, false);
+});
+
+test('haloGeometry: seams on whole pixels, feather capped at the radius', () => {
+    const g = BackgroundStyle.haloGeometry(301, 101, 999);
+    // r = 50.5, seams rounded; body never inverted.
+    assert.equal(g.capA.start.x, 51);
+    assert.equal(g.capB.start.x, 250);
+    assert.equal(g.capStop, 0);
+    assert.equal(g.fadeStop, 0.5);
+    // A single ring: both seams meet at the middle, no body.
+    const one = BackgroundStyle.haloGeometry(100, 100, 10);
+    assert.equal(one.capA.start.x, one.capB.start.x);
+});
+
+test('haloGeometry survives an unsized box', () => {
+    const g = BackgroundStyle.haloGeometry(0, 0, 10);
+    assert.equal(g.r, 0);
+    assert.equal(g.fadeStop, 0);
+    assert.equal(g.capStop, 1);
 });

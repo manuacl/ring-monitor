@@ -3,7 +3,7 @@ import QtTest
 import "../../contents/ui/core" as Ui
 
 // Tests for BackgroundSettings.qml — the Appearance-page controls for
-// the optional background plate (issue #170). Covers the property →
+// the optional background halo (issue #170). Covers the property →
 // control direction (what a persisted value shows) and the control →
 // property direction (what a click writes back), which is what the
 // cfg_* aliases and the standalone bridge map carry.
@@ -37,7 +37,7 @@ Item {
 
         property var enabledCheck: findChild(settings, "backgroundEnabledCheck")
         property var opacitySlider: findChild(settings, "backgroundOpacitySlider")
-        property var gradientCombo: findChild(settings, "backgroundGradientCombo")
+        property var spreadSlider: findChild(settings, "backgroundSpreadSlider")
         property var softnessSlider: findChild(settings, "backgroundEdgeSoftnessSlider")
         property var colorButton: findChild(settings, "backgroundColorButton")
 
@@ -45,13 +45,13 @@ Item {
             settings.backgroundEnabled = false;
             settings.backgroundColor = "#000000";
             settings.backgroundOpacity = 0.5;
-            settings.backgroundGradient = "none";
+            settings.backgroundSpread = 0;
             settings.backgroundEdgeSoftness = 0;
         }
 
         function test_defaults_keep_the_widget_transparent() {
             compare(settings.backgroundEnabled, false);
-            compare(settings.backgroundGradient, "none");
+            compare(settings.backgroundSpread, 0);
         }
 
         function test_enabled_property_drives_the_checkbox() {
@@ -60,15 +60,15 @@ Item {
             compare(enabledCheck.checked, true);
         }
 
-        // The colour, opacity and blend rows are meaningless while the
+        // The colour, opacity, size and softness rows are meaningless while the
         // plate is off — they only appear once it is enabled.
         function test_detail_rows_hidden_while_disabled() {
             compare(opacitySlider.parent.visible, false);
-            compare(gradientCombo.parent.visible, false);
+            compare(spreadSlider.parent.visible, false);
             compare(softnessSlider.parent.visible, false);
             settings.backgroundEnabled = true;
             compare(opacitySlider.parent.visible, true);
-            compare(gradientCombo.parent.visible, true);
+            compare(spreadSlider.parent.visible, true);
             compare(softnessSlider.parent.visible, true);
         }
 
@@ -96,26 +96,16 @@ Item {
             fuzzyCompare(settings.backgroundOpacity, 0.8, 0.001);
         }
 
-        function test_gradient_property_selects_the_combo_entry() {
-            settings.backgroundGradient = "bottom";
-            compare(gradientCombo.currentIndex, 2);
-            settings.backgroundGradient = "right";
-            compare(gradientCombo.currentIndex, 4);
+        function test_spread_property_drives_the_slider() {
+            settings.backgroundSpread = 40;
+            compare(spreadSlider.value, 40);
         }
 
-        // A value from a future (or corrupted) config must not leave the
-        // combo on a blank row — it reads back as "None", the same
-        // fallback BackgroundStyle applies when painting.
-        function test_unknown_gradient_shows_none() {
-            settings.backgroundGradient = "diagonal";
-            compare(gradientCombo.currentIndex, 0);
-        }
-
-        function test_combo_activation_writes_back_the_direction() {
+        function test_spread_slider_move_writes_back() {
             settings.backgroundEnabled = true;
-            gradientCombo.currentIndex = 3;
-            gradientCombo.activated(3);
-            compare(settings.backgroundGradient, "left");
+            spreadSlider.value = 60;
+            spreadSlider.moved();
+            compare(settings.backgroundSpread, 60);
         }
 
         function test_color_picker_accept_writes_back_the_color() {

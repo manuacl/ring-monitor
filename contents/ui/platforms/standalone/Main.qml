@@ -281,7 +281,7 @@ Window {
         backgroundEnabled: configStoreAdapter.backgroundEnabled
         backgroundColor: configStoreAdapter.backgroundColor
         backgroundOpacity: configStoreAdapter.backgroundOpacity
-        backgroundGradient: configStoreAdapter.backgroundGradient
+        backgroundSpread: configStoreAdapter.backgroundSpread
         backgroundEdgeSoftness: configStoreAdapter.backgroundEdgeSoftness
         rings: content
     }

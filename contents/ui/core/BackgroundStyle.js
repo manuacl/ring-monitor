@@ -1,50 +1,29 @@
 // Pure logic for the optional widget background (issue #170).
 //
-// The background is one Rectangle painted behind the rings, with a
-// two-stop gradient so it can fade out toward one edge and blend into
-// the wallpaper. Everything the Rectangle needs beyond `Qt.rgba()` is
-// computed here.
+// The background is a halo: a stadium (pill) behind the rings whose caps
+// follow the end rings, optionally grown past them and faded to
+// transparent at its edge. Everything WidgetBackground.qml draws beyond
+// `Qt.rgba()` is computed here.
 //
 // Public surface:
-//   DIRECTIONS                  - the persisted `backgroundGradient` values,
-//                                 in the order the config combo lists them
-//   normalizeDirection(dir)     - unknown / empty → "none"
-//   isHorizontal(dir)           - Gradient.Horizontal vs Gradient.Vertical
-//   clampOpacity(value)         - NaN / out-of-range → [0, 1]
-//   startAlpha(dir, opacity)    - alpha of the stop at position 0.0
-//   endAlpha(dir, opacity)      - alpha of the stop at position 1.0
-//   featherPixels(pct, w, h)    - `backgroundEdgeSoftness` % → the blur
-//                                 radius (px) that softens all four edges
-//
-// A direction names the edge the background fades OUT toward: "top"
-// means transparent at the top, fully `backgroundOpacity` at the
-// bottom. "none" makes both stops equal, i.e. a flat fill — one code
-// path for both cases, so the Rectangle never branches on `gradient`
-// vs `color`.
+//   clampOpacity(value)            - NaN / out-of-range → [0, 1]
+//   clampPercent(value, max)       - NaN / out-of-range → [0, max]
+//   ringBounds(cells)              - the stadium hugging the drawn rings
+//   spreadBounds(bounds, pct)      - that stadium grown by `pct` % of the
+//                                    ring radius on every side
+//   featherPixels(pct, w, h)       - `backgroundEdgeSoftness` % → width (px)
+//                                    of the fade band along the edge
+//   haloGeometry(w, h, feather)    - the three paths and their stops
 //
 // Dual-loaded by QML (`import "BackgroundStyle.js" as BackgroundStyle`)
 // and Node (via the module.exports shim at the bottom).
 
-var DIRECTIONS = ["none", "top", "bottom", "left", "right"];
-
-// A linear Gradient fades along ONE axis, so it can never soften the two
-// edges perpendicular to it. The all-around soft edge is a blur instead
-// (QtQuick.Effects MultiEffect), and 64 px is that effect's own blurMax
-// ceiling — asking for more is silently ignored, so clamp here where the
-// number is computed.
-var MAX_FEATHER_PX = 64;
-// Half the shorter side would blur the plate away entirely; a third
-// still reads as a plate with soft edges.
-var MAX_FEATHER_PERCENT = 33;
-
-function normalizeDirection(dir) {
-    return DIRECTIONS.indexOf(dir) >= 0 ? dir : "none";
-}
-
-function isHorizontal(dir) {
-    var d = normalizeDirection(dir);
-    return d === "left" || d === "right";
-}
+// Half the shorter side = the cap radius: the fade then starts at the
+// strip's centre line, a pure glow with no solid core.
+var MAX_FEATHER_PERCENT = 50;
+// One ring radius of extra halo on every side: the halo is then twice as
+// thick as the rings.
+var MAX_SPREAD_PERCENT = 100;
 
 function clampOpacity(value) {
     var n = Number(value);
@@ -52,33 +31,10 @@ function clampOpacity(value) {
     return Math.max(0, Math.min(1, n));
 }
 
-// Position 0.0 is the top edge (vertical) or the left edge (horizontal).
-function startAlpha(dir, opacity) {
-    var d = normalizeDirection(dir);
-    return (d === "top" || d === "left") ? 0 : clampOpacity(opacity);
-}
-
-// Position 1.0 is the bottom edge (vertical) or the right edge (horizontal).
-function endAlpha(dir, opacity) {
-    var d = normalizeDirection(dir);
-    return (d === "bottom" || d === "right") ? 0 : clampOpacity(opacity);
-}
-
-// Softness is a percentage of the SHORTER side so a wide horizontal strip
-// and a tall vertical one get the same visual treatment; the result is
-// both the blur radius and the inset the plate is drawn at, so the fade
-// lands inside the widget instead of being clipped at its edge.
-function featherPixels(softnessPercent, width, height) {
-    var pct = clampPercent(softnessPercent);
-    var side = Math.min(Number(width), Number(height));
-    if (!isFinite(side) || side <= 0 || pct <= 0) return 0;
-    return Math.min(MAX_FEATHER_PX, Math.round(side * pct / 100));
-}
-
-function clampPercent(value) {
+function clampPercent(value, max) {
     var n = Number(value);
     if (!isFinite(n)) return 0;
-    return Math.max(0, Math.min(MAX_FEATHER_PERCENT, n));
+    return Math.max(0, Math.min(max === undefined ? MAX_FEATHER_PERCENT : max, n));
 }
 
 // Stadium hugging the rings: each cell draws its ring as a square of side
@@ -106,18 +62,76 @@ function ringBounds(cells) {
     return { x: left, y: top, width: width, height: height, radius: Math.min(width, height) / 2 };
 }
 
+// Grown from the ring radius rather than in pixels so the halo keeps its
+// proportions at any ring size. The caps grow by the same margin, so they
+// stay concentric with the end rings. Past the host's edge the halo is
+// simply drawn outside it (Plasma does not clip applets; a standalone
+// window does).
+function spreadBounds(bounds, pct) {
+    if (!bounds) return null;
+    var m = Math.round(bounds.radius * clampPercent(pct, MAX_SPREAD_PERCENT) / 100);
+    return { x: bounds.x - m, y: bounds.y - m, width: bounds.width + 2 * m, height: bounds.height + 2 * m, radius: bounds.radius + m };
+}
+
+// Softness is a percentage of the SHORTER side so a wide horizontal strip
+// and a tall vertical one get the same visual treatment; the result is
+// the band, measured inward from the edge, over which the halo goes from
+// transparent to full opacity.
+function featherPixels(softnessPercent, width, height) {
+    var pct = clampPercent(softnessPercent);
+    var side = Math.min(Number(width), Number(height));
+    if (!isFinite(side) || side <= 0 || pct <= 0) return 0;
+    return Math.round(side * pct / 100);
+}
+
+// The soft edge is an alpha ramp falling linearly to 0 over the last
+// `feather` px of the stadium, on every side: a linear gradient across the
+// straight body and a radial one on each half-disc cap (same distance to
+// the edge on both sides of the seam, so they meet without a step). A blur
+// cannot do this — it spreads the edge both ways and reads as the plate
+// shrinking. Seams sit on whole pixels so the anti-aliased edges of
+// adjacent paths don't overlap into a visible line. Coordinates are local
+// to the stadium's box; `t` is its thickness, `r` the cap radius.
+// feather 0 → edgeAlpha 1: the "fade" stops are opaque, a crisp stadium.
+function haloGeometry(width, height, feather) {
+    var w = Math.max(0, Number(width) || 0);
+    var h = Math.max(0, Number(height) || 0);
+    var horizontal = w >= h;
+    var t = horizontal ? h : w;
+    var len = horizontal ? w : h;
+    var r = t / 2;
+    var f = Math.max(0, Math.min(r, Number(feather) || 0));
+    var a = Math.min(Math.round(r), len / 2);
+    var b = len - a;
+    // (along, across) → (x, y) for the strip's orientation.
+    function pt(along, across) {
+        return horizontal ? { x: along, y: across } : { x: across, y: along };
+    }
+    return {
+        r: r,
+        edgeAlpha: f > 0 ? 0 : 1,
+        fadeStop: t > 0 ? f / t : 0,
+        capStop: r > 0 ? (r - f) / r : 1,
+        body: [pt(a, 0), pt(b, 0), pt(b, t), pt(a, t)],
+        across: { start: pt(0, 0), end: pt(0, t) },
+        // Each cap runs from the across=0 side to the across=t side of its
+        // seam. Screen y points down, so the start cap bulges
+        // counterclockwise when horizontal (leftward) but clockwise when
+        // vertical (upward); the end cap is the mirror.
+        capA: { start: pt(a, 0), end: pt(a, t), center: pt(a, r), clockwise: !horizontal },
+        capB: { start: pt(b, 0), end: pt(b, t), center: pt(b, r), clockwise: horizontal }
+    };
+}
+
 if (typeof module !== "undefined" && module.exports) {
     module.exports = {
-        DIRECTIONS: DIRECTIONS,
-        normalizeDirection: normalizeDirection,
-        isHorizontal: isHorizontal,
         clampOpacity: clampOpacity,
-        startAlpha: startAlpha,
-        endAlpha: endAlpha,
-        featherPixels: featherPixels,
         clampPercent: clampPercent,
         ringBounds: ringBounds,
-        MAX_FEATHER_PX: MAX_FEATHER_PX,
+        spreadBounds: spreadBounds,
+        featherPixels: featherPixels,
+        haloGeometry: haloGeometry,
         MAX_FEATHER_PERCENT: MAX_FEATHER_PERCENT,
+        MAX_SPREAD_PERCENT: MAX_SPREAD_PERCENT,
     };
 }

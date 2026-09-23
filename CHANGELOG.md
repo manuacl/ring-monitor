@@ -12,6 +12,8 @@ user-facing only.
 
 ## [Unreleased]
 
+## [0.17.0] — 2026-09-23
+
 ### Added
 
 - Optional **background halo** behind the rings (#170): a soft glow shaped like the ring strip, rounded around the first and last rings. Pick its colour and opacity, make it bigger than the rings, and fade its edge into the wallpaper. Off by default — the widget stays transparent unless you turn it on (Appearance → Background).

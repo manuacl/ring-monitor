@@ -159,9 +159,9 @@ GridLayout {
     readonly property int _ringSpacing: Math.round(_ringSize * _ringSpacingPercent / 100)
     rowSpacing: _ringSpacing
     columnSpacing: _ringSpacing
-    // The Plasma host (contents/ui/main.qml) mounts this Item as
-    // `fullRepresentation` with no Layout.preferredWidth/Height
-    // override, so the panel allocation is driven entirely by the
+    // The Plasma host (contents/ui/main.qml) forwards this layout's
+    // implicits from its `fullRepresentation` wrapper, with no Layout.
+    // preferred* override, so the panel allocation is driven entirely by the
     // GridLayout's auto-implicit dimensions — i.e. the sum of
     // delegate Layout.preferredWidth/Height plus row/column spacing.
     // The Ring delegates below set `Layout.preferredWidth: _ringSize`

@@ -29,6 +29,11 @@ Platform.PlaceholderKCM {
     property alias cfg_textColorMode: body.textColorMode
     property alias cfg_customTextColorLight: body.customTextColorLight
     property alias cfg_customTextColorDark: body.customTextColorDark
+    property alias cfg_backgroundEnabled: body.backgroundEnabled
+    property alias cfg_backgroundColor: body.backgroundColor
+    property alias cfg_backgroundOpacity: body.backgroundOpacity
+    property alias cfg_backgroundSpread: body.backgroundSpread
+    property alias cfg_backgroundEdgeSoftness: body.backgroundEdgeSoftness
 
     // ColorPicker is platform-specific (Plasma wraps KQuickControls.ColorButton,
     // standalone wraps a plain Button + QtQuick.Dialogs.ColorDialog).

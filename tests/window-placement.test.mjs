@@ -132,3 +132,28 @@ test("pickScreen works with a QQmlListProperty-like array-like object", () => {
     assert.deepEqual(WP.pickScreen(qmlLike, "HDMI-A-1"), qmlLike[1]);
     assert.strictEqual(WP.pickScreen(qmlLike, "VGA-0"), null);
 });
+
+// ── haloInsets (#170) ─────────────────────────────────────────────
+test("haloInsets pads the free sides and borrows the anchored margin", () => {
+    // top-right, margins 40/10, halo 20: the window starts 20 px earlier
+    // on the right (margin 40 → 20) and 10 px earlier at the top (all of
+    // the 10 px margin), so the rings stay where they were.
+    assert.deepEqual(WP.haloInsets("top-right", 20, 40, 10), {
+        left: 20, right: 20, top: 10, bottom: 20, marginX: 20, marginY: 0
+    });
+});
+
+test("haloInsets at margin 0 keeps the window on-screen", () => {
+    // SCENARIO: rings flush with the screen corner — the halo is cut by
+    // the screen edge rather than the window going off-screen.
+    assert.deepEqual(WP.haloInsets("bottom-left", 30, 0, 0), {
+        left: 0, right: 30, top: 30, bottom: 0, marginX: 0, marginY: 0
+    });
+});
+
+test("haloInsets without a halo is a no-op", () => {
+    assert.deepEqual(WP.haloInsets("top-left", 0, 12, 34), {
+        left: 0, right: 0, top: 0, bottom: 0, marginX: 12, marginY: 34
+    });
+    assert.deepEqual(WP.haloInsets("top-left", undefined, 12, 34), WP.haloInsets("top-left", 0, 12, 34));
+});

@@ -12,17 +12,10 @@ import "ColorThemes.js" as ColorThemes
 // `property alias` declarations. The body never touches Plasmoid
 // configuration directly.
 //
-// The ColorPicker control is platform-dependent (Plasma wraps
-// KQuickControls.ColorButton, standalone wraps a plain Button +
-// QtQuick.Dialogs.ColorDialog), so the body takes it as a Component
-// the wrapper injects. Keeps `core/` free of any `org.kde.*` import
-// except Kirigami — the platform isolation invariant documented in
-// `core/CLAUDE.md`.
-//
-// i18n strings use qsTr() rather than Plasma's i18n() — Qt's
-// translation framework works in both the Plasma applet runtime and
-// a future standalone build, while i18n() requires KF6 runtime. See
-// docs/plasma-isolation/plan.md.
+// The platform-dependent ColorPicker arrives as an injected Component,
+// and the strings go through qsTr() rather than Plasma's i18n(): both
+// keep this file free of any `org.kde.*` import except Kirigami. See
+// core/CLAUDE.md and docs/plasma-isolation/plan.md.
 
 Kirigami.FormLayout {
     id: body
@@ -34,12 +27,8 @@ Kirigami.FormLayout {
     // `platforms/standalone/ColorPicker.qml` honour this.
     property Component colorPickerComponent
 
-    // The window-placement controls (anchor corner + per-axis margins)
-    // are only consumed by the standalone Window anchoring code
-    // (platforms/standalone/Main.qml). Inside a Plasma panel the slot
-    // position is set by plasmashell, so they are dead UI there — hide
-    // by default, and let the standalone SettingsDialog flip them on.
-    // Same pattern as AboutBody's `autostartAvailable`.
+    // Standalone-only controls (plasmashell owns the Plasma slot
+    // position): docs/components.md § AppearanceBody.
     property bool windowPlacementVisible: false
 
     // Hidden by default (standalone SettingsDialog flips it on), same gate
@@ -71,6 +60,13 @@ Kirigami.FormLayout {
     property string textColorMode: "system"
     property color customTextColorLight: "#232629"
     property color customTextColorDark: "#fcfcfc"
+    // Background halo (#170). The values live on BackgroundSettings
+    // below; aliased here so both hosts bridge them like every other key.
+    property alias backgroundEnabled: backgroundSettings.backgroundEnabled
+    property alias backgroundColor: backgroundSettings.backgroundColor
+    property alias backgroundOpacity: backgroundSettings.backgroundOpacity
+    property alias backgroundSpread: backgroundSettings.backgroundSpread
+    property alias backgroundEdgeSoftness: backgroundSettings.backgroundEdgeSoftness
 
     // Built once at load time — the labels go through qsTr() so xgettext
     // picks them up, while ColorThemes.js stays free of i18n machinery.
@@ -158,9 +154,6 @@ Kirigami.FormLayout {
         }
     }
 
-    // Window placement — anchor corner + per-axis inset from that
-    // corner's edges. Standalone-only (Plasma slot position is
-    // plasmashell's job), so hidden via `windowPlacementVisible`.
     // Margin semantics: platforms/standalone/WindowPlacement.js.
     RowLayout {
         Kirigami.FormData.label: qsTr("Anchor corner:")
@@ -324,12 +317,8 @@ Kirigami.FormLayout {
         onActivated: body.colorTheme = currentValue
     }
 
-    // Auto follows the system color scheme via Qt.styleHints
-    // (Theme.qml subscribes to colorSchemeChanged). The explicit
-    // Always light / Always dark overrides are the escape hatch for
-    // setups where plasmashell does not propagate the scheme change
-    // live to running panel widgets — Vapor and other custom Plasma
-    // look-and-feel themes notably exhibit that behaviour.
+    // Why the explicit light/dark overrides exist next to "follow
+    // system": docs/logic-modules.md § ColorThemes.js.
     RowLayout {
         Kirigami.FormData.label: qsTr("Mode:")
         visible: body.colorTheme !== "system"
@@ -369,10 +358,9 @@ Kirigami.FormLayout {
                 });
             }
         }
-        // Drive the swatch via a Binding element, NOT an imperative
-        // `item.color = Qt.binding(...)`: the ColorPicker self-assigns
-        // `color = selectedColor` on accept, which clobbers an imperative
-        // binding. See core/CLAUDE.md § Component-side gotchas.
+        // Binding element, not an imperative `item.color = Qt.binding(…)`:
+        // the ColorPicker self-assigns on accept and would clobber it.
+        // See core/CLAUDE.md § Component-side gotchas.
         Binding {
             target: lightColorButton.item
             property: "color"
@@ -474,6 +462,18 @@ Kirigami.FormLayout {
             when: darkTextColorButton.item !== null
             restoreMode: Binding.RestoreBindingOrValue
         }
+    }
+
+    Item {
+        Kirigami.FormData.isSection: true
+    }
+
+    BackgroundSettings {
+        id: backgroundSettings
+        Kirigami.FormData.label: qsTr("Background:")
+        Kirigami.FormData.labelAlignment: Qt.AlignTop
+        Layout.fillWidth: true
+        colorPickerComponent: body.colorPickerComponent
     }
 
     // ── Test hooks ──────────────────────────────────────────────────

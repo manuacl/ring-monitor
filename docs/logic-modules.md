@@ -3,7 +3,8 @@
 The pure-logic `.js` modules live in one of two places, by usage:
 
 - **`contents/ui/core/`** — shared by both platforms (`MetricsCatalog`,
-  `ColorThemes`, `ReorderLogic`, `RingGeometry`, `UpdateCheck`).
+  `ColorThemes`, `ReorderLogic`, `RingGeometry`, `UpdateCheck`,
+  `BackgroundStyle`).
 - **`contents/ui/platforms/<p>/`** — used by only one platform, kept
   beside that platform's adapter so it isn't shipped as dead code to
   the other artifact: `platforms/standalone/` holds `ProcStatParser`,
@@ -102,6 +103,26 @@ the three `colorMode` values use the same pattern inside
 to apply. Splitting them lets users on Plasma themes that break the
 auto-detect (Vapor, third-party look-and-feel themes that override
 the system color scheme) force the variant explicitly.
+
+## `BackgroundStyle.js`
+
+The halo geometry behind the optional widget background (issue #170),
+consumed by `core/WidgetBackground.qml` and `core/HaloCap.qml`.
+
+| Function | What it returns |
+|---|---|
+| `clampOpacity(value)` | `[0, 1]`; a non-number (unset key) yields `0`, never `NaN` |
+| `clampPercent(value, max)` | `[0, max]` (`max` defaults to `MAX_FEATHER_PERCENT`); a non-number yields `0` |
+| `ringBounds(cells)` | `{x, y, width, height, radius}` of the stadium hugging the rings: the union of the centred `min(w, h)` square each layout cell draws, `radius` = half the shorter side (the ring radius); `null` when no cell is sized yet |
+| `spreadBounds(bounds, pct)` | that stadium grown by `pct` % of its radius on every side, radius included |
+| `featherPixels(pct, w, h)` | width (px) of the fade band: `pct` % of the **shorter** side |
+| `haloGeometry(w, h, feather)` | the body rectangle, the gradient axis across it, the two half-disc caps (start, end, centre, arc direction) and the stops: `fadeStop` on the body, `capStop` on the radial caps, `edgeAlpha` (`0`, or `1` for a crisp edge so no special case is needed) |
+| `MAX_FEATHER_PERCENT` / `MAX_SPREAD_PERCENT` | `50` (the fade then starts at the centre line) / `100` (one ring radius of extra halo per side) |
+
+`haloGeometry` works along/across the strip and maps back to `(x, y)` per
+orientation, so one code path draws horizontal and vertical pills. Seams
+are rounded to whole pixels. Every function tolerates the pre-layout pass
+where sizes are `0` — it yields a crisp, empty halo, never `NaN`.
 
 ## `RingGeometry.js`
 
@@ -586,6 +607,7 @@ host path is active, and is the single tested source of truth shared by both
 |---|---|
 | `cornerToAnchorSpec(corner)` | `corner` → `{left, top}` booleans (which screen edges the margins inset from; `false` = right / bottom). Unknown corner → top-right. Used by the Wayland layer-shell path: `Main.qml` passes the spec to `wayland_layer_shell.cpp` `configure()`, which maps it to `LayerShellQt` anchor enums + `QMargins`. |
 | `computeX11Origin(corner, screenW, screenH, winW, winH, marginX, marginY, screenX, screenY)` | Absolute top-left `{x, y}` for the X11 / XWayland path, where the window is a managed toplevel positioned via `WindowAnchor.setGeometry`. Margins inset from the anchored edge; opposite-corner cases subtract the window extent so the content stays on-screen. Callers pass an already screen-capped `winW`/`winH`, and (new with #142) `screenX`/`screenY` are the virtual-desktop offsets of the target screen (0 for primary; non-zero for right-side/bottom-side monitors). |
+| `haloInsets(corner, pad, marginX, marginY)` | Room `{left, right, top, bottom}` around the rings for a spread background halo (#170), plus the `marginX`/`marginY` the window itself must now be inset by. Free sides get `pad`; an anchored side gets `min(pad, margin)` taken out of that margin, so the rings keep their on-screen position and the window never leaves the screen. |
 | `pickScreen(screens, name)` | From `Qt.application.screens` (array-like, NOT a JS Array — guard is length-based), return the screen whose `.name` matches (e.g. `"HDMI-1"`, `"DP-2"`). Returns `null` for an empty/unknown name or empty list — the CALLER owns the fallback (follow the window's current screen); the stored name is never modified. |
 
 The corner-set lives here as `CORNERS`; `AppearanceBody.qml` keeps its own

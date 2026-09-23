@@ -50,6 +50,7 @@ thin views.
   - `ReorderLogic.js` — drag-and-drop array transforms.
   - `RingGeometry.js` — sweep / radius / nested-ring layout math.
   - `UpdateCheck.js` — update-check version compare + TTL.
+  - `BackgroundStyle.js` — halo geometry for the optional background.
 - **Used by only one platform → that platform's `../platforms/<p>/`
   directory, beside its adapter.** Keeping platform-specific logic in
   `core/` ships it as dead weight to the other artifact (the `.plasmoid`
@@ -365,6 +366,14 @@ large. Cost ~4 live iterations:
   - **Decide the side by the tooltip's OWN width fitting** (`spaceRight >= w +
     gap`), not a fixed reference width — else a wide tooltip lands half-off-screen
     or flips inconsistently from a narrow one at the boundary.
+
+### A multi-row item in a `FormLayout` needs `labelAlignment: Qt.AlignTop`
+
+`Kirigami.FormLayout` centres a label vertically on its item, so the
+label of a multi-row item (a `ColumnLayout` whose rows appear on a
+checkbox) slides down as the item grows. Set
+`Kirigami.FormData.labelAlignment: Qt.AlignTop` — see `BackgroundSettings`
+in `AppearanceBody.qml`.
 
 ## Where the platform adapters live
 

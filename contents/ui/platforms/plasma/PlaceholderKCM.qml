@@ -91,6 +91,16 @@ KCM.SimpleKCM {
     property var cfg_customTextColorLightDefault
     property var cfg_customTextColorDark
     property var cfg_customTextColorDarkDefault
+    property var cfg_backgroundEnabled
+    property var cfg_backgroundEnabledDefault
+    property var cfg_backgroundColor
+    property var cfg_backgroundColorDefault
+    property var cfg_backgroundOpacity
+    property var cfg_backgroundOpacityDefault
+    property var cfg_backgroundSpread
+    property var cfg_backgroundSpreadDefault
+    property var cfg_backgroundEdgeSoftness
+    property var cfg_backgroundEdgeSoftnessDefault
     property var cfg_tempUnit
     property var cfg_tempUnitDefault
     property var cfg_checkForUpdatesEnabled

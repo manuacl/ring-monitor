@@ -54,6 +54,7 @@ Pure-logic tests for `core/*.js` modules:
 | `mem-info-parser.test.mjs` | `/proc/meminfo` parser + `usagePercent` (RAM) + `diskUsagePercent` (df formula) |
 | `hwmon-temp-discovery.test.mjs` | sensorTemp picker (standalone): stable hwmon id grammar (`<chip>/temp<N>`, `@<device>` on chip-name collisions), catalog build, `resolveSensorPath` |
 | `update-check.test.mjs` | semver + notification gating for the in-widget update badge |
+| `background-style.test.mjs` | halo geometry: ring bounds, spread, feather band, body/cap paths and stops per orientation, clamping |
 
 Text-level guards (Plasma adapter — `org.kde.plasma.plasmoid` /
 `org.kde.ksysguard.sensors` imports aren't in the CI container):
@@ -94,6 +95,9 @@ guard can't see (binding flow, signal emission, layout):
 | `tst_SensorTempSettings.qml` | property round-trip, per-field `*Edited` signal wiring, spinbox cross-clamp |
 | `tst_TempRangeSettings.qml` | min/max SpinBox round-trip, cross-clamp, °C↔°F display conversion |
 | `tst_AppearanceBody.qml` | opacity sliders bind two-way, mode radios |
+| `tst_BackgroundSettings.qml` | background enable gate, colour/opacity/size/softness controls bind two-way |
+| `tst_WidgetBackground.qml` | visibility gate, stadium shaped on the ring layout, spread, colour/opacity + fade stops |
+| `tst_HaloCap.qml` | half-disc cap path + arc direction, radial fade centre and stops |
 | `tst_MainContent.qml` | ring composition + theme propagation |
 | `tst_AboutBody.qml` | version display + update-badge wiring |
 | `tst_Theme.qml` | Kirigami theme passthrough + `Qt.styleHints` live light/dark |

@@ -211,8 +211,9 @@ fi
 # 2a. Node tests (pure logic).
 node --test tests/*.test.mjs
 
-# 2b. QML tests (qmltestrunner headless, like CI).
-QT_QPA_PLATFORM=offscreen qmltestrunner-qt6 -input tests/qml
+# 2b. QML tests (qmltestrunner headless, like CI). QT_FORCE_STDERR_LOGGING
+# keeps the output out of journald when there is no tty (see tests/CLAUDE.md).
+QT_FORCE_STDERR_LOGGING=1 QT_QPA_PLATFORM=offscreen qmltestrunner-qt6 -input tests/qml
 ```
 
 ### 3. CLAUDE.md rules not covered by pre-commit/CI

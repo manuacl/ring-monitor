@@ -74,6 +74,11 @@ Settings {
     property color customTextColorLight: "#232629"
     property color customTextColorDark: "#fcfcfc"
     property string tempUnit: "auto"
+    property bool backgroundEnabled: false
+    property color backgroundColor: "#000000"
+    property real backgroundOpacity: 0.5
+    property int backgroundSpread: 0
+    property int backgroundEdgeSoftness: 0
 
     // ── Update-check group ──────────────────────────────────────────
     property bool checkForUpdatesEnabled: true

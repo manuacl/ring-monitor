@@ -264,11 +264,11 @@ constraint; the halo is anchored to fill it, then shaped on the rings.
 ## `MainContent.qml` — implicit dimensions
 
 `MainContent` is a `GridLayout` of N square rings (`Ring.qml`
-delegates inside a `Repeater`). It's mounted on the Plasma host
-(`contents/ui/main.qml`) as `fullRepresentation` **with no
+delegates inside a `Repeater`). On the Plasma host
+(`contents/ui/main.qml`) its `fullRepresentation` is a wrapper `Item`
+that forwards `contentBody.implicitWidth/Height` **with no
 `Layout.preferredWidth/Height` override**, so the panel allocation
-is driven entirely by the layout's auto-computed `implicitWidth` /
-`implicitHeight`. Sizing them wrong squashes every ring in the
+is driven entirely by the layout's auto-computed implicits. Sizing them wrong squashes every ring in the
 panel slot — there is no auto-correction downstream.
 
 The layout's implicits are derived from the **delegate** Layout

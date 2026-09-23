@@ -987,6 +987,11 @@ future reader) consumes `configStore.X` instead of reaching into
 | `textColorMode` | `string` | `Plasmoid.configuration.textColorMode` (`system` follows `Kirigami.Theme.textColor`; `custom` picks between the two below) |
 | `customTextColorLight` | `color` | `Plasmoid.configuration.customTextColorLight` |
 | `customTextColorDark` | `color` | `Plasmoid.configuration.customTextColorDark` |
+| `backgroundEnabled` | `bool` | `Plasmoid.configuration.backgroundEnabled` — the halo behind the rings (#170), off by default |
+| `backgroundColor` | `color` | `Plasmoid.configuration.backgroundColor` |
+| `backgroundOpacity` | `real` | `Plasmoid.configuration.backgroundOpacity` |
+| `backgroundSpread` | `int` | `Plasmoid.configuration.backgroundSpread` — % of the ring radius the halo extends past the rings |
+| `backgroundEdgeSoftness` | `int` | `Plasmoid.configuration.backgroundEdgeSoftness` — % of the halo's shorter side faded to transparent |
 
 **Implemented as an Item, not a singleton.** `Plasmoid` is a context
 property injected by the Plasma shell on the QML root scope, so it

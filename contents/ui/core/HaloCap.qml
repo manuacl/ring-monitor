@@ -8,7 +8,23 @@ import QtQuick.Shapes
 ShapePath {
     id: halfDisc
 
-    property var cap
+    // Degenerate until the host binds a real cap, so the bindings below
+    // never read through undefined.
+    property var cap: {
+        "start": {
+            "x": 0,
+            "y": 0
+        },
+        "end": {
+            "x": 0,
+            "y": 0
+        },
+        "center": {
+            "x": 0,
+            "y": 0
+        },
+        "clockwise": false
+    }
     property real radius
     property real capStop: 1
     property color coreColor

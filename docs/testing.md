@@ -97,6 +97,7 @@ guard can't see (binding flow, signal emission, layout):
 | `tst_AppearanceBody.qml` | opacity sliders bind two-way, mode radios |
 | `tst_BackgroundSettings.qml` | background enable gate, colour/opacity/size/softness controls bind two-way |
 | `tst_WidgetBackground.qml` | visibility gate, stadium shaped on the ring layout, spread, colour/opacity + fade stops |
+| `tst_HaloCap.qml` | half-disc cap path + arc direction, radial fade centre and stops |
 | `tst_MainContent.qml` | ring composition + theme propagation |
 | `tst_AboutBody.qml` | version display + update-badge wiring |
 | `tst_Theme.qml` | Kirigami theme passthrough + `Qt.styleHints` live light/dark |

@@ -32,6 +32,11 @@
     <entry name="textColorMode"        type="String"> <default>system</default> </entry>
     <entry name="customTextColorLight" type="Color">  <default>#232629</default> </entry>
     <entry name="customTextColorDark"  type="Color">  <default>#fcfcfc</default> </entry>
+    <entry name="backgroundEnabled"      type="Bool">   <default>false</default> </entry>
+    <entry name="backgroundColor"        type="Color">  <default>#000000</default> </entry>
+    <entry name="backgroundOpacity"      type="Double"> <default>0.5</default> ... </entry>
+    <entry name="backgroundSpread"       type="Int">    <default>0</default> ... </entry>
+    <entry name="backgroundEdgeSoftness" type="Int">    <default>0</default> ... </entry>
 </group>
 ```
 

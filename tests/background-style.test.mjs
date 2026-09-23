@@ -108,3 +108,29 @@ test('clampPercent holds the softness inside [0, MAX_FEATHER_PERCENT]', () => {
 test('a percentage past the cap feathers like the cap, not like zero', () => {
     assert.equal(BackgroundStyle.featherPixels(90, 400, 200), BackgroundStyle.featherPixels(BackgroundStyle.MAX_FEATHER_PERCENT, 400, 200));
 });
+
+// ── ringBounds ────────────────────────────────────────────────────
+test('ringBounds spans a horizontal strip with ring-radius caps', () => {
+    const cells = [
+        { x: 0, y: 0, width: 100, height: 100 },
+        { x: 110, y: 0, width: 100, height: 100 },
+    ];
+    assert.deepEqual(BackgroundStyle.ringBounds(cells), { x: 0, y: 0, width: 210, height: 100, radius: 50 });
+});
+
+test('ringBounds follows the drawn rings, not over-wide cells', () => {
+    // SCENARIO: a Plasma applet resized taller than the vertical strip —
+    // each cell grows, but the ring stays a centred min(w, h) square.
+    const cells = [
+        { x: 0, y: 0, width: 100, height: 160 },
+        { x: 0, y: 170, width: 100, height: 160 },
+    ];
+    assert.deepEqual(BackgroundStyle.ringBounds(cells), { x: 0, y: 30, width: 100, height: 270, radius: 50 });
+});
+
+test('ringBounds skips unsized cells and reports nothing without rings', () => {
+    assert.equal(BackgroundStyle.ringBounds([]), null);
+    assert.equal(BackgroundStyle.ringBounds(undefined), null);
+    assert.equal(BackgroundStyle.ringBounds([{ x: 0, y: 0, width: 0, height: 0 }]), null);
+    assert.deepEqual(BackgroundStyle.ringBounds([{ x: 5, y: 5, width: 0, height: 0 }, { x: 10, y: 20, width: 40, height: 40 }]), { x: 10, y: 20, width: 40, height: 40, radius: 20 });
+});

@@ -16,6 +16,35 @@ Item {
         anchors.fill: parent
     }
 
+    // Stand-in for MainContent: a vertical strip of two 60 px rings in
+    // cells taller than the rings, inside a box wider than the strip.
+    Item {
+        id: fakeRings
+        anchors.fill: parent
+
+        Item {
+            property real size: Math.min(width, height)
+            x: 70
+            y: 0
+            width: 60
+            height: 90
+        }
+        Item {
+            property real size: Math.min(width, height)
+            x: 70
+            y: 100
+            width: 60
+            height: 90
+        }
+        // Not a ring (no `size`) — the Repeater itself lives here too.
+        Item {
+            x: 0
+            y: 0
+            width: 200
+            height: 200
+        }
+    }
+
     TestCase {
         name: "WidgetBackground"
         when: windowShown
@@ -25,6 +54,7 @@ Item {
         property var plate: background._plate
 
         function init() {
+            background.rings = null;
             background.backgroundEnabled = false;
             background.backgroundColor = "#204060";
             background.backgroundOpacity = 0.5;
@@ -94,14 +124,17 @@ Item {
         function test_crisp_by_default() {
             compare(background._feather, 0);
             compare(background._feathering.blurEnabled, false);
-            compare(background._plate.anchors.margins, 0);
+            compare(plate.x, 0);
+            compare(plate.width, 200);
+            compare(plate.radius, 0);
         }
 
         function test_softness_insets_the_plate_and_enables_the_blur() {
             background.backgroundEdgeSoftness = 10;
             // 10 % of the shorter side (200 px here).
             compare(background._feather, 20);
-            compare(background._plate.anchors.margins, 20);
+            compare(plate.x, 20);
+            compare(plate.width, 160);
             compare(background._feathering.blurEnabled, true);
             compare(background._feathering.blurMax, 20);
         }
@@ -114,6 +147,28 @@ Item {
             background.backgroundEdgeSoftness = 0;
             compare(background._feathering.visible, true);
             compare(background._feathering.blurEnabled, false);
+        }
+
+        // ── Halo shape ────────────────────────────────────────────────
+        function test_plate_hugs_the_rings_not_the_host() {
+            background.rings = fakeRings;
+            // Rings drawn at y 15..75 and 115..175, x 70..130.
+            compare(plate.x, 70);
+            compare(plate.y, 15);
+            compare(plate.width, 60);
+            compare(plate.height, 160);
+            // Caps follow the end rings: radius = ring radius.
+            compare(plate.radius, 30);
+        }
+
+        function test_softness_shrinks_the_halo_concentrically() {
+            background.rings = fakeRings;
+            background.backgroundEdgeSoftness = 10;
+            // 10 % of the strip's shorter side (60 px).
+            compare(background._feather, 6);
+            compare(plate.x, 76);
+            compare(plate.width, 48);
+            compare(plate.radius, 24);
         }
 
         // The colour is the host's config value; changing it must repaint

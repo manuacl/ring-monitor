@@ -118,6 +118,7 @@ consumed by `core/WidgetBackground.qml`.
 | `startAlpha(dir, opacity)` | alpha of the stop at position `0.0` (top edge, or left edge when horizontal) |
 | `endAlpha(dir, opacity)` | alpha of the stop at position `1.0` (bottom / right edge) |
 | `featherPixels(pct, w, h)` | soft-edge blur radius in px: `pct` % of the **shorter** side, clamped to `MAX_FEATHER_PX` |
+| `ringBounds(cells)` | `{x, y, width, height, radius}` of the stadium hugging the rings: the union of the centred `min(w, h)` square each layout cell draws, `radius` = half the shorter side (the ring radius); `null` when no cell is sized yet |
 | `clampPercent(value)` | `[0, MAX_FEATHER_PERCENT]`; a non-number yields `0` |
 | `MAX_FEATHER_PX` / `MAX_FEATHER_PERCENT` | `64` (the `MultiEffect.blurMax` ceiling — more is silently ignored) / `33` (half the shorter side would blur the plate away) |
 
@@ -130,7 +131,7 @@ both cases.
 The soft edge is a different mechanism from the fade, hence the separate
 key: a linear gradient fades along one axis only, so feathering all four
 edges is a blur (`MultiEffect`), sized here. `featherPixels` reads the
-widget's own `width`/`height`, which are `0` before the first layout pass
+ring stadium's `width`/`height` (the widget's own without rings), which are `0` before the first layout pass
 — that yields `0`, i.e. a crisp plate, never `NaN` margins.
 
 ## `RingGeometry.js`

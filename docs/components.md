@@ -222,12 +222,26 @@ The stop math (orientation, per-stop alpha, clamping) is the pure module
 own `color` stays `"transparent"` so nothing shows through a fade's
 transparent end.
 
+**Halo shape.** The plate is a stadium around the *drawn rings*, not the
+host's rectangle: each host passes its `MainContent` as `rings`, and
+`BackgroundStyle.ringBounds()` unions the centred `min(w, h)` square every
+`Ring` delegate draws in its cell. The caps get the ring radius, so they
+follow the end rings (rounded top and bottom in a vertical strip, left and
+right in a horizontal one). Reading the layout instead of the host matters
+on Plasma, where a desktop applet can be resized bigger than the strip —
+the cells grow, the rings stay centred squares, the halo stays on them.
+The binding walks `rings.children` (only `Ring` delegates carry `size`, so
+the `Repeater` is skipped) and tracks each cell's geometry. Both items fill
+the same parent, which is what makes the cell coordinates valid in the
+plate's space. With no `rings` the plate fills the item, as before.
+
 `backgroundEdgeSoftness` (0-33 %, default `0` = the crisp rectangle) is a
 separate axis from the directional fade: a linear `Gradient` only fades
 along ONE axis, so it can never soften the two edges perpendicular to it.
 All four edges are softened by a `QtQuick.Effects` `MultiEffect` blur
-instead — the plate is inset by the feather so the blur fades out *inside*
-the widget rather than being clipped at its edge, and the effect is
+instead — the stadium is inset by the feather (caps shrunk by the same
+amount, so they stay concentric) so the blur fades out at the rings' outer
+edge rather than being clipped by a window sized to the strip, and the effect is
 anchored to the plate with `autoPaddingEnabled` so it bleeds back over
 that margin. The effect is instantiated unconditionally and switched by
 `blurEnabled`, never by `visible`: `MultiEffect` owns its source item's
@@ -240,7 +254,7 @@ representation is now a wrapper `Item` holding the plate and the body as
 siblings, forwarding `contentBody.implicitWidth/Height` so the panel
 allocation stays driven by the rings exactly as before (see § `MainContent.qml`
 — implicit dimensions below). The standalone `Window` root has no such
-constraint; the plate is just anchored to fill it.
+constraint; the plate is just anchored to fill it, then shaped on the rings.
 
 ## `MainContent.qml` — implicit dimensions
 

@@ -81,6 +81,31 @@ function clampPercent(value) {
     return Math.max(0, Math.min(MAX_FEATHER_PERCENT, n));
 }
 
+// Stadium hugging the rings: each cell draws its ring as a square of side
+// min(w, h) centred in the cell (Ring.qml), so the union of those squares is
+// the strip, and half its shorter side is the ring radius — the pill's caps
+// then follow the end rings exactly. Cells come from the live layout, not
+// the host's size: a Plasma applet can be bigger than the ring strip.
+// Returns null when there is no sized cell yet.
+function ringBounds(cells) {
+    var left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity;
+    for (var i = 0; i < (cells || []).length; i++) {
+        var c = cells[i];
+        var side = Math.min(Number(c.width), Number(c.height));
+        if (!isFinite(side) || side <= 0) continue;
+        var x = Number(c.x) + (Number(c.width) - side) / 2;
+        var y = Number(c.y) + (Number(c.height) - side) / 2;
+        left = Math.min(left, x);
+        top = Math.min(top, y);
+        right = Math.max(right, x + side);
+        bottom = Math.max(bottom, y + side);
+    }
+    if (left === Infinity) return null;
+    var width = right - left;
+    var height = bottom - top;
+    return { x: left, y: top, width: width, height: height, radius: Math.min(width, height) / 2 };
+}
+
 if (typeof module !== "undefined" && module.exports) {
     module.exports = {
         DIRECTIONS: DIRECTIONS,
@@ -91,6 +116,7 @@ if (typeof module !== "undefined" && module.exports) {
         endAlpha: endAlpha,
         featherPixels: featherPixels,
         clampPercent: clampPercent,
+        ringBounds: ringBounds,
         MAX_FEATHER_PX: MAX_FEATHER_PX,
         MAX_FEATHER_PERCENT: MAX_FEATHER_PERCENT,
     };

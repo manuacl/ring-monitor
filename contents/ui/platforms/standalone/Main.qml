@@ -273,9 +273,9 @@ Window {
         }
     }
 
-    // Optional background plate (#170) — behind the rings, filling the
-    // window. Off by default, so the historic look is an untouched
-    // transparent window.
+    // Optional background plate (#170) — a halo behind the rings, shaped
+    // on the ring layout rather than the window. Off by default, so the
+    // historic look is an untouched transparent window.
     Core.WidgetBackground {
         anchors.fill: parent
         backgroundEnabled: configStoreAdapter.backgroundEnabled
@@ -283,6 +283,7 @@ Window {
         backgroundOpacity: configStoreAdapter.backgroundOpacity
         backgroundGradient: configStoreAdapter.backgroundGradient
         backgroundEdgeSoftness: configStoreAdapter.backgroundEdgeSoftness
+        rings: content
     }
 
     // ── Portable body ───────────────────────────────────────────────

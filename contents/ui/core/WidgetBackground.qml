@@ -7,7 +7,9 @@ import "BackgroundStyle.js" as BackgroundStyle
 // Off by default — the historic look is a fully transparent widget.
 //
 // Both hosts (contents/ui/main.qml, platforms/standalone/Main.qml)
-// mount one of these anchored under their MainContent. Portable: the
+// mount one of these under their MainContent, filling the same box, and
+// hand it the layout as `rings`: the plate is a stadium around the drawn
+// rings, not the host's rectangle. Portable: the
 // colour, the directional fade and the edge softness come from plain
 // properties the host forwards from its ConfigStore, and the math lives
 // in BackgroundStyle.js.
@@ -24,23 +26,55 @@ Item {
     // 0 = the crisp rectangle.
     property int backgroundEdgeSoftness: 0
 
+    // The ring layout (MainContent). Must share this item's coordinate
+    // space, which both hosts get by filling the same parent. Null = no
+    // rings to follow, the plate fills the item.
+    property Item rings: null
+
     visible: widgetBackground.backgroundEnabled
 
-    readonly property int _feather: BackgroundStyle.featherPixels(widgetBackground.backgroundEdgeSoftness, widgetBackground.width, widgetBackground.height)
+    // Read in the binding so it tracks every cell's geometry and the
+    // Repeater adding or dropping rings. Only Ring delegates carry `size`.
+    readonly property var _box: {
+        var cells = [];
+        var kids = widgetBackground.rings ? widgetBackground.rings.children : [];
+        for (var i = 0; i < kids.length; i++) {
+            if (kids[i].visible && kids[i].size !== undefined)
+                cells.push({
+                    "x": kids[i].x,
+                    "y": kids[i].y,
+                    "width": kids[i].width,
+                    "height": kids[i].height
+                });
+        }
+        return BackgroundStyle.ringBounds(cells) || {
+            "x": 0,
+            "y": 0,
+            "width": widgetBackground.width,
+            "height": widgetBackground.height,
+            "radius": 0
+        };
+    }
+
+    readonly property int _feather: BackgroundStyle.featherPixels(widgetBackground.backgroundEdgeSoftness, widgetBackground._box.width, widgetBackground._box.height)
 
     function _stopColor(alpha) {
         return Qt.rgba(widgetBackground.backgroundColor.r, widgetBackground.backgroundColor.g, widgetBackground.backgroundColor.b, alpha);
     }
 
-    // Inset by the feather so the blur fades out INSIDE the widget: the
-    // effect below is anchored to the plate and bleeds back out over the
-    // margin. At softness 0 the margin is 0 and the plate fills as before.
+    // Inset by the feather so the blur fades out at the rings' outer edge
+    // instead of being clipped by a window sized to the strip: the effect
+    // below bleeds back out over the inset. The caps shrink by the same
+    // amount so they stay concentric with the end rings.
     Rectangle {
         id: plate
 
         objectName: "backgroundPlate"
-        anchors.fill: parent
-        anchors.margins: widgetBackground._feather
+        x: widgetBackground._box.x + widgetBackground._feather
+        y: widgetBackground._box.y + widgetBackground._feather
+        width: Math.max(0, widgetBackground._box.width - 2 * widgetBackground._feather)
+        height: Math.max(0, widgetBackground._box.height - 2 * widgetBackground._feather)
+        radius: Math.max(0, widgetBackground._box.radius - widgetBackground._feather)
         // Painted by the gradient below in every case: "none" just yields
         // two stops of the same alpha, i.e. a flat fill.
         color: "transparent"

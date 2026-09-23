@@ -70,6 +70,7 @@ PlasmoidItem {
             backgroundOpacity: configStoreAdapter.backgroundOpacity
             backgroundGradient: configStoreAdapter.backgroundGradient
             backgroundEdgeSoftness: configStoreAdapter.backgroundEdgeSoftness
+            rings: contentBody
         }
 
         Core.MainContent {

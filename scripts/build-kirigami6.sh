@@ -34,8 +34,12 @@ trap 'rm -rf "$WORK"' EXIT
 
 build_kf() {
     local repo="$1" src="$WORK/$1"
+    # invent.kde.org has outages (HTTP 502 on 2026-09-24); KDE's GitHub
+    # mirror carries the same tags.
     git clone --depth 1 --branch "$KIRIGAMI_VERSION" \
-        "https://invent.kde.org/frameworks/$repo.git" "$src"
+        "https://invent.kde.org/frameworks/$repo.git" "$src" ||
+        git clone --depth 1 --branch "$KIRIGAMI_VERSION" \
+            "https://github.com/KDE/$repo.git" "$src"
     # KDE_INSTALL_USE_QT_SYS_PATHS=ON lays the QML module / plugins / libs
     # into Qt's own dir layout under the prefix (qml/, plugins/, lib/),
     # which is exactly where qmlimportscanner + linuxdeploy look — without

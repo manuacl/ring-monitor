@@ -49,6 +49,11 @@ It's then available in the **Add Widgets** panel. The widget is published
 on the KDE Store at <https://www.opendesktop.org/p/2360410> — you can also
 browse the page there directly.
 
+> **After updating**, log out and back in (or run
+> `systemctl --user restart plasma-plasmashell.service`). Plasma keeps the
+> old version running until the shell restarts, so new settings show up in
+> the config dialog but have no effect yet.
+
 #### Manual install (from source)
 
 If you've cloned the repo (e.g. to run an unreleased version), install the

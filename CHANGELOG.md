@@ -12,6 +12,10 @@ user-facing only.
 
 ## [Unreleased]
 
+### Added
+
+- After an update from the KDE Store or Discover, the widget now tells you when Plasma is still running the previous version: the update dot lights up, and the settings window shows a banner with a **Restart Plasma** button (#172). Previously, new settings could appear in the settings window and do nothing until you logged out. This works from the next update onward.
+
 ### Fixed
 
 - The **Metrics** settings page opens instantly again instead of freezing for about a second (#175).

@@ -301,7 +301,7 @@ Item {
     // Re-walked on every structural change so a late sensor (USB GPU
     // hot-plug) is picked up without a reload. SCENARIO (#175): the tree
     // populates with one rowsInserted PER NODE (~300) in a single event-loop
-    // turn; a walk per signal was O(n²) and froze the config dialog ~1 s.
+    // turn; a walk per signal was O(n²) and froze the config dialog ~1.6 s.
     // The zero Timer coalesces the burst into one walk (Timer, not
     // Qt.callLater: plasma/CLAUDE.md § "KCM pages are constructed at startup").
     Sensors.SensorTreeModel {

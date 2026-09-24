@@ -30,6 +30,17 @@ for (const file of WALKERS) {
         assert.match(SOURCE, /Timer\s*{[^}]*interval:\s*0\b/, "the coalescing Timer must have interval 0");
     });
 
+    if (file === "TempSensorDiscovery.qml") {
+        test("SCENARIO_config_page_freeze: TempSensorDiscovery probe signals only restart rebuildTimer (#175)", () => {
+            // The Instantiator adds ~all probes in one turn; an inline _rebuild
+            // per signal is the same O(n²) shape as the tree walk.
+            for (const sig of ["onStatusChanged", "onObjectAdded", "onObjectRemoved"]) {
+                assert.match(SOURCE, new RegExp(`${sig}:\\s*rebuildTimer\\.restart\\(\\)`), `${sig} must only restart rebuildTimer`);
+            }
+            assert.doesNotMatch(SOURCE, /on(?!Triggered)\w+:\s*discovery\._rebuild\(\)/, "no signal handler may call _rebuild inline");
+        });
+    }
+
     test(`${file} coalesces with a Timer, not Qt.callLater`, () => {
         // Constructed inside a KCM page → callLater can fire in a dead
         // context (platforms/plasma/CLAUDE.md § "KCM pages are constructed at startup").

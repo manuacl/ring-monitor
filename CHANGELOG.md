@@ -22,6 +22,8 @@ user-facing only.
 
 ### Other
 
+- ci: `scripts/build-kirigami6.sh` and `scripts/build-layer-shell-qt.sh` fall back to KDE's GitHub mirror when invent.kde.org is down (a 502 there failed the AppImage job on #173).
+
 - README: restart Plasma after a KDE Store update, or new settings appear but do nothing until then (#170).
 
 ## [0.17.0] — 2026-09-23

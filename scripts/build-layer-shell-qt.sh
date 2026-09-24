@@ -38,8 +38,12 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
 SRC="$WORK/layer-shell-qt"
+# invent.kde.org has outages (HTTP 502 on 2026-09-24); KDE's GitHub
+# mirror carries the same tags.
 git clone --depth 1 --branch "$LAYER_SHELL_QT_VERSION" \
-    https://invent.kde.org/plasma/layer-shell-qt.git "$SRC"
+    https://invent.kde.org/plasma/layer-shell-qt.git "$SRC" ||
+    git clone --depth 1 --branch "$LAYER_SHELL_QT_VERSION" \
+        https://github.com/KDE/layer-shell-qt.git "$SRC"
 
 # KDE_INSTALL_USE_QT_SYS_PATHS=ON lays the lib, CMake config, and the
 # QML/shell-integration plugin into Qt's own dir layout under the prefix

@@ -66,6 +66,14 @@ Item {
         id: tree
     }
 
+    // Coalesces the per-node signal burst into one walk (#175, see
+    // MetricsBackend's discoveryTimer).
+    Timer {
+        id: refreshTimer
+        interval: 0
+        onTriggered: disk._refresh()
+    }
+
     // Walk every node, returning { ids: [...], labelByUuid: {uuid: label} }.
     // The FS label (e.g. "root", "photos", …) lives on the parent node
     // (disk/<uuid>), whose own SensorId role can be empty (it's a grouping
@@ -137,23 +145,23 @@ Item {
     Connections {
         target: tree
         function onRowsInserted() {
-            disk._refresh();
+            refreshTimer.restart();
         }
         function onRowsRemoved() {
-            disk._refresh();
+            refreshTimer.restart();
         }
         function onModelReset() {
-            disk._refresh();
+            refreshTimer.restart();
         }
         // A label resolving after insertion may surface as a data/layout change
         // rather than a row change; re-walk on those too so the friendly name is
         // picked up. Rare in practice (the tree model is structure, not live
         // values), and _rewalk dedupes, so no churn.
         function onDataChanged() {
-            disk._refresh();
+            refreshTimer.restart();
         }
         function onLayoutChanged() {
-            disk._refresh();
+            refreshTimer.restart();
         }
     }
 }

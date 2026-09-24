@@ -12,6 +12,10 @@ user-facing only.
 
 ## [Unreleased]
 
+### Technical
+
+- Metrics config page no longer freezes ~1.6 s on open (#175). The ksysguard `SensorTreeModel` emits one `rowsInserted` per node (~300) in a single event-loop turn, and the three Plasma walkers (`MetricsBackend`, `DiskPartitions`, `TempSensorDiscovery`) re-walked the whole tree on each — O(n²) on the GUI thread. Each handler now restarts a zero-interval `Timer`, coalescing the burst into one walk; `TempSensorDiscovery._rebuild` gets the same treatment for its per-probe signals. Guarded by `tests/sensor-tree-coalescing.test.mjs`.
+
 ### Other
 
 - README: restart Plasma after a KDE Store update, or new settings appear but do nothing until then (#170).

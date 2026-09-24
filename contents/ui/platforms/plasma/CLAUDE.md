@@ -247,6 +247,15 @@ object, so no post-mortem call happens, and `restart()` coalesces
 repeated triggers. Canonical: `core/SensorTempSettings.qml`'s
 `syncTimer`.
 
+### `SensorTreeModel` fires one `rowsInserted` per node — never walk inline
+
+The tree populates with one `rowsInserted` **per node** (~300) in a
+single event-loop turn. A full walk inside the structural handler is
+O(n²) on the GUI thread (froze the Metrics page ~1.6 s, #175). Handlers
+only `restart()` a zero-interval `Timer` that runs the walk once.
+Canonical: `MetricsBackend.qml`'s `discoveryTimer`. A new walker must
+also be added to `WALKERS` in `tests/sensor-tree-coalescing.test.mjs`.
+
 ## Frame-fixed settings: hide the slider, hardcode the adapter
 
 On the Plasma desktop containment the plasmoid frame is user-dragged

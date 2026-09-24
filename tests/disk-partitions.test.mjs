@@ -67,6 +67,7 @@ test("SCENARIO hot-plug label: re-walks after the change settles + on data/layou
     // Without this, the picker shows the raw sensor id until the dialog is reopened.
     assert.match(SOURCE, /onTriggered:\s*{[\s\S]*?_ready\s*=\s*true[\s\S]*?_rewalk\(\)/, "settleTimer must re-walk after marking ready (catch the late-resolved label)");
     assert.match(SOURCE, /function\s+_rewalk\s*\(/, "must split the walk into _rewalk() so the settle tick can re-walk without re-arming the timer (no loop)");
-    assert.match(SOURCE, /function\s+onDataChanged\s*\(\)\s*{\s*disk\._refresh\(\)/, "must re-refresh on tree dataChanged");
-    assert.match(SOURCE, /function\s+onLayoutChanged\s*\(\)\s*{\s*disk\._refresh\(\)/, "must re-refresh on tree layoutChanged");
+    assert.match(SOURCE, /function\s+onDataChanged\s*\(\)\s*{\s*refreshTimer\.restart\(\)/, "must re-refresh on tree dataChanged");
+    assert.match(SOURCE, /function\s+onLayoutChanged\s*\(\)\s*{\s*refreshTimer\.restart\(\)/, "must re-refresh on tree layoutChanged");
+    assert.match(SOURCE, /id:\s*refreshTimer[\s\S]*?onTriggered:\s*disk\._refresh\(\)/, "refreshTimer must run _refresh (coalesced, #175)");
 });

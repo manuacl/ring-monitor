@@ -7,33 +7,9 @@ import "SensorPicking.js" as SensorPicking
 import "MountInfo.js" as MountInfoJs
 
 // Platform adapter: wraps the KSysGuard sensor system used by the
-// Plasma build. Exposes the metric values main.qml needs as a stable
-// surface — the internal sensor instances + sensorMap are
-// implementation details, not part of the public API.
-//
-// Public surface:
-//   readonly property var coreValues  - per-core CPU usage (length = nCores
-//                                       discovered at runtime via SensorTreeModel)
-//   readonly property bool loading    - true while critical aggregates are
-//                                       not yet Sensor.Ready. MainContent
-//                                       force-fills the rings to 100% during
-//                                       this window for a "warming up"
-//                                       visual signal.
-//   function metricValue(id)          - latest value for one of the
-//                                       Catalog metric ids
-//   function metricRawTemp(id)        - latest raw °C reading for ids
-//                                       that expose a temperature sensor
-//                                       (cpu, gpu); 0 for others
-//   function metricTempPercent(id)    - same value mapped to 0-100 via
-//                                       Catalog.tempToPercent
-//
-// Universal aggregates (cpu/all/usage, memory/*, disk/all/usedPercent,
-// cpu/all/averageTemperature) have stable single ids and stay bound
-// directly. Multi-arity sensors (cpu/cpu*/usage, gpu/gpu*/temperature,
-// gpu/gpu*/usage) are discovered at runtime via SensorTreeModel —
-// fixes the dev-machine assumption of 6 cores + a discrete GPU on
-// gpu1, which broke on other hardware. The standalone build ships a
-// parallel MetricsBackend.qml exposing the same public surface.
+// Plasma build behind the same public surface as the standalone
+// MetricsBackend.qml (surface + multi-arity discovery rationale:
+// docs/components.md § MetricsBackend).
 
 Item {
     id: backend
@@ -322,12 +298,20 @@ Item {
 
     // ── SensorTreeModel-driven discovery (multi-arity sensors) ──────
     //
-    // The tree walks every subsystem at startup and again on every
-    // structural change (rowsInserted/Removed/modelReset) so a sensor
-    // appearing late — say a USB GPU hot-plug — is picked up without
-    // a widget reload.
+    // Re-walked on every structural change so a late sensor (USB GPU
+    // hot-plug) is picked up without a reload. SCENARIO (#175): the tree
+    // populates with one rowsInserted PER NODE (~300) in a single event-loop
+    // turn; a walk per signal was O(n²) and froze the config dialog ~1.6 s.
+    // The zero Timer coalesces the burst into one walk (Timer, not
+    // Qt.callLater: plasma/CLAUDE.md § "KCM pages are constructed at startup").
     Sensors.SensorTreeModel {
         id: sensorTree
+    }
+
+    Timer {
+        id: discoveryTimer
+        interval: 0
+        onTriggered: backend._refreshDiscovery()
     }
 
     property var _coreUsageIds: []
@@ -374,13 +358,13 @@ Item {
     Connections {
         target: sensorTree
         function onRowsInserted() {
-            backend._refreshDiscovery();
+            discoveryTimer.restart();
         }
         function onRowsRemoved() {
-            backend._refreshDiscovery();
+            discoveryTimer.restart();
         }
         function onModelReset() {
-            backend._refreshDiscovery();
+            discoveryTimer.restart();
         }
     }
 

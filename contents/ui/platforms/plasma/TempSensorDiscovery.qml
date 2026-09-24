@@ -38,10 +38,10 @@ Item {
     property var _entries: []
     property var _candidateIds: []
 
-    // Called directly from each probe's status flip and from Instantiator
-    // adds/removes (inner Sensor property reads are not tracked by
-    // bindings — the reason MetricsBackend uses tick counters; calling
-    // the recompute from the signal sites achieves the same without one).
+    // Triggered (via rebuildTimer) from each probe's status flip and from
+    // Instantiator adds/removes (inner Sensor property reads are not tracked
+    // by bindings — the reason MetricsBackend uses tick counters; recomputing
+    // from the signal sites achieves the same without one).
 
     function _rebuild() {
         var probed = [];
@@ -62,6 +62,21 @@ Item {
 
     Sensors.SensorTreeModel {
         id: sensorTree
+    }
+
+    // Both coalesce a same-turn signal burst into one pass (#175, see
+    // MetricsBackend's discoveryTimer): the tree fires one rowsInserted per
+    // node, the Instantiator one objectAdded per probe.
+    Timer {
+        id: candidatesTimer
+        interval: 0
+        onTriggered: discovery._refreshCandidates()
+    }
+
+    Timer {
+        id: rebuildTimer
+        interval: 0
+        onTriggered: discovery._rebuild()
     }
 
     function _refreshCandidates() {
@@ -96,13 +111,13 @@ Item {
     Connections {
         target: sensorTree
         function onRowsInserted() {
-            discovery._refreshCandidates();
+            candidatesTimer.restart();
         }
         function onRowsRemoved() {
-            discovery._refreshCandidates();
+            candidatesTimer.restart();
         }
         function onModelReset() {
-            discovery._refreshCandidates();
+            candidatesTimer.restart();
         }
     }
 
@@ -113,9 +128,9 @@ Item {
             required property string modelData
             sensorId: modelData
             enabled: discovery.active
-            onStatusChanged: discovery._rebuild()
+            onStatusChanged: rebuildTimer.restart()
         }
-        onObjectAdded: discovery._rebuild()
-        onObjectRemoved: discovery._rebuild()
+        onObjectAdded: rebuildTimer.restart()
+        onObjectRemoved: rebuildTimer.restart()
     }
 }

@@ -61,7 +61,7 @@ restart in one shot.
 ## Standalone preview (Plasma host, debugging the widget body)
 
 ```bash
-pkill -f "plasmawindowed.*ring-monitor"
+pkill -x plasmawindowed
 plasmawindowed ring-monitor_dev &
 ```
 

@@ -294,6 +294,15 @@ bypassed, but the key persists; useful for debugging).
 
 ## Other plasmashell quirks
 
+- **Live-testing config-dependent behaviour: use the desktop, not
+  `plasmawindowed`.** plasmawindowed drops its applet group from
+  `plasmawindowed-appletsrc` on exit, so seeded keys never reach the next
+  launch. Put the dev widget on the desktop instead, through `qdbus6
+  org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript`:
+  `desktops()[0].addWidget("ring-monitor_dev")`, then
+  `w.currentConfigGroup = ["Appearance"]; w.writeConfig(key, value)`
+  (applies live), `w.showConfigurationInterface()`, and `w.remove()` to
+  clean up.
 - **`plasmawindowed` exits silently on QML parse errors** → check the
   journal (filter out `breezerc`), see
   [`docs/development.md`](../../../docs/development.md) § "Standalone

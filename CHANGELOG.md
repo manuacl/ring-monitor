@@ -12,6 +12,10 @@ user-facing only.
 
 ## [Unreleased]
 
+### Other
+
+- README: restart Plasma after a KDE Store update, or new settings appear but do nothing until then (#170).
+
 ## [0.17.0] — 2026-09-23
 
 ### Added

@@ -127,13 +127,17 @@ the full working tree).
 
 The blocks below are **bash**: run them through `bash <<'EOF' … EOF`
 when the agent shell is zsh, which rejects `shopt` and treats `status`
-as a read-only variable. Qt 6 tools go through `qt6 <tool>`: distro
-packages name them `<tool>-qt6`, while some (Arch-based) ship only
-`/usr/lib/qt6/bin/<tool>` and put a **Qt 5** build on `PATH` under the
-bare name ("Library import requires a version").
+as a read-only variable. Qt 6 tools go through the `QMLFORMAT` /
+`QMLLINT` / `QMLTESTRUNNER` variables below: distro packages name them
+`<tool>-qt6`, while some (Arch-based) ship only `/usr/lib/qt6/bin/<tool>`
+and put a **Qt 5** build on `PATH` under the bare name ("Library import
+requires a version"). No helper function taking a positional
+parameter: the skill loader replaces dollar-digit tokens with the
+skill's arguments before the agent sees the block.
 
 ```bash
-qt6() { command -v "$1-qt6" 2>/dev/null || echo "/usr/lib/qt6/bin/$1"; }
+QMLFORMAT=$(command -v qmlformat-qt6 || echo /usr/lib/qt6/bin/qmlformat)
+QMLLINT=$(command -v qmllint-qt6 || echo /usr/lib/qt6/bin/qmllint)
 
 # 1a. 500-line cap on source + tests.
 MAX=500
@@ -155,15 +159,15 @@ done
 
 # 1b. qmlformat no-op on source .qml files.
 for f in contents/ui/*.qml contents/ui/core/*.qml contents/ui/platforms/plasma/*.qml contents/ui/platforms/standalone/*.qml; do
-    if ! diff -q "$f" <($(qt6 qmlformat) "$f") > /dev/null; then
+    if ! diff -q "$f" <("$QMLFORMAT" "$f") > /dev/null; then
         echo "FAIL: $f is not qmlformat-clean"
-        echo "  fix: $(qt6 qmlformat) --inplace $f"
+        echo "  fix: $QMLFORMAT --inplace $f"
         status=1
     fi
 done
 
 # 1c. qmllint on source + QML tests.
-$(qt6 qmllint) contents/ui/*.qml contents/ui/core/*.qml contents/ui/platforms/plasma/*.qml contents/ui/platforms/standalone/*.qml tests/qml/*.qml || status=1
+"$QMLLINT" contents/ui/*.qml contents/ui/core/*.qml contents/ui/platforms/plasma/*.qml contents/ui/platforms/standalone/*.qml tests/qml/*.qml || status=1
 
 # 1d. Plasma-isolation invariant: nothing under contents/ui/core/ may
 # import any org.kde.* module except org.kde.kirigami. The standalone
@@ -217,14 +221,14 @@ fi
 ### 2. CI — Node tests + QML tests
 
 ```bash
-qt6() { command -v "$1-qt6" 2>/dev/null || echo "/usr/lib/qt6/bin/$1"; }  # see step 1
+QMLTESTRUNNER=$(command -v qmltestrunner-qt6 || echo /usr/lib/qt6/bin/qmltestrunner)  # see step 1
 
 # 2a. Node tests (pure logic).
 node --test tests/*.test.mjs
 
 # 2b. QML tests (qmltestrunner headless, like CI). QT_FORCE_STDERR_LOGGING
 # keeps the output out of journald when there is no tty (see tests/CLAUDE.md).
-QT_FORCE_STDERR_LOGGING=1 QT_QPA_PLATFORM=offscreen $(qt6 qmltestrunner) -input tests/qml
+QT_FORCE_STDERR_LOGGING=1 QT_QPA_PLATFORM=offscreen "$QMLTESTRUNNER" -input tests/qml
 ```
 
 ### 3. CLAUDE.md rules not covered by pre-commit/CI

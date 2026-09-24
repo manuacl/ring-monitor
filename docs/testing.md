@@ -54,6 +54,7 @@ Pure-logic tests for `core/*.js` modules:
 | `mem-info-parser.test.mjs` | `/proc/meminfo` parser + `usagePercent` (RAM) + `diskUsagePercent` (df formula) |
 | `hwmon-temp-discovery.test.mjs` | sensorTemp picker (standalone): stable hwmon id grammar (`<chip>/temp<N>`, `@<device>` on chip-name collisions), catalog build, `resolveSensorPath` |
 | `update-check.test.mjs` | semver + notification gating for the in-widget update badge |
+| `restart-pending.test.mjs` | installed-vs-loaded version check (#172): `metadata.json` read command + shell quoting, version parse, pending predicate; text-guards the `RestartPending.qml` path depth and the badge / banner wiring |
 | `background-style.test.mjs` | halo geometry: ring bounds, spread, feather band, body/cap paths and stops per orientation, clamping |
 
 Text-level guards (Plasma adapter — `org.kde.plasma.plasmoid` /

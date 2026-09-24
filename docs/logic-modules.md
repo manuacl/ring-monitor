@@ -317,6 +317,23 @@ Covered by `tests/mount-info.test.mjs` (which also text-guards the
 `MountInfo.qml` adapter surface — its plasma5support import keeps it out
 of `qmltestrunner`, same as the other Plasma adapters).
 
+## `RestartPending.js`
+
+Lives in `contents/ui/platforms/plasma/` — **plasma-only** (the
+standalone binary has no hot-update path). Decides whether an installed
+update is waiting for a plasmashell restart
+([#172](https://github.com/manuacl/ring-monitor/issues/172)); consumed by
+`RestartPending.qml`.
+
+| Member | Purpose |
+|---|---|
+| `readCommand(fileUrl)` | `cat '<path>'` for the package's `metadata.json`; the path is percent-decoded and single-quoted (the executable engine runs through a shell, and install paths can hold spaces or quotes). `""` for a non-`file://` URL. |
+| `parseInstalledVersion(stdout)` | `KPlugin.Version` from that JSON, `""` on garbage / missing key. |
+| `isRestartPending(running, installed)` | both non-empty and different — a downgrade counts too. |
+| `RESTART_COMMAND` | `systemctl --user restart plasma-plasmashell.service`, falling back to a detached `plasmashell --replace` for sessions not started by systemd. systemd does the restart on its own: the executable engine kills its child when plasmashell exits, which would cut a quit-then-start sequence in half. |
+
+Covered by `tests/restart-pending.test.mjs`.
+
 ## `ProcStatParser.js`
 
 Lives in `contents/ui/platforms/standalone/` — **standalone-only**

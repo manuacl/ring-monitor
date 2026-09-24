@@ -102,6 +102,7 @@ Item {
     QtObject {
         id: updateCheckerStub
         property bool updateAvailable: false
+        property bool restartPending: false
     }
 
     Ui.MainContent {
@@ -140,6 +141,21 @@ Item {
             metricsStub.memUsedKb = 0;
             content._cpuTooltipHovered = false;
             content._memTooltipHovered = false;
+            updateCheckerStub.updateAvailable = false;
+            updateCheckerStub.restartPending = false;
+        }
+
+        // SCENARIO (#172): a Store update installed while plasmashell keeps
+        // the old widget loaded — the badge must flag it even with no newer
+        // release to announce.
+        function test_SCENARIO_restart_pending_shows_badge_on_first_ring_only() {
+            configStub.enabledMetrics = "cpu,ram";
+            configStub.metricOrder = "cpu,ram";
+            tryCompare(content, "count", 2);
+            verify(!ringDelegateFor("cpu").showUpdateBadge, "no badge by default");
+            updateCheckerStub.restartPending = true;
+            tryCompare(ringDelegateFor("cpu"), "showUpdateBadge", true);
+            verify(!ringDelegateFor("ram").showUpdateBadge, "one badge per widget");
         }
 
         // ── Disk-I/O sampling gate (issue #77) ──────────────────────

@@ -13,6 +13,9 @@ import org.kde.kcmutils as KCM
 // from main.xml; every page must extend this base). Rationale:
 // docs/config-dialog.md § Gotcha 1.
 KCM.SimpleKCM {
+    // Rides the shared base so every page warns about a pending restart (#172).
+    header: RestartBanner {}
+
     property var cfg_metricOrder
     property var cfg_metricOrderDefault
     property var cfg_enabledMetrics

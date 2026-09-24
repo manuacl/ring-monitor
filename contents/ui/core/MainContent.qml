@@ -358,10 +358,10 @@ GridLayout {
             trackOpacity: content.configStore.trackOpacity
             arcOpacity: content.configStore.arcOpacity
 
-            // Update-available badge only on the first ring of the strip
-            // — one notification per widget, anchored where the user's
-            // eye lands first.
-            showUpdateBadge: index === 0 && content.updateChecker !== undefined && content.updateChecker.updateAvailable
+            // Update badge (available, or installed and awaiting a Plasma
+            // restart) only on the first ring of the strip — one
+            // notification per widget, where the user's eye lands first.
+            showUpdateBadge: index === 0 && content.updateChecker !== undefined && (content.updateChecker.updateAvailable || content.updateChecker.restartPending)
             onUpdateBadgeClicked: content.configureRequested()
 
             // CPU ring: hover reveals the top-processes tooltip (#69). Only

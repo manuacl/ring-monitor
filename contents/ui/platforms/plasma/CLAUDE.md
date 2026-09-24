@@ -32,6 +32,9 @@ One file per Plasma seam. Keep each adapter **focused and surgical**:
 - `ThemedIcon.qml` wraps `Kirigami.Icon` (one-liner, just for the import
   seam).
 - `ColorPicker.qml` wraps `org.kde.kquickcontrols.ColorButton`.
+- `RestartPending.qml` — installed `metadata.json` version vs the loaded
+  `Plasmoid.metaData.version` (#172); `RestartBanner.qml` shows it as the
+  `PlaceholderKCM` header on every config page.
 
 This directory also hosts **Plasma-only pure logic** (not just
 adapters): `SensorPicking.js` (first-ready-wins among KSysGuard sensor
@@ -291,12 +294,27 @@ bypassed, but the key persists; useful for debugging).
 
 ## Other plasmashell quirks
 
+- **Live-testing config-dependent behaviour: use the desktop, not
+  `plasmawindowed`.** plasmawindowed drops its applet group from
+  `plasmawindowed-appletsrc` on exit, so seeded keys never reach the next
+  launch. Put the dev widget on the desktop instead, through `qdbus6
+  org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript`:
+  `desktops()[0].addWidget("ring-monitor_dev")`, then
+  `w.currentConfigGroup = ["Appearance"]; w.writeConfig(key, value)`
+  (applies live), `w.showConfigurationInterface()`, and `w.remove()` to
+  clean up.
 - **`plasmawindowed` exits silently on QML parse errors** → check the
   journal (filter out `breezerc`), see
   [`docs/development.md`](../../../docs/development.md) § "Standalone
   preview".
 - **After `contents/config/main.xml` changes, restart plasmashell**
   (the config schema is read once at applet load).
+- **A package update is not live until plasmashell restarts — but the
+  config dialog is.** The widget and `Plasmoid.metaData.version` stay on
+  the loaded version, while the dialog loads the new pages from disk, so
+  new settings appear and do nothing (#170). `RestartPending.qml` detects
+  it (#172); a fake update for testing is `kpackagetool6 -t Plasma/Applet
+  -u` of a copy with a bumped `Version`.
 - **QML `console.log` is filtered from the journal — use `console.warn`.**
   plasmashell drops QML debug-level messages, so `console.log(...)`
   produces nothing in `journalctl --user`; `console.warn(...)` shows.

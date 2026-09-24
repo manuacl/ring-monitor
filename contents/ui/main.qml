@@ -47,10 +47,15 @@ PlasmoidItem {
         removableTrackingActive: configStoreAdapter.enabledMetrics.split(",").indexOf("disk") >= 0
     }
 
+    Platform.RestartPending {
+        id: restartPendingAdapter
+    }
+
     Core.UpdateChecker {
         id: updateCheckerAdapter
         configStore: configStoreAdapter
         platform: "plasma"
+        restartPending: restartPendingAdapter.restartPending
     }
 
     // ── Portable body ───────────────────────────────────────────────

@@ -12,6 +12,10 @@ user-facing only.
 
 ## [Unreleased]
 
+### Added
+
+- After an update from the KDE Store or Discover, the widget now tells you when Plasma is still running the previous version: the update dot lights up, and the settings window shows a banner with a **Restart Plasma** button (#172). Previously, new settings could appear in the settings window and do nothing until you logged out. This works from the next update onward.
+
 ### Fixed
 
 - The **Metrics** settings page opens instantly again instead of freezing for about a second (#175).
@@ -19,6 +23,8 @@ user-facing only.
 ### Technical
 
 - Metrics config page no longer freezes ~1.6 s on open (#175). The ksysguard `SensorTreeModel` emits one `rowsInserted` per node (~300) in a single event-loop turn, and the three Plasma walkers (`MetricsBackend`, `DiskPartitions`, `TempSensorDiscovery`) re-walked the whole tree on each — O(n²) on the GUI thread. Each handler now restarts a zero-interval `Timer`, coalescing the burst into one walk; `TempSensorDiscovery._rebuild` gets the same treatment for its per-probe signals. Guarded by `tests/sensor-tree-coalescing.test.mjs`.
+
+- Restart-pending detection (#172): `platforms/plasma/RestartPending.{js,qml}` compares the package's on-disk `metadata.json` version (read through the plasma5support executable engine) with the loaded `Plasmoid.metaData.version`. `UpdateChecker.restartPending` lights the existing update badge; `RestartBanner.qml`, the `PlaceholderKCM` header, warns on every config page and offers a "Restart Plasma" action (`systemctl --user restart plasma-plasmashell.service` when that unit runs the shell, else a detached `plasmashell --replace`). Tests: `restart-pending.test.mjs`, `tst_MainContent` SCENARIO.
 
 ### Other
 

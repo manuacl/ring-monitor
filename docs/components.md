@@ -358,7 +358,7 @@ A circular gauge: 270° arc starting at 135° (90° gap at the bottom).
 | `splitValueOverride` | `""` | same as `valueOverride` for the split-right readout (the diskIo write half); empty → the `Math.round(splitRawValue) + splitUnit` path. |
 | `unitSmall` | `false` | render the unit suffix smaller (`<font size="1">`) and tight against the number — no leading space — so a long unit doesn't crowd it. Set only by the disk-I/O ring (its "MB/s"); other rings keep the full-size unit. Uses `<font size>` because Qt's StyledText ignores a CSS `font-size:` span (measured). |
 | `splitStacked` | `false` | in split mode, stack the two readouts diagonally (left/read up-and-left toward its half-arc, right/write down-and-right) instead of side-by-side on one line. Set by the disk-I/O split ring, whose "0.1MB/s" readouts are too wide to share a line; temperature split (short "45°C") stays flat. Offsets from [`RingGeometry.splitReadoutOffset`](logic-modules.md#ringgeometryjs). |
-| `showUpdateBadge` | `false` | when true, render a small coloured dot in the 90° bottom gap (just left of the label) that pulses slowly. Emits `updateBadgeClicked()` on click — the parent uses it to open the config dialog at the "New release" tab. Set by `MainContent` on the first ring only when `updateChecker.updateAvailable` is true. |
+| `showUpdateBadge` | `false` | when true, render a small coloured dot in the 90° bottom gap (just left of the label) that pulses slowly. Emits `updateBadgeClicked()` on click — the parent uses it to open the config dialog at the "New release" tab. Set by `MainContent` on the first ring only when `updateChecker.updateAvailable` or `updateChecker.restartPending` is true. |
 
 ### Split mode
 
@@ -1223,6 +1223,35 @@ Text-guarded by `tests/mount-info.test.mjs` (alongside the pure
 `parseMountPairs` tests) — same reason as the other Plasma adapters: its
 plasma5support import keeps it out of `qmltestrunner`.
 
+### `RestartPending.qml` / `RestartBanner.qml`
+
+Plasma adapter + config-dialog banner for an update installed while
+plasmashell keeps the old widget loaded
+([#172](https://github.com/manuacl/ring-monitor/issues/172)). A KDE Store
+/ Discover update replaces the package on disk, but the running widget —
+and `Plasmoid.metaData.version` — stay on the version loaded at shell
+startup (verified live on Plasma 6.7.5, in both the widget and the config
+dialog). The config dialog, however, loads the **new** pages from disk, so
+settings added by the update show up and do nothing (the #170 report).
+
+`RestartPending.qml` reads the package's own `metadata.json`
+(`Qt.resolvedUrl("../../../../metadata.json")`, so it works wherever the
+package is installed) through the plasma5support `executable` engine and
+compares its `KPlugin.Version` with `Plasmoid.metaData.version`, via
+[`RestartPending.js`](logic-modules.md#restartpendingjs).
+
+| Member | Description |
+|---|---|
+| `restartPending` (readonly bool) | both versions known and different |
+| `active` (property bool) | when `false` no subprocess runs |
+| `pollMs` (property int) | re-read cadence (default 5 min) |
+| `restartPlasma()` (function) | runs `RestartPending.RESTART_COMMAND` — only ever on a user click |
+
+Consumers: `main.qml` feeds `UpdateChecker.restartPending` (the in-widget
+badge), and `RestartBanner.qml` — a `Kirigami.InlineMessage` with a
+"Restart Plasma" action — is the `header` of `PlaceholderKCM`, so every
+config page carries it. Text-guarded by `tests/restart-pending.test.mjs`.
+
 ### `ProcessSampler.qml` (one per platform)
 
 The source for the CPU-ring and RAM-ring **process tooltips** (issues
@@ -1426,6 +1455,7 @@ public surface with a different write layer).
 | `localVersion` / `remoteVersion` / `acknowledgedVersion` (readonly) | mirrored from `configStore` — single source of truth |
 | `platform` (string) | which build is running — `"plasma"` / `"standalone"`, wired by each adapter. Gates which releases notify (issue #89); empty disables the filter |
 | `updateAvailable` (readonly bool) | drives the badge and the AboutBody status block; computed via `UpdateCheck.shouldNotify` (scope-filtered by `platform`) |
+| `restartPending` (bool, input) | Plasma only ([#172](https://github.com/manuacl/ring-monitor/issues/172)): an update is installed but plasmashell still runs the old widget. `main.qml` binds it from [`RestartPending.qml`](#restartpendingqml); it lights the same badge as `updateAvailable`. Always `false` on standalone (no hot-update path). |
 | `check()` (function) | force a network probe, bypassing the TTL gate |
 | `acknowledge()` (function) | persists "Got it" — sets `acknowledgedVersion = remoteVersion` |
 | `openStorePage()` (function) | `Qt.openUrlExternally` to the KDE Store entry (where the user-facing changelog lives) |

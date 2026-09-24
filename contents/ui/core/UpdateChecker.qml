@@ -10,6 +10,8 @@ import "UpdateCheck.js" as UC
 // AboutBody):
 //   readonly property bool  updateAvailable
 //   readonly property string remoteVersion
+//   property bool restartPending - injected by the Plasma host: an update is
+//                                  installed but plasmashell still runs the old one
 //   function check()         - force a network probe (bypasses TTL)
 //   function acknowledge()   - persist "Got it" on the current remote
 //   function openReleasePage() - Qt.openUrlExternally to the release URL
@@ -29,6 +31,8 @@ Item {
     // Empty (the default) disables the filter, so an adapter that forgets
     // to set it falls back to "notify on any newest release".
     property string platform: ""
+    // Plasma-only (#172); the standalone binary has no hot-update path.
+    property bool restartPending: false
 
     // ── Tunables ────────────────────────────────────────────────────
     // The /releases LIST, not /releases/latest: with one shared version

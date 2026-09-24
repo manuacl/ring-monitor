@@ -19,8 +19,11 @@
 // systemd restarts the shell independently of us: the executable engine
 // kills its child when plasmashell exits, which would cut a
 // quit-then-start sequence in half. Sessions not started by systemd fall
-// back to a detached `plasmashell --replace`.
-var RESTART_COMMAND = "systemctl --user restart plasma-plasmashell.service || setsid -f plasmashell --replace";
+// back to a detached `plasmashell --replace`. SCENARIO: gate on is-active,
+// not on restart's exit code — with the unit installed but inactive,
+// restart succeeds, its plasmashell exits 0 at once (one already runs), and
+// the old shell was never restarted (reproduced live on #173).
+var RESTART_COMMAND = "systemctl --user is-active --quiet plasma-plasmashell.service && systemctl --user restart plasma-plasmashell.service || setsid -f plasmashell --replace";
 
 // The engine runs commands through a shell (KProcess::setShellCommand),
 // and the install path can hold spaces or quotes: single-quote it.

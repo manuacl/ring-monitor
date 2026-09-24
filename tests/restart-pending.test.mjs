@@ -62,8 +62,15 @@ test("isRestartPending: only when both versions are known and differ", () => {
 });
 
 test("RESTART_COMMAND: systemd restart first, bare executables only", () => {
-    assert.match(RP.RESTART_COMMAND, /^systemctl --user restart plasma-plasmashell\.service \|\| /);
+    assert.match(RP.RESTART_COMMAND, /systemctl --user restart plasma-plasmashell\.service \|\| setsid -f plasmashell --replace$/);
     assert.doesNotMatch(RP.RESTART_COMMAND, /(^|\s)\/(usr|bin|sbin)\//);
+});
+
+test("SCENARIO: RESTART_COMMAND takes the systemd path only when the unit runs the shell", () => {
+    // Unit installed but inactive (session not started by systemd): restart
+    // "succeeds", its plasmashell exits 0 because one already runs, and the
+    // --replace fallback never fired. Reproduced live on #173.
+    assert.match(RP.RESTART_COMMAND, /^systemctl --user is-active --quiet plasma-plasmashell\.service && systemctl --user restart /);
 });
 
 test("RestartPending.qml: its resolvedUrl reaches the package's metadata.json", () => {

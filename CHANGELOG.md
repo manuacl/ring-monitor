@@ -24,7 +24,7 @@ user-facing only.
 
 - Metrics config page no longer freezes ~1.6 s on open (#175). The ksysguard `SensorTreeModel` emits one `rowsInserted` per node (~300) in a single event-loop turn, and the three Plasma walkers (`MetricsBackend`, `DiskPartitions`, `TempSensorDiscovery`) re-walked the whole tree on each — O(n²) on the GUI thread. Each handler now restarts a zero-interval `Timer`, coalescing the burst into one walk; `TempSensorDiscovery._rebuild` gets the same treatment for its per-probe signals. Guarded by `tests/sensor-tree-coalescing.test.mjs`.
 
-- Restart-pending detection (#172): `platforms/plasma/RestartPending.{js,qml}` compares the package's on-disk `metadata.json` version (read through the plasma5support executable engine) with the loaded `Plasmoid.metaData.version`. `UpdateChecker.restartPending` lights the existing update badge; `RestartBanner.qml`, the `PlaceholderKCM` header, warns on every config page and offers a "Restart Plasma" action (`systemctl --user restart plasma-plasmashell.service`, `plasmashell --replace` fallback). Tests: `restart-pending.test.mjs`, `tst_MainContent` SCENARIO.
+- Restart-pending detection (#172): `platforms/plasma/RestartPending.{js,qml}` compares the package's on-disk `metadata.json` version (read through the plasma5support executable engine) with the loaded `Plasmoid.metaData.version`. `UpdateChecker.restartPending` lights the existing update badge; `RestartBanner.qml`, the `PlaceholderKCM` header, warns on every config page and offers a "Restart Plasma" action (`systemctl --user restart plasma-plasmashell.service` when that unit runs the shell, else a detached `plasmashell --replace`). Tests: `restart-pending.test.mjs`, `tst_MainContent` SCENARIO.
 
 ### Other
 

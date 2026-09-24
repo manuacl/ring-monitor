@@ -330,7 +330,7 @@ update is waiting for a plasmashell restart
 | `readCommand(fileUrl)` | `cat '<path>'` for the package's `metadata.json`; the path is percent-decoded and single-quoted (the executable engine runs through a shell, and install paths can hold spaces or quotes). `""` for a non-`file://` URL. |
 | `parseInstalledVersion(stdout)` | `KPlugin.Version` from that JSON, `""` on garbage / missing key. |
 | `isRestartPending(running, installed)` | both non-empty and different — a downgrade counts too. |
-| `RESTART_COMMAND` | `systemctl --user restart plasma-plasmashell.service`, falling back to a detached `plasmashell --replace` for sessions not started by systemd. systemd does the restart on its own: the executable engine kills its child when plasmashell exits, which would cut a quit-then-start sequence in half. |
+| `RESTART_COMMAND` | `systemctl --user restart plasma-plasmashell.service` when that unit is active, else a detached `plasmashell --replace` (sessions not started by systemd). The gate is `is-active`, not restart's exit code: with the unit installed but inactive, restart succeeds while its plasmashell exits at once, since one already runs. systemd does the restart on its own: the executable engine kills its child when plasmashell exits, which would cut a quit-then-start sequence in half. |
 
 Covered by `tests/restart-pending.test.mjs`.
 

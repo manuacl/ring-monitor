@@ -36,7 +36,7 @@ Kirigami.FormLayout {
     // the fixed frame dominates the layout. Full rationale: docs/components.md
     // § AppearanceBody.
     property bool ringSpacingVisible: false
-
+    
     // Hidden by default (standalone SettingsDialog flips it on). The slider
     // is inert on Plasma (dragged frame overrides implicit size). Full rationale:
     // docs/components.md § AppearanceBody.
@@ -67,6 +67,9 @@ Kirigami.FormLayout {
     property alias backgroundOpacity: backgroundSettings.backgroundOpacity
     property alias backgroundSpread: backgroundSettings.backgroundSpread
     property alias backgroundEdgeSoftness: backgroundSettings.backgroundEdgeSoftness
+    property alias fontFamily: fontSettings.fontFamily
+    property alias fontWeight: fontSettings.fontWeight
+    property alias fontScalePercent: fontSettings.fontScalePercent
 
     // Built once at load time — the labels go through qsTr() so xgettext
     // picks them up, while ColorThemes.js stays free of i18n machinery.
@@ -464,6 +467,13 @@ Kirigami.FormLayout {
         }
     }
 
+    FontSettings {
+        id: fontSettings
+        Kirigami.FormData.label: qsTr("Font:")
+        Kirigami.FormData.labelAlignment: Qt.AlignTop
+        Layout.fillWidth: true
+    }
+
     Item {
         Kirigami.FormData.isSection: true
     }
@@ -496,4 +506,5 @@ Kirigami.FormLayout {
     readonly property alias _textColorCustom: textColorCustom
     readonly property alias _lightTextColorButton: lightTextColorButton
     readonly property alias _darkTextColorButton: darkTextColorButton
+    readonly property alias _fontSettings: fontSettings
 }

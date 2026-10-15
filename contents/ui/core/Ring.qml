@@ -19,6 +19,17 @@ Item {
     property color textColor: "#eeeeee"
     property string unit: "%"
 
+    // Text styling: docs/components.md § Ring → Font. "" family = system font,
+    // read off an untouched Text (QML has no Qt.application.font).
+    property string fontFamily: ""
+    property int fontWeight: Font.Light
+    property real fontScale: 1.0
+    readonly property string _fontFamily: fontFamily !== "" ? fontFamily : defaultFont.font.family
+    Text {
+        id: defaultFont
+        visible: false
+    }
+
     // Opacities (configurable from the plasmoid config UI)
     property real textOpacity: 1.0
     property real trackOpacity: 0.15
@@ -101,7 +112,7 @@ Item {
 
     // Everything scales with the smaller dimension via Geom.dimensionsFor.
     readonly property real size: Math.min(width, height)
-    readonly property var dims: Geom.dimensionsFor(size)
+    readonly property var dims: Geom.dimensionsFor(size, fontScale)
     readonly property real ringStroke: dims.ringStroke
     readonly property real ringRadius: dims.ringRadius
     readonly property real labelPx: dims.labelPx
@@ -399,8 +410,9 @@ Item {
             text: root._composeReadout(root.valueOverride !== "" ? root.valueOverride : Math.round(root.displayRawValue), root.unit)
             color: root.textColor
             opacity: root.textOpacity
+            font.family: root._fontFamily
             font.pixelSize: root.splitMode ? Math.round(root.valuePx * 0.75) : root.valuePx
-            font.weight: Font.Light
+            font.weight: root.fontWeight
         }
 
         Text {
@@ -414,8 +426,9 @@ Item {
             text: root._composeReadout(root.splitValueOverride !== "" ? root.splitValueOverride : Math.round(root.displaySplitRawValue), root.splitUnit)
             color: root.textColor
             opacity: root.textOpacity
+            font.family: root._fontFamily
             font.pixelSize: Math.round(root.valuePx * 0.75)
-            font.weight: Font.Light
+            font.weight: root.fontWeight
         }
 
         // ── Label (inside the 90° gap at the bottom of the ring) ─────────
@@ -427,6 +440,7 @@ Item {
             text: root.label
             color: root.textColor
             opacity: 0.55 * root.textOpacity
+            font.family: root._fontFamily
             font.pixelSize: root.labelPx
             font.letterSpacing: 2
         }
@@ -483,6 +497,8 @@ Item {
     readonly property alias _labelText: labelText.text
     readonly property alias _valueText: valueText.text
     readonly property alias _splitValueText: splitValueText.text
+    readonly property font _valueFont: valueText.font
+    readonly property font _labelFont: labelText.font
     readonly property real _sweepAngle: Geom.sweepForPercent(root.displayValue)
     readonly property real _leftSweepAngle: Geom.leftHalfSweepFor(root.displayValue)
     readonly property real _rightSweepAngle: Geom.rightHalfSweepFor(root.displaySplitValue)

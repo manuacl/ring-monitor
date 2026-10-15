@@ -76,6 +76,12 @@ KCM.SimpleKCM {
     property var cfg_windowMarginYDefault
     property var cfg_textOpacity
     property var cfg_textOpacityDefault
+    property var cfg_fontFamily
+    property var cfg_fontFamilyDefault
+    property var cfg_fontWeight
+    property var cfg_fontWeightDefault
+    property var cfg_fontScalePercent
+    property var cfg_fontScalePercentDefault
     property var cfg_trackOpacity
     property var cfg_trackOpacityDefault
     property var cfg_arcOpacity

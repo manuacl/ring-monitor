@@ -28,6 +28,7 @@ usage ring; the unit follows your locale (°C / °F).
   custom accent and text colors with separate light- and dark-mode values.
 - **Layout** — horizontal or vertical, with adjustable track / arc / text
   opacity.
+- **Typography** — pick the font family, weight and size of the ring text.
 - **Reorder & toggle** — drag rings to reorder, click to show or hide, all from
   the config dialog.
 - **Update notifications** — an in-widget badge when a newer release is published

@@ -106,10 +106,15 @@ function splitReadoutOffset(side, splitMode, stacked, size, valuePx) {
     return { x: side * Math.round(size * 0.18), y: 0 };
 }
 
-function dimensionsFor(size) {
+// `fontScale` (1 = default) multiplies only the two text sizes. The pixel
+// floors still apply after scaling, so a small scale can't shrink text below
+// the readable minimum. Missing / non-positive / non-finite → 1, so a bad
+// config value can never blank the readout.
+function dimensionsFor(size, fontScale) {
     if (!isFinite(size) || size <= 0) size = 0;
-    function compute(rule) {
-        return Math.max(rule.min, Math.round(size * rule.factor));
+    if (!isFinite(fontScale) || fontScale <= 0) fontScale = 1;
+    function compute(rule, scale) {
+        return Math.max(rule.min, Math.round(size * rule.factor * (scale || 1)));
     }
     var ringStroke   = compute(DIMENSION_RULES.ringStroke);
     var nestedStroke = compute(DIMENSION_RULES.nestedStroke);
@@ -121,8 +126,8 @@ function dimensionsFor(size) {
         ringRadius:   ringRadius,
         nestedStroke: nestedStroke,
         nestedGap:    nestedGap,
-        labelPx:      compute(DIMENSION_RULES.labelPx),
-        valuePx:      compute(DIMENSION_RULES.valuePx),
+        labelPx:      compute(DIMENSION_RULES.labelPx, fontScale),
+        valuePx:      compute(DIMENSION_RULES.valuePx, fontScale),
     };
 }
 

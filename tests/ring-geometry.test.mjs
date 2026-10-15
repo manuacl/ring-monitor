@@ -85,6 +85,41 @@ test('dimensionsFor: invalid size (0, negative, NaN) returns floor values', () =
     assert.equal(Geom.dimensionsFor(NaN).ringStroke, 4);
 });
 
+// ── fontScale: only the two text sizes follow it ────────────────────────
+
+test('dimensionsFor: fontScale scales the label and value text only', () => {
+    const base = Geom.dimensionsFor(180);
+    const big = Geom.dimensionsFor(180, 1.5);
+    assert.equal(big.labelPx, 22);   // round(180 * 0.08 * 1.5) = round(21.6)
+    assert.equal(big.valuePx, 43);   // round(180 * 0.16 * 1.5) = round(43.2)
+    // The ring itself must not grow with the text.
+    assert.equal(big.ringStroke, base.ringStroke);
+    assert.equal(big.ringRadius, base.ringRadius);
+    assert.equal(big.nestedStroke, base.nestedStroke);
+    assert.equal(big.nestedGap, base.nestedGap);
+});
+
+test('dimensionsFor: fontScale 1 or omitted keeps the historic sizes', () => {
+    const base = Geom.dimensionsFor(180);
+    assert.deepEqual(Geom.dimensionsFor(180, 1), base);
+    assert.equal(base.labelPx, 14);
+    assert.equal(base.valuePx, 29);
+});
+
+test('dimensionsFor: the pixel floors still apply when fontScale shrinks the text', () => {
+    // 180 * 0.08 * 0.5 = 7.2 and 180 * 0.16 * 0.5 = 14.4 → label floors at 10.
+    const small = Geom.dimensionsFor(180, 0.5);
+    assert.equal(small.labelPx, 10);
+    assert.equal(small.valuePx, 14);
+});
+
+test('dimensionsFor: an invalid fontScale falls back to 1 instead of blanking the text', () => {
+    const base = Geom.dimensionsFor(180);
+    for (const bad of [0, -1, NaN, Infinity, undefined, null]) {
+        assert.deepEqual(Geom.dimensionsFor(180, bad), base, `fontScale=${String(bad)}`);
+    }
+});
+
 // ── nestedRingLayout: count-aware concentric ring layout ────────────────
 //
 // Up to COMFORT_RING_COUNT (7): preferred stroke/gap are used directly,

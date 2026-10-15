@@ -355,6 +355,9 @@ GridLayout {
             ringColor: content._ringColor
             textColor: ColorThemes.resolveTextColor(content.configStore.textColorMode, content._isDark, content.theme.textColor, content.configStore.customTextColorLight, content.configStore.customTextColorDark)
             textOpacity: content.configStore.textOpacity
+            fontFamily: content.configStore.fontFamily
+            fontWeight: content.configStore.fontWeight
+            fontScale: content.configStore.fontScalePercent / 100
             trackOpacity: content.configStore.trackOpacity
             arcOpacity: content.configStore.arcOpacity
 

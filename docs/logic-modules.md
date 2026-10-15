@@ -133,7 +133,7 @@ All the size/stroke/sweep math from `Ring.qml`.
 | `BASE_START_ANGLE` / `BASE_SWEEP_ANGLE` | 135° / 270° — the established arc shape |
 | `clampPercent(p)` | clamp to `[0, 100]`, NaN → 0 |
 | `sweepForPercent(p)` | percent → sweep angle in degrees |
-| `dimensionsFor(size)` | `{ ringStroke, ringRadius, nestedStroke, nestedGap, labelPx, valuePx }` |
+| `dimensionsFor(size, fontScale)` | `{ ringStroke, ringRadius, nestedStroke, nestedGap, labelPx, valuePx }`. Optional `fontScale` (default 1) multiplies **only** `labelPx` / `valuePx`; the pixel floors still apply, and a non-positive / non-finite value falls back to 1. |
 | `nestedRingLayout(ringRadius, ringStroke, preferredStroke, preferredGap, count)` | `{stroke, gap, radii}` for the thin CPU-cores rings nested *inside* the main ring (shrinks past `COMFORT_RING_COUNT` = 7) |
 | `equalRingLayout(ringRadius, preferredStroke, preferredGap, count)` | `{stroke, gap, radii}` for the **equal-thickness** disk partition rings that *replace* the main ring — outermost at `ringRadius`, shrinks past `DISK_COMFORT_RING_COUNT` = 5. `radii[0] === ringRadius`. |
 | `splitReadoutOffset(side, splitMode, stacked, size, valuePx)` | `{x, y}` centre offset for a split readout. `side` −1 = left/read, +1 = right/write. Flat (temperature split): horizontal ±18 % of size, one line. `stacked` (disk-I/O split, whose "0.1MB/s" readouts are too wide to share a line): diagonal — read up-left, write down-right — by 0.35×/0.45× valuePx. `!splitMode` → `{0,0}`. |

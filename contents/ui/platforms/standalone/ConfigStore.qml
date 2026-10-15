@@ -64,6 +64,9 @@ Settings {
     property int windowMarginY: 0
     property string windowScreen: ""
     property real textOpacity: 1.0
+    property string fontFamily: ""
+    property int fontWeight: 300
+    property int fontScalePercent: 100
     property real trackOpacity: 0.15
     property real arcOpacity: 1.0
     property string colorTheme: "system"

@@ -20,6 +20,9 @@ Platform.PlaceholderKCM {
     property alias cfg_windowMarginX: body.windowMarginX
     property alias cfg_windowMarginY: body.windowMarginY
     property alias cfg_textOpacity: body.textOpacity
+    property alias cfg_fontFamily: body.fontFamily
+    property alias cfg_fontWeight: body.fontWeight
+    property alias cfg_fontScalePercent: body.fontScalePercent
     property alias cfg_trackOpacity: body.trackOpacity
     property alias cfg_arcOpacity: body.arcOpacity
     property alias cfg_colorTheme: body.colorTheme

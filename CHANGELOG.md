@@ -12,6 +12,10 @@ user-facing only.
 
 ## [Unreleased]
 
+### Technical
+
+- Adjustable ring font: three new Appearance keys — `fontFamily` (`""` = system font), `fontWeight` (Qt weight, default 300 = the previous fixed `Font.Light`) and `fontScalePercent` (50–150, default 100) — wired through all six config touch points (`main.xml`, both `ConfigStore`s, `PlaceholderKCM`, the `configAppearance` aliases, the standalone `SettingsDialog` bridge map). The controls live in the new `core/FontSettings.qml` (`AppearanceBody` was at the 500-line cap) and apply to the ring value/label text only; weight applies to the large readouts, the label keeps its regular weight. `RingGeometry.dimensionsFor(size, fontScale)` scales only `labelPx` / `valuePx` (floors kept, invalid → 1). An empty family falls back to the application font read from an untouched hidden `Text`, since QML has no `Qt.application.font`. Tests: `ring-geometry.test.mjs`, `tst_FontSettings.qml`, plus font cases in `tst_Ring` / `tst_AppearanceBody` / `tst_MainContent` and the settings-dialog bridge guard.
+
 ## [0.18.0] — 2026-09-24
 
 ### Added

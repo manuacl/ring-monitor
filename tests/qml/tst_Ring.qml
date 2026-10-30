@@ -18,8 +18,8 @@ Item {
         height: 180
     }
 
-    // An untouched Text always carries the application font — the reference
-    // for "no custom family" (QML has no Qt.application.font to ask).
+    // An untouched Text carries the application font — an oracle independent
+    // of the Qt.application.font lookup Ring itself uses.
     Text {
         id: defaultFontText
         visible: false
@@ -176,6 +176,32 @@ Item {
             compare(ring.labelPx, 22);
             compare(ring._valueFont.pixelSize, 43);
             compare(ring._labelFont.pixelSize, 22);
+        }
+        // SCENARIO (PR #178 review): the update badge is not text — scaling
+        // the font must not resize or shift it.
+        function test_SCENARIO_fontScale_leaves_the_update_badge_size_alone() {
+            const badge = findChild(ring, "updateBadge");
+            const w = badge.width;
+            ring.fontScale = 1.5;
+            compare(badge.width, w);
+        }
+        // SCENARIO (PR #178 review): a long label scaled to 150 % ran under
+        // the round caps of the bottom gap; it now elides at the gap width.
+        function test_SCENARIO_long_scaled_label_stays_inside_the_gap() {
+            const label = findChild(ring, "ringLabel");
+            ring.label = "AAAAAAAAAAAA";
+            ring.fontScale = 1.5;
+            verify(label.implicitWidth > ring.size * 0.6 * 1.5);
+            verify(label.width < label.implicitWidth);
+            fuzzyCompare(label.width, label.implicitWidth * ring.dims.baseLabelPx / ring.labelPx, 0.5);
+        }
+        // SCENARIO (PR #178 review): the first gap cap elided stock labels
+        // ("DISK IO" → "DIS…" at ringSize 80) without the setting being touched.
+        function test_SCENARIO_label_never_elides_at_default_scale() {
+            const label = findChild(ring, "ringLabel");
+            ring.label = "AAAAAAAAAAAA";
+            verify(label.implicitWidth > ring.size * 0.6);
+            compare(label.width, label.implicitWidth);
         }
         function test_fontScale_leaves_the_ring_geometry_alone() {
             const stroke = ring.ringStroke;

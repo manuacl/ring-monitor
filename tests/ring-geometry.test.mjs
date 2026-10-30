@@ -113,6 +113,19 @@ test('dimensionsFor: the pixel floors still apply when fontScale shrinks the tex
     assert.equal(small.valuePx, 14);
 });
 
+// SCENARIO (PR #178 review): the standalone ini store does not enforce
+// main.xml's 50–150, so fontScalePercent=1000 filled the window with text.
+test('dimensionsFor: an out-of-range fontScale is clamped to 0.5–1.5', () => {
+    assert.deepEqual(Geom.dimensionsFor(180, 10), Geom.dimensionsFor(180, 1.5));
+    assert.deepEqual(Geom.dimensionsFor(180, 0.01), Geom.dimensionsFor(180, 0.5));
+});
+
+test('dimensionsFor: baseLabelPx / baseValuePx ignore fontScale', () => {
+    const big = Geom.dimensionsFor(180, 1.5);
+    assert.equal(big.baseLabelPx, 14);
+    assert.equal(big.baseValuePx, 29);
+});
+
 test('dimensionsFor: an invalid fontScale falls back to 1 instead of blanking the text', () => {
     const base = Geom.dimensionsFor(180);
     for (const bad of [0, -1, NaN, Infinity, undefined, null]) {
@@ -291,19 +304,44 @@ test('equalRingLayout: at the 6-ring cap + min ringSize, innermost radius stays 
 });
 
 // ── splitReadoutOffset (disk-I/O #77) ─────────────────────────────────
+const d180 = Geom.dimensionsFor(180);
+
 test('splitReadoutOffset: no split → no offset', () => {
-    assert.deepEqual(Geom.splitReadoutOffset(-1, false, false, 180, 30), { x: 0, y: 0 });
-    assert.deepEqual(Geom.splitReadoutOffset(1, false, true, 180, 30), { x: 0, y: 0 });
+    assert.deepEqual(Geom.splitReadoutOffset(-1, false, false, 180, d180), { x: 0, y: 0 });
+    assert.deepEqual(Geom.splitReadoutOffset(1, false, true, 180, d180), { x: 0, y: 0 });
 });
 
 test('splitReadoutOffset: flat split (temperature) is horizontal only, ±18% of size', () => {
-    assert.deepEqual(Geom.splitReadoutOffset(-1, true, false, 180, 30), { x: -32, y: 0 });
-    assert.deepEqual(Geom.splitReadoutOffset(1, true, false, 180, 30), { x: 32, y: 0 });
+    assert.deepEqual(Geom.splitReadoutOffset(-1, true, false, 180, d180), { x: -32, y: 0 });
+    assert.deepEqual(Geom.splitReadoutOffset(1, true, false, 180, d180), { x: 32, y: 0 });
+});
+
+// SCENARIO (PR #178 review): at fontScale 1.5 the flat readouts grew but kept
+// their ±18% spacing, so usage and temperature collided in the middle; a
+// plain ×fontScale spread then pushed "60°C" into the ring stroke.
+test('splitReadoutOffset: flat split spreads with the text, inside the ring', () => {
+    const d = Geom.dimensionsFor(180, 1.5);
+    const x = Geom.splitReadoutOffset(1, true, false, 180, d).x;
+    const half = d.valuePx * Geom.SPLIT_READOUT_HALF_WIDTH;
+    assert.ok(x > 32, `must spread past the unscaled 32, got ${x}`);
+    assert.ok(x >= half, `readouts must not overlap in the middle (x=${x}, half=${half})`);
+    assert.ok(x + half <= d.ringRadius - d.ringStroke / 2, `readout must stay inside the inner edge (x=${x})`);
+    assert.equal(Geom.splitReadoutOffset(-1, true, false, 180, d).x, -x);
+});
+
+// SCENARIO (PR #178 review): scaling the offset by the raw fontScale shrank it
+// to 7 px on an 80 px ring at 0.5 while the 14 px floor kept the text full
+// size, so the readouts overlapped. The offset follows the rendered size.
+test('splitReadoutOffset: a floored scale-down keeps the unscaled spacing', () => {
+    assert.deepEqual(Geom.splitReadoutOffset(1, true, false, 80, Geom.dimensionsFor(80, 0.5)),
+                     Geom.splitReadoutOffset(1, true, false, 80, Geom.dimensionsFor(80)));
+    assert.equal(Geom.splitReadoutOffset(1, true, false, 80, Geom.dimensionsFor(80, 0.5)).x, 14);
 });
 
 test('splitReadoutOffset: stacked split (diskIo) goes diagonal — read up-left, write down-right', () => {
-    const read = Geom.splitReadoutOffset(-1, true, true, 180, 30);
-    const write = Geom.splitReadoutOffset(1, true, true, 180, 30);
+    const v30 = { valuePx: 30 };
+    const read = Geom.splitReadoutOffset(-1, true, true, 180, v30);
+    const write = Geom.splitReadoutOffset(1, true, true, 180, v30);
     // read negative both axes (up + left), write positive (down + right).
     assert.ok(read.x < 0 && read.y < 0, `read should be up-left, got ${JSON.stringify(read)}`);
     assert.ok(write.x > 0 && write.y > 0, `write should be down-right, got ${JSON.stringify(write)}`);

@@ -24,10 +24,9 @@ ColumnLayout {
     // deterministic list instead of depending on the fonts of the test box.
     property var availableFamilies: Qt.fontFamilies()
 
-    // Parallel arrays (a flat string array survives qmlformat inline, an
-    // object model would balloon — see the 500-line note in CLAUDE.md).
-    readonly property var _weightLabels: [qsTr("Thin"), qsTr("Light"), qsTr("Regular"), qsTr("Medium"), qsTr("Semibold"), qsTr("Bold")]
-    readonly property var _weightValues: [100, 300, 400, 500, 600, 700]
+    // Index i = Qt weight (i + 1) × 100, covering the whole 100–900 schema range.
+    // A flat string array survives qmlformat inline (see the 500-line note in CLAUDE.md).
+    readonly property var _weightLabels: [qsTr("Thin"), qsTr("Extra light"), qsTr("Light"), qsTr("Regular"), qsTr("Medium"), qsTr("Semibold"), qsTr("Bold"), qsTr("Extra bold"), qsTr("Black")]
     // Index 0 = "" (system font); the rest are the installed families.
     readonly property var _families: [qsTr("System default")].concat(availableFamilies)
 
@@ -65,12 +64,10 @@ ColumnLayout {
             objectName: "fontWeightCombo"
             Layout.fillWidth: true
             model: fontSettings._weightLabels
-            // Unknown stored weight (hand-edited config) → the default (Light).
-            currentIndex: {
-                const i = fontSettings._weightValues.indexOf(fontSettings.fontWeight);
-                return i >= 0 ? i : fontSettings._weightValues.indexOf(300);
-            }
-            onActivated: index => fontSettings.fontWeight = fontSettings._weightValues[index]
+            // A hand-edited off-grid weight (e.g. 350) shows the nearest entry,
+            // which is also the face Qt renders.
+            currentIndex: Math.min(8, Math.max(0, Math.round(fontSettings.fontWeight / 100) - 1))
+            onActivated: index => fontSettings.fontWeight = (index + 1) * 100
         }
     }
 

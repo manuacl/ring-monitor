@@ -219,8 +219,9 @@ don't depend on the fonts of the machine; index 0 is "System default" (empty
 string). A stored family that isn't installed on this machine shows
 "System default" **without writing the store** — only a user pick writes, so
 the name survives until the font is back (same rule as the Screen combo). The
-weight is a fixed list of Qt weights (100 / 300 / 400 / 500 / 600 / 700); a
-hand-edited value outside it shows the default. How `Ring` applies them:
+weight combo lists every hundred from 100 (Thin) to 900 (Black), the whole
+range `main.xml` accepts, so a stored value always shows itself; an off-grid
+hand-edited weight shows the nearest entry. How `Ring` applies them:
 [Ring → Font](#font).
 
 ## `WidgetBackground.qml`
@@ -397,7 +398,10 @@ endpoints don't overlap when both halves reach the midpoint. Both
 the active arcs and the static tracks use the same shortened sweep.
 
 The center value text shrinks to 75% of `valuePx` and shifts ±18% of
-the ring's size on either side of the geometric center; the new
+the ring's size (grown with the text, bounded by the inner edge — see
+[Font](#font)) on either side of the geometric center —
+empirically the most balanced spot for two 2-3-char readouts in a 180px
+ring, clear of the gap label below; the new
 `splitValueText` shows the raw °C reading with `splitUnit` suffix.
 Cores rings (`nestedValues`) keep their full 270° sweep — they sit
 below the value text and overlap is by design (the cores arcs render
@@ -440,25 +444,38 @@ default `1.0` factors. Props: `radius`, `stroke`, `value` (0–100),
 `RingGeometry.dimensionsFor(size)`. Below ~40 px the floors kick in
 (`ringStroke ≥ 4`, `labelPx ≥ 8`, …) so the gauge stays legible.
 
+The implicit size is intentionally zero: the parent (the `GridLayout` in
+`MainContent` on standalone, or the Plasma panel slot) decides the ring's
+bounding box and `Ring` scales to it via `size`. A hardcoded 180 made the
+layout's natural size win over `MainContent`'s
+`implicitWidth: configStore.ringSize`, so the standalone "Window width" slider
+did nothing. Plasma never relied on these implicits.
+
 ### Font
 
 `fontFamily`, `fontWeight` and `fontScale` style the three texts (value, split
 value, label):
 
-- **Family** — empty falls back to the application font, read off an untouched
-  hidden `Text` (`defaultFont`). QML has **no** `Qt.application.font` (it reads
-  as `undefined` and throws inside a binding), and assigning `font.family: ""`
-  is not guaranteed to mean "the app font", so the fallback is explicit.
+- **Family** — empty falls back to `Qt.application.font.family`. Assigning
+  `font.family: ""` is not guaranteed to mean "the app font", so the fallback
+  is explicit.
 - **Weight** — applies to the big readouts only; the small label stays regular,
   as before the setting existed. `Font.Light` is the default, so an upgrade
   changes nothing.
 - **Scale** — a multiplier on `labelPx` and `valuePx` only
   (`RingGeometry.dimensionsFor(size, fontScale)`); the stroke, radius and nested
   rings do not move, and the pixel floors still apply after scaling. An invalid
-  scale (`≤ 0`, `NaN`) falls back to `1`. Because `valuePx` also feeds
-  `splitReadoutOffset`, the split readouts spread out with the text. The range
-  is capped at 150 % in the UI so the centre text doesn't collide with the
-  nested CPU-core rings.
+  scale (`≤ 0`, `NaN`) falls back to `1`, and one outside 0.5–1.5 is clamped
+  there (the standalone ini store doesn't enforce `main.xml`'s range). The
+  split readouts spread out with the text: the stacked offset follows
+  `valuePx`; the flat one (temperature) grows its ±18 % by the *rendered*
+  growth (`valuePx / baseValuePx`, so a floored scale-down keeps the spacing)
+  and stops where the readout would reach the ring's inner edge. The label
+  elides past the 90° gap (~0.6 × size) but never narrower than its unscaled
+  width, so the default scale never cuts a label. The update badge keeps the
+  unscaled label size (`dims.baseLabelPx`): it is not text. At 150 % the
+  centre value overlaps the nested CPU-core rings, as the split readouts
+  already do by design (the core arcs render at reduced opacity).
 
 The tooltips keep the system font on purpose: the setting is about the rings.
 

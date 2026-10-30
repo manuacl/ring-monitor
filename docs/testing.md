@@ -88,7 +88,7 @@ guard can't see (binding flow, signal emission, layout):
 
 | File | Covers |
 |---|---|
-| `tst_Ring.qml` | label / value / unit rendering, sweep angles, `nestedValues` count, split mode, `rawValue` override, font family / weight / scale |
+| `tst_Ring.qml` | label / value / unit rendering, sweep angles, `nestedValues` count, split mode, `rawValue` override, font family / weight / scale, label elide, badge unscaled |
 | `tst_MetricRow.qml` | row layout, checkbox state, `extraContent`, disabled cascade |
 | `tst_DraggableList.qml` | `rowModel` forwarding, drag scenarios, no-op drags |
 | `tst_MetricsBody.qml` | order CSV ↔ model, `isEnabled` / `setEnabled`, descriptions, `tempUnit` radios |
@@ -97,7 +97,7 @@ guard can't see (binding flow, signal emission, layout):
 | `tst_TempRangeSettings.qml` | min/max SpinBox round-trip, cross-clamp, °C↔°F display conversion |
 | `tst_AppearanceBody.qml` | opacity sliders bind two-way, mode radios |
 | `tst_BackgroundSettings.qml` | background enable gate, colour/opacity/size/softness controls bind two-way |
-| `tst_FontSettings.qml` | family / weight / size-scale controls bind two-way; an uninstalled stored family is not overwritten; unknown weight falls back |
+| `tst_FontSettings.qml` | family / weight / size-scale controls bind two-way; an uninstalled stored family is not overwritten; every schema weight (100–900) shows itself |
 | `tst_WidgetBackground.qml` | visibility gate, stadium shaped on the ring layout, spread, colour/opacity + fade stops |
 | `tst_HaloCap.qml` | half-disc cap path + arc direction, radial fade centre and stops |
 | `tst_MainContent.qml` | ring composition + theme propagation |

@@ -73,7 +73,7 @@ Item {
 
         // ── Weight ────────────────────────────────────────────────
         function test_default_weight_selects_light() {
-            compare(weightCombo.currentIndex, 1);
+            compare(weightCombo.currentIndex, 2);
             compare(weightCombo.currentText, "Light");
         }
 
@@ -82,18 +82,31 @@ Item {
             compare(weightCombo.currentText, "Bold");
         }
 
-        // A hand-edited config can hold a weight that isn't offered; the combo
-        // must still land on a real entry (the default) rather than go blank.
-        function test_unknown_weight_falls_back_to_light() {
-            settings.fontWeight = 350;
-            compare(weightCombo.currentIndex, 1);
+        // SCENARIO (PR #178 review): the schema allows 100–900 but the combo
+        // offered six weights, so a stored 800 showed "Light" while the ring
+        // rendered ExtraBold. Every hundred now has its own entry.
+        function test_SCENARIO_every_schema_weight_shows_itself() {
+            settings.fontWeight = 800;
+            compare(weightCombo.currentText, "Extra bold");
+            settings.fontWeight = 900;
+            compare(weightCombo.currentText, "Black");
+        }
+
+        // An off-grid hand-edited weight lands on the nearest entry, never blank.
+        function test_off_grid_weight_shows_the_nearest_entry() {
+            settings.fontWeight = 320;
+            compare(weightCombo.currentText, "Light");
+            settings.fontWeight = 5000;
+            compare(weightCombo.currentText, "Black");
         }
 
         function test_picking_a_weight_writes_back_its_qt_value() {
             weightCombo.activated(0);
             compare(settings.fontWeight, 100);
-            weightCombo.activated(5);
+            weightCombo.activated(6);
             compare(settings.fontWeight, 700);
+            weightCombo.activated(8);
+            compare(settings.fontWeight, 900);
         }
 
         // ── Size scale ────────────────────────────────────────────

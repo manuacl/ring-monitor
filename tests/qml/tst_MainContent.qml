@@ -180,6 +180,14 @@ Item {
                 fuzzyCompare(ring.fontScale, 1.2, 0.0001);
             }
         }
+        // The standalone ini store does not enforce main.xml's 100–900.
+        function test_out_of_range_font_weight_is_clamped() {
+            configStub.enabledMetrics = "cpu";
+            configStub.metricOrder = "cpu";
+            tryCompare(content, "count", 1);
+            configStub.fontWeight = 5000;
+            tryCompare(ringDelegateFor("cpu"), "fontWeight", 900);
+        }
 
         // ── Disk-I/O sampling gate (issue #77) ──────────────────────
         // MainContent drives metrics.diskIoSamplingActive from whether a

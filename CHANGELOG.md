@@ -1,20 +1,24 @@
 # Changelog
 
 **Every PR** adds a `### Technical` entry under `## [Unreleased]` — the
-per-PR implementation log. When a release is **tagged** (a `bump:*`-labelled
-PR merges), its **user-facing** summary (Added / Changed / Fixed — what
-changed for someone running the widget) is written at the top of the new
-version section, **grouping all changes since the last tag**, with the
-accumulated Technical detail moved underneath. A PR that changes only docs
+per-PR implementation log. A PR that **cuts a release** (`bump:*`-labelled)
+also writes the **user-facing** summary (Added / Changed / Fixed — what
+changed for someone running the widget) under `## [Unreleased]`, **grouping
+all changes since the last tag**; the release pipeline promotes the block to
+the new version section, with the accumulated Technical detail underneath. A PR that changes only docs
 or CI (nothing to log technically) adds a single `### Other` one-liner
 instead — neither user-facing nor technical. Entries before 0.7.0 are
 user-facing only.
 
 ## [Unreleased]
 
+### Added
+
+- Adjustable ring font: family, value weight and text size (50–150 %) in Appearance → Font, on both Plasma and the standalone app.
+
 ### Technical
 
-- Adjustable ring font: three new Appearance keys — `fontFamily` (`""` = system font), `fontWeight` (Qt weight, default 300 = the previous fixed `Font.Light`) and `fontScalePercent` (50–150, default 100) — wired through all six config touch points (`main.xml`, both `ConfigStore`s, `PlaceholderKCM`, the `configAppearance` aliases, the standalone `SettingsDialog` bridge map). The controls live in the new `core/FontSettings.qml` (`AppearanceBody` was at the 500-line cap) and apply to the ring value/label text only; weight applies to the large readouts, the label keeps its regular weight. `RingGeometry.dimensionsFor(size, fontScale)` scales only `labelPx` / `valuePx` (floors kept, invalid → 1). An empty family falls back to the application font read from an untouched hidden `Text`, since QML has no `Qt.application.font`. Tests: `ring-geometry.test.mjs`, `tst_FontSettings.qml`, plus font cases in `tst_Ring` / `tst_AppearanceBody` / `tst_MainContent` and the settings-dialog bridge guard.
+- Adjustable ring font: three new Appearance keys — `fontFamily` (`""` = system font), `fontWeight` (Qt weight, default 300 = the previous fixed `Font.Light`) and `fontScalePercent` (50–150, default 100) — wired through all six config touch points (`main.xml`, both `ConfigStore`s, `PlaceholderKCM`, the `configAppearance` aliases, the standalone `SettingsDialog` bridge map). The controls live in the new `core/FontSettings.qml` (`AppearanceBody` was at the 500-line cap) and apply to the ring value/label text only; weight applies to the large readouts, the label keeps its regular weight. `RingGeometry.dimensionsFor(size, fontScale)` scales only `labelPx` / `valuePx` (floors kept, invalid → 1). An empty family falls back to `Qt.application.font.family`. The weight combo covers all nine Qt weights (100–900, the schema range); out-of-range stored values are clamped (scale in `dimensionsFor`, weight in `MainContent`) since the standalone ini store skips `main.xml`'s bounds. The flat split readouts spread by the rendered text growth, bounded by the ring's inner edge (`splitReadoutOffset(…, size, dims)`); the bottom label elides only past the gap and never at the default scale; the update badge keeps its unscaled size (`dims.baseLabelPx`). Tests: `ring-geometry.test.mjs`, `tst_FontSettings.qml`, plus font cases in `tst_Ring` / `tst_AppearanceBody` / `tst_MainContent` and the settings-dialog bridge guard.
 
 ## [0.18.0] — 2026-09-24
 

@@ -4,18 +4,9 @@ import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import "ColorThemes.js" as ColorThemes
 
-// Body of the Appearance config page. Owns the form layout, the
-// RadioButtons, and the three opacity sliders.
-//
-// Bidirectional state is exposed as plain QML properties; the wrapper
-// (configAppearance.qml) bridges them to Plasma's cfg_* magic via
-// `property alias` declarations. The body never touches Plasmoid
-// configuration directly.
-//
-// The platform-dependent ColorPicker arrives as an injected Component,
-// and the strings go through qsTr() rather than Plasma's i18n(): both
-// keep this file free of any `org.kde.*` import except Kirigami. See
-// core/CLAUDE.md and docs/plasma-isolation/plan.md.
+// Body of the Appearance config page. State is plain properties the hosts
+// bridge (Plasma cfg_* aliases, standalone dialog); ColorPicker is injected
+// and strings use qsTr() to stay Plasma-free: docs/components.md § Body components.
 
 Kirigami.FormLayout {
     id: body
@@ -31,15 +22,10 @@ Kirigami.FormLayout {
     // position): docs/components.md § AppearanceBody.
     property bool windowPlacementVisible: false
 
-    // Hidden by default (standalone SettingsDialog flips it on), same gate
-    // as windowPlacementVisible: the slider is a near-no-op on Plasma where
-    // the fixed frame dominates the layout. Full rationale: docs/components.md
-    // § AppearanceBody.
+    // Standalone-only (inert on Plasma): docs/components.md § AppearanceBody.
     property bool ringSpacingVisible: false
-    
-    // Hidden by default (standalone SettingsDialog flips it on). The slider
-    // is inert on Plasma (dragged frame overrides implicit size). Full rationale:
-    // docs/components.md § AppearanceBody.
+
+    // Standalone-only (inert on Plasma): docs/components.md § AppearanceBody.
     property bool ringSizeVisible: false
 
     // ── Bridged via aliases in the wrapper (cfg_orientation ↔ body.orientation, etc.) ──

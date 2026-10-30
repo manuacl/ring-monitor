@@ -12,6 +12,8 @@ user-facing only.
 
 ## [Unreleased]
 
+## [0.19.0] — 2026-10-30
+
 ### Added
 
 - Adjustable ring font: family, value weight and text size (50–150 %) in Appearance → Font, on both Plasma and the standalone app.

@@ -160,6 +160,25 @@
             <max>1.0</max>
         </entry>
 
+        <entry name="fontFamily" type="String">
+            <label>Font family of the ring labels and values. Empty = follow the system font.</label>
+            <default></default>
+        </entry>
+
+        <entry name="fontWeight" type="Int">
+            <label>Weight of the large centre values, as a Qt font weight (100 Thin, 300 Light, 400 Regular, 500 Medium, 600 Semibold, 700 Bold). The small ring labels keep the regular weight.</label>
+            <default>300</default>
+            <min>100</min>
+            <max>900</max>
+        </entry>
+
+        <entry name="fontScalePercent" type="Int">
+            <label>Scale of the label and value text as a percentage of the default size, which itself follows the ring size. 100 = the historic size.</label>
+            <default>100</default>
+            <min>50</min>
+            <max>150</max>
+        </entry>
+
         <entry name="trackOpacity" type="Double">
             <label>Opacity of the background track of each ring</label>
             <default>0.15</default>

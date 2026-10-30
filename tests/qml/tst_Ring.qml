@@ -18,6 +18,13 @@ Item {
         height: 180
     }
 
+    // An untouched Text carries the application font — an oracle independent
+    // of the Qt.application.font lookup Ring itself uses.
+    Text {
+        id: defaultFontText
+        visible: false
+    }
+
     TestCase {
         name: "Ring"
         when: windowShown
@@ -38,6 +45,9 @@ Item {
             ring.valueOverride = "";
             ring.splitValueOverride = "";
             ring.unitSmall = false;
+            ring.fontFamily = "";
+            ring.fontWeight = Font.Light;
+            ring.fontScale = 1.0;
             // Wait for animations triggered by previous tests to settle.
             tryCompare(ring, "displayValue", 0);
             tryCompare(ring, "displayRawValue", 0);
@@ -134,6 +144,71 @@ Item {
             verify(ring.ringStroke > 0);
             verify(ring.ringRadius > 0);
             verify(ring.valuePx > 0);
+        }
+
+        // ── Font styling (Appearance → Font) ──────────────────────
+        function test_font_defaults_keep_the_historic_look() {
+            compare(ring._valueFont.weight, Font.Light);
+            compare(ring._labelFont.weight, Font.Normal);
+            compare(ring._valueFont.family, defaultFontText.font.family);
+            compare(ring._labelFont.family, defaultFontText.font.family);
+        }
+        function test_fontFamily_applies_to_value_and_label() {
+            ring.fontFamily = "Courier";
+            compare(ring._valueFont.family, "Courier");
+            compare(ring._labelFont.family, "Courier");
+        }
+        function test_empty_fontFamily_falls_back_to_the_application_font() {
+            ring.fontFamily = "Courier";
+            ring.fontFamily = "";
+            compare(ring._valueFont.family, defaultFontText.font.family);
+        }
+        function test_fontWeight_applies_to_the_value_readout_only() {
+            ring.fontWeight = Font.Bold;
+            compare(ring._valueFont.weight, Font.Bold);
+            compare(ring._labelFont.weight, Font.Normal);
+        }
+        function test_fontScale_scales_label_and_value_pixel_sizes() {
+            compare(ring.valuePx, 29);
+            compare(ring.labelPx, 14);
+            ring.fontScale = 1.5;
+            compare(ring.valuePx, 43);
+            compare(ring.labelPx, 22);
+            compare(ring._valueFont.pixelSize, 43);
+            compare(ring._labelFont.pixelSize, 22);
+        }
+        // SCENARIO (PR #178 review): the update badge is not text — scaling
+        // the font must not resize or shift it.
+        function test_SCENARIO_fontScale_leaves_the_update_badge_size_alone() {
+            const badge = findChild(ring, "updateBadge");
+            const w = badge.width;
+            ring.fontScale = 1.5;
+            compare(badge.width, w);
+        }
+        // SCENARIO (PR #178 review): a long label scaled to 150 % ran under
+        // the round caps of the bottom gap; it now elides at the gap width.
+        function test_SCENARIO_long_scaled_label_stays_inside_the_gap() {
+            const label = findChild(ring, "ringLabel");
+            ring.label = "AAAAAAAAAAAA";
+            ring.fontScale = 1.5;
+            verify(label.implicitWidth > ring.size * 0.6 * 1.5);
+            verify(label.width < label.implicitWidth);
+            fuzzyCompare(label.width, label.implicitWidth * ring.dims.baseLabelPx / ring.labelPx, 0.5);
+        }
+        // SCENARIO (PR #178 review): the first gap cap elided stock labels
+        // ("DISK IO" → "DIS…" at ringSize 80) without the setting being touched.
+        function test_SCENARIO_label_never_elides_at_default_scale() {
+            const label = findChild(ring, "ringLabel");
+            ring.label = "AAAAAAAAAAAA";
+            verify(label.implicitWidth > ring.size * 0.6);
+            compare(label.width, label.implicitWidth);
+        }
+        function test_fontScale_leaves_the_ring_geometry_alone() {
+            const stroke = ring.ringStroke;
+            const radius = ring.ringRadius;
+            ring.fontScale = 1.5;
+            compare(ring.ringStroke, stroke);
+            compare(ring.ringRadius, radius);
         }
 
         // ── SCENARIO (issue #13): label tracks the visible ring's

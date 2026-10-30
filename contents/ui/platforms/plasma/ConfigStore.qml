@@ -70,6 +70,12 @@ Item {
     readonly property int windowMarginY: 0
     readonly property string windowScreen: ""
     readonly property real textOpacity: Plasmoid.configuration.textOpacity
+    // Font group. Defensive defaults for the same reason as the background
+    // plate below: a brand-new schema key can read back undefined until
+    // KConfig materialises it.
+    readonly property string fontFamily: Plasmoid.configuration.fontFamily || ""
+    readonly property int fontWeight: Plasmoid.configuration.fontWeight ?? 300
+    readonly property int fontScalePercent: Plasmoid.configuration.fontScalePercent ?? 100
     readonly property real trackOpacity: Plasmoid.configuration.trackOpacity
     readonly property real arcOpacity: Plasmoid.configuration.arcOpacity
     readonly property string colorTheme: Plasmoid.configuration.colorTheme

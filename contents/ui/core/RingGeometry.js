@@ -44,6 +44,14 @@ var DIMENSION_RULES = {
     valuePx:      { factor: 0.16,  min: 14 },
 };
 
+// fontScale bounds — the UI slider's 50–150 %, re-applied here because the
+// standalone ini store does not enforce main.xml's min/max.
+var FONT_SCALE_MIN = 0.5;
+var FONT_SCALE_MAX = 1.5;
+// Half-width of a flat split readout as a fraction of valuePx: "60°C" at the
+// split's 0.75 font measures ~70 px at valuePx 43 (Qt 6, default sans).
+var SPLIT_READOUT_HALF_WIDTH = 0.82;
+
 // Cores rings stay at the "comfortable" stroke + gap up to this count.
 // Past it, the stack would creep toward the centre text — so we lock
 // the visual envelope at COMFORT_RING_COUNT × (stroke + gap) and shrink
@@ -92,24 +100,38 @@ function rightHalfSweepFor(percent) {
 }
 
 // Centre-offset {x, y} for a split-mode readout. `side` is -1 (left/read) or
-// +1 (right/write). Flat layout (temperature split): readouts sit on one line,
-// offset horizontally by ±18% of size. `stacked` layout (the disk-I/O split,
-// whose "0.1MB/s" readouts are too wide to share a line): they move diagonally
-// — read up-and-left, write down-and-right — by a small fraction of valuePx
-// (0.35× horizontal, 0.45× vertical) so they separate without flying apart.
-// !splitMode → {0,0}.
-function splitReadoutOffset(side, splitMode, stacked, size, valuePx) {
+// +1 (right/write); `dims` is dimensionsFor(size, fontScale). Flat layout
+// (temperature split): readouts sit on one line, ±18% of size, spread by the
+// rendered text growth (valuePx / baseValuePx — not the raw fontScale, which
+// the pixel floors can cancel) and capped so the readout stays inside the
+// ring's inner edge; never closer than the unscaled ±18%. `stacked` layout
+// (the disk-I/O split, whose "0.1MB/s" readouts are too wide to share a
+// line): they move diagonally — read up-and-left, write down-and-right — by
+// a small fraction of valuePx (0.35× horizontal, 0.45× vertical) so they
+// separate without flying apart. !splitMode → {0,0}.
+function splitReadoutOffset(side, splitMode, stacked, size, dims) {
     if (!splitMode)
         return { x: 0, y: 0 };
     if (stacked)
-        return { x: side * Math.round(valuePx * 0.35), y: side * Math.round(valuePx * 0.45) };
-    return { x: side * Math.round(size * 0.18), y: 0 };
+        return { x: side * Math.round(dims.valuePx * 0.35), y: side * Math.round(dims.valuePx * 0.45) };
+    var base = Math.round(size * 0.18);
+    var grown = Math.round(size * 0.18 * dims.valuePx / dims.baseValuePx);
+    var room = Math.floor(dims.ringRadius - dims.ringStroke / 2 - dims.valuePx * SPLIT_READOUT_HALF_WIDTH);
+    return { x: side * Math.max(base, Math.min(grown, room)), y: 0 };
 }
 
-function dimensionsFor(size) {
+// `fontScale` (1 = default) multiplies only the two text sizes. The pixel
+// floors still apply after scaling, so a small scale can't shrink text below
+// the readable minimum. Missing / non-positive / non-finite → 1, so a bad
+// config value can never blank the readout; out of range → clamped to
+// [FONT_SCALE_MIN, FONT_SCALE_MAX]. baseLabelPx / baseValuePx are the
+// unscaled sizes (fontScale 1), for what must not grow with the text.
+function dimensionsFor(size, fontScale) {
     if (!isFinite(size) || size <= 0) size = 0;
-    function compute(rule) {
-        return Math.max(rule.min, Math.round(size * rule.factor));
+    if (!isFinite(fontScale) || fontScale <= 0) fontScale = 1;
+    fontScale = Math.min(FONT_SCALE_MAX, Math.max(FONT_SCALE_MIN, fontScale));
+    function compute(rule, scale = 1) {
+        return Math.max(rule.min, Math.round(size * rule.factor * scale));
     }
     var ringStroke   = compute(DIMENSION_RULES.ringStroke);
     var nestedStroke = compute(DIMENSION_RULES.nestedStroke);
@@ -121,8 +143,10 @@ function dimensionsFor(size) {
         ringRadius:   ringRadius,
         nestedStroke: nestedStroke,
         nestedGap:    nestedGap,
-        labelPx:      compute(DIMENSION_RULES.labelPx),
-        valuePx:      compute(DIMENSION_RULES.valuePx),
+        labelPx:      compute(DIMENSION_RULES.labelPx, fontScale),
+        valuePx:      compute(DIMENSION_RULES.valuePx, fontScale),
+        baseLabelPx:  compute(DIMENSION_RULES.labelPx),
+        baseValuePx:  compute(DIMENSION_RULES.valuePx),
     };
 }
 
@@ -213,6 +237,9 @@ if (typeof module !== "undefined" && module.exports) {
         COMFORT_RING_COUNT: COMFORT_RING_COUNT,
         DISK_COMFORT_RING_COUNT: DISK_COMFORT_RING_COUNT,
         DISK_MAX_RING_COUNT: DISK_MAX_RING_COUNT,
+        FONT_SCALE_MIN: FONT_SCALE_MIN,
+        FONT_SCALE_MAX: FONT_SCALE_MAX,
+        SPLIT_READOUT_HALF_WIDTH: SPLIT_READOUT_HALF_WIDTH,
         clampPercent: clampPercent,
         sweepForPercent: sweepForPercent,
         effectiveHalfSweep: effectiveHalfSweep,

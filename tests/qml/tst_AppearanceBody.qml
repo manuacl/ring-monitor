@@ -58,6 +58,9 @@ Item {
             body.trackOpacity = 0.15;
             body.arcOpacity = 1.0;
             body.textColorMode = "system";
+            body.fontFamily = "";
+            body.fontWeight = 300;
+            body.fontScalePercent = 100;
         }
 
         // ── Orientation: property → UI ────────────────────────────────
@@ -172,10 +175,25 @@ Item {
         // ── Round trip: write → read each property name ───────────────
         // Catches a typo in any of the 4 property declarations.
         function test_all_bridged_properties_readwrite() {
-            const keys = ["orientation", "ringSize", "ringSpacingPercent", "windowAnchorCorner", "windowMarginX", "windowMarginY", "textOpacity", "trackOpacity", "arcOpacity", "textColorMode", "customTextColorLight", "customTextColorDark"];
+            const keys = ["orientation", "ringSize", "ringSpacingPercent", "windowAnchorCorner", "windowMarginX", "windowMarginY", "textOpacity", "trackOpacity", "arcOpacity", "textColorMode", "customTextColorLight", "customTextColorDark", "fontFamily", "fontWeight", "fontScalePercent"];
             for (const k of keys) {
                 verify(k in body, "AppearanceBody must expose property " + k);
             }
+        }
+
+        // ── Font: the three bridged keys are aliases of FontSettings ──
+        function test_font_properties_alias_the_font_settings() {
+            body.fontFamily = "Courier";
+            body.fontWeight = 600;
+            body.fontScalePercent = 120;
+            compare(body._fontSettings.fontFamily, "Courier");
+            compare(body._fontSettings.fontWeight, 600);
+            compare(body._fontSettings.fontScalePercent, 120);
+        }
+        function test_font_defaults_match_the_schema() {
+            compare(body.fontFamily, "");
+            compare(body.fontWeight, 300);
+            compare(body.fontScalePercent, 100);
         }
 
         // ── Text color mode: property → radio + custom pickers visibility

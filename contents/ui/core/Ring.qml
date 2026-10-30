@@ -19,6 +19,12 @@ Item {
     property color textColor: "#eeeeee"
     property string unit: "%"
 
+    // Text styling: docs/components.md § Ring → Font. "" family = system font.
+    property string fontFamily: ""
+    property int fontWeight: Font.Light
+    property real fontScale: 1.0
+    readonly property string _fontFamily: fontFamily !== "" ? fontFamily : Qt.application.font.family
+
     // Opacities (configurable from the plasmoid config UI)
     property real textOpacity: 1.0
     property real trackOpacity: 0.15
@@ -78,8 +84,8 @@ Item {
     // write down-right. Temperature split (short "45°C") stays flat side-by-side.
     // The {x,y} centre offsets per readout are pure math in RingGeometry.
     property bool splitStacked: false
-    readonly property var _readOffset: Geom.splitReadoutOffset(-1, splitMode, splitStacked, size, valuePx)
-    readonly property var _writeOffset: Geom.splitReadoutOffset(1, splitMode, splitStacked, size, valuePx)
+    readonly property var _readOffset: Geom.splitReadoutOffset(-1, splitMode, splitStacked, size, dims)
+    readonly property var _writeOffset: Geom.splitReadoutOffset(1, splitMode, splitStacked, size, dims)
 
     // Optional: render a small "update available" dot inside the 90°
     // bottom gap, next to the label. Clicking it fires updateBadgeClicked
@@ -88,20 +94,13 @@ Item {
     property bool showUpdateBadge: false
     signal updateBadgeClicked
 
-    // Implicit size intentionally zero: the parent (GridLayout in
-    // MainContent on standalone, or the Plasma panel slot) decides the
-    // ring's bounding box and Ring scales to it via `size`. Hardcoding
-    // 180 here meant the GridLayout's natural size always won over
-    // MainContent's `implicitWidth: configStore.ringSize` setting,
-    // so the user's "Window width" slider in the standalone Settings
-    // dialog did nothing. The Plasma side never relied on these
-    // implicits — panel sizing always provides explicit dimensions.
+    // Implicit size intentionally zero: docs/components.md § Ring → Sizing.
     implicitWidth: 0
     implicitHeight: 0
 
     // Everything scales with the smaller dimension via Geom.dimensionsFor.
     readonly property real size: Math.min(width, height)
-    readonly property var dims: Geom.dimensionsFor(size)
+    readonly property var dims: Geom.dimensionsFor(size, fontScale)
     readonly property real ringStroke: dims.ringStroke
     readonly property real ringRadius: dims.ringRadius
     readonly property real labelPx: dims.labelPx
@@ -185,12 +184,8 @@ Item {
     }
     onSplitRawValueChanged: displaySplitRawValue = splitRawValue
 
-    // Square inner box centered in the root. All ring geometry + label
-    // anchor against this, not against `root`. Without this wrap, the
-    // label was anchored to `root.bottom` — fine when the delegate is
-    // a tight square, but in horizontal layout `Layout.fillHeight: true`
-    // stretches the root taller than `size`, so the label drifted off
-    // the bottom of the visible ring. See issue #13.
+    // Square inner box: geometry + label anchor here, not on `root`, which a
+    // stretched delegate makes taller than `size` (issue #13).
     Item {
         id: ringBox
         width: root.size
@@ -382,13 +377,7 @@ Item {
         }
 
         // ── Value (centered, or left-of-center in split mode) ────────────
-        // In split mode the font shrinks to 75% of valuePx so usage and
-        // temperature both fit side by side. The horizontalCenterOffset
-        // shifts ~18% of the ring's size to either side of the geometric
-        // center — empirically the most balanced position for two
-        // 2-3-char readouts inside a 180px ring without crowding the gap
-        // label below or the cores arcs (which keep their full 270°
-        // sweep and stay below the text).
+        // Split-mode size and offset rationale: docs/components.md § Ring → Split mode.
         Text {
             id: valueText
             anchors.verticalCenter: parent.verticalCenter
@@ -399,8 +388,9 @@ Item {
             text: root._composeReadout(root.valueOverride !== "" ? root.valueOverride : Math.round(root.displayRawValue), root.unit)
             color: root.textColor
             opacity: root.textOpacity
+            font.family: root._fontFamily
             font.pixelSize: root.splitMode ? Math.round(root.valuePx * 0.75) : root.valuePx
-            font.weight: Font.Light
+            font.weight: root.fontWeight
         }
 
         Text {
@@ -414,33 +404,41 @@ Item {
             text: root._composeReadout(root.splitValueOverride !== "" ? root.splitValueOverride : Math.round(root.displaySplitRawValue), root.splitUnit)
             color: root.textColor
             opacity: root.textOpacity
+            font.family: root._fontFamily
             font.pixelSize: Math.round(root.valuePx * 0.75)
-            font.weight: Font.Light
+            font.weight: root.fontWeight
         }
 
         // ── Label (inside the 90° gap at the bottom of the ring) ─────────
         Text {
             id: labelText
+            objectName: "ringLabel"
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottom: parent.bottom
             anchors.bottomMargin: Math.max(2, Math.round(root.size * 0.14))
             text: root.label
             color: root.textColor
             opacity: 0.55 * root.textOpacity
+            font.family: root._fontFamily
             font.pixelSize: root.labelPx
             font.letterSpacing: 2
+            // A label scaled up past the 90° gap (~0.6 × size) elides instead of running
+            // under the arc caps; never narrower than it would be unscaled.
+            width: Math.min(implicitWidth, Math.max(root.size * 0.6, implicitWidth * root.dims.baseLabelPx / root.labelPx))
+            elide: Text.ElideRight
         }
 
         // ── Update-available badge (90° gap, left of the label) ─────────
-        // Discreet dot sized to ~55% of labelPx, anchored to labelText's
+        // Discreet dot sized to ~55% of the unscaled label size, anchored to labelText's
         // left edge. Pulse animation (opacity 0.45 ↔ 1.0, 1.8s breath
         // cycle) draws the eye without crying for attention. Hover /
         // click area is generous enough for fingers but the rendered
         // dot stays small.
         Rectangle {
             id: updateBadge
+            objectName: "updateBadge"
             visible: root.showUpdateBadge
-            width: Math.max(6, Math.round(root.labelPx * 0.55))
+            width: Math.max(6, Math.round(root.dims.baseLabelPx * 0.55))
             height: width
             radius: width / 2
             color: root.ringColor
@@ -450,7 +448,7 @@ Item {
             border.width: 1
             opacity: root.textOpacity
             anchors.right: labelText.left
-            anchors.rightMargin: Math.max(4, Math.round(root.labelPx * 0.5))
+            anchors.rightMargin: Math.max(4, Math.round(root.dims.baseLabelPx * 0.5))
             anchors.verticalCenter: labelText.verticalCenter
 
             SequentialAnimation on opacity {
@@ -483,6 +481,8 @@ Item {
     readonly property alias _labelText: labelText.text
     readonly property alias _valueText: valueText.text
     readonly property alias _splitValueText: splitValueText.text
+    readonly property font _valueFont: valueText.font
+    readonly property font _labelFont: labelText.font
     readonly property real _sweepAngle: Geom.sweepForPercent(root.displayValue)
     readonly property real _leftSweepAngle: Geom.leftHalfSweepFor(root.displayValue)
     readonly property real _rightSweepAngle: Geom.rightHalfSweepFor(root.displaySplitValue)

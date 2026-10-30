@@ -37,6 +37,9 @@ Item {
         property bool mergeGpuTemp: false
         property string tempUnit: "celsius"
         property real textOpacity: 1.0
+        property string fontFamily: ""
+        property int fontWeight: 300
+        property int fontScalePercent: 100
         property real trackOpacity: 0.2
         property real arcOpacity: 1.0
         property bool showCpuCores: false
@@ -126,6 +129,9 @@ Item {
             configStub.metricOrder = "cpu,ram,gpu,disk";
             configStub.ringSize = 180;
             configStub.ringSpacingPercent = 7;
+            configStub.fontFamily = "";
+            configStub.fontWeight = 300;
+            configStub.fontScalePercent = 100;
             metricsStub.loading = false;
             metricsStub.availableMetrics = null;
             configStub.mergeCpuTemp = false;
@@ -156,6 +162,31 @@ Item {
             updateCheckerStub.restartPending = true;
             tryCompare(ringDelegateFor("cpu"), "showUpdateBadge", true);
             verify(!ringDelegateFor("ram").showUpdateBadge, "one badge per widget");
+        }
+
+        // The three font keys reach every ring; the percent is converted to
+        // Ring's multiplier (120 → 1.2) here, not in the ring.
+        function test_font_config_is_forwarded_to_the_rings() {
+            configStub.enabledMetrics = "cpu,ram";
+            configStub.metricOrder = "cpu,ram";
+            tryCompare(content, "count", 2);
+            configStub.fontFamily = "Courier";
+            configStub.fontWeight = 700;
+            configStub.fontScalePercent = 120;
+            for (const id of ["cpu", "ram"]) {
+                const ring = ringDelegateFor(id);
+                tryCompare(ring, "fontFamily", "Courier");
+                compare(ring.fontWeight, 700);
+                fuzzyCompare(ring.fontScale, 1.2, 0.0001);
+            }
+        }
+        // The standalone ini store does not enforce main.xml's 100–900.
+        function test_out_of_range_font_weight_is_clamped() {
+            configStub.enabledMetrics = "cpu";
+            configStub.metricOrder = "cpu";
+            tryCompare(content, "count", 1);
+            configStub.fontWeight = 5000;
+            tryCompare(ringDelegateFor("cpu"), "fontWeight", 900);
         }
 
         // ── Disk-I/O sampling gate (issue #77) ──────────────────────

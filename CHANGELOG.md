@@ -12,6 +12,10 @@ user-facing only.
 
 ## [Unreleased]
 
+### Other
+
+- The GitHub Release body ends with a link to the KDE Store page (not on standalone-only `-s` releases), for the manual `.plasmoid` upload.
+
 ## [0.19.0] — 2026-10-30
 
 ### Added

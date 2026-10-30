@@ -223,8 +223,8 @@ shipped. Pling administrators confirmed this most recently in
 and the OCS API documentation page makes the same point. No GitHub
 Action exists for this reason — the root cause is server-side.
 
-So the upload is a manual three-click procedure (no longer echoed as a
-helper block into the release body — see the note below):
+So the upload is a manual three-click procedure (the release body ends
+with a one-line link to the store page — see the note below):
 
 1. Open the GitHub Release for the version (e.g.
    `https://github.com/manuacl/ring-monitor/releases/tag/vX.Y.Z`).
@@ -241,7 +241,9 @@ above its `### Technical`/`### Other` detail) — followed by GitHub's
 auto-generated "What's Changed" PR list. So the bump-labelled PR must
 carry that `## [X.Y.Z]` section (see [config-dialog / changelog cadence];
 a missing summary leaves the release body with only the PR list). The
-KDE Store helper block was removed from the body (2026-05-31).
+multi-line KDE Store helper block was removed from the body (2026-05-31);
+since 2026-10-30 a single `**KDE Store:**` link closes it instead, except
+on a standalone-only (`-s`) release, which ships no `.plasmoid`.
 
 If Pling ships write endpoints in the future, replace the "Compose
 release body" step in `release.yml` with a real upload call.

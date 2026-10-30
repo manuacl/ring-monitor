@@ -143,9 +143,9 @@ jobs:
       - name: Compose release body
         # Lead with the user-facing CHANGELOG summary for this version (the
         # Added/Changed/Fixed block, above the per-PR Technical detail), then
-        # the auto-generated "What's Changed" PR list. The KDE Store upload
-        # stays manual (the opendesktop.org OCS API is read-only) — see
-        # docs/releasing.md § KDE Store — but is no longer echoed into the body.
+        # the auto-generated "What's Changed" PR list, then a one-line link to
+        # the KDE Store page, where the .plasmoid is uploaded by hand (the
+        # opendesktop.org OCS API is read-only — docs/releasing.md § KDE Store).
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG_NAME: ${{ steps.tag.outputs.name }}
@@ -176,6 +176,11 @@ jobs:
               echo ""
             fi
             cat /tmp/auto-notes.md
+            # A standalone-only (-s) release ships no .plasmoid to the store.
+            case "$TAG_NAME" in
+              *-s) ;;
+              *) printf '\n**KDE Store:** https://www.opendesktop.org/p/2360410\n' ;;
+            esac
           } > /tmp/release-body.md
 
       - name: Create GitHub Release

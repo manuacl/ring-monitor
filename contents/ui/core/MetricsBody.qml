@@ -104,8 +104,7 @@ ColumnLayout {
         id: partitionOrderModel
     }
 
-    // Descriptions are owned by the body so it stays self-contained.
-    // The wrapper does not need to know about per-metric copy.
+    // Descriptions owned by the body so it stays self-contained (wrapper needs no per-metric copy).
     readonly property var metricDescriptions: ({
             cpu: qsTr("Overall processor usage"),
             cpuTemp: qsTr("CPU temperature"),
@@ -115,7 +114,8 @@ ColumnLayout {
             gpuTemp: qsTr("GPU temperature"),
             disk: qsTr("Disk space per selected partition"),
             diskIo: qsTr("Disk read/write throughput"),
-            sensorTemp: qsTr("Custom hardware temperature")
+            sensorTemp: qsTr("Custom hardware temperature"),
+            battery: qsTr("Battery charge")
         })
 
     function currentOrder() {

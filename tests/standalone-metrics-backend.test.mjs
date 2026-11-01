@@ -26,6 +26,7 @@ const SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms",
 const GPU_SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms", "standalone", "GpuSampler.qml"), "utf8");
 // The sensorTemp picker probe (issue #164) — same text-guard rationale.
 const PROBE_SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms", "standalone", "HwmonTempSensors.qml"), "utf8");
+const CPU_TEMP_PATH_SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms", "standalone", "CpuTempPath.qml"), "utf8");
 
 // Same public surface as platforms/plasma/MetricsBackend.qml.
 const PUBLIC_PROPS = ["coreValues", "loading", "availableMetrics", "availablePartitions", "defaultPartitionIds", "processSamplingActive", "topProcesses", "loadAverages", "diskIo", "diskIoSamplingActive", "topMemProcesses", "memUsedKb", "memTotalKb", "sensorTempId", "tempSensors", "sensorTempResolved", "sensorTempValue"];
@@ -144,18 +145,27 @@ test("standalone MetricsBackend routes swap through metricValue (not hardcoded 0
     assert.match(SOURCE, /_swapUsage\s*=\s*MemInfoParser\.usagePercent\(\s*mem\.swapTotal\s*,\s*mem\.swapFree\s*\)/, "must compute swap usage from the parsed SwapTotal/SwapFree");
 });
 
-test("standalone MetricsBackend wires CPU temperature via CpuTempDiscovery", () => {
-    // CPU temp has no fixed sysfs path — the backend enumerates
+test("standalone MetricsBackend wires CPU temperature via CpuTempPath", () => {
+    // The sysfs walk lives in the CpuTempPath child (500-line cap); the
+    // backend owns the bounded warm-up retry and the per-tick parse.
+    assert.match(SOURCE, /import\s+["']CpuTempDiscovery\.js["']\s+as\s+CpuTemp/, "must import the same-dir CpuTempDiscovery module (platforms/standalone/)");
+    assert.match(SOURCE, /CpuTempPath\s*{[\s\S]*?id:\s*cpuTempPath/, "must instantiate the CpuTempPath child");
+    assert.match(SOURCE, /cpuTempPath\.resolve\s*\(\)/, "must resolve the sysfs path through the child");
+    assert.match(SOURCE, /CpuTemp\.parseTempCelsius\s*\(/, "must parse the millidegrees reading via the pure helper");
+});
+
+test("CpuTempPath enumerates sysfs and defers every CPU decision to the pure module", () => {
+    // CPU temp has no fixed sysfs path — the resolver enumerates
     // /sys/class/hwmon (+ /sys/class/thermal fallback) and delegates
     // the "which entry is the CPU" decision to the pure module.
-    assert.match(SOURCE, /import\s+["']CpuTempDiscovery\.js["']\s+as\s+CpuTemp/, "must import the same-dir CpuTempDiscovery module (platforms/standalone/)");
-    assert.match(SOURCE, /reader\.listDir\s*\(/, "must enumerate sysfs via ProcReader.listDir");
-    assert.match(SOURCE, /\/sys\/class\/hwmon/, "must scan /sys/class/hwmon");
-    assert.match(SOURCE, /\/sys\/class\/thermal/, "must fall back to /sys/class/thermal");
-    assert.match(SOURCE, /CpuTemp\.pickCpuHwmonDir\s*\(/, "must pick the CPU hwmon chip via the pure helper");
-    assert.match(SOURCE, /CpuTemp\.pickCpuTempInput\s*\(/, "must pick the CPU temp input via the pure helper");
-    assert.match(SOURCE, /CpuTemp\.pickCpuThermalZone\s*\(/, "must pick the CPU thermal zone via the pure helper");
-    assert.match(SOURCE, /CpuTemp\.parseTempCelsius\s*\(/, "must parse the millidegrees reading via the pure helper");
+    assert.match(CPU_TEMP_PATH_SOURCE, /import\s+["']CpuTempDiscovery\.js["']\s+as\s+CpuTemp/, "must import the same-dir CpuTempDiscovery module (platforms/standalone/)");
+    assert.match(CPU_TEMP_PATH_SOURCE, /property\s+var\s+reader/, "must take the ProcReader as an injected property (not a global)");
+    assert.match(CPU_TEMP_PATH_SOURCE, /reader\.listDir\s*\(/, "must enumerate sysfs via ProcReader.listDir");
+    assert.match(CPU_TEMP_PATH_SOURCE, /\/sys\/class\/hwmon/, "must scan /sys/class/hwmon");
+    assert.match(CPU_TEMP_PATH_SOURCE, /\/sys\/class\/thermal/, "must fall back to /sys/class/thermal");
+    assert.match(CPU_TEMP_PATH_SOURCE, /CpuTemp\.pickCpuHwmonDir\s*\(/, "must pick the CPU hwmon chip via the pure helper");
+    assert.match(CPU_TEMP_PATH_SOURCE, /CpuTemp\.pickCpuTempInput\s*\(/, "must pick the CPU temp input via the pure helper");
+    assert.match(CPU_TEMP_PATH_SOURCE, /CpuTemp\.pickCpuThermalZone\s*\(/, "must pick the CPU thermal zone via the pure helper");
 });
 
 test("standalone MetricsBackend exposes cpuTemp as a raw-°C metric", () => {
@@ -424,4 +434,45 @@ test("GpuSampler enumerates NVIDIA processes via runningProcesses + dedupeByPid 
     assert.match(GPU_SOURCE, /GpuModel\.dedupeByPid\s*\(/, "GpuSampler must collapse NVML duplicates via GpuModel.dedupeByPid before /proc reads");
     assert.match(GPU_SOURCE, /ProcParser\.parsePidStat\s*\(/, "GpuSampler must resolve pid→name via ProcParser.parsePidStat");
     assert.match(GPU_SOURCE, /readonly\s+property\s+var\s+gpuProcesses\b/, "GpuSampler must declare readonly property var gpuProcesses on its public surface");
+});
+
+const BATTERY_SAMPLER_SOURCE = readFileSync(join(__dirname, "..", "contents", "ui", "platforms", "standalone", "BatterySampler.qml"), "utf8");
+
+test("standalone MetricsBackend delegates battery to a BatterySampler child", () => {
+    // Battery discovery + aggregation live in BatterySampler (mirrors the Plasma
+    // adapter) so the at-cap MetricsBackend stays lean and shares the same shape.
+    assert.match(SOURCE, /BatterySampler\s*{[\s\S]*?id:\s*batterySampler/, "must instantiate BatterySampler { id: batterySampler }");
+    assert.match(SOURCE, /BatterySampler\s*{[\s\S]*?reader:\s*reader/, "must inject the ProcReader into BatterySampler");
+    assert.match(SOURCE, /readonly\s+property\s+var\s+battery\s*:\s*batterySampler\.battery/, "battery must forward batterySampler.battery");
+    assert.match(SOURCE, /batterySampler\.sample\s*\(\s*\)/, "_sample() must tick the battery child via batterySampler.sample()");
+});
+
+test("standalone availableMetrics flags battery via the change-gated scalar", () => {
+    // Must read batterySampler.available (a bool written only on change), NOT the
+    // whole battery object — else availableMetrics rebuilds the ring strip at 2 Hz.
+    assert.match(SOURCE, /"battery":\s*batterySampler\.available/, 'availableMetrics must gate "battery" on batterySampler.available');
+    assert.doesNotMatch(SOURCE, /"battery":\s*\w+\.battery\.available/, "must not gate availableMetrics on the per-tick battery object's .available");
+});
+
+test("standalone BatterySampler reads battery state from /sys/class/power_supply", () => {
+    assert.match(BATTERY_SAMPLER_SOURCE, /\/sys\/class\/power_supply/, "must enumerate /sys/class/power_supply for battery directories");
+    assert.match(BATTERY_SAMPLER_SOURCE, /Battery\.isBatteryDir\s*\(/, "must filter entries via Battery.isBatteryDir");
+    assert.match(BATTERY_SAMPLER_SOURCE, /Battery\.parseCapacity\s*\(/, "must parse the capacity sysfs file via Battery.parseCapacity");
+    assert.match(BATTERY_SAMPLER_SOURCE, /Battery\.isCharging\s*\(/, "must parse the status sysfs file via Battery.isCharging");
+    assert.match(BATTERY_SAMPLER_SOURCE, /Battery\.parseWeight\s*\(/, "must read the energy_full/charge_full weight via Battery.parseWeight");
+    assert.match(BATTERY_SAMPLER_SOURCE, /BatAgg\.aggregate\s*\(/, "must combine battery records via BatAgg.aggregate");
+});
+
+test("standalone BatterySampler caches discovery instead of listing every tick", () => {
+    // The battery dir set + capacity weights are resolved once (bounded warm-up
+    // retry while none found) and reused — sample() must not re-list unconditionally,
+    // and the weight is read in discovery, not per tick (#7/#8 review findings).
+    assert.match(BATTERY_SAMPLER_SOURCE, /function\s+_discover\s*\(/, "must have a cached _discover() step");
+    assert.match(BATTERY_SAMPLER_SOURCE, /_dirs\.length\s*===\s*0\s*&&[\s\S]*?_discoverAttempts\s*<[\s\S]*?_maxDiscoverAttempts/, "sample() must gate re-listing on no-batteries-found + a bounded attempt cap");
+    assert.match(BATTERY_SAMPLER_SOURCE, /Battery\.parseWeight[\s\S]*?function\s+sample/, "parseWeight must run in discovery (before sample), not per tick");
+});
+
+test("standalone BatterySampler exposes a change-gated available scalar", () => {
+    assert.match(BATTERY_SAMPLER_SOURCE, /readonly\s+property\s+bool\s+available\s*:/, "must expose a bool available scalar");
+    assert.match(BATTERY_SAMPLER_SOURCE, /if\s*\(\s*agg\.available\s*!==\s*sampler\._available\s*\)/, "must write _available only when availability changes");
 });
